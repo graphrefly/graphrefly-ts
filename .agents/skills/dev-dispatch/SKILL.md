@@ -3,6 +3,14 @@ name: dev-dispatch
 description: "Implement the requested feature or fix within project authority and verify affected behavior."
 ---
 
+## Rules / decisions / work
+
+Read `~/.codex/skills/project-governance/references/rules-decisions-work.md` before contract
+analysis or record changes in this workflow. Implement against current rules and approved design
+constraints; use work only for scope, acceptance and evidence. Reconcile affected documentation
+through the proper owner. Never activate a rule or infer new semantics from a task completion or
+passing test.
+
 You are executing the **dev-dispatch** workflow for the **clean-slate GraphReFly** redesign.
 
 This repo is **`@graphrefly/ts`** — the self-contained TypeScript implementation (D32). Clean-slate code lands in **`packages/ts/src/`**. The language-neutral authority (spec / decisions / plan / conformance / formal) lives in **`~/src/graphrefly`** (branch `clean-slate`) as jsonl — when this skill and that repo disagree, **that repo wins** (AGENTS.md). Sibling impls: `@graphrefly/rust` (`~/src/graphrefly-rs`), `@graphrefly/py` (`~/src/graphrefly-py`) — each self-contained; cross-language = wire bridge, never in-process (D32).
@@ -54,14 +62,14 @@ material already loaded. Protocol/formal context is needed only when the changed
 - `~/src/graphrefly/authority/ledgers.jsonl` + the resolved owner ledger — the federated decision authority (or invoke `/decision-guard` to recall the governing origin-qualified D#/values/floor).
 - `~/src/graphrefly/plan/phases.jsonl` — the CSP-* sequencer: find the phase this task belongs to, its `status` (done/impl/design), deps, and note. Read this FIRST among the plan files so you know whether you're on a ready phase or one still gated.
 - `~/src/graphrefly/plan/backlog.jsonl` + `plan/antipatterns.jsonl` — deferred carries (B#) with triggers; anti-patterns to flag against.
-- `~/src/graphrefly/spec/conformance.jsonl` — the behavioral scenarios (C-*) your change must keep green; check the `runtimes` status for the arm you target.
+- `~/src/graphrefly/spec/conformance.jsonl` — the behavioral scenarios (C-*) your change must keep green; locate exact test/source evidence for the arm you target; legacy `runtimes` fields are claims, not proof.
 - `~/src/graphrefly/guide/guide.jsonl` — composition / test / docs / contribute guidance (G-composition / G-test / G-docs / G-contribute).
 - `~/src/graphrefly/sessions/active/SESSION-clean-slate-redesign.md` (DS-1) — the L0–L6 design narrative + F-* constraints, when you need the why behind a lock.
 - Any files the user referenced in $ARGUMENTS.
 - The clean-slate source you'll modify: substrate = `packages/ts/src/{node,dispatcher,ctx,protocol,batch}/`; graph-layer = `packages/ts/src/graph/` (Graph + 8-verb sugar + operators + inspection describe/observe/profile).
 - Existing tests: `packages/ts/src/__tests__/`.
 
-**Frozen reference (D41):** `packages/pure-ts/**` and `~/src/callbag-recharge` are READ-ONLY prior art for analogous operator behavior / edge cases / test structure during a re-derive (D40 Catalog-first). Map concepts to the clean-slate substrate (`node`/`ctx.down`/`ctx.depRecords`/`Graph`, D39 `describe`/`observe`) — do NOT 1:1 port; the old substrate API and semantics differ. They are NOT the behavior authority — `spec/rules.jsonl` is.
+**Frozen reference (D41):** `packages/pure-ts/**` and `~/src/callbag-recharge` are READ-ONLY prior art for analogous operator behavior / edge cases / test structure during a re-derive (D40 Catalog-first). Map concepts to the clean-slate substrate (`node`/`ctx.down`/`ctx.waveData`/`Graph`, D39 `describe`/`observe`) — do NOT 1:1 port; the old substrate API and semantics differ. They are NOT the behavior authority — `spec/rules.jsonl` is.
 
 While planning, validate proposed changes against the clean-slate floor (cite the rule/D#):
 - **Sacred (L0.7):** topology declarative/serializable/inspectable · wave protocol is a public spec · wave protocol impl is **sync** · all fn go through the dispatcher.
@@ -71,7 +79,7 @@ While planning, validate proposed changes against the clean-slate floor (cite th
 - **`ctx.up`**: read the current control/demand boundary in R-ctx-up before changing its behavior. A handle is pure data, no methods (D7).
 - **No polling** (R-no-polling); **no imperative triggers** (R-no-imperative — reactive `ctx.up`/signals, not emitters/callbacks/timers+set; remove imperative paths when no caller depends); **no raw async** in the sync core (R-no-raw-async / F-SYNC-CORE — async lives only in sources / the pool / the wire bridge).
 - **All fn through the dispatcher** (R-dispatch-all / F-DISPATCH-ALL — no inline-fn bypass). `dispatcher.invoke` is sync void (R-sync-core).
-- **Data moves via messages** (R-data-not-peek — never peek a dep's `.cache` to seed compute; `.cache` is a read-only accessor for external consumers). SENTINEL = absence-of-DATA (R-sentinel); the canonical never-emitted detector is `ctx.prevData[i] === undefined`.
+- **Data moves via messages** (R-data-not-peek — never peek a dep's `.cache` to seed compute; `.cache` is a read-only accessor for external consumers). SENTINEL = absence-of-DATA (R-sentinel); resolve the current input representation through R-ctx-wave-data/R-fn-contract rather than reviving D77-retired raw `prevData` aliases.
 - **messageTier is a compile-time const table** (D18/D34/R-tier); the clock is **graph-local** (no global singleton, D26/R-clock); `onMessage`/`onSubscribe` are substrate-fixed, not user-replaceable (D19).
 - **Primary-API clean** (R-primary-api-clean): protocol internals (DIRTY/RESOLVED/bitmask) never surface in value-level sugar (derived/effect/operator); ctx-level (node/producer) intentionally exposes tier as a power surface (DR-1). Sugar value-fn → ctx-fn wrapping happens in the graph layer (D27); a value-level `throw` becomes `[[ERROR,e]]` down (D30).
 - **graph = single-thread causal/concurrency domain (D22 / R-graph-domain):** parallelism via pool callback or multi-graph + wire bridge; rewire is intra-graph only.
@@ -79,7 +87,6 @@ While planning, validate proposed changes against the clean-slate floor (cite th
 - **F-NO-WEDGE-CUT:** every primitive serves ≥2 segments (no LLM-only or single-segment wedge; F-NO-LLM-ONLY). **F-PERF:** budget every abstraction (thin node, default-off inspection).
 
 **Targeting a sibling (py/rust):** if the task targets `@graphrefly/py` (`~/src/graphrefly-py`) or `@graphrefly/rust` (`~/src/graphrefly-rs`), read that package's local layout + its conformance arm status in `spec/conformance.jsonl`. The cross-language contract is **behavioral conformance (D24)**, not symbol parity. PY public APIs are synchronous (return `Node[T]`/`Graph`/value, no `async def`); async lives at the source/pool boundary only (F-SYNC-CORE).
-
 
 ---
 
@@ -99,14 +106,14 @@ Once implementation is authorized and material decisions are resolved:
    - Cite the governing R-id / D# in test expectations.
 2. Add meaningful behavior tests where needed (per `guide/guide.jsonl` G-test — unit / property / conformance layering):
    - Put tests in the most specific existing file under `packages/ts/src/__tests__/`.
-   - Use `graph.observe()` for live message assertions; assert at the node + message level otherwise. A behavioral-protocol change ALSO needs a `spec/conformance.jsonl` scenario (`/conformance`) before its rule flips `draft → active`.
+   - Use `graph.observe()` for live message assertions; assert at the node + message level otherwise. A behavioral-protocol change ALSO needs a `spec/conformance.jsonl` scenario (`/conformance`) and explicit activation under `authority/README.md`; passing tests never activate the rule automatically.
 3. Run checks:
    - **TS:** `pnpm --filter @graphrefly/ts test` (vitest) + `pnpm run lint` (biome + layer/typecheck gates) + `pnpm run build` (tsup) as relevant.
    - **PY (if targeted):** the `@graphrefly/py` package's own test/lint/type gates in `~/src/graphrefly-py`.
    - **jsonl touched:** `node ~/src/graphrefly/dashboard/build.mjs --check` (consistency gate).
 4. Fix any failures.
 
-If implementation leaves an **open architectural decision** (deferred behavior, parity caveat, "needs spec" item), append it to `~/src/graphrefly/plan/backlog.jsonl` (B# + trigger) — NOT a docs file. If it **lands or advances a CSP-* phase**, update that phase's `status`/`note` in `~/src/graphrefly/plan/phases.jsonl`, flip any conformance-backed `draft` rule to `active` once its scenario is green per arm, then run the consistency gate.
+If implementation exposes an **open architectural question**, keep it unresolved and route it to design review; track its resolution work under the existing owner/work-admission process. Update only the authorized work or phase whose acceptance has actually passed. Rule activation is a separate explicit amendment under `authority/README.md`, never a consequence of marking work complete. Run the relevant consistency gates after record changes.
 
 When done, briefly list files changed and new exports added. Apply the shared BMAD QA process with local gates, then provide the checkpoint preview trail.
 Wait for review navigation only when interactive checkpoint mode was explicitly requested.

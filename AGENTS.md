@@ -108,7 +108,14 @@ pnpm bench         # vitest bench (informational, not a CI gate — L5-Q1)
 
 ## Skills (clean-slate)
 
-Project-local skills under `.agents/skills/`:
+The language-neutral workflow bodies are maintained in `~/src/graphrefly/.agents/skills/`.
+Local entries for decision-guard, spec-amend, conformance, dashboard, research and graph-animation
+forward there; package implementation/design/QA entrypoints remain local. Protocol reconciliation
+and walkthroughs start in the root authority repository and use this package as implementation
+evidence. Read `~/.codex/skills/project-governance/references/rules-decisions-work.md` for the
+shared separation of current rules, maintainer rationale, and delivery/evidence records.
+
+Project-local entrypoints under `.agents/skills/`:
 
 - **decision-guard** — recall locked D#/values/floor before any decision question.
 - **spec-amend** — spec-first protocol amendment (rules + TLA+ + conformance, then code).

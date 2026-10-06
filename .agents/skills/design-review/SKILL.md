@@ -3,6 +3,14 @@ name: design-review
 description: "Review a proposed public API, primitive, or architectural change against project constraints and resolve material design choices."
 ---
 
+## Rules / decisions / work
+
+Read `~/.codex/skills/project-governance/references/rules-decisions-work.md` before contract
+analysis or record changes in this workflow. Separate the proposed normative contract from its
+rationale and implementation work. Exercise interacting rules with one concrete trace. Existing
+decisions constrain evolution but do not prevent an explicit, user-approved reconsideration of
+design quality.
+
 You are executing the **design-review** workflow for the **clean-slate GraphReFly** redesign.
 
 This skill applies the 5 design-review questions (Q5–Q9 of the 9-question per-unit format) to a **single-symbol / single-file / single-diff** review. Use it BEFORE coding a new public API / sugar factory / operator / inspection surface — or right after a sketch lands, before tests. Different from `/qa` (finds bugs in landed code) and `/decision-guard` (recalls locked decisions); this validates abstraction + long-term shape + reactive composability + alternatives, and its output may become a new `D#` (architectural lock → user approval → append `decisions.jsonl`).
@@ -40,7 +48,7 @@ Read in parallel before reviewing (clean-slate authority):
 - `~/src/graphrefly/spec/rules.jsonl` — the R-* rules your target touches (the design invariants).
 - `~/src/graphrefly/authority/ledgers.jsonl` + the uniquely resolved owner ledger — the governing origin-qualified D# (or `/decision-guard` to recall the floor/values).
 - `~/src/graphrefly/plan/phases.jsonl` — the CSP-* phase the target belongs to (locked vs open-design); if the target isn't sequenced yet, the review's output may need a new phase / backlog entry.
-- `~/src/graphrefly/guide/guide.jsonl` (G-composition) — composition patterns (lazy activation, subscription order, SENTINEL/prevData guards, feedback cycles).
+- `~/src/graphrefly/guide/guide.jsonl` (G-composition) — composition patterns (lazy activation, subscription order, SENTINEL/current ctx-input guards, feedback cycles).
 - `~/src/graphrefly/sessions/active/SESSION-clean-slate-redesign.md` (DS-1) — the F-* constraints + the why behind locks.
 - The target file(s) + 1–2 closest existing primitives in the same dir (precedent).
 - **Frozen reference (D41):** `packages/pure-ts/**` + `~/src/callbag-recharge` for analogous prior art (operator behavior, edge cases, test structure) — NOT the authority.
@@ -63,7 +71,7 @@ For each target, produce a structured report covering all five questions. Be spe
 ### Q6 — Right long-term solution? Caveats? Maintenance burden?
 
 - **6-month lens.** What forces this to evolve — spec/conformance changes, rust/py arm parity (D24), F-PERF budget?
-- **Hidden invariants** the type system can't express — list each as `INVARIANT: …` (subscribe order before kick; first-run gate; SENTINEL = `prevData === undefined`; sync-vs-async strategy; stable refs; equals identity).
+- **Hidden invariants** the type system can't express — list each as `INVARIANT: …` (subscribe order before kick; first-run gate; SENTINEL absence versus an empty/no-occurrence wave; sync-vs-async strategy; stable refs; equals identity).
 - **Constraint locks** (positional args can't grow options; hardcoded enum can't extend).
 - **Doc debt** (contract knowable from JSDoc, or only from the body?).
 
@@ -76,7 +84,7 @@ The **explainability check** — a primitive's reactive shape is only as good as
 - **Wire a minimal composition** (≥2 sources → target → ≥1 sink). Predict `describe()` — a flat JSON-serializable snapshot; renderers (pretty/mermaid/d2) are pure fns over it (D39), NOT a `describe({format})` option. If you can't predict the output, the topology is too imperative.
 - **Island check.** A node with zero in-edges AND zero out-edges (not an entry/exit) is a smell.
 - **Imperative escape paths.** Search for: emit/set/callback wiring that bypasses the graph (R-no-imperative); `.cache` reads inside reactive fn bodies (R-data-not-peek — data moves via messages); raw `Promise`/`setTimeout`/`queueMicrotask` outside a source/pool (R-no-raw-async / F-SYNC-CORE); hardcoded `type === "DATA"` instead of `messageTier` (R-tier); an inline fn bypassing the dispatcher (R-dispatch-all).
-- **SENTINEL / prevData guards.** Never-emitted detection via `ctx.prevData[i] === undefined` (the canonical detector); fix eager-placeholder upstreams rather than bolting on companions.
+- **SENTINEL / input guards.** Resolve R-sentinel, R-ctx-wave-data and R-fn-contract; distinguish no wave, RESOLVED-only wave, and INVALIDATE. D77 retired raw `prevData`/`latest` aliases. Fix eager-placeholder upstreams rather than inventing a second input channel.
 - **Feedback cycles.** A fn that re-drives its own dep mid-wave is a wave-level ERROR (D37/R-reentrancy), not iteration; legit accumulation = `ctx.state` (scan), not a topological cycle.
 
 > **Topology / Imperative leaks / cache reads / Feedback cycles / Simplifications:** …
@@ -116,7 +124,7 @@ Output a numbered list, each finding with the pattern, where it appears (file:li
 ## Phase 3: Decisions log
 
 - **Architectural lock** (clear) → resolve the owner first, then draft a `D#` for that owner's ledger from `~/src/graphrefly/authority/ledgers.jsonl`; append only after user approval. Update a session's `locks` only when that session actually owns the narrative, use the origin-qualified id when cross-repo, and run `npm --prefix ~/src/graphrefly run authority:check:workspace` plus the dashboard gate.
-- **Deferred / no clear answer** → append to `~/src/graphrefly/plan/backlog.jsonl` (B# + concrete trigger).
+- **Deferred / no clear answer** → record the open question and proposed work under the existing owner/work-admission process; do not lock it as a decision or silently widen a root backlog.
 - **Recurring anti-pattern** → `~/src/graphrefly/plan/antipatterns.jsonl` (+ a `feedback_*` memory if generalizable).
 - **Protocol-behavior change** surfaced → route to `/spec-amend` (spec-first), not a direct code change.
 
