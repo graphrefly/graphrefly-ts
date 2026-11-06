@@ -54,6 +54,7 @@ import { map, filter, scan, switchMap } from "@graphrefly/ts/operators";
 import { fromPromise, fromEvent, timer } from "@graphrefly/ts/sources";
 import { memoryKv } from "@graphrefly/ts/storage";
 import { describeToMermaid } from "@graphrefly/ts/render";
+import type { DataIssue, DataResult } from "@graphrefly/ts/data";
 ```
 
 The package also exports the common surface from the root:
@@ -71,6 +72,7 @@ sequence, and user experience levels do not select different runtime semantics.
 |---|---|---|
 | Compose an application and inspect its graph | `@graphrefly/ts/graph` or the root | Named nodes, explicit dependencies, composition and inspection |
 | Implement a node or runtime integration | `@graphrefly/ts/core` | Low-level Node, Ctx, batch, protocol and dispatcher contracts |
+| Represent business results and issues | `@graphrefly/ts/data` | Passive `DataResult<T>` and `DataIssue` payloads; no protocol ERROR or lifecycle behavior |
 | Reuse a horizontal graph pattern | `@graphrefly/ts/patterns` | Existing patterns such as `admissionHandoff` and `eventFlow` |
 | Use a domain solution | An existing focused `@graphrefly/ts/solutions/*` entry | The selected domain's inputs, policies and lifecycle contract |
 | Connect existing values to a UI | `@graphrefly/ts/adapters` or a framework package | Observation and framework integration under the adapter's documented semantics |
@@ -78,6 +80,11 @@ sequence, and user experience levels do not select different runtime semantics.
 A domain-specific solution need not apply to every business. Its supported inputs
 and execution boundary must still be explicit. Source directory placement alone
 does not make a symbol public; the package export map defines importable paths.
+
+`DataResult` and `DataIssue` are exported by the `data` entry, not `core`.
+Import types from the entry that owns them rather than assuming that `core`
+re-exports every package type. A business error or a `retryable` field is a
+payload fact; it does not itself terminate a run or authorize a retry.
 
 An application can pass a narrow set of original Node references to a component
 while retaining the complete running graph and its lifecycle owner. This hides

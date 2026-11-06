@@ -24,6 +24,31 @@ lifecycle proof described below.
 
 ## Private Causal integration
 
+### Choose the boundary you already have
+
+These helpers are consumer-private source imports, **not published package
+subpaths**. Start with the object supplied to your component:
+
+| You already have | Read this contract first | Read implementation details when |
+|---|---|---|
+| An existing `SpendingAlertsView` and a render callback | [`mountSpendingView`](causal-view-binding.ts): five latest port values, explicit `unavailable` ports, observation cleanup | You need a different observation policy; the [ordinary panel](causal-ordinary-panel.ts) shows a consumer |
+| A Graph and prepared creation inputs | [`spendingAlertsFor`](causal-entry.ts): immutable defaults, per-compose overrides and returned view/capabilities | You also own input preparation or the executing host; follow [inputs](causal-inputs.ts) or [host](causal-focused-host.ts) for those responsibilities |
+| Issued capabilities, their owning Graph and expected binding | [`assertCausalCapabilities`](../../packages/ts/src/solutions/causal-occurrence/capabilities.ts): issued-object, Graph, binding and lineage validation | You implement capability construction; the [role examples](causal-audience.examples.ts) show consumption |
+| The owning Graph and a running instance | [Inspect one instance in a shared graph](#inspect-one-instance-in-a-shared-graph): full structure plus that instance's host and retained evidence | You are tracing a specific readiness, admission or outcome dependency |
+
+Using an existing view does not require reconstructing its input facts, permission
+sources or host. Using prepared inputs does not require implementing their
+creation. A capability validation failure must be handled before passing the
+capabilities to a recipient; a structural copy is not an issued object. The
+[observation meanings below](#interpret-observations-accurately) apply to all of
+these roles, including unavailable values and the limits of lifecycle readiness.
+
+The complete demo below is for application ownership and lifecycle tracing. Its
+fixture setup and simulated writer are not prerequisites for displaying a view
+or consuming already-issued capabilities.
+
+### Run the complete application demo
+
 Run from the repository root:
 
 ```sh
@@ -45,14 +70,6 @@ it is not a production verification service. The writer simulates completion in
 memory. Input messages in the demo are test-boundary facts, not new public
 feed/publish/approve methods.
 
-Choose a reading path:
-
-| Your task | Start here | What remains with the application |
-|---|---|---|
-| Display business values | [ordinary panel](causal-ordinary-panel.ts), then [value binding](causal-view-binding.ts) | Construction, input sources, permissions, resource and running owner |
-| Integrate or compose components | [complete application demo](causal-graded-demo.ts), then [creation entry](causal-entry.ts) and [role examples](causal-audience.examples.ts) | Verification and permission provenance, original capabilities, lifecycle ownership |
-| Understand the executing system | The demo's actual graph and request records, then [host](causal-focused-host.ts) and [authority construction](../../packages/ts/src/solutions/causal-occurrence/construction.ts) | Interpreting exact source, admission, outcome and evidence bindings |
-
 The application creates five actual input Nodes in four groups:
 
 | Input group | Explicit source responsibility |
@@ -66,7 +83,10 @@ It then calls `spendingAlertsFor(graph, { name: "alerts" }).compose(inputs)`.
 Configuration allocates no graph nodes; compose creates a complete runtime.
 Defaults are immutable, diagnostics defaults to off, and local overrides only
 select name/diagnostics. Distinct instances use distinct names, input Nodes and
-resource bindings. A name is not an authorization token.
+resource bindings. A name is not an authorization token. Changing `name` does not
+clone input Nodes, create an independent resource or rewrite its binding; the
+application prepares and supplies those separately. Sharing immutable defaults
+does not imply sharing a running instance or its resource.
 
 Display components receive only the original `.view`; frameworks pass the original
 identity/execution/retained capabilities; maintainers inspect the same Graph.
@@ -74,6 +94,42 @@ Showing an identity subset does not remove lifecycle or retained-evidence nodes.
 Capabilities have no arbitrary I/O execution method. The application keeps the
 original owner and diagnostics. Fixed wiring passes the intended instance's
 original references without introducing another identity registry.
+
+## Inspect one instance in a shared graph
+
+Keep the owning Graph and the original composed instance together. Start with
+`graph.describe()` without an explain-path filter; inspect the intended instance
+through its own `inspect()`, view and capability references. The existing
+[demo's evidence navigation](causal-graded-demo.ts) joins each publication to that
+instance's retained request and outcome.
+
+For an existing `graph` and its composed `app`, the read-only observations are:
+
+```ts
+const fullGraph = graph.describe();
+const host = app.inspect();
+const publication = app.view.publication.cache;
+const retainedQuiescence = app.capabilities.retained.retainedQuiescence.cache;
+const authorityId = publication?.authorityId;
+const authority = authorityId === undefined ? undefined : graph.find(authorityId);
+```
+
+Keep `fullGraph` when passing this inspection onward; counts alone discard the
+nodes and edges needed to investigate it. In a graph containing several instances,
+do not select the first node ending in `/causal/authority`: it may belong to a
+different instance. Here the exact ID comes from this instance's publication.
+Before that publication exists, this navigation has no authority ID; leave it
+unavailable rather than selecting another instance's node. Structural presence
+alone does not establish permission, current evidence or successful completion.
+
+The [host](causal-focused-host.ts) retains request/admission/outcome records and
+publishes outcome facts into the graph. Its diagnostics are therefore not the
+only place a result can appear: the [publication](causal-publication.ts) also
+projects graph-held evidence. Keep the request references when correlating these
+views. These separate reads are not an atomic graph-and-host snapshot, and a
+missing publication does not mean that no request was submitted. Readiness and
+unknown outcomes have the meanings below; inspecting them does not invoke
+transport, close the instance or recover an outstanding obligation.
 
 ## Interpret observations accurately
 
