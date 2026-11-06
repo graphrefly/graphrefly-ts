@@ -3,6 +3,13 @@ name: qa
 description: "Review project changes and verify affected behavior or required phase gates. Apply fixes only within an implementation or QA-and-fix request."
 ---
 
+## Rules / decisions / work
+
+Read `~/.codex/skills/project-governance/references/rules-decisions-work.md` before contract
+analysis or record changes in this workflow. Review rules for correctness, completeness, duplication
+and contradictions as well as code conformance. Keep rule defects, decision questions and repair
+work separate; do not suppress a current-contract violation because an old backlog item is deferred.
+
 Read `~/.codex/skills/bmad-build/references/qa.md` for the shared review lenses, five-way triage and
 repair loop. Integrate the domain checks below into that one review; retain this repository's canonical
 completion verdict. Review-only remains read-only, including documentation and authority records.
@@ -29,7 +36,7 @@ Inspect the diff to detect which package(s) are touched: `packages/ts/` (this re
 
 ### 1a. Gather the diff
 
-Run `git diff` for uncommitted changes; if the chat's work was already committed, diff against the chat's baseline commit (`git log --oneline` to find it, then `git diff <base>..HEAD`). Include relevant untracked files (read them). Concentrate the review on the **substantive hand-written code** — formally-verified TLA+ (already TLC-checked), generated artifacts, and jsonl data are lower bug-risk than imperative substrate/graph code.
+Run `git diff` for uncommitted changes; if the chat's work was already committed, diff against the chat's baseline commit (`git log --oneline` to find it, then `git diff <base>..HEAD`). Include relevant untracked files (read them). Review both implementation and the governing contract where affected. JSONL rules and model assumptions can contain semantic defects; a TLC result proves only the checked model and invariants, not that the model matches intended behavior.
 
 For changed implementation source in a repository with a live `.codegraph` index, call
 `codegraph_explore` after gathering the diff and before raw source Read/`rg`. Query the changed symbols or
@@ -42,7 +49,7 @@ autonomously. Codegraph does not replace diff review, compiler/typecheck, tests,
 Read the governing entries from the following index when relevant to the changed behavior:
 - `~/src/graphrefly/spec/rules.jsonl` — the protocol 宪法 (R-* rules); the behavior authority. Cite R-ids in findings.
 - `~/src/graphrefly/authority/ledgers.jsonl` + the resolved owner ledger — the governing origin-qualified D# (or `/decision-guard`); the F-* floor + durable values.
-- `~/src/graphrefly/plan/backlog.jsonl` + `plan/antipatterns.jsonl` — **already-acknowledged deferred concerns (B#) and known anti-patterns. DO NOT raise a finding that matches an existing deferred B# or antipattern** — those are accepted. DO raise a finding that *contradicts* a deferred entry's stated scope.
+- `~/src/graphrefly/plan/backlog.jsonl` + `plan/antipatterns.jsonl` — existing work and historical lessons. Deduplicate known findings, but verify that a deferral is still applicable and consistent with current rules. A backlog entry cannot waive a normative obligation; anti-patterns describe things to avoid, not accepted violations.
 - `~/src/graphrefly/spec/conformance.jsonl` — the C-* scenarios the change must keep green (+ their `runtimes` status).
 - `~/src/graphrefly/formal/*.tla` — when the change implements a formally-modeled rule, cross-check the impl against the TLC-verified model.
 
@@ -87,7 +94,7 @@ If a failure exposes a design question, **HALT** and raise it before fixing.
 
 **Skip if `--skip-docs` was passed.** Update only what behavior/API actually changed; clean-slate docs are jsonl (single source of truth):
 
-- **`spec/rules.jsonl`** — only if the protocol itself was intentionally revised → that is a `/spec-amend`, not a casual edit (amend rules + `formal/*.tla` + `spec/conformance.jsonl` together). Flip a conformance-backed rule `draft → active` once its scenario is green on the reference arm + formal lands (cite the precedent).
+- **`spec/rules.jsonl`** — only if the protocol itself was intentionally revised → that is a `/spec-amend`, not a casual edit (amend rules + `formal/*.tla` + `spec/conformance.jsonl` together). Use explicit revisions and activation under `authority/README.md`; passing scenarios or phase completion never activate a rule automatically.
 - **Owner decision ledger** — a new architectural lock surfaced by QA → `/design-review` → user approval → resolve the owner from `authority/ledgers.jsonl` and append an origin-qualified `D#`; update a session's `locks` only when that session owns the narrative.
 - **`spec/conformance.jsonl`** — add a new C-* scenario for a new behavioral rule; `covers` is the sole canonical coverage edge and dashboard views derive the reverse relation. Record exact runtime/test/commit evidence, but until the D784 receipt-ledger design is separately approved do not treat mutable `runtimes.<arm>` fields as authoritative status.
 - **`plan/phases.jsonl`** — update the CSP-* phase `status`/`note` the change advances.

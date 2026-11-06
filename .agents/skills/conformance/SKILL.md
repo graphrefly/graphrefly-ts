@@ -1,68 +1,9 @@
 ---
 name: conformance
-description: "Behavioral conformance check across GraphReFly language runtimes (ts/rust/py) for the clean-slate redesign. Replaces the old structural 'parity' diff. Parity = does each runtime satisfy the wave-protocol behavior (conformance scenarios) + dispatcher contract — NOT 'do the symbol sets match'. Use after implementing/changing substrate behavior in any runtime, or when adding a new protocol rule. Authors/runs language-agnostic scenarios and updates conformance.jsonl runtime status. Triggers: 'conformance', 'cross-lang check', 'does rust match', 'parity', 'run the conformance suite', 'is the substrate behavior consistent'."
+description: "Behavioral conformance check across GraphReFly language runtimes (ts/rust/py) for the clean-slate redesign. Replaces the old structural 'parity' diff. Parity = does each runtime satisfy the wave-protocol behavior (conformance scenarios) + dispatcher contract — NOT 'do the symbol sets match'. Use after implementing/changing substrate behavior in any runtime, or when adding a new protocol rule. Authors/runs language-agnostic scenarios and reports exact source-bound evidence. Triggers: 'conformance', 'cross-lang check', 'does rust match', 'parity', 'run the conformance suite', 'is the substrate behavior consistent'."
 ---
 
-You are executing **conformance** for the clean-slate GraphReFly redesign.
-
-**Parity is behavioral, not structural (D24).** There is NO `Impl` symbol-set to diff and NO
-cross-track-ledger. Operators / sugar / inspection are **per-language and never in parity**
-(D6/D27 — graph-layer wraps everything to `(ctx)=>void` before register). The ONLY parity
-surface is: **wave-protocol behavior + dispatcher contract + handle format**. Conformance =
-each runtime passes the same language-agnostic scenarios.
-
-## Authority
-
-| Source | Role |
-|---|---|
-| `~/src/graphrefly/spec/conformance.jsonl` | The scenario definitions and canonical forward `covers` edges. Existing `runtimes` fields are legacy claims, not authoritative evidence under D784. |
-| `~/src/graphrefly/spec/rules.jsonl` | The rules scenarios pin (`covers` must resolve here). |
-| `~/src/graphrefly/spec/protocol.proto` | Protocol-contract IDL (DR-2) — the light structural anchor codegen'd into each runtime's interface stub. |
-| `~/src/graphrefly/formal/*.tla` | TLA+ model (γ); property tests mirror its invariants. |
-
-## Scope from $ARGUMENTS
-
-- **rule-id** (e.g. `R-diamond`) → all scenarios whose `covers` includes it.
-- **scenario-id** (e.g. `C-1`) → that scenario.
-- **full** → every `status:"required"` scenario.
-- optional **runtime** → restrict to one arm.
-
-## Code-intelligence routing
-
-Use a current Codegraph index when it helps trace the affected symbols; use direct file reads or
-`rg` for simpler lookups, unavailable tools, or stale/unindexed files. Reuse source already read.
-Do not initialize an index merely to satisfy this workflow. Validate through the affected executable
-checks and required gates; an index is context, not correctness evidence.
-
-## Phase 1 — scenario integrity
-
-1. Load `conformance.jsonl` + `rules.jsonl`. Verify every `covers` rule-id resolves (else HALT — fix the scenario or add the rule via `/spec-amend`).
-2. List the **DR-5 required hard scenarios** and their status: `C-1` cross-graph diamond, `C-2` async-result-at-paused-node, `C-3` INVALIDATE×ctx.state×onInvalidate, `C-4` mixed sync/async diamond, `C-5` PAUSE-lockset multi-source. These are the load-bearing ones — behavioral parity is a blank cheque until they're green on each shipped runtime.
-
-## Phase 2 — run / verify per runtime
-
-For each in-scope `(scenario, runtime)`:
-1. Locate/author the scenario harness in that runtime's conformance test dir (language-agnostic spec → per-runtime adapter; the scenario describes observable wave behavior, not a symbol call).
-2. Run it. Record outcome.
-3. Capture the exact runtime, test command, result and source commit. Until the D784 evidence-receipt ledger is separately designed and approved, report that evidence without treating mutable `conformance.jsonl.runtimes.<rt>` as authority or inventing a receipt path.
-4. Mirror the invariant as a property test (fast-check ts ↔ proptest rust ↔ hypothesis py) where the rule is property-shaped (L5-Q2 / D14).
-
-## Phase 3 — report
-
-| scenario | covers | ts | rust | py | verdict |
-|---|---|---|---|---|---|
-
-- **Behavior drift** = same scenario, different observable outcome across runtimes → this is the ONLY kind of parity gap. File it as a substrate bug in the lagging runtime (route fix via `/dev-dispatch` on that package).
-- **Missing scenario** for a current rule (no conformance record whose forward `covers` includes the rule id) → author it (this is the real risk under behavioral parity: untested behavior can drift silently — D24 residual). Coverage is derived; never add a reverse `covers_by` field to the rule. Flag via `/dashboard` Gaps (`uncoveredRules`).
-- **NOT a gap:** a runtime having a different operator set / different sugar / different inspection ergonomics. Those are per-language by design — do not report them.
-
-## Phase 4 — gate
-
-Run `node ~/src/graphrefly/dashboard/build.mjs --check` (scenario↔rule links intact). Do not declare a
-runtime conformant from legacy mutable arm fields alone; authoritative status requires the separately
-approved D784 commit-bound receipt projection.
-
-## Boundaries
-
-Does NOT diff symbol sets (that's the retired structural model). Does NOT touch operators/sugar/inspection
-(per-language). New protocol behavior must go through `/spec-amend` FIRST (scenario authored before code).
+Read and follow the canonical GraphReFly workflow at
+`~/src/graphrefly/.agents/skills/conformance/SKILL.md`.
+Pass the user request, arguments, and target runtime through unchanged. The protocol workflow is
+owned by the language-neutral repository; this package entrypoint has no separate policy.
