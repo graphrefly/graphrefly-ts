@@ -1,72 +1,21 @@
-# TypeScript Docs
+# TypeScript documentation map
 
-This directory contains package-local documentation for the TypeScript
-implementation, `@graphrefly/ts`.
+This repository owns package-local TypeScript documentation. Shared public docs
+and protocol authority remain [root-owned](../../graphrefly/docs/README.md).
 
-The local policy is `docs/docs.jsonl`. The language-neutral authority lives in
-`~/src/graphrefly`: protocol rules, decisions, conformance scenarios, formal
-models, guide records, public website architecture, blog, and dashboard/control
-views.
+| Category | Question | Current entrypoint | Maintenance boundary |
+|---|---|---|---|
+| Rules | What applies now? | [Root current protocol](../../graphrefly/authority/README.md#protocol-revision-contract), [local docs policy](docs.jsonl), exported API JSDoc | Package guidance explains TS use without adding protocol requirements |
+| Draft rules | What is unapproved or inactive? | Root [rule revisions](../../graphrefly/spec/rules.jsonl); local proposals indexed in [docs policy](docs.jsonl) | Design approval, implementation and activation are distinct |
+| Decisions | Why this choice? | [Local ledger](../decisions/decisions.jsonl), [root locator](../../graphrefly/authority/ledgers.jsonl) | Root-origin history is immutable relocation material, not a new-record surface |
+| Work | What is being done? | [Local work](../plan/work.jsonl), [root work locator](../../graphrefly/authority/work-ledgers.jsonl) | Local owner controls delivery; foreign work is linked |
+| Evidence | What was checked? | Exact receipts in local work and [docs-policy indexes](docs.jsonl), retained [qualification](../packages/ts/qualification/) | Preserve hashes, failed attempts and verification limits |
+| Design / guides | How do I use or maintain it? | [Usage](usage.md), [development](development.md), [RxJS migration](coming-from-rxjs.md), [benchmarks](benchmark.md), [design](design/) | Keep active design/evidence paths and generated API ownership intact |
+| Archive | What did earlier records say? | [Pre-clean-slate docs](../archive/docs/pre-clean-slate/), [archive](../archive/) | Original paths forward to the single archived body; history does not revive retired APIs |
+| Reference | What material can inform us? | [Research](research/), [legacy website](../website/) | Reference and migration sources are not shared/public authority |
 
-## Current Scope
-
-This repo owns:
-
-- `@graphrefly/ts` install, package, and release guidance.
-- TypeScript public API JSDoc and generated TypeScript API reference artifacts.
-- TypeScript examples and demos.
-- Package-local docs automation.
-- Local tombstones for retired TypeScript packages or demos when they prevent
-  accidental revival.
-
-This repo does not own:
-
-- The shared `graphrefly.dev` website shell.
-- Shared public docs architecture or blog content.
-- Python or Rust package docs.
-- Language-neutral protocol, decision, guide, conformance, or dashboard records.
-
-## Active Local Docs
-
-| File | Role |
-| --- | --- |
-| `docs.jsonl` | Package-local docs policy and verification contract. |
-| `known-issues.md` | Local tombstones and resolved package-specific issues. |
-| `coming-from-rxjs.md` | Package-local migration guide for TypeScript users. |
-| `benchmark.md` | TypeScript benchmark guidance. |
-| `test-guidance.md` | Historical test guidance; prefer `~/src/graphrefly/guide/` and current package tests when they differ. |
-
-## Historical Records
-
-Older planning, audit, implementation, and Rust-port files remain here as
-history. They are not clean-slate authority and must not be used to revive the
-old root package, pure-ts package, structural `Impl` parity, cross-track-ledger
-workflow, old port model, or TypeScript-owned public website model.
-
-Examples include:
-
-- `implementation-plan*.md`
-- `implementation-plan-DS-13.5/`
-- `audit-plan.md`
-- `batch-review/`
-- `roadmap.md`
-- `optimizations.md`
-- `cross-track-ledger.md`
-- `rust-port-decisions.md`
-- `rust-port-quality-strategy.md`
-
-When current work needs a decision, protocol rule, guide, or sequencer update,
-edit `~/src/graphrefly` through the appropriate flow instead of updating these
-historical records as authority.
-
-## Generated Docs
-
-Generated TypeScript API pages are emitted by
-`website/scripts/gen-api-docs.mjs` from `packages/ts` exports and source JSDoc.
-Do not hand-edit generated API pages or the generated sidebar.
-
-```bash
-pnpm run docs:gen
-pnpm run docs:gen:check
-pnpm run docs:gen:missing
-```
+The package [docs policy](docs.jsonl) owns documentation maintenance and generation
+checks. Do not edit generated API pages or mirror root shared docs. Current design,
+research and hash-bound evidence stay in place; old planning/review documents were
+moved only in the approved B142 batch. [B142 execution evidence](../../graphrefly/sessions/active/docs-reorganization-evidence/2026-11-05-ts.md)
+records every move and its checks.

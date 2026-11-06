@@ -1,67 +1,11 @@
-# GraphReFly - TypeScript package
+# GraphReFly TypeScript
 
-GraphReFly is a reactive universal reduction layer: high fan-in/out data becomes explicit graph facts, reductions, effects, and inspectable topology. This repo is the TypeScript implementation, published as `@graphrefly/ts`.
+The self-contained `@graphrefly/ts` package.
 
-## Current Package Truth
-
-- `@graphrefly/ts` is the only active TypeScript implementation.
-- `@graphrefly/graphrefly` is a retired root package identity only.
-- `@graphrefly/pure-ts` has been deleted from active workspace ownership after CSP-9/B66; remaining mentions are historical/archive references only.
-- The old structural `Impl` parity harness was removed; Git history preserves it.
-- Cross-runtime parity is behavioral conformance in `~/src/graphrefly/spec/conformance.jsonl`, not symbol-set matching.
-
-## Authority
-
-The language-neutral authority lives in `~/src/graphrefly`:
-
-- Decisions: `decisions/decisions.jsonl`
-- Protocol rules: `spec/rules.jsonl`
-- Conformance scenarios: `spec/conformance.jsonl`
-- Formal model: `formal/*.tla`
-- Sequencer/backlog: `plan/*.jsonl`
-- Dashboard check: `node ~/src/graphrefly/dashboard/build.mjs --check`
-
-When this repo and the authority repo disagree, the authority repo wins.
-
-## Documentation Boundary
-
-- `docs/docs.jsonl` is the package-local docs policy for this TypeScript repo.
-- This repo owns `@graphrefly/ts` install/release notes, README material, JSDoc,
-  generated TS API reference artifacts, examples, demos, and docs automation.
-- The shared `graphrefly.dev` website shell, public docs architecture, blog,
-  shared guides, protocol/rules views, conformance views, and maintainer
-  dashboard live in `~/src/graphrefly` under D563.
-- `website/` is legacy/migration material plus the current TS API-doc generator
-  host until the generator moves. Do not treat it as canonical public-site
-  ownership.
-
-## Useful Entry Points
-
-- Package source: `packages/ts/src`
-- Core protocol/substrate: `@graphrefly/ts/core`
-- Graph layer and inspection: `@graphrefly/ts/graph`
-- Operators: `@graphrefly/ts/operators`
-- Sources: `@graphrefly/ts/sources`, `@graphrefly/ts/sources/browser`, `@graphrefly/ts/sources/node`
-- Storage: `@graphrefly/ts/storage`, `@graphrefly/ts/storage/browser`, `@graphrefly/ts/storage/node`
-- Render helpers: `@graphrefly/ts/render`
-- Reactive layout solution: `@graphrefly/ts/solutions/reactive-layout`
-- Package docs policy: `docs/docs.jsonl`
-- Generated TS API docs source: JSDoc in `packages/ts/src/**/*.ts`
-
-## Commands
-
-```bash
-pnpm --filter @graphrefly/ts test
-pnpm --filter @graphrefly/ts build
-pnpm run lint
-pnpm run dashboard:check
-```
-
-## Clean-Slate Floor
-
-- Eight verbs only: `node`, `graph`, `batch`, `state`, `producer`, `derived`, `effect`, `mount`.
-- All user functions go through the dispatcher.
-- The wave protocol implementation is synchronous; async belongs at source, pool, storage, or wire-bridge boundaries.
-- DATA moves through messages, not hidden cache peeks inside reactive functions.
-- Operators are node sugar and per-language; they are not parity verbs.
-- No restoration of old `compat/*`, `utils/*`, `presets/*`, `base/*`, `GraphSpec`, `factoryTag`, `Actor`, `guard`, old structural `Impl` parity, fake topology streams, or storage-owned hydration/restore.
+- [Project entrypoint](README.md)
+- [Agent routing](AGENTS.md)
+- [Documentation map](docs/README.md)
+- [Package usage](docs/usage.md)
+- [Development and checks](docs/development.md)
+- [Package API](https://ts.graphrefly.dev/)
+- [Root authority](../graphrefly/AGENTS.md)
