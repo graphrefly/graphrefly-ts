@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { chmod, lstat, mkdir } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import type { ObserveEvent } from "../../src/graph/inspect.js";
+import { eachMessage } from "../../src/node/each-message.js";
 import { empiricalStrictJsonDigest } from "./canonical.js";
 import { createCurrentExactModelHarnessProfileInput } from "./current-exact-profile.js";
 import {
@@ -548,9 +549,11 @@ async function executeClaimedCampaign(input: {
 			),
 			reservationMicrousd: 200_000,
 		});
-		stopBudget = topology.nodes.budgets.subscribe((message) => {
-			if (message[0] === "DATA") budgetReceipt = message[1] as EvalBudgetState;
-		});
+		stopBudget = topology.nodes.budgets.subscribe(
+			eachMessage((message) => {
+				if (message[0] === "DATA") budgetReceipt = message[1] as EvalBudgetState;
+			}),
+		);
 		stopObservation = topology.graph.observe("eval/observation").subscribe((event) => {
 			partialGraphObservations.push(event);
 			const observation = materialFreeObservationValue(event);

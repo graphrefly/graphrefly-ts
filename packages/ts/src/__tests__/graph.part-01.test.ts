@@ -19,10 +19,11 @@ import {
 	withBlueprintHash,
 	withBlueprintProvenance,
 } from "../index.js";
+import { eachMessage } from "../node/each-message.js";
 
 function collect(n: { subscribe(s: (m: Message) => void): () => void }) {
 	const msgs: Message[] = [];
-	n.subscribe((m) => msgs.push(m));
+	n.subscribe(eachMessage((m) => msgs.push(m)));
 	return msgs;
 }
 const types = (msgs: Message[]) => msgs.map((m) => m[0]);
@@ -93,7 +94,7 @@ describe("Graph — 8-verb sugar (CSP-2)", () => {
 		const e = g.effect([d], (n) => {
 			s.set(n as number);
 		});
-		expect(() => e.subscribe((m) => seen.push(m))).not.toThrow(); // caught, not escaped
+		expect(() => e.subscribe(eachMessage((m) => seen.push(m)))).not.toThrow(); // caught, not escaped
 		// R-reentrancy: the ERROR lands on a node ON the cycle — the value-level catch nearest
 		// the throw on the synchronous unwind (impl-determined, d or e), NOT necessarily the
 		// re-entered node. Assert SOME cycle node errored, not which (per the amended spec).

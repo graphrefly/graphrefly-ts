@@ -1,4 +1,5 @@
 import { type Graph, graph } from "../../src/graph/graph.js";
+import { eachMessage } from "../../src/node/each-message.js";
 import type { Node } from "../../src/node/node.js";
 import type {
 	AgentRequestFact,
@@ -40,9 +41,11 @@ export type D686GraphArmComposer = (
 
 function collectData<T>(node: Node<T>): T[] {
 	const values: T[] = [];
-	node.subscribe((message) => {
-		if (message[0] === "DATA") values.push(message[1] as T);
-	});
+	node.subscribe(
+		eachMessage((message) => {
+			if (message[0] === "DATA") values.push(message[1] as T);
+		}),
+	);
 	return values;
 }
 

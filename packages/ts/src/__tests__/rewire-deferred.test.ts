@@ -22,10 +22,11 @@ import {
 	type Node,
 	node,
 } from "../index.js";
+import { eachMessage } from "../node/each-message.js";
 
 function collect(n: Node) {
 	const msgs: Message[] = [];
-	const unsub = n.subscribe((m) => msgs.push(m));
+	const unsub = n.subscribe(eachMessage((m) => msgs.push(m)));
 	return { msgs, unsub };
 }
 const types = (m: Message[]) => m.map((x) => x[0]);
@@ -263,7 +264,7 @@ describe("ctx.rewireNext — switch (replaceDeps) + terminal + no-net-change (D4
 });
 
 describe("ctx.rewireNext — drain robustness (QA: per-thunk isolation)", () => {
-	it("a throwing thunk (error-route hits a throwing sink) does NOT strand a sibling's rewire", () => {
+	it("an erroring thunk whose ERROR reaches a throwing sink does NOT strand a sibling's rewire", () => {
 		// QA fix: _applyRewireNext catches an invalid op and routes [[ERROR,e]] down; if that ERROR
 		// broadcast reaches a throwing external sink, the escape must NOT abandon the rest of the
 		// global drain queue (else a sibling's queued rewire would silently fire at a LATER wave).
@@ -279,9 +280,11 @@ describe("ctx.rewireNext — drain robustness (QA: per-thunk isolation)", () => 
 			{ completeWhenDepsComplete: false, terminalAsRealInput: true },
 		);
 		// an external sink on opA that THROWS on ERROR → forces the error-route _down to escape apply().
-		opA.subscribe((m) => {
-			if (m[0] === "ERROR") throw new Error("sink boom");
-		});
+		opA.subscribe(
+			eachMessage((m) => {
+				if (m[0] === "ERROR") throw new Error("sink boom");
+			}),
+		);
 		// opB: a perfectly valid deferred subscribeDep, queued AFTER opA's in the same drain.
 		const opB: Node<number> = node<number>(
 			[sB],
@@ -293,13 +296,15 @@ describe("ctx.rewireNext — drain robustness (QA: per-thunk isolation)", () => 
 		collect(opB);
 
 		// one batch → both fns run at commit → both thunks queue → drained together at the boundary.
+		// R-failure@3: the sink's throw is caught per sink (no reporter on a bare node: not kept).
 		expect(() =>
 			batch(() => {
 				sA.down([["DATA", 1]]); // opA's thunk queued first
 				sB.down([["DATA", 1]]); // opB's thunk queued second
 			}),
-		).toThrow(/sink boom/); // the first escape re-surfaces after the queue drains
-		expect(innerB.isActivated()).toBe(true); // opB's rewire STILL applied despite opA's throw
+		).not.toThrow();
+		expect(opA.status).toBe("errored");
+		expect(innerB.isActivated()).toBe(true); // opB's rewire STILL applied despite opA's failure
 	});
 });
 

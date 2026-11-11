@@ -47,7 +47,7 @@ batch(() => {
 
 ## Remarks
 
-- **Coalescing:** DATA/RESOLVED/INVALIDATE settle slices are deferred until commit so shared downstream nodes recompute once for the batch.
+- **One wave:** the body delivers nothing; its writes commit as one array per node in one wave, so shared downstream nodes recompute once for the batch (R-request-order).
 
 ## Source
 

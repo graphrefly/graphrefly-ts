@@ -5,6 +5,7 @@ import {
 } from "../executors/work-queue.js";
 import { graph } from "../graph/graph.js";
 import { canonicalTupleKey, compoundTupleKey } from "../identity.js";
+import { eachMessage } from "../node/each-message.js";
 import type { AgentRequestIssued, ExecutorOutcome } from "../orchestration/agent-runtime.js";
 import type {
 	WorkItemEffectRequested,
@@ -185,10 +186,12 @@ describe("workQueue recipes (D327/D328/D331)", () => {
 		const submits = collectData<WorkQueueCommand<WorkItemQueuedWorkPayload>>(recipe.submitCommands);
 		const evidence = collectData<WorkItemEvidenceRecorded>(recipe.evidence);
 		const results = collectData<WorkItemEffectPlanResult>(plan.results);
-		recipe.evidence.subscribe((msg) => {
-			if (msg[0] === "DATA")
-				queueEvidence.down([msg as readonly ["DATA", WorkItemEvidenceRecorded]]);
-		});
+		recipe.evidence.subscribe(
+			eachMessage((msg) => {
+				if (msg[0] === "DATA")
+					queueEvidence.down([msg as readonly ["DATA", WorkItemEvidenceRecorded]]);
+			}),
+		);
 
 		facts.down([
 			[
@@ -629,9 +632,11 @@ function collectData<T>(node: {
 	subscribe(sink: (msg: readonly [string, unknown?]) => void): unknown;
 }): T[] {
 	const out: T[] = [];
-	node.subscribe((msg) => {
-		if (msg[0] === "DATA") out.push(msg[1] as T);
-	});
+	node.subscribe(
+		eachMessage((msg) => {
+			if (msg[0] === "DATA") out.push(msg[1] as T);
+		}),
+	);
 	return out;
 }
 

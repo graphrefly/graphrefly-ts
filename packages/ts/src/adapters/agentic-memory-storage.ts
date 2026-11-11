@@ -736,19 +736,23 @@ export function persistAgenticMemoryRecords<
 		for (const item of pending) callDone(item.done);
 	}
 
-	stop = records.subscribe((msg: Message, delivery?: DeliveryMeta) => {
-		if (disposeRequested) return;
-		const nextRecords = dataOf<readonly AgenticMemoryRecord<TJson>[]>(msg);
-		if (nextRecords === undefined) return;
-		latestRecords = nextRecords;
-		if (subscribing && delivery === undefined) return;
-		observedChangesSinceSnapshot += 1;
-		enqueueChange(nextRecords);
-		if (
-			snapshotEveryChanges !== undefined &&
-			observedChangesSinceSnapshot >= snapshotEveryChanges
-		) {
-			enqueueSnapshot();
+	stop = records.subscribe((msgs) => {
+		// The START array carries the snapshot; it is not a change (R-subscription).
+		const snapshot = msgs[0]?.[0] === "START";
+		for (const msg of msgs) {
+			if (disposeRequested) return;
+			const nextRecords = dataOf<readonly AgenticMemoryRecord<TJson>[]>(msg);
+			if (nextRecords === undefined) continue;
+			latestRecords = nextRecords;
+			if (subscribing && snapshot) continue;
+			observedChangesSinceSnapshot += 1;
+			enqueueChange(nextRecords);
+			if (
+				snapshotEveryChanges !== undefined &&
+				observedChangesSinceSnapshot >= snapshotEveryChanges
+			) {
+				enqueueSnapshot();
+			}
 		}
 	});
 	subscribing = false;

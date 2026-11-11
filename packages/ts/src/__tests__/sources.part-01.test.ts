@@ -44,6 +44,7 @@ import {
 	type WebSocketEvent,
 	type WebSocketRequest,
 } from "../index.js";
+import { eachMessage } from "../node/each-message.js";
 
 const data = (msgs: Message[]) =>
 	msgs.filter((m) => m[0] === "DATA").map((m) => (m as ["DATA", unknown])[1]);
@@ -214,7 +215,7 @@ describe("timer / interval sources (fake timers, D43)", () => {
 		const g = graph();
 		const n = g.initNode(timer(50), []);
 		const msgs: Message[] = [];
-		n.subscribe((x) => msgs.push(x));
+		n.subscribe(eachMessage((x) => msgs.push(x)));
 		vi.advanceTimersByTime(50);
 		expect(data(msgs)).toEqual([0]);
 		expect(msgs[msgs.length - 1][0]).toBe("COMPLETE");
@@ -225,7 +226,7 @@ describe("timer / interval sources (fake timers, D43)", () => {
 		const g = graph();
 		const n = g.initNode(timer(50), []);
 		const msgs: Message[] = [];
-		const unsub = n.subscribe((x) => msgs.push(x));
+		const unsub = n.subscribe(eachMessage((x) => msgs.push(x)));
 		expect(vi.getTimerCount()).toBe(1);
 
 		unsub();
@@ -241,7 +242,7 @@ describe("timer / interval sources (fake timers, D43)", () => {
 		const ac = new AbortController();
 		const n = g.initNode(fromTimer(50, { signal: ac.signal }), [], { name: "clock" });
 		const msgs: Message[] = [];
-		n.subscribe((x) => msgs.push(x));
+		n.subscribe(eachMessage((x) => msgs.push(x)));
 		ac.abort(false);
 		vi.advanceTimersByTime(50);
 
@@ -259,7 +260,7 @@ describe("timer / interval sources (fake timers, D43)", () => {
 		ac.abort(false);
 		const n = g.initNode(fromTimer(50, { signal: ac.signal }), []);
 		const msgs: Message[] = [];
-		n.subscribe((x) => msgs.push(x));
+		n.subscribe(eachMessage((x) => msgs.push(x)));
 		vi.advanceTimersByTime(50);
 
 		const last = msgs[msgs.length - 1];
@@ -274,7 +275,7 @@ describe("timer / interval sources (fake timers, D43)", () => {
 		const ac = new AbortController();
 		const n = g.initNode(fromTimer(50, { period: 100, signal: ac.signal }), []);
 		const msgs: Message[] = [];
-		n.subscribe((x) => msgs.push(x));
+		n.subscribe(eachMessage((x) => msgs.push(x)));
 		vi.advanceTimersByTime(50);
 		vi.advanceTimersByTime(100);
 		ac.abort(true);
@@ -291,9 +292,11 @@ describe("timer / interval sources (fake timers, D43)", () => {
 		const g = graph();
 		const n = g.initNode(interval(100), []);
 		const vals: number[] = [];
-		const unsub = n.subscribe((m) => {
-			if (m[0] === "DATA") vals.push(m[1] as number);
-		});
+		const unsub = n.subscribe(
+			eachMessage((m) => {
+				if (m[0] === "DATA") vals.push(m[1] as number);
+			}),
+		);
 		vi.advanceTimersByTime(100); // first tick → 0
 		vi.advanceTimersByTime(100); // → 1
 		vi.advanceTimersByTime(100); // → 2
@@ -312,9 +315,11 @@ describe("timer / interval sources (fake timers, D43)", () => {
 		const g = graph();
 		const n = g.initNode(interval(100), []);
 		const vals: number[] = [];
-		const unsub = n.subscribe((m) => {
-			if (m[0] === "DATA") vals.push(m[1] as number);
-		});
+		const unsub = n.subscribe(
+			eachMessage((m) => {
+				if (m[0] === "DATA") vals.push(m[1] as number);
+			}),
+		);
 		vi.advanceTimersByTime(100); // tick 0
 		unsub(); // deactivate → ctx.onDeactivation clears the interval (D28)
 		vi.advanceTimersByTime(500); // no live timer → no further ticks
@@ -368,7 +373,7 @@ describe("cron sources (B60 source-boundary re-derive)", () => {
 		const g = graph();
 		const n = g.initNode(fromCron("30 8 * * 1", { tickMs: 1000 }), [], { name: "cron" });
 		const msgs: Message[] = [];
-		const unsubscribe = n.subscribe((msg) => msgs.push(msg));
+		const unsubscribe = n.subscribe(eachMessage((msg) => msgs.push(msg)));
 
 		const expected = (BigInt(now.getTime()) * 1_000_000n).toString();
 		expect(data(msgs)).toEqual([expected]);
@@ -387,7 +392,7 @@ describe("cron sources (B60 source-boundary re-derive)", () => {
 		const g = graph();
 		const n = g.initNode(fromCron("* * * * *", { tickMs: 1000, output: "timestamp_ms" }), []);
 		const msgs: Message[] = [];
-		const unsubscribe = n.subscribe((msg) => msgs.push(msg));
+		const unsubscribe = n.subscribe(eachMessage((msg) => msgs.push(msg)));
 
 		vi.setSystemTime(new Date(resumed.getTime() - 1000));
 		vi.advanceTimersByTime(1000);
@@ -405,7 +410,7 @@ describe("cron sources (B60 source-boundary re-derive)", () => {
 		const g = graph();
 		const n = g.initNode(fromCron("30 8 * * 1", { tickMs: 1000, output: "date" }), []);
 		const msgs: Message[] = [];
-		n.subscribe((msg) => msgs.push(msg));
+		n.subscribe(eachMessage((msg) => msgs.push(msg)));
 
 		expect(data(msgs)[0]).toBeInstanceOf(Date);
 	});
@@ -419,7 +424,7 @@ describe("cron sources (B60 source-boundary re-derive)", () => {
 			[],
 		);
 		const msgs: Message[] = [];
-		const unsubscribe = n.subscribe((msg) => msgs.push(msg));
+		const unsubscribe = n.subscribe(eachMessage((msg) => msgs.push(msg)));
 
 		expect(data(msgs)).toEqual([(BigInt(firstRepeated.getTime()) * 1_000_000n).toString()]);
 		vi.advanceTimersByTime(60 * 60 * 1000);
@@ -455,7 +460,7 @@ describe("environment driver-backed sources (D130/D131)", () => {
 		});
 
 		const msgs: Message[] = [];
-		n.subscribe((msg) => msgs.push(msg));
+		n.subscribe(eachMessage((msg) => msgs.push(msg)));
 
 		expect(data(msgs)).toEqual([true]);
 	});
@@ -478,7 +483,7 @@ describe("environment driver-backed sources (D130/D131)", () => {
 		outer.subscribe(() => {});
 		expect(inner).toBeDefined();
 		const msgs: Message[] = [];
-		inner?.subscribe((msg) => msgs.push(msg));
+		inner?.subscribe(eachMessage((msg) => msgs.push(msg)));
 
 		expect(driver.requests.map((request) => request.request)).toEqual([
 			{ method: "GET", url: "https://example.test/inner" },
@@ -517,7 +522,7 @@ describe("environment driver-backed sources (D130/D131)", () => {
 		for (const [op, expected] of cases) {
 			const node = g.initNode(op, []);
 			const msgs: Message[] = [];
-			node.subscribe((msg) => msgs.push(msg));
+			node.subscribe(eachMessage((msg) => msgs.push(msg)));
 			expect(msgs[msgs.length - 1]).toEqual(["ERROR", expected]);
 		}
 	});
@@ -527,7 +532,7 @@ describe("environment driver-backed sources (D130/D131)", () => {
 		const g = graph({ environment: EnvironmentDrivers.empty().withProcess(driver) });
 		const node = g.initNode(runProcessWithOptions({ program: "echo", args: ["ok"] }), []);
 		const msgs: Message[] = [];
-		node.subscribe((msg) => msgs.push(msg));
+		node.subscribe(eachMessage((msg) => msgs.push(msg)));
 
 		expect(driver.runs.map((run) => run.command)).toEqual([{ program: "echo", args: ["ok"] }]);
 		driver.finish({
@@ -540,7 +545,7 @@ describe("environment driver-backed sources (D130/D131)", () => {
 
 		const alias = g.initNode(fromProcess("echo", ["again"]), []);
 		const aliasMsgs: Message[] = [];
-		alias.subscribe((msg) => aliasMsgs.push(msg));
+		alias.subscribe(eachMessage((msg) => aliasMsgs.push(msg)));
 		expect(driver.runs.map((run) => run.command)).toEqual([{ program: "echo", args: ["again"] }]);
 		expect(aliasMsgs).toEqual([["START"]]);
 	});
@@ -560,7 +565,7 @@ describe("environment driver-backed sources (D130/D131)", () => {
 		const g = graph({ environment: EnvironmentDrivers.empty().withProcess(driver) });
 		const node = g.initNode(runProcess("echo", ["ok"]), []);
 		const msgs: Message[] = [];
-		node.subscribe((msg) => msgs.push(msg));
+		node.subscribe(eachMessage((msg) => msgs.push(msg)));
 
 		callback?.({
 			ok: true,
@@ -581,7 +586,7 @@ describe("environment driver-backed sources (D130/D131)", () => {
 		const node = g.initNode(fromHttp("https://example.test/fail"), []);
 		const msgs: Message[] = [];
 
-		expect(() => node.subscribe((msg) => msgs.push(msg))).not.toThrow();
+		expect(() => node.subscribe(eachMessage((msg) => msgs.push(msg)))).not.toThrow();
 		expect(msgs[msgs.length - 1][0]).toBe("ERROR");
 	});
 
@@ -598,7 +603,7 @@ describe("environment driver-backed sources (D130/D131)", () => {
 			[],
 		);
 		const msgs: Message[] = [];
-		node.subscribe((msg) => msgs.push(msg));
+		node.subscribe(eachMessage((msg) => msgs.push(msg)));
 
 		expect(driver.requests.map((request) => request.request)).toEqual([
 			{
@@ -629,8 +634,8 @@ describe("environment driver-backed sources (D130/D131)", () => {
 		const ws = g.initNode(fromWebSocketWithOptions({ url: "wss://example.test/socket" }), []);
 		const sseMsgs: Message[] = [];
 		const wsMsgs: Message[] = [];
-		sse.subscribe((msg) => sseMsgs.push(msg));
-		ws.subscribe((msg) => wsMsgs.push(msg));
+		sse.subscribe(eachMessage((msg) => sseMsgs.push(msg)));
+		ws.subscribe(eachMessage((msg) => wsMsgs.push(msg)));
 
 		const sseEvent: SseEvent = { event: "message", data: "hello", id: "1", retryMs: 1000 };
 		const wsEvent: WebSocketEvent = { kind: "text", data: "hello" };
@@ -656,7 +661,7 @@ describe("environment driver-backed sources (D130/D131)", () => {
 		const node = g.initNode(fromWebhook("github"), []);
 		const msgs: Message[] = [];
 
-		expect(() => node.subscribe((msg) => msgs.push(msg))).not.toThrow();
+		expect(() => node.subscribe(eachMessage((msg) => msgs.push(msg)))).not.toThrow();
 		expect(msgs[msgs.length - 1][0]).toBe("ERROR");
 	});
 
@@ -666,7 +671,7 @@ describe("environment driver-backed sources (D130/D131)", () => {
 		const g = graph({ environment: EnvironmentDrivers.empty().withWebhook(driver) });
 		const node = g.initNode(fromWebhookWithOptions(registration), []);
 		const msgs: Message[] = [];
-		node.subscribe((msg) => msgs.push(msg));
+		node.subscribe(eachMessage((msg) => msgs.push(msg)));
 
 		expect(driver.registrations.map((entry) => entry.registration)).toEqual([registration]);
 		const event: WebhookEvent = {
@@ -694,7 +699,7 @@ describe("environment driver-backed sources (D130/D131)", () => {
 		const g = graph({ environment: EnvironmentDrivers.empty().withWebhook(driver) });
 		const node = g.initNode(fromWebhook("github"), []);
 		const msgs: Message[] = [];
-		const unsubscribe = node.subscribe((msg) => msgs.push(msg));
+		const unsubscribe = node.subscribe(eachMessage((msg) => msgs.push(msg)));
 
 		unsubscribe();
 		expect(driver.activeCount()).toBe(0);

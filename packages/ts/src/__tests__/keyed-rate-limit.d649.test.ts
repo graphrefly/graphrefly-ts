@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { attachKeyedRateLimitAuthority, type KeyedRateLimitAuthority } from "../adapters/index.js";
 import { graph } from "../graph/index.js";
 import { strictCanonicalJsonBytes, strictJsonCodec } from "../json/codec.js";
+import { eachMessage } from "../node/each-message.js";
 import type { Node } from "../node/node.js";
 import {
 	assertKeyedRateLimitOutcome,
@@ -59,9 +60,11 @@ function outcome(
 
 function capture<T>(node: Node<T>) {
 	const values: T[] = [];
-	const release = node.subscribe((msg) => {
-		if (msg[0] === "DATA") values.push(msg[1] as T);
-	});
+	const release = node.subscribe(
+		eachMessage((msg) => {
+			if (msg[0] === "DATA") values.push(msg[1] as T);
+		}),
+	);
 	return { values, release };
 }
 
@@ -651,7 +654,7 @@ describe("D648/D649 host authority adapter and topology", () => {
 		for (const captured of [admissions, issues, errors, cursor]) captured.release();
 	});
 
-	it("does not start authority work after requested delivery deactivates the adapter", () => {
+	it("a sink sees the requested status after the run that started the work (R-wave)", () => {
 		const g = graph();
 		const requests = g.node<KeyedRateLimitRequest>([], null);
 		let consumes = 0;
@@ -661,34 +664,44 @@ describe("D648/D649 host authority adapter and topology", () => {
 			},
 		});
 		let release = () => {};
-		release = adapter.status.subscribe((msg) => {
-			if (msg[0] === "DATA" && msg[1].state === "requested") release();
-		});
+		release = adapter.status.subscribe(
+			eachMessage((msg) => {
+				if (msg[0] === "DATA" && msg[1].state === "requested") release();
+			}),
+		);
 
+		// The run's arrays reach subscribers after it returned, so the unsubscribe a sink makes on
+		// "requested" cannot cancel work that run already started.
 		requests.down([["DATA", request("deactivate-before-consume")]]);
-		expect(consumes).toBe(0);
+		expect(consumes).toBe(1);
 	});
 
-	it("does not swallow synchronous completion propagation errors", () => {
-		const g = graph();
+	it("does not swallow synchronous completion propagation errors: they reach the host reporter", () => {
+		const reported: unknown[] = [];
+		const g = graph({ report: (failure) => reported.push(failure.error) });
 		const requests = g.node<KeyedRateLimitRequest>([], null);
 		const adapter = attachKeyedRateLimitAuthority(g, requests, {
 			consume(req, complete) {
 				complete(outcome(req, "allowed"));
 			},
 		});
-		const release = adapter.outcomes.subscribe((msg) => {
-			if (msg[0] === "DATA") throw new Error("downstream delivery failed");
-		});
+		const release = adapter.outcomes.subscribe(
+			eachMessage((msg) => {
+				if (msg[0] === "DATA") throw new Error("downstream delivery failed");
+			}),
+		);
 
-		expect(() => requests.down([["DATA", request("delivery-error")]])).toThrow(
+		// R-failure@3: a sink that throws has no node to end; its failure goes to the reporter.
+		expect(() => requests.down([["DATA", request("delivery-error")]])).not.toThrow();
+		expect(reported.map((e) => String((e as Error).message))).toContain(
 			"downstream delivery failed",
 		);
 		release();
 	});
 
-	it("rethrows completion propagation errors even when the host catches the callback throw", () => {
-		const g = graph();
+	it("reports completion propagation errors even when the host catches the callback throw", () => {
+		const reported: unknown[] = [];
+		const g = graph({ report: (failure) => reported.push(failure.error) });
 		const requests = g.node<KeyedRateLimitRequest>([], null);
 		const adapter = attachKeyedRateLimitAuthority(g, requests, {
 			consume(req, complete) {
@@ -699,13 +712,14 @@ describe("D648/D649 host authority adapter and topology", () => {
 				}
 			},
 		});
-		const release = adapter.outcomes.subscribe((msg) => {
-			if (msg[0] === "DATA") throw new Error("caught delivery failed");
-		});
-
-		expect(() => requests.down([["DATA", request("caught-delivery-error")]])).toThrow(
-			"caught delivery failed",
+		const release = adapter.outcomes.subscribe(
+			eachMessage((msg) => {
+				if (msg[0] === "DATA") throw new Error("caught delivery failed");
+			}),
 		);
+
+		expect(() => requests.down([["DATA", request("caught-delivery-error")]])).not.toThrow();
+		expect(reported.map((e) => String((e as Error).message))).toContain("caught delivery failed");
 		release();
 	});
 

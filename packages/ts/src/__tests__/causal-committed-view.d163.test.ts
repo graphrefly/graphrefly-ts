@@ -5,6 +5,7 @@ import {
 	startConstruction,
 } from "../graph/construction-scope.js";
 import { Graph } from "../graph/graph.js";
+import { eachMessage } from "../node/each-message.js";
 import type { Node } from "../node/node.js";
 import { checkpointStateOfNode } from "../node/runtime-accessors.js";
 import type { CausalBinding } from "../solutions/causal-occurrence/capabilities.js";
@@ -132,9 +133,11 @@ function fixture(maxOccurrences = 8, viewFirst = false) {
 }
 function collect<T>(node: Node<T>) {
 	const values: T[] = [];
-	const stop = node.subscribe((m) => {
-		if (m[0] === "DATA") values.push(m[1] as T);
-	});
+	const stop = node.subscribe(
+		eachMessage((m) => {
+			if (m[0] === "DATA") values.push(m[1] as T);
+		}),
+	);
 	stops.push(stop);
 	return { values, stop };
 }
@@ -267,13 +270,15 @@ describe("D163 committed effects through ordinary DATA", () => {
 		const a = facts();
 		let calls = 0;
 		stops.push(
-			f.graph.find("causal/authority")!.subscribe((m) => {
-				if (m[0] !== "DATA") return;
-				calls++;
-				expect((m[1] as AuthorityEmission<number>).committedEffects).toBe(
-					f.state().committedEffects,
-				);
-			}),
+			f.graph.find("causal/authority")!.subscribe(
+				eachMessage((m) => {
+					if (m[0] !== "DATA") return;
+					calls++;
+					expect((m[1] as AuthorityEmission<number>).committedEffects).toBe(
+						f.state().committedEffects,
+					);
+				}),
+			),
 		);
 		f.send("effectOutcomes", a.outcome);
 		f.send("effectAdmissions", a.admission);

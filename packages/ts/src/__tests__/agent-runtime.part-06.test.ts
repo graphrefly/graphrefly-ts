@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { DataIssue } from "../data/index.js";
 import { graph } from "../graph/graph.js";
+import { eachMessage } from "../node/each-message.js";
 import {
 	type AgentRequestFact,
 	type AgentRequestIssued,
@@ -298,14 +299,22 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 6", () => {
 		const issues: DataIssue[] = [];
 		const audit: Record<string, unknown>[] = [];
 		runtime.runRequests.subscribe(
-			(msg) => msg[0] === "DATA" && emittedRequests.push(msg[1] as ToolProviderAdapterRunRequested),
+			eachMessage(
+				(msg) =>
+					msg[0] === "DATA" && emittedRequests.push(msg[1] as ToolProviderAdapterRunRequested),
+			),
 		);
 		runtime.runtimeStatus.subscribe(
-			(msg) => msg[0] === "DATA" && runtimeStatus.push(msg[1] as ToolProviderAdapterRuntimeStatus),
+			eachMessage(
+				(msg) =>
+					msg[0] === "DATA" && runtimeStatus.push(msg[1] as ToolProviderAdapterRuntimeStatus),
+			),
 		);
-		runtime.issues.subscribe((msg) => msg[0] === "DATA" && issues.push(msg[1] as DataIssue));
+		runtime.issues.subscribe(
+			eachMessage((msg) => msg[0] === "DATA" && issues.push(msg[1] as DataIssue)),
+		);
 		runtime.audit.subscribe(
-			(msg) => msg[0] === "DATA" && audit.push(msg[1] as Record<string, unknown>),
+			eachMessage((msg) => msg[0] === "DATA" && audit.push(msg[1] as Record<string, unknown>)),
 		);
 
 		inputs.down([["DATA", ready]]);
@@ -421,11 +430,18 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 6", () => {
 		const issues: DataIssue[] = [];
 		const runtimeStatus: ToolProviderAdapterRuntimeStatus[] = [];
 		runtime.runStatus.subscribe(
-			(msg) => msg[0] === "DATA" && runStatus.push(msg[1] as ToolProviderAdapterRunStatus),
+			eachMessage(
+				(msg) => msg[0] === "DATA" && runStatus.push(msg[1] as ToolProviderAdapterRunStatus),
+			),
 		);
-		runtime.issues.subscribe((msg) => msg[0] === "DATA" && issues.push(msg[1] as DataIssue));
+		runtime.issues.subscribe(
+			eachMessage((msg) => msg[0] === "DATA" && issues.push(msg[1] as DataIssue)),
+		);
 		runtime.runtimeStatus.subscribe(
-			(msg) => msg[0] === "DATA" && runtimeStatus.push(msg[1] as ToolProviderAdapterRuntimeStatus),
+			eachMessage(
+				(msg) =>
+					msg[0] === "DATA" && runtimeStatus.push(msg[1] as ToolProviderAdapterRuntimeStatus),
+			),
 		);
 
 		inputs.down([["DATA", ready]]);
@@ -517,18 +533,25 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 6", () => {
 		const runtimeStatus: ToolProviderAdapterRuntimeStatus[] = [];
 		const audit: unknown[] = [];
 		const protocolErrors: unknown[] = [];
-		runtime.issues.subscribe((msg) => {
-			if (msg[0] === "DATA") issues.push(msg[1] as DataIssue);
-			if (msg[0] === "ERROR") protocolErrors.push(msg[1]);
-		});
-		runtime.runStatus.subscribe((msg) => {
-			if (msg[0] === "DATA") runStatus.push(msg[1] as ToolProviderAdapterRunStatus);
-			if (msg[0] === "ERROR") protocolErrors.push(msg[1]);
-		});
-		runtime.runtimeStatus.subscribe(
-			(msg) => msg[0] === "DATA" && runtimeStatus.push(msg[1] as ToolProviderAdapterRuntimeStatus),
+		runtime.issues.subscribe(
+			eachMessage((msg) => {
+				if (msg[0] === "DATA") issues.push(msg[1] as DataIssue);
+				if (msg[0] === "ERROR") protocolErrors.push(msg[1]);
+			}),
 		);
-		runtime.audit.subscribe((msg) => msg[0] === "DATA" && audit.push(msg[1]));
+		runtime.runStatus.subscribe(
+			eachMessage((msg) => {
+				if (msg[0] === "DATA") runStatus.push(msg[1] as ToolProviderAdapterRunStatus);
+				if (msg[0] === "ERROR") protocolErrors.push(msg[1]);
+			}),
+		);
+		runtime.runtimeStatus.subscribe(
+			eachMessage(
+				(msg) =>
+					msg[0] === "DATA" && runtimeStatus.push(msg[1] as ToolProviderAdapterRuntimeStatus),
+			),
+		);
+		runtime.audit.subscribe(eachMessage((msg) => msg[0] === "DATA" && audit.push(msg[1])));
 
 		inputs.down([["DATA", ready]]);
 		runRequests.down([
@@ -651,14 +674,18 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 6", () => {
 		const issues: DataIssue[] = [];
 		const runStatus: ToolProviderAdapterRunStatus[] = [];
 		const protocolErrors: unknown[] = [];
-		runtime.issues.subscribe((msg) => {
-			if (msg[0] === "DATA") issues.push(msg[1] as DataIssue);
-			if (msg[0] === "ERROR") protocolErrors.push(msg[1]);
-		});
-		runtime.runStatus.subscribe((msg) => {
-			if (msg[0] === "DATA") runStatus.push(msg[1] as ToolProviderAdapterRunStatus);
-			if (msg[0] === "ERROR") protocolErrors.push(msg[1]);
-		});
+		runtime.issues.subscribe(
+			eachMessage((msg) => {
+				if (msg[0] === "DATA") issues.push(msg[1] as DataIssue);
+				if (msg[0] === "ERROR") protocolErrors.push(msg[1]);
+			}),
+		);
+		runtime.runStatus.subscribe(
+			eachMessage((msg) => {
+				if (msg[0] === "DATA") runStatus.push(msg[1] as ToolProviderAdapterRunStatus);
+				if (msg[0] === "ERROR") protocolErrors.push(msg[1]);
+			}),
+		);
 
 		inputs.down([["DATA", ready]]);
 
@@ -703,9 +730,11 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 6", () => {
 		const status: AgentRequestStatusChanged[] = [];
 		const issues: DataIssue[] = [];
 		runtime.status.subscribe(
-			(msg) => msg[0] === "DATA" && status.push(msg[1] as AgentRequestStatusChanged),
+			eachMessage((msg) => msg[0] === "DATA" && status.push(msg[1] as AgentRequestStatusChanged)),
 		);
-		runtime.issues.subscribe((msg) => msg[0] === "DATA" && issues.push(msg[1] as DataIssue));
+		runtime.issues.subscribe(
+			eachMessage((msg) => msg[0] === "DATA" && issues.push(msg[1] as DataIssue)),
+		);
 
 		inputs.down([["DATA", ready]]);
 
@@ -779,10 +808,12 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 6", () => {
 		const issues: unknown[] = [];
 		const audit: unknown[] = [];
 		projector.resolutions.subscribe(
-			(msg) => msg[0] === "DATA" && resolutions.push(msg[1] as ToolProviderPolicyResolution),
+			eachMessage(
+				(msg) => msg[0] === "DATA" && resolutions.push(msg[1] as ToolProviderPolicyResolution),
+			),
 		);
-		projector.issues.subscribe((msg) => msg[0] === "DATA" && issues.push(msg[1]));
-		projector.audit.subscribe((msg) => msg[0] === "DATA" && audit.push(msg[1]));
+		projector.issues.subscribe(eachMessage((msg) => msg[0] === "DATA" && issues.push(msg[1])));
+		projector.audit.subscribe(eachMessage((msg) => msg[0] === "DATA" && audit.push(msg[1])));
 
 		const request = toolRequest("policy-req", "policy-op", "file.read", "read");
 		const catalog: ToolProviderCatalog = {

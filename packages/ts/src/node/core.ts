@@ -1,6 +1,7 @@
-import type { Ctx, Sink } from "../ctx/types.js";
+import type { Ctx, DependentSink, Sink } from "../ctx/types.js";
 import type { Dispatcher, Handle } from "../dispatcher/index.js";
 import type { EnvironmentDrivers } from "../graph/environment.js";
+import type { Wave } from "../protocol/messages.js";
 import { SENTINEL } from "../protocol/messages.js";
 import type { Node, Status } from "./node.js";
 import type { NodeAcquisition } from "./owned-acquisition.js";
@@ -28,7 +29,8 @@ export interface ValueState<T> {
 	hasData: boolean;
 	status: Status;
 	terminal: true | unknown | undefined;
-	replayRing: T[];
+	/** R-subscription: the DATA values of the last array this node sent that carried any DATA. */
+	lastArray: T[];
 }
 
 export interface VersionState {
@@ -42,9 +44,10 @@ export interface WaveState {
 	emittedDirtyThisWave: boolean;
 	emittedSettleThisWave: boolean;
 	insideRunWave: boolean;
+	/** The arrays the running function sent; published after it returns (R-wave). */
+	runOutput: Wave[];
 	inDepMutation: boolean;
 	rewireRunPending: boolean;
-	batchDirtyOwed: boolean;
 }
 
 export interface PrivateState {
@@ -61,8 +64,14 @@ export interface SyncCtxState {
 	value: Ctx | null;
 }
 
+/** A subscriber: an external sink gets whole arrays, a dependent gets messages plus delivery. */
+export type Subscriber =
+	| { readonly kind: "sink"; readonly fn: Sink }
+	| { readonly kind: "dependent"; readonly fn: DependentSink };
+
 export interface LifecycleState {
-	subscribers: Set<Sink>;
+	/** Subscribers in subscription order: external sinks and dependent nodes. */
+	subscribers: Set<Subscriber>;
 	activated: boolean;
 }
 
@@ -89,7 +98,6 @@ export interface NodeSlot<_T> {
 	errorWhenDepsError: boolean;
 	resubscribable: boolean;
 	quiet: boolean;
-	replayN: number;
 	dynamic: boolean;
 	name?: string;
 	factory?: string;
@@ -107,6 +115,8 @@ export interface NodeState<T> {
 }
 
 export class NodeCore {
+	/** R-failure@3: the owning graph's host reporter, if any. */
+	report: ((failure: { readonly source: string; readonly error: unknown }) => void) | undefined;
 	private nextId = 0;
 	private readonly slots: Array<NodeSlot<unknown> | undefined> = [];
 	private readonly values: Array<ValueState<unknown> | undefined> = [];

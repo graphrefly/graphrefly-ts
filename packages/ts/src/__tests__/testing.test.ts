@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Message, Wave } from "../index.js";
 import { assertPendingPrecedesTerminalData, node } from "../index.js";
+import { eachMessage } from "../node/each-message.js";
 
 describe("testing assertions", () => {
 	it("accepts a normal PENDING then DATA wave (R-dirty-before-data)", () => {
@@ -16,7 +17,7 @@ describe("testing assertions", () => {
 	it("accepts START handshake DATA/replay without a preceding PENDING", () => {
 		const s = node<number>([], null, { initial: 5 });
 		const flat: Message[] = [];
-		const unsubscribe = s.subscribe((msg) => flat.push(msg));
+		const unsubscribe = s.subscribe(eachMessage((msg) => flat.push(msg)));
 		unsubscribe();
 
 		expect(flat).toEqual([["START"], ["DATA", 5]]);

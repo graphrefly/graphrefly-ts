@@ -195,8 +195,10 @@ bundle.graph
 // ---------------------------------------------------------------------------
 
 const frame = bundle.graph.initNode(fromRaf(), [], { name: "frame" });
-frame.subscribe((msg: Message) => {
-	const [type, value] = msg;
-	if (type === "DATA") bundle.setObstacles(driftAt(value as number));
-	else if (type === "ERROR") console.error("fromRaf error:", value);
+frame.subscribe((msgs) => {
+	for (const msg of msgs) {
+		const [type, value] = msg;
+		if (type === "DATA") bundle.setObstacles(driftAt(value as number));
+		else if (type === "ERROR") console.error("fromRaf error:", value);
+	}
 });

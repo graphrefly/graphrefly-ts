@@ -2,6 +2,7 @@
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
 import { canonicalTupleKey, parseCanonicalTupleKey } from "../identity.js";
+import { eachMessage } from "../node/each-message.js";
 import type { Node } from "../node/node.js";
 import type {
 	AgentRuntimeAuditRecord,
@@ -1343,138 +1344,150 @@ export function managedCloudPostgresqlRuntime(
 			),
 		);
 	unsubscribes.push(
-		opts.inputs.subscribe((m) => {
-			if (m[0] === "DATA") {
-				const input = m[1] as ToolProviderAdapterInput<PostgresqlQueryToolArguments>;
-				if (typeof input.adapterInputId === "string") inputs.set(input.adapterInputId, input);
-			}
-		}),
+		opts.inputs.subscribe(
+			eachMessage((m) => {
+				if (m[0] === "DATA") {
+					const input = m[1] as ToolProviderAdapterInput<PostgresqlQueryToolArguments>;
+					if (typeof input.adapterInputId === "string") inputs.set(input.adapterInputId, input);
+				}
+			}),
+		),
 	);
 	for (const node of opts.manifests)
 		unsubscribes.push(
-			node.subscribe((m) => {
-				if (m[0] === "DATA") {
-					try {
-						manifest = managedCloudPostgresqlManifest(m[1] as ManagedCloudPostgresqlManifest);
-					} catch {
-						issue("managed-cloud-manifest-invalid", "Managed-cloud manifest is invalid.");
+			node.subscribe(
+				eachMessage((m) => {
+					if (m[0] === "DATA") {
+						try {
+							manifest = managedCloudPostgresqlManifest(m[1] as ManagedCloudPostgresqlManifest);
+						} catch {
+							issue("managed-cloud-manifest-invalid", "Managed-cloud manifest is invalid.");
+						}
 					}
-				}
-			}),
+				}),
+			),
 		);
 	for (const node of opts.readiness)
 		unsubscribes.push(
-			node.subscribe((m) => {
-				if (m[0] === "DATA") {
-					try {
-						posture = managedCloudPostgresqlReadiness(m[1] as ManagedCloudPostgresqlReadiness);
-					} catch {
-						issue("managed-cloud-readiness-invalid", "Managed-cloud readiness is invalid.");
+			node.subscribe(
+				eachMessage((m) => {
+					if (m[0] === "DATA") {
+						try {
+							posture = managedCloudPostgresqlReadiness(m[1] as ManagedCloudPostgresqlReadiness);
+						} catch {
+							issue("managed-cloud-readiness-invalid", "Managed-cloud readiness is invalid.");
+						}
 					}
-				}
-			}),
+				}),
+			),
 		);
 	for (const node of opts.admittedRunRequests)
 		unsubscribes.push(
-			node.subscribe((m) => {
-				if (m[0] !== "DATA") return;
-				const request = m[1] as ToolProviderAdapterRunRequested;
-				runAsync(async () => {
-					const current = readyManifest(request, manifest, posture, now());
-					if (current === undefined) {
-						issue("managed-cloud-admission-not-ready", "Managed-cloud admission failed closed.");
-						return;
-					}
-					const input = inputs.get(request.adapterInputId);
-					if (
-						input === undefined ||
-						input.status !== "ready" ||
-						input.requestId !== request.requestId ||
-						input.operationId !== request.operationId ||
-						input.routeId !== request.routeId ||
-						input.executorId !== request.executorId ||
-						input.profileId !== request.profileId ||
-						input.toolName !== "postgresql.query"
-					) {
-						issue(
-							"managed-cloud-input-mismatch",
-							"Managed-cloud admitted run did not match a ready PostgreSQL input.",
-						);
-						return;
-					}
-					const envelope = admittedEnvelope(request, input, current);
-					const result = snapshotStoreResult(await opts.store.admit(envelope, now()));
-					if (!result.accepted) {
-						issue(result.code, "Managed-cloud admission was rejected.");
-						return;
-					}
-					emit(admittedEnvelopes, envelope);
-					emitLifecycle(result.lifecycle ?? lifecycleFact("queued", now(), envelope));
-					emit(runStatus, {
-						kind: "tool-provider-adapter-run-status",
-						runId: request.runId,
-						adapterInputId: request.adapterInputId,
-						requestId: request.requestId,
-						operationId: request.operationId,
-						status: "requested",
-						attempt: request.attempt,
-						metadata: { queuePosture: "queued" },
-					});
-				}, "managed-cloud-admission-driver-failed");
-			}),
+			node.subscribe(
+				eachMessage((m) => {
+					if (m[0] !== "DATA") return;
+					const request = m[1] as ToolProviderAdapterRunRequested;
+					runAsync(async () => {
+						const current = readyManifest(request, manifest, posture, now());
+						if (current === undefined) {
+							issue("managed-cloud-admission-not-ready", "Managed-cloud admission failed closed.");
+							return;
+						}
+						const input = inputs.get(request.adapterInputId);
+						if (
+							input === undefined ||
+							input.status !== "ready" ||
+							input.requestId !== request.requestId ||
+							input.operationId !== request.operationId ||
+							input.routeId !== request.routeId ||
+							input.executorId !== request.executorId ||
+							input.profileId !== request.profileId ||
+							input.toolName !== "postgresql.query"
+						) {
+							issue(
+								"managed-cloud-input-mismatch",
+								"Managed-cloud admitted run did not match a ready PostgreSQL input.",
+							);
+							return;
+						}
+						const envelope = admittedEnvelope(request, input, current);
+						const result = snapshotStoreResult(await opts.store.admit(envelope, now()));
+						if (!result.accepted) {
+							issue(result.code, "Managed-cloud admission was rejected.");
+							return;
+						}
+						emit(admittedEnvelopes, envelope);
+						emitLifecycle(result.lifecycle ?? lifecycleFact("queued", now(), envelope));
+						emit(runStatus, {
+							kind: "tool-provider-adapter-run-status",
+							runId: request.runId,
+							adapterInputId: request.adapterInputId,
+							requestId: request.requestId,
+							operationId: request.operationId,
+							status: "requested",
+							attempt: request.attempt,
+							metadata: { queuePosture: "queued" },
+						});
+					}, "managed-cloud-admission-driver-failed");
+				}),
+			),
 		);
 	for (const node of opts.cancellationRequests ?? [])
 		unsubscribes.push(
-			node.subscribe((m) => {
-				if (m[0] !== "DATA") return;
-				const request = snapshotCancellation(m[1]);
-				if (request === undefined) {
-					issue(
-						"managed-cloud-cancellation-invalid",
-						"Managed-cloud cancellation pins are invalid.",
-					);
-					return;
-				}
-				runAsync(async () => {
-					const result = snapshotStoreResult(await opts.store.persistCancellation(request, now()));
-					if (!result.accepted) {
+			node.subscribe(
+				eachMessage((m) => {
+					if (m[0] !== "DATA") return;
+					const request = snapshotCancellation(m[1]);
+					if (request === undefined) {
+						issue(
+							"managed-cloud-cancellation-invalid",
+							"Managed-cloud cancellation pins are invalid.",
+						);
+						return;
+					}
+					runAsync(async () => {
+						const result = snapshotStoreResult(
+							await opts.store.persistCancellation(request, now()),
+						);
+						if (!result.accepted) {
+							emit(cancellations, {
+								kind: "managed-cloud-postgresql-cancellation-posture",
+								cancellationId: request.cancellationId,
+								runId: request.runId,
+								attempt: request.attempt,
+								state: "rejected",
+								code: result.code,
+							});
+							return;
+						}
+						if (result.lifecycle === undefined)
+							throw new TypeError("Accepted cancellation persistence requires lifecycle evidence.");
+						assertLifecycleForLease(result.lifecycle, request, "cancel-pending");
+						emitLifecycle(result.lifecycle);
 						emit(cancellations, {
 							kind: "managed-cloud-postgresql-cancellation-posture",
 							cancellationId: request.cancellationId,
 							runId: request.runId,
 							attempt: request.attempt,
-							state: "rejected",
-							code: result.code,
+							state: "persisted-pending",
 						});
-						return;
-					}
-					if (result.lifecycle === undefined)
-						throw new TypeError("Accepted cancellation persistence requires lifecycle evidence.");
-					assertLifecycleForLease(result.lifecycle, request, "cancel-pending");
-					emitLifecycle(result.lifecycle);
-					emit(cancellations, {
-						kind: "managed-cloud-postgresql-cancellation-posture",
-						cancellationId: request.cancellationId,
-						runId: request.runId,
-						attempt: request.attempt,
-						state: "persisted-pending",
-					});
-					pendingCancellations.set(request.cancellationId, request);
-					await opts.transport.send(request.workerId, request.sessionEpoch, {
-						kind: "cancel",
-						messageId: `cancel:${request.cancellationId}`,
-						cancellationId: request.cancellationId,
-						...leaseCoordinates(request),
-					});
-					emit(cancellations, {
-						kind: "managed-cloud-postgresql-cancellation-posture",
-						cancellationId: request.cancellationId,
-						runId: request.runId,
-						attempt: request.attempt,
-						state: "dispatched-unconfirmed",
-					});
-				}, "managed-cloud-cancellation-driver-failed");
-			}),
+						pendingCancellations.set(request.cancellationId, request);
+						await opts.transport.send(request.workerId, request.sessionEpoch, {
+							kind: "cancel",
+							messageId: `cancel:${request.cancellationId}`,
+							cancellationId: request.cancellationId,
+							...leaseCoordinates(request),
+						});
+						emit(cancellations, {
+							kind: "managed-cloud-postgresql-cancellation-posture",
+							cancellationId: request.cancellationId,
+							runId: request.runId,
+							attempt: request.attempt,
+							state: "dispatched-unconfirmed",
+						});
+					}, "managed-cloud-cancellation-driver-failed");
+				}),
+			),
 		);
 	const onMessage = (raw: unknown) => {
 		if (disposed) return;

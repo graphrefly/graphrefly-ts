@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Ctx } from "../index.js";
 import { depLatest, node } from "../index.js";
+import { eachMessage } from "../node/each-message.js";
 
 const plus1 = (ctx: Ctx) => ctx.down([["DATA", (depLatest(ctx, 0) as number) + 1]]);
 
@@ -18,9 +19,11 @@ describe("R-reentrancy (D37) — synchronous feedback cycle is rejected", () => 
 		// migration makes the write a request that runs after the wave, C-6.)
 		let error: unknown;
 		expect(() =>
-			e.subscribe((m) => {
-				if (m[0] === "ERROR") error = m[1];
-			}),
+			e.subscribe(
+				eachMessage((m) => {
+					if (m[0] === "ERROR") error = m[1];
+				}),
+			),
 		).not.toThrow();
 		expect(e.status).toBe("errored");
 		expect(String((error as Error).message)).toMatch(/feedback cycle|R-reentrancy/i);

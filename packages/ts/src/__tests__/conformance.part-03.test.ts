@@ -11,6 +11,7 @@
 import { describe, expect, it } from "vitest";
 import type { Ctx, Message, NodeFn } from "../index.js";
 import { batch, depBatch, depLatest, dynamicNode, fromPromise, graph, node } from "../index.js";
+import { eachMessage } from "../node/each-message.js";
 
 const types = (msgs: Message[]) => msgs.map((m) => m[0]);
 const data = (msgs: Message[]) =>
@@ -18,7 +19,7 @@ const data = (msgs: Message[]) =>
 const flush = () => new Promise((r) => setTimeout(r, 0));
 function collect(n: { subscribe(s: (m: Message) => void): () => void }) {
 	const msgs: Message[] = [];
-	const unsub = n.subscribe((m) => msgs.push(m));
+	const unsub = n.subscribe(eachMessage((m) => msgs.push(m)));
 	return { msgs, unsub };
 }
 
@@ -61,7 +62,7 @@ describe("C-23 raw ctx waveData is the only dep-value input (R-fn-contract / R-c
 		});
 	});
 
-	it("distinguishes no-wave, RESOLVED-only, DATA+INVALIDATE, null, and empty-array payloads", () => {
+	it("distinguishes no-wave, a split at INVALIDATE, null, and empty-array payloads", () => {
 		const captures: unknown[][][][] = [];
 		const a = node<unknown>([], null);
 		const b = node<unknown>([], null);
@@ -77,8 +78,9 @@ describe("C-23 raw ctx waveData is the only dep-value input (R-fn-contract / R-c
 		b.down([["DATA", "b"]]);
 		expect(captures.at(-1)).toEqual([[], [["b"]]]);
 
-		a.down([["DATA", 1], ["DATA", 2], ["INVALIDATE"]]);
-		expect(captures.at(-1)).toEqual([[[1, 2, undefined]], []]);
+		// R-wave: the array is split at its last INVALIDATE; what came before it is dropped.
+		a.down([["DATA", 1], ["DATA", 2], ["INVALIDATE"], ["DATA", 3]]);
+		expect(captures.at(-1)).toEqual([[[3]], []]);
 
 		a.down([["DATA", null]]);
 		expect(captures.at(-1)).toEqual([[[null]], []]);
@@ -200,7 +202,7 @@ describe("C-23 raw ctx waveData is the only dep-value input (R-fn-contract / R-c
 	it("rejects boolean ERROR payloads at the protocol boundary and coerces host-source failures", async () => {
 		const s = node<number>([], null);
 		const msgs: Message[] = [];
-		s.subscribe((m) => msgs.push(m));
+		s.subscribe(eachMessage((m) => msgs.push(m)));
 		msgs.length = 0;
 		expect(() => s.down([["ERROR", undefined]])).toThrow(/non-SENTINEL/);
 		expect(() => s.down([["ERROR", false]])).toThrow(/non-boolean/);
@@ -217,7 +219,7 @@ describe("C-23 raw ctx waveData is the only dep-value input (R-fn-contract / R-c
 		for (const reason of [undefined, false, true]) {
 			const n = g.initNode(fromPromise(Promise.reject(reason)), []);
 			const msgs: Message[] = [];
-			n.subscribe((m) => msgs.push(m));
+			n.subscribe(eachMessage((m) => msgs.push(m)));
 			await flush();
 			const last = msgs.at(-1);
 			expect(last?.[0]).toBe("ERROR");

@@ -23,6 +23,7 @@ import {
 	PlainSpending,
 	plainBusiness,
 } from "../../../../scripts/fixtures/spending-preset-plain.js";
+import { eachMessage } from "../node/each-message.js";
 import { assertCausalCapabilities } from "../solutions/causal-occurrence/capabilities.js";
 import type { CausalEvidence } from "../solutions/causal-occurrence/contracts.js";
 
@@ -168,9 +169,11 @@ describe("D164 finite passive input and business edges", () => {
 			e = evaluationFixture(),
 			f = policyFacts(e),
 			seen: any[] = [];
-		const stop = r.built.admission.publicationPolicy.subscribe((m) => {
-			if (m[0] === "DATA") seen.push(m[1]);
-		});
+		const stop = r.built.admission.publicationPolicy.subscribe(
+			eachMessage((m) => {
+				if (m[0] === "DATA") seen.push(m[1]);
+			}),
+		);
 		try {
 			r.send("pack", evaluationPack([e]));
 			r.send("verification", f.verification);
@@ -195,9 +198,11 @@ describe("D164 finite passive input and business edges", () => {
 			e = evaluationFixture(),
 			f = policyFacts(e),
 			seen: unknown[] = [];
-		const stop = r.built.admission.verificationFacts.subscribe((m) => {
-			if (m[0] === "DATA") seen.push(m[1]);
-		});
+		const stop = r.built.admission.verificationFacts.subscribe(
+			eachMessage((m) => {
+				if (m[0] === "DATA") seen.push(m[1]);
+			}),
+		);
 		r.send("verification", f.verification);
 		r.send("verification", {
 			...f.verification,
@@ -216,9 +221,11 @@ describe("D164 finite passive input and business edges", () => {
 			a = policyFacts(evaluationFixture()),
 			b = policyFacts(evaluationFixture(0, "tea")),
 			seen: any[] = [];
-		const stop = r.built.admission.verificationFacts.subscribe((m) => {
-			if (m[0] === "DATA") seen.push(m[1]);
-		});
+		const stop = r.built.admission.verificationFacts.subscribe(
+			eachMessage((m) => {
+				if (m[0] === "DATA") seen.push(m[1]);
+			}),
+		);
 		r.send("verification", a.verification, b.verification);
 		expect(seen.flatMap((f) => f.value.receipts)).toHaveLength(2);
 		expect(seen.at(-1).value.receipts).toHaveLength(1);
@@ -229,9 +236,11 @@ describe("D164 finite passive input and business edges", () => {
 			e = evaluationFixture(),
 			f = policyFacts(e),
 			seen: any[] = [];
-		const stop = r.built.admission.publicationPolicy.subscribe((m) => {
-			if (m[0] === "DATA") seen.push(m[1]);
-		});
+		const stop = r.built.admission.publicationPolicy.subscribe(
+			eachMessage((m) => {
+				if (m[0] === "DATA") seen.push(m[1]);
+			}),
+		);
 		r.send("pack", evaluationPack([e]));
 		r.send("verification", {
 			...f.verification,
@@ -249,9 +258,11 @@ describe("D164 finite passive input and business edges", () => {
 function evidenceOf(r: ReturnType<typeof presetRun>) {
 	const rows: CausalEvidence[] = [];
 	extraStops.push(
-		r.built.admission.evidence.subscribe((m) => {
-			if (m[0] === "DATA") rows.push(m[1] as CausalEvidence);
-		}),
+		r.built.admission.evidence.subscribe(
+			eachMessage((m) => {
+				if (m[0] === "DATA") rows.push(m[1] as CausalEvidence);
+			}),
+		),
 	);
 	return rows;
 }
@@ -464,9 +475,11 @@ describe("D164 complete frame availability", () => {
 			b = evaluationFixture(1, "coffee", 1, false),
 			seen: unknown[] = [];
 		extraStops.push(
-			r.built.admission.occurrenceAdmissions.subscribe((m) => {
-				if (m[0] === "DATA") seen.push(m[1]);
-			}),
+			r.built.admission.occurrenceAdmissions.subscribe(
+				eachMessage((m) => {
+					if (m[0] === "DATA") seen.push(m[1]);
+				}),
+			),
 		);
 		r.send("pack", evaluationPack([a, b]));
 		r.send("arrivals", {
@@ -506,9 +519,11 @@ describe("D165 actual dependency removal", () => {
 		expect(fn).toBeTypeOf("function");
 		const errors: unknown[] = [];
 		extraStops.push(
-			node.subscribe((m) => {
-				if (m[0] === "ERROR") errors.push(m[1]);
-			}),
+			node.subscribe(
+				eachMessage((m) => {
+					if (m[0] === "ERROR") errors.push(m[1]);
+				}),
+			),
 		);
 		node.unsubscribeDep(node.deps[0], fn as import("../ctx/types.js").NodeFn);
 		const e = evaluationFixture();
@@ -846,9 +861,11 @@ it("D160 policy comparison keeps exact grants and ordered recovery across frames
 		fb = policyFacts(b);
 	const seen: any[] = [];
 	extraStops.push(
-		r.built.admission.publicationPolicy.subscribe((m) => {
-			if (m[0] === "DATA") seen.push(...(m[1] as any).rows);
-		}),
+		r.built.admission.publicationPolicy.subscribe(
+			eachMessage((m) => {
+				if (m[0] === "DATA") seen.push(...(m[1] as any).rows);
+			}),
+		),
 	);
 	const local = structuredClone({
 		...fa.local,

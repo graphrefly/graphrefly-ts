@@ -13,6 +13,7 @@ import type {
 } from "../../examples/spending-alerts/causal-inputs.js";
 import { batch } from "../../packages/ts/src/batch/batch.js";
 import { Graph } from "../../packages/ts/src/graph/graph.js";
+import { eachMessage } from "../../packages/ts/src/node/each-message.js";
 import { checkpointStateOfNode } from "../../packages/ts/src/node/runtime-accessors.js";
 import type { RuntimeState } from "../../packages/ts/src/solutions/causal-occurrence/contracts.js";
 import { evaluationPack, policyFacts, presetBinding } from "./spending-preset-harness.js";
@@ -68,9 +69,11 @@ export function runHost(
 	const connect = () => {
 		if (subscriptions.length) return;
 		subscriptions = Object.entries(host.consume.view).map(([name, node]) =>
-			node.subscribe((m) => {
-				if (name === "publication" && m[0] === "DATA") publications.push(m[1]);
-			}),
+			node.subscribe(
+				eachMessage((m) => {
+					if (name === "publication" && m[0] === "DATA") publications.push(m[1]);
+				}),
+			),
 		);
 	};
 	const disconnect = () => {

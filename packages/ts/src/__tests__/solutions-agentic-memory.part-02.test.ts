@@ -8,6 +8,7 @@ import { memoryAgenticMemoryPassiveStoreFrameAdapter } from "../adapters/index.j
 import { graph } from "../graph/graph.js";
 import { compoundTupleKey } from "../identity.js";
 import { strictCanonicalJsonBytes } from "../json/codec.js";
+import { eachMessage } from "../node/each-message.js";
 import type { MemoryAnswer, MemoryFragment } from "../patterns/index.js";
 import type { Message } from "../protocol/messages.js";
 import { indexedDbAgenticMemoryCommittedFactLogBackend } from "../solutions/agentic-memory/browser.js";
@@ -3583,7 +3584,7 @@ const jsonForBoundaryText = (value: unknown): string =>
 
 function collect(node: { subscribe(sink: (messages: Message) => void): () => void }) {
 	const messages: Message[] = [];
-	const unsubscribe = node.subscribe((message) => messages.push(message));
+	const unsubscribe = node.subscribe(eachMessage((message) => messages.push(message)));
 	return { messages, unsubscribe };
 }
 

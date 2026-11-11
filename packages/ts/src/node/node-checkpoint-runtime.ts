@@ -9,7 +9,8 @@ export function nodeRestoreState(self: NodeRuntimeHost, state: NodeRestoreState)
 	self._value.hasData = state.hasData;
 	self._value.status = state.status;
 	self._value.terminal = state.terminal;
-	self._value.replayRing = [];
+	// R-subscription: a restored value is the node's last array (a checkpoint keeps one value).
+	self._value.lastArray = state.hasData ? [state.cache as unknown] : [];
 	self._wave.hasCalledFnOnce = state.hasCalledFnOnce;
 	self._wave.emittedDirtyThisWave = false;
 	self._wave.emittedSettleThisWave = false;
@@ -17,7 +18,6 @@ export function nodeRestoreState(self: NodeRuntimeHost, state: NodeRestoreState)
 	self._wave.insideRunWave = false;
 	self._wave.inDepMutation = false;
 	self._wave.rewireRunPending = false;
-	self._wave.batchDirtyOwed = false;
 	self._privateState.value = state.ctxState.value;
 	self._privateState.persist = state.ctxState.persist;
 	if (state.version === false) {

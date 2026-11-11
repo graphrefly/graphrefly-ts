@@ -8,6 +8,7 @@ import {
 import type { Graph } from "../graph/graph.js";
 import { compoundTupleKey } from "../identity.js";
 import { strictCanonicalJsonBytes } from "../json/codec.js";
+import { eachMessage } from "../node/each-message.js";
 import type { Node } from "../node/node.js";
 import type {
 	AgentRuntimeAuditRecord,
@@ -648,220 +649,232 @@ export function localUntrustedJsComputeRuntime(
 		terminal.add(runtimeAttemptKey(record.request));
 	};
 	const unsubscribes = [
-		opts.inputs.subscribe((message) => {
-			if (message[0] !== "DATA" || disposed) return;
-			const value = message[1] as ToolProviderAdapterInput<LocalUntrustedJsComputeArguments>;
-			if (!plain(value) || value.kind !== "tool-provider-adapter-input") {
-				emitIssue(
-					"local-untrusted-js-compute-input-invalid",
-					"Local untrusted JS compute input is invalid.",
-				);
-				return;
-			}
-			inputs.set(value.adapterInputId, value);
-		}),
-		...opts.runAdmissions.map((node) =>
-			node.subscribe((message) => {
+		opts.inputs.subscribe(
+			eachMessage((message) => {
 				if (message[0] !== "DATA" || disposed) return;
-				const value = message[1] as ToolProviderRunAdmission;
-				if (!plain(value) || value.kind !== "tool-provider-run-admission") {
+				const value = message[1] as ToolProviderAdapterInput<LocalUntrustedJsComputeArguments>;
+				if (!plain(value) || value.kind !== "tool-provider-adapter-input") {
 					emitIssue(
-						"local-untrusted-js-compute-run-admission-invalid",
-						"Local untrusted JS compute run admission is invalid.",
+						"local-untrusted-js-compute-input-invalid",
+						"Local untrusted JS compute input is invalid.",
 					);
 					return;
 				}
-				admissions.set(value.admissionId, value);
+				inputs.set(value.adapterInputId, value);
 			}),
+		),
+		...opts.runAdmissions.map((node) =>
+			node.subscribe(
+				eachMessage((message) => {
+					if (message[0] !== "DATA" || disposed) return;
+					const value = message[1] as ToolProviderRunAdmission;
+					if (!plain(value) || value.kind !== "tool-provider-run-admission") {
+						emitIssue(
+							"local-untrusted-js-compute-run-admission-invalid",
+							"Local untrusted JS compute run admission is invalid.",
+						);
+						return;
+					}
+					admissions.set(value.admissionId, value);
+				}),
+			),
 		),
 		...opts.manifests.map((node) =>
-			node.subscribe((message) => {
-				if (message[0] !== "DATA" || disposed) return;
-				try {
-					const value = localUntrustedJsComputeManifest(
-						message[1] as LocalUntrustedJsComputeManifest,
-					);
-					manifests.set(value.fingerprint, value);
-				} catch {
-					emitIssue(
-						"local-untrusted-js-compute-manifest-invalid",
-						"Local untrusted JS compute manifest is invalid.",
-					);
-				}
-			}),
+			node.subscribe(
+				eachMessage((message) => {
+					if (message[0] !== "DATA" || disposed) return;
+					try {
+						const value = localUntrustedJsComputeManifest(
+							message[1] as LocalUntrustedJsComputeManifest,
+						);
+						manifests.set(value.fingerprint, value);
+					} catch {
+						emitIssue(
+							"local-untrusted-js-compute-manifest-invalid",
+							"Local untrusted JS compute manifest is invalid.",
+						);
+					}
+				}),
+			),
 		),
 		...opts.readiness.map((node) =>
-			node.subscribe((message) => {
-				if (message[0] !== "DATA" || disposed) return;
-				const raw = message[1] as LocalUntrustedJsComputeReadiness;
-				if (!plain(raw) || typeof raw.manifestFingerprint !== "string") {
-					emitIssue(
-						"local-untrusted-js-compute-readiness-invalid",
-						"Local untrusted JS compute readiness is invalid.",
-					);
-					return;
-				}
-				readiness.set(raw.manifestFingerprint, raw);
-			}),
+			node.subscribe(
+				eachMessage((message) => {
+					if (message[0] !== "DATA" || disposed) return;
+					const raw = message[1] as LocalUntrustedJsComputeReadiness;
+					if (!plain(raw) || typeof raw.manifestFingerprint !== "string") {
+						emitIssue(
+							"local-untrusted-js-compute-readiness-invalid",
+							"Local untrusted JS compute readiness is invalid.",
+						);
+						return;
+					}
+					readiness.set(raw.manifestFingerprint, raw);
+				}),
+			),
 		),
 		...opts.admittedRunRequests.map((node) =>
-			node.subscribe((message) => {
-				if (message[0] !== "DATA" || disposed) return;
-				const request = message[1] as ToolProviderAdapterRunRequested;
-				const work = Promise.resolve().then(async () => {
-					if (!plain(request) || request.kind !== "tool-provider-adapter-run-requested") {
-						emitIssue(
-							"local-untrusted-js-compute-run-request-invalid",
-							"Local untrusted JS compute run request is invalid.",
-						);
-						return;
-					}
-					const key = runtimeAttemptKey(request);
-					if (active.has(key) || terminal.has(key)) {
-						failRequest(request, "local-untrusted-js-compute-duplicate-run", "stale-request");
-						return;
-					}
-					const input = inputs.get(request.adapterInputId);
-					const admissionId = request.metadata?.admissionId;
-					const manifestFingerprint = request.metadata?.manifestFingerprint;
-					if (
-						input === undefined ||
-						typeof admissionId !== "string" ||
-						typeof manifestFingerprint !== "string"
-					) {
-						failRequest(
-							request,
-							"local-untrusted-js-compute-admission-context-missing",
-							input === undefined ? "missing-input" : "missing-request",
-						);
-						return;
-					}
-					const admission = admissions.get(admissionId);
-					const manifest = manifests.get(manifestFingerprint);
-					const posture = readiness.get(manifestFingerprint);
-					if (admission === undefined || manifest === undefined || posture === undefined) {
-						failRequest(
-							request,
-							"local-untrusted-js-compute-admission-context-stale",
-							"missing-request",
-						);
-						return;
-					}
-					try {
-						const safeManifest = localUntrustedJsComputeManifest(manifest);
-						const safeReadiness = localUntrustedJsComputeReadiness(posture, safeManifest, now());
-						const safeArgs = localUntrustedJsComputeArguments(
-							input.toolCall?.arguments as LocalUntrustedJsComputeArguments,
-							safeManifest,
-						);
-						validateAdmission(input, request, admission, safeArgs);
-						const record: LocalUntrustedJsComputeActiveAttempt = {
-							input,
-							request,
-							admission,
-							manifest: safeManifest,
-							readiness: safeReadiness,
-							args: safeArgs,
-							abortController: new AbortController(),
-							startedAtMs: now(),
-							cancelled: false,
-							settled: false,
-						};
-						active.set(key, record);
-						emitLifecycle(record, "admitted");
-						emitStatus(request, "requested");
-						emit(admittedRunRequests, request);
-						await execute(record);
-					} catch {
-						failRequest(
-							request,
-							"local-untrusted-js-compute-admission-mismatch",
-							"mismatched-request",
-						);
-					}
-				});
-				track(work);
-			}),
+			node.subscribe(
+				eachMessage((message) => {
+					if (message[0] !== "DATA" || disposed) return;
+					const request = message[1] as ToolProviderAdapterRunRequested;
+					const work = Promise.resolve().then(async () => {
+						if (!plain(request) || request.kind !== "tool-provider-adapter-run-requested") {
+							emitIssue(
+								"local-untrusted-js-compute-run-request-invalid",
+								"Local untrusted JS compute run request is invalid.",
+							);
+							return;
+						}
+						const key = runtimeAttemptKey(request);
+						if (active.has(key) || terminal.has(key)) {
+							failRequest(request, "local-untrusted-js-compute-duplicate-run", "stale-request");
+							return;
+						}
+						const input = inputs.get(request.adapterInputId);
+						const admissionId = request.metadata?.admissionId;
+						const manifestFingerprint = request.metadata?.manifestFingerprint;
+						if (
+							input === undefined ||
+							typeof admissionId !== "string" ||
+							typeof manifestFingerprint !== "string"
+						) {
+							failRequest(
+								request,
+								"local-untrusted-js-compute-admission-context-missing",
+								input === undefined ? "missing-input" : "missing-request",
+							);
+							return;
+						}
+						const admission = admissions.get(admissionId);
+						const manifest = manifests.get(manifestFingerprint);
+						const posture = readiness.get(manifestFingerprint);
+						if (admission === undefined || manifest === undefined || posture === undefined) {
+							failRequest(
+								request,
+								"local-untrusted-js-compute-admission-context-stale",
+								"missing-request",
+							);
+							return;
+						}
+						try {
+							const safeManifest = localUntrustedJsComputeManifest(manifest);
+							const safeReadiness = localUntrustedJsComputeReadiness(posture, safeManifest, now());
+							const safeArgs = localUntrustedJsComputeArguments(
+								input.toolCall?.arguments as LocalUntrustedJsComputeArguments,
+								safeManifest,
+							);
+							validateAdmission(input, request, admission, safeArgs);
+							const record: LocalUntrustedJsComputeActiveAttempt = {
+								input,
+								request,
+								admission,
+								manifest: safeManifest,
+								readiness: safeReadiness,
+								args: safeArgs,
+								abortController: new AbortController(),
+								startedAtMs: now(),
+								cancelled: false,
+								settled: false,
+							};
+							active.set(key, record);
+							emitLifecycle(record, "admitted");
+							emitStatus(request, "requested");
+							emit(admittedRunRequests, request);
+							await execute(record);
+						} catch {
+							failRequest(
+								request,
+								"local-untrusted-js-compute-admission-mismatch",
+								"mismatched-request",
+							);
+						}
+					});
+					track(work);
+				}),
+			),
 		),
 		...(opts.cancellationAdmissions ?? []).map((node) =>
-			node.subscribe((message) => {
-				if (message[0] !== "DATA" || disposed) return;
-				const admission = message[1] as LocalUntrustedJsComputeCancellationAdmission;
-				const reject = (code: string) => {
-					const cancellationId =
-						plain(admission) && typeof admission.cancellationId === "string"
-							? admission.cancellationId
-							: "invalid";
-					const admissionId =
-						plain(admission) && typeof admission.admissionId === "string"
-							? admission.admissionId
-							: "invalid";
-					const runId =
-						plain(admission) && typeof admission.runId === "string" ? admission.runId : "invalid";
-					const attempt =
-						plain(admission) && Number.isSafeInteger(admission.attempt)
-							? Number(admission.attempt)
-							: 1;
-					emitIssue(
-						code,
-						"Cancellation did not exactly match an active local untrusted JS attempt.",
-						runId,
-					);
+			node.subscribe(
+				eachMessage((message) => {
+					if (message[0] !== "DATA" || disposed) return;
+					const admission = message[1] as LocalUntrustedJsComputeCancellationAdmission;
+					const reject = (code: string) => {
+						const cancellationId =
+							plain(admission) && typeof admission.cancellationId === "string"
+								? admission.cancellationId
+								: "invalid";
+						const admissionId =
+							plain(admission) && typeof admission.admissionId === "string"
+								? admission.admissionId
+								: "invalid";
+						const runId =
+							plain(admission) && typeof admission.runId === "string" ? admission.runId : "invalid";
+						const attempt =
+							plain(admission) && Number.isSafeInteger(admission.attempt)
+								? Number(admission.attempt)
+								: 1;
+						emitIssue(
+							code,
+							"Cancellation did not exactly match an active local untrusted JS attempt.",
+							runId,
+						);
+						emit(cancellations, {
+							kind: "local-untrusted-js-compute-cancellation-acknowledgement",
+							admissionId,
+							cancellationId,
+							runId,
+							attempt,
+							state: "rejected",
+							code,
+						});
+					};
+					if (
+						!plain(admission) ||
+						admission.kind !== "local-untrusted-js-compute-cancellation-admission"
+					) {
+						reject("local-untrusted-js-compute-cancellation-invalid");
+						return;
+					}
+					const record = active.get(runtimeAttemptKey(admission));
+					if (
+						admission.state !== "admitted" ||
+						record === undefined ||
+						record.settled ||
+						record.cancelled ||
+						consumedCancellationAdmissions.has(admission.admissionId) ||
+						!cancellationMatchesLocalAttempt(admission, record)
+					) {
+						reject("local-untrusted-js-compute-cancellation-coordinate-mismatch");
+						return;
+					}
+					record.cancelled = true;
+					consumedCancellationAdmissions.add(admission.admissionId);
+					record.abortController.abort();
 					emit(cancellations, {
 						kind: "local-untrusted-js-compute-cancellation-acknowledgement",
-						admissionId,
-						cancellationId,
-						runId,
-						attempt,
-						state: "rejected",
-						code,
-					});
-				};
-				if (
-					!plain(admission) ||
-					admission.kind !== "local-untrusted-js-compute-cancellation-admission"
-				) {
-					reject("local-untrusted-js-compute-cancellation-invalid");
-					return;
-				}
-				const record = active.get(runtimeAttemptKey(admission));
-				if (
-					admission.state !== "admitted" ||
-					record === undefined ||
-					record.settled ||
-					record.cancelled ||
-					consumedCancellationAdmissions.has(admission.admissionId) ||
-					!cancellationMatchesLocalAttempt(admission, record)
-				) {
-					reject("local-untrusted-js-compute-cancellation-coordinate-mismatch");
-					return;
-				}
-				record.cancelled = true;
-				consumedCancellationAdmissions.add(admission.admissionId);
-				record.abortController.abort();
-				emit(cancellations, {
-					kind: "local-untrusted-js-compute-cancellation-acknowledgement",
-					admissionId: admission.admissionId,
-					cancellationId: admission.cancellationId,
-					runId: admission.runId,
-					attempt: admission.attempt,
-					state: "accepted",
-				});
-				emit(audit, {
-					id: compoundTupleKey("local-untrusted-js-compute-cancellation-audit", [
-						admission.admissionId,
-						admission.cancellationId,
-					]),
-					kind: "local-untrusted-js-compute-cancellation-accepted",
-					subjectId: admission.runId,
-					sourceRefs: admission.sourceRefs,
-					metadata: {
+						admissionId: admission.admissionId,
+						cancellationId: admission.cancellationId,
+						runId: admission.runId,
 						attempt: admission.attempt,
-						epoch: admission.epoch,
-						runAdmissionId: admission.runAdmissionId,
-					},
-				});
-			}),
+						state: "accepted",
+					});
+					emit(audit, {
+						id: compoundTupleKey("local-untrusted-js-compute-cancellation-audit", [
+							admission.admissionId,
+							admission.cancellationId,
+						]),
+						kind: "local-untrusted-js-compute-cancellation-accepted",
+						subjectId: admission.runId,
+						sourceRefs: admission.sourceRefs,
+						metadata: {
+							attempt: admission.attempt,
+							epoch: admission.epoch,
+							runAdmissionId: admission.runAdmissionId,
+						},
+					});
+				}),
+			),
 		),
 	];
 	return {

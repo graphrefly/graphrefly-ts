@@ -13,6 +13,7 @@ import { isAbsolute, relative, resolve } from "node:path";
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
 import { canonicalTupleKey, compoundTupleKey } from "../identity.js";
+import { eachMessage } from "../node/each-message.js";
 import type { Node } from "../node/node.js";
 import {
 	type AgentRequestStatusChanged,
@@ -642,7 +643,11 @@ export function httpToolProviderRuntime(
 		statusIssues?: readonly DataIssue[],
 		outcomeId?: string,
 	): void {
-		forwardedRunStatusKeys.add(canonicalTupleKey([request.runId, nextStatus]));
+		// One status per run and state, whichever path reports it first (the projector's forward
+		// or this direct publish); the order of the two does not decide it.
+		const statusKey = canonicalTupleKey([request.runId, nextStatus]);
+		if (forwardedRunStatusKeys.has(statusKey)) return;
+		forwardedRunStatusKeys.add(statusKey);
 		runStatus.down([
 			[
 				"DATA",
@@ -823,11 +828,13 @@ export function httpToolProviderRuntime(
 		);
 	}
 
-	const unsubscribeInputs = opts.inputs.subscribe((msg) => {
-		if (msg[0] !== "DATA") return;
-		const input = msg[1] as ToolProviderAdapterInput<HttpToolArguments>;
-		if (input.providerId === providerId) inputs.set(input.adapterInputId, input);
-	});
+	const unsubscribeInputs = opts.inputs.subscribe(
+		eachMessage((msg) => {
+			if (msg[0] !== "DATA") return;
+			const input = msg[1] as ToolProviderAdapterInput<HttpToolArguments>;
+			if (input.providerId === providerId) inputs.set(input.adapterInputId, input);
+		}),
+	);
 	const autoRunReadyInputs =
 		opts.autoRunReadyInputs ?? (opts.runRequests === undefined || opts.runRequests.length === 0);
 	const runProjector = toolProviderAdapterRunProjector(graph, {
@@ -837,23 +844,31 @@ export function httpToolProviderRuntime(
 		autoRunReadyInputs,
 		now: opts.now,
 	});
-	const unsubscribeRunStatus = runProjector.status.subscribe((msg) => {
-		if (msg[0] !== "DATA") return;
-		const nextStatus = msg[1] as ToolProviderAdapterRunStatus;
-		const statusKey = canonicalTupleKey([nextStatus.runId, nextStatus.status]);
-		if (forwardedRunStatusKeys.has(statusKey)) return;
-		forwardedRunStatusKeys.add(statusKey);
-		runStatus.down([["DATA", nextStatus]]);
-	});
-	const unsubscribeRunIssues = runProjector.issues.subscribe((msg) => {
-		if (msg[0] === "DATA") publishIssue(msg[1] as DataIssue);
-	});
-	const unsubscribeRunAudit = runProjector.audit.subscribe((msg) => {
-		if (msg[0] === "DATA") audit.down([["DATA", msg[1] as AgentRuntimeAuditRecord]]);
-	});
-	const unsubscribeRunRequests = runProjector.requests.subscribe((msg) => {
-		if (msg[0] === "DATA") execute(msg[1] as ToolProviderAdapterRunRequested);
-	});
+	const unsubscribeRunStatus = runProjector.status.subscribe(
+		eachMessage((msg) => {
+			if (msg[0] !== "DATA") return;
+			const nextStatus = msg[1] as ToolProviderAdapterRunStatus;
+			const statusKey = canonicalTupleKey([nextStatus.runId, nextStatus.status]);
+			if (forwardedRunStatusKeys.has(statusKey)) return;
+			forwardedRunStatusKeys.add(statusKey);
+			runStatus.down([["DATA", nextStatus]]);
+		}),
+	);
+	const unsubscribeRunIssues = runProjector.issues.subscribe(
+		eachMessage((msg) => {
+			if (msg[0] === "DATA") publishIssue(msg[1] as DataIssue);
+		}),
+	);
+	const unsubscribeRunAudit = runProjector.audit.subscribe(
+		eachMessage((msg) => {
+			if (msg[0] === "DATA") audit.down([["DATA", msg[1] as AgentRuntimeAuditRecord]]);
+		}),
+	);
+	const unsubscribeRunRequests = runProjector.requests.subscribe(
+		eachMessage((msg) => {
+			if (msg[0] === "DATA") execute(msg[1] as ToolProviderAdapterRunRequested);
+		}),
+	);
 	return Object.freeze({
 		catalogs: Object.freeze([catalog]),
 		runRequests: runProjector.requests,

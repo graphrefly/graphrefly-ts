@@ -22,8 +22,10 @@ const doubled = jotaiAtom(doubledNode);
 const unsubDoubled = doubled.subscribe((v) => console.log("doubled:", v));
 
 // Direct node subscriptions still honor push-on-subscribe.
-const unsubRaw = count._node.subscribe(([type, data]) => {
-	if (type === "DATA") console.log("count._node DATA:", data);
+const unsubRaw = count._node.subscribe((msgs) => {
+	for (const [type, data] of msgs) {
+		if (type === "DATA") console.log("count._node DATA:", data);
+	}
 });
 // -> count._node DATA: 0
 

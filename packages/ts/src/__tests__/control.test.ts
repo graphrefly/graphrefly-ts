@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { Ctx, Message } from "../index.js";
 import { depLatest, node } from "../index.js";
+import { eachMessage } from "../node/each-message.js";
 
 function collect(n: { subscribe(s: (m: Message) => void): () => void }) {
 	const msgs: Message[] = [];
-	const unsub = n.subscribe((m) => msgs.push(m));
+	const unsub = n.subscribe(eachMessage((m) => msgs.push(m)));
 	return { msgs, unsub };
 }
 const types = (msgs: Message[]) => msgs.map((m) => m[0]);
@@ -29,20 +30,5 @@ describe("async pool (R-sync-core async label, R8 late-emit pairing)", () => {
 		resolve?.();
 		expect(dbl.cache).toBe(6);
 		expect(types(msgs)).toEqual(["START", "PENDING", "DATA"]);
-	});
-});
-
-describe("replayBuffer (R-replay-buffer)", () => {
-	it("late subscriber receives the last N DATA after START", () => {
-		const s = node<number>([], null, { replayBuffer: 3 });
-		collect(s);
-		s.down([["DATA", 1]]);
-		s.down([["DATA", 2]]);
-		s.down([["DATA", 3]]);
-		s.down([["DATA", 4]]);
-
-		const { msgs } = collect(s);
-		expect(types(msgs)).toEqual(["START", "DATA", "DATA", "DATA"]);
-		expect(msgs.slice(1).map((m) => m[1])).toEqual([2, 3, 4]);
 	});
 });

@@ -3,6 +3,7 @@ import { expect, it } from "vitest";
 import { batch } from "../batch/batch.js";
 import { depBatch } from "../ctx/types.js";
 import { Graph } from "../graph/graph.js";
+import { eachMessage } from "../node/each-message.js";
 
 type Receipt = Readonly<{ id: number; result: "cancelled" | "succeeded" }>;
 function fixture(capacity = 64, enqueue: (callback: () => void) => void = queueMicrotask) {
@@ -71,9 +72,11 @@ function fixture(capacity = 64, enqueue: (callback: () => void) => void = queueM
 		{ name: "fake-host-refusal" },
 	);
 	const ownerStop = guard.subscribe(() => {});
-	const observerStop = source.subscribe((message) => {
-		if (message[0] === "DATA") observed.push(message[1] as readonly Receipt[]);
-	});
+	const observerStop = source.subscribe(
+		eachMessage((message) => {
+			if (message[0] === "DATA") observed.push(message[1] as readonly Receipt[]);
+		}),
+	);
 	return {
 		input,
 		guard,
@@ -153,9 +156,11 @@ it("retains records across UI detachment and rejects duplicate and conflicting c
 		expect(f.status().notifications).toBe(1);
 		expect(f.status().conflicts).toBe(1);
 		const reconnected: unknown[] = [];
-		const stop = f.source.subscribe((message) => {
-			if (message[0] === "DATA") reconnected.push(message[1]);
-		});
+		const stop = f.source.subscribe(
+			eachMessage((message) => {
+				if (message[0] === "DATA") reconnected.push(message[1]);
+			}),
+		);
 		stop();
 		expect(reconnected).toEqual([[{ id: 1, result: "cancelled" }]]);
 	} finally {
@@ -166,14 +171,16 @@ it("retains records across UI detachment and rejects duplicate and conflicting c
 it("coalesces new completions during delivery into one subsequent notification", async () => {
 	const f = fixture();
 	let once = false;
-	const stop = f.source.subscribe((message) => {
-		if (message[0] !== "DATA" || once) return;
-		once = true;
-		for (const id of [2, 3]) {
-			expect(f.reserve(id)).toBe(true);
-			f.complete({ id, result: "cancelled" });
-		}
-	});
+	const stop = f.source.subscribe(
+		eachMessage((message) => {
+			if (message[0] !== "DATA" || once) return;
+			once = true;
+			for (const id of [2, 3]) {
+				expect(f.reserve(id)).toBe(true);
+				f.complete({ id, result: "cancelled" });
+			}
+		}),
+	);
 	try {
 		f.input.down([["DATA", 1]]);
 		await checkpoint();
@@ -202,19 +209,18 @@ it("reserves at most 64 records and never reuses completed capacity", async () =
 	}
 });
 
-it("retains receipts and prevents new reservations after source delivery throws", async () => {
+it("a throwing source observer is isolated and does not fault the completion host (R-failure@3)", async () => {
 	const f = fixture();
-	const stop = f.source.subscribe((message) => {
-		if (message[0] === "DATA") throw new Error("delivery failure");
-	});
+	const stop = f.source.subscribe(
+		eachMessage((message) => {
+			if (message[0] === "DATA") throw new Error("delivery failure");
+		}),
+	);
 	try {
 		f.input.down([["DATA", 1]]);
 		await checkpoint();
-		expect(f.status().faulted).toBe(true);
+		expect(f.status().faulted).toBe(false);
 		expect(f.records.get(1)).toEqual({ id: 1, result: "cancelled" });
-		expect(f.reserve(2)).toBe(false);
-		await checkpoint();
-		expect(f.status().notifications).toBe(1);
 	} finally {
 		stop();
 		f.cleanup();

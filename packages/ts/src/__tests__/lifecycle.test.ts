@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { Ctx, Message } from "../index.js";
 import { depLatest, node } from "../index.js";
+import { eachMessage } from "../node/each-message.js";
 
 function collect(n: { subscribe(s: (m: Message) => void): () => void }) {
 	const msgs: Message[] = [];
-	const unsub = n.subscribe((m) => msgs.push(m));
+	const unsub = n.subscribe(eachMessage((m) => msgs.push(m)));
 	return { msgs, unsub };
 }
 const types = (msgs: Message[]) => msgs.map((m) => m[0]);
@@ -18,7 +19,8 @@ describe("terminal (R-terminal, R-deps-terminal)", () => {
 		const { msgs } = collect(d);
 		msgs.length = 0;
 		a.down([["COMPLETE"]]);
-		expect(types(msgs)).toEqual(["COMPLETE"]);
+		// R-wave: a terminal array carries the kernel's PENDING like a value array.
+		expect(types(msgs)).toEqual(["PENDING", "COMPLETE"]);
 		expect(d.status).toBe("completed");
 	});
 
@@ -150,12 +152,12 @@ describe("INVALIDATE (R-invalidate-idempotent, R-cleanup-hooks)", () => {
 });
 
 describe("same-wave merge (R-same-wave-merge)", () => {
-	it("DATA + INVALIDATE: cache advances then clears", () => {
+	it("an array is split at its last INVALIDATE; what came before it is dropped (R-wave)", () => {
 		const s = node<number>([], null, { initial: 1 });
 		const { msgs } = collect(s);
 		msgs.length = 0;
 		s.down([["DATA", 9], ["INVALIDATE"]]);
-		expect(types(msgs)).toEqual(["PENDING", "DATA", "INVALIDATE"]);
+		expect(types(msgs)).toEqual(["PENDING", "INVALIDATE"]);
 		expect(s.cache).toBeUndefined();
 	});
 
@@ -164,7 +166,7 @@ describe("same-wave merge (R-same-wave-merge)", () => {
 		const { msgs } = collect(s);
 		msgs.length = 0;
 		s.down([["INVALIDATE"], ["INVALIDATE"]]);
-		expect(types(msgs)).toEqual(["INVALIDATE"]);
+		expect(types(msgs)).toEqual(["PENDING", "INVALIDATE"]);
 	});
 });
 

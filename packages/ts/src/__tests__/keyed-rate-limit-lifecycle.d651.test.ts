@@ -4,6 +4,7 @@ import { attachKeyedRateLimitAuthority, type KeyedRateLimitAuthority } from "../
 import { graph, type ObserveEvent } from "../graph/index.js";
 import { canonicalTupleKey } from "../identity.js";
 import { strictJsonCodec } from "../json/codec.js";
+import { eachMessage } from "../node/each-message.js";
 import type { Node } from "../node/node.js";
 import {
 	assertKeyedRateLimitRequest,
@@ -47,9 +48,11 @@ function request(
 
 function capture<T>(node: Node<T>) {
 	const values: T[] = [];
-	const release = node.subscribe((msg) => {
-		if (msg[0] === "DATA") values.push(msg[1] as T);
-	});
+	const release = node.subscribe(
+		eachMessage((msg) => {
+			if (msg[0] === "DATA") values.push(msg[1] as T);
+		}),
+	);
 	return { values, release };
 }
 

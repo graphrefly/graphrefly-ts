@@ -1,6 +1,7 @@
 /** Identical private wrapper for both frozen git closures. No action clocks here. */
 import assert from "node:assert/strict";
 import { Graph } from "../../packages/ts/src/graph/graph.js";
+import { eachMessage } from "../../packages/ts/src/node/each-message.js";
 import { graphArm, type Scenario, schedule } from "./spending-preset-performance.js";
 // Exact build transform exports snapshot and adds plain/reference-checked expected data.
 import { graphSnapshot, preflight } from "./spending-preset-performance-worker.js";
@@ -58,7 +59,7 @@ export function micro(row: string) {
 		const right = group.derived([a, b], (x, y) => x * y, { name: "right" });
 		const join = group.derived([left, right], (x, y) => x + y, { name: "join" });
 		const messages: unknown[] = [];
-		disconnect = join.subscribe((m) => messages.push(m));
+		disconnect = join.subscribe(eachMessage((m) => messages.push(m)));
 		assert.ok(messages.some((m) => Array.isArray(m) && m[0] === "DATA" && m[1] === 11));
 	} else if (row === "inactive-2") {
 		const a = group.state(2, { name: "a" });

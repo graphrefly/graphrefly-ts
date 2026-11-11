@@ -15,6 +15,7 @@ import {
 } from "../executors/local-container-postgresql.js";
 import { postgresqlToolProviderInputFromIntent } from "../executors/postgresql-tool-provider.js";
 import { graph } from "../graph/graph.js";
+import { eachMessage } from "../node/each-message.js";
 import type { ToolProviderAdapterRunRequested } from "../orchestration/index.js";
 
 const digest = `sha256:${"a".repeat(64)}`;
@@ -199,9 +200,11 @@ const collect = <T>(node: {
 	subscribe(cb: (m: readonly [string, unknown]) => void): () => void;
 }) => {
 	const values: T[] = [];
-	node.subscribe((m) => {
-		if (m[0] === "DATA") values.push(m[1] as T);
-	});
+	node.subscribe(
+		eachMessage((m) => {
+			if (m[0] === "DATA") values.push(m[1] as T);
+		}),
+	);
 	return values;
 };
 const settle = async () => {

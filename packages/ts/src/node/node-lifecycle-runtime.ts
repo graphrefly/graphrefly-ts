@@ -34,20 +34,23 @@ export function nodeSubscribeDepAt<T>(
 			return;
 		}
 	}
-	const sink: import("../ctx/types.js").Sink = (msg, delivery) => {
-		if (ignoreInitialPush && delivery === undefined) return;
+	const dependent: import("../ctx/types.js").DependentSink = (msg, delivery) => {
+		if (ignoreInitialPush && delivery?.snapshot === true) return;
 		if (ignoreInitialPush) ignoreInitialPush = false;
 		if (box.v === -1) return; // dep removed — stale callback, drop (drain)
 		self._receiveFromDep(box.v, msg, delivery);
 	};
-	nodeRuntimeHost(depNode)._subscribeOwned(sink, {
-		record: (release) => {
-			if (idx0 !== -1) {
-				self._dep.unsubs[idx0] = release;
-				self._dep.idxBoxes[idx0] = box;
-			}
+	nodeRuntimeHost(depNode)._subscribeOwned(
+		{ kind: "dependent", fn: dependent },
+		{
+			record: (release) => {
+				if (idx0 !== -1) {
+					self._dep.unsubs[idx0] = release;
+					self._dep.idxBoxes[idx0] = box;
+				}
+			},
 		},
-	});
+	);
 	if (ignoreInitialPush && idx0 !== -1 && box.v !== -1) self._seedRestoredDepAt(idx0, depNode);
 	ignoreInitialPush = false;
 }
@@ -85,11 +88,11 @@ export function nodeDeactivate<T>(self: NodeRuntimeHost<T>): void {
 		// RAM: compute nodes clear cache; reconnect re-runs fn fresh.
 		self._value.cache = SENTINEL;
 		self._value.hasData = false;
+		self._value.lastArray = [];
 		self._value.status = "sentinel";
 	}
 	self._resetDepState();
 	self._wave.hasCalledFnOnce = false;
-	self._value.replayRing = []; // BH6: don't replay stale values to a post-reactivation subscriber
 	if (!self._privateState.persist) self._privateState.value = SENTINEL;
 }
 
@@ -106,7 +109,6 @@ export function nodeIsRuntimeQuiescentForRelease<T>(self: NodeRuntimeHost<T>): b
 		!self._wave.insideRunWave &&
 		!self._wave.inDepMutation &&
 		!self._wave.rewireRunPending &&
-		!self._wave.batchDirtyOwed &&
 		self._dep.dirty.every((dirty) => !dirty)
 	);
 }
@@ -171,7 +173,7 @@ export function nodeReleaseRuntime<T>(self: NodeRuntimeHost<T>): void {
 	self._value.hasData = false;
 	self._value.status = "sentinel";
 	self._value.terminal = undefined;
-	self._value.replayRing = [];
+	self._value.lastArray = [];
 	self._privateState.value = SENTINEL;
 	self._privateState.persist = false;
 	self._syncCtx = null;

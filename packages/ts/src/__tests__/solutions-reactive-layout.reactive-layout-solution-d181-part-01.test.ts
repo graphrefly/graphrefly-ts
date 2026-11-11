@@ -1,5 +1,6 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
 import { graph } from "../graph/graph.js";
+import { eachMessage } from "../node/each-message.js";
 import type { Message } from "../protocol/messages.js";
 import {
 	analyzeAndMeasure,
@@ -52,7 +53,7 @@ const data = <T>(messages: readonly Message[]): T[] =>
 
 function collect(node: { subscribe(sink: (messages: Message) => void): () => void }) {
 	const messages: Message[] = [];
-	const unsubscribe = node.subscribe((message) => messages.push(message));
+	const unsubscribe = node.subscribe(eachMessage((message) => messages.push(message)));
 	return { messages, unsubscribe };
 }
 

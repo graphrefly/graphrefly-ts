@@ -26,6 +26,7 @@ import {
 	restoreGraph,
 	restoreRegistry,
 } from "../index.js";
+import { eachMessage } from "../node/each-message.js";
 
 const types = (msgs: Message[]) => msgs.map((m) => m[0]);
 const data = (msgs: Message[]) =>
@@ -33,7 +34,7 @@ const data = (msgs: Message[]) =>
 const _flush = () => new Promise((r) => setTimeout(r, 0));
 function collect(n: { subscribe(s: (m: Message) => void): () => void }) {
 	const msgs: Message[] = [];
-	const unsub = n.subscribe((m) => msgs.push(m));
+	const unsub = n.subscribe(eachMessage((m) => msgs.push(m)));
 	return { msgs, unsub };
 }
 

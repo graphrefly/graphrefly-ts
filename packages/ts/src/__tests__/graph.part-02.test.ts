@@ -16,10 +16,11 @@ import {
 	restoreGraph,
 	strictJsonCodec,
 } from "../index.js";
+import { eachMessage } from "../node/each-message.js";
 
 function collect(n: { subscribe(s: (m: Message) => void): () => void }) {
 	const msgs: Message[] = [];
-	n.subscribe((m) => msgs.push(m));
+	n.subscribe(eachMessage((m) => msgs.push(m)));
 	return msgs;
 }
 function demand(request: Node<true>): void {
@@ -541,18 +542,39 @@ describe("Graph.checkpoint — public data shape (R-snapshot / D83 / D90)", () =
 	it("rejects non-quiescent checkpoint statuses that cannot be restored yet", () => {
 		const g = graph();
 		const source = g.state(1, { name: "source" });
-		// A pending mark never outlives its wave (R-wave), so a node is "dirty" only mid-wave.
+		// A pending mark never outlives its wave (R-wave), so a node is "dirty" only mid-wave: here
+		// one leg of a diamond checkpoints while the other leg and the fan-in are still pending.
 		let midWave: unknown;
-		source.subscribe((m) => {
-			if (m[0] !== "PENDING" || midWave !== undefined) return;
-			try {
-				g.checkpoint();
-				midWave = "no error";
-			} catch (e) {
-				midWave = e;
-			}
-		});
-		source.down([["DATA", 2]]);
+		const left = g.node<number>(
+			[source],
+			(ctx) => {
+				const v = depLatest(ctx, 0) as number;
+				if (v === 2 && midWave === undefined) {
+					try {
+						g.checkpoint();
+						midWave = "no error";
+					} catch (e) {
+						midWave = e;
+					}
+				}
+				ctx.down([["DATA", v]]);
+			},
+			{ name: "left" },
+		);
+		const right = g.node<number>(
+			[source],
+			(ctx) => ctx.down([["DATA", depLatest(ctx, 0) as number]]),
+			{
+				name: "right",
+			},
+		);
+		const join = g.node<number>(
+			[left, right],
+			(ctx) => ctx.down([["DATA", (depLatest(ctx, 0) as number) + (depLatest(ctx, 1) as number)]]),
+			{ name: "join" },
+		);
+		join.subscribe(() => {});
+		source.set(2);
 		expect(String(midWave)).toMatch(/non-quiescent status 'dirty'/);
 	});
 
@@ -665,7 +687,7 @@ describe("Graph release-local subscriber accounting — D122/D124", () => {
 		const right = group.derived([a, b], (x, y) => x * y, { name: "right" });
 		const join = group.derived([left, right], (x, y) => x + y, { name: "join" });
 		const messages: Message[] = [];
-		const disconnect = join.subscribe((m) => messages.push(m));
+		const disconnect = join.subscribe(eachMessage((m) => messages.push(m)));
 		expect(messages).toContainEqual(["DATA", 11]);
 		const before = g.describe();
 		const events: TopologyEvent[] = [];

@@ -211,6 +211,7 @@ import {
 import { settledRootEvalSpend } from "../../evals/graph-native-rerun-avoidance/settled-spend.js";
 import { graph } from "../graph/graph.js";
 import { strictJsonCodec } from "../json/codec.js";
+import { eachMessage } from "../node/each-message.js";
 
 const ROOT_EVAL_DEVELOPMENT_TASK = ROOT_EVAL_DEVELOPMENT_TASKS[0]!;
 const DEFAULT_TEST_WORK_ITEM_ID = "root-eval-test/candidate-work-item";
@@ -5019,9 +5020,11 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				reservationMicrousd: ROOT_EVAL_LIVE_CAMPAIGN_HARD_CAP_MICROUSD + 1,
 			});
 			let budgetReceipt: EvalBudgetState | null = null;
-			stopBudget = topology.nodes.budgets.subscribe((message) => {
-				if (message[0] === "DATA") budgetReceipt = message[1] as EvalBudgetState;
-			});
+			stopBudget = topology.nodes.budgets.subscribe(
+				eachMessage((message) => {
+					if (message[0] === "DATA") budgetReceipt = message[1] as EvalBudgetState;
+				}),
+			);
 			const execute = vi.fn(async () => {
 				throw new Error("stopped Graph must not execute effects");
 			});
@@ -7575,10 +7578,12 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				executionGrantDigest: acquisition.claim.executionGrantDigest,
 			});
 			const budgetDigests: string[] = [];
-			const stopBudget = topology.nodes.budgets.subscribe((message) => {
-				if (message[0] === "DATA")
-					budgetDigests.push((message[1] as EvalBudgetState).executionGrantDigest);
-			});
+			const stopBudget = topology.nodes.budgets.subscribe(
+				eachMessage((message) => {
+					if (message[0] === "DATA")
+						budgetDigests.push((message[1] as EvalBudgetState).executionGrantDigest);
+				}),
+			);
 			expect(topology.campaignContract.executionGrantDigest).toBe(grant.grantDigest);
 			expect(budgetDigests).toEqual([grant.grantDigest]);
 			stopBudget();

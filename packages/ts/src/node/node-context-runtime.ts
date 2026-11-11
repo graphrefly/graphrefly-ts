@@ -12,7 +12,7 @@ import {
 import type { Wave } from "../protocol/messages.js";
 import type { Node } from "./node.js";
 import type { NodeRuntimeHost } from "./node-runtime-host.js";
-import { DeliveryFailure, terminalView, validateNodeOutput } from "./protocol-guards.js";
+import { terminalView, validateNodeOutput } from "./protocol-guards.js";
 import { withEnvironmentDrivers, withNodeCore } from "./runtime-accessors.js";
 
 export function nodeBuildCtx<T>(self: NodeRuntimeHost<T>): Ctx {
@@ -55,14 +55,9 @@ export function nodeMakeCtx<T>(
 				nodeDeferQuietOutput(self, msgs);
 				return;
 			}
-			const duringRun = self._wave.insideRunWave;
 			enterWave();
 			try {
 				self._down(msgs);
-			} catch (e) {
-				// Not this function's throw (R-failure): see DeliveryFailure.
-				if (duringRun && !(e instanceof DeliveryFailure)) throw new DeliveryFailure(e);
-				throw e;
 			} finally {
 				exitWave();
 			}

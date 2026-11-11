@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { graph } from "../graph/graph.js";
+import { eachMessage } from "../node/each-message.js";
 import {
 	type AgentDecisionContinue,
 	type AgentRequestFact,
@@ -287,9 +288,9 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 1", () => {
 		const projected: unknown[] = [];
 		const issues: unknown[] = [];
 		const audit: unknown[] = [];
-		views.views.subscribe((msg) => msg[0] === "DATA" && projected.push(msg[1]));
-		views.issues.subscribe((msg) => msg[0] === "DATA" && issues.push(msg[1]));
-		views.audit.subscribe((msg) => msg[0] === "DATA" && audit.push(msg[1]));
+		views.views.subscribe(eachMessage((msg) => msg[0] === "DATA" && projected.push(msg[1])));
+		views.issues.subscribe(eachMessage((msg) => msg[0] === "DATA" && issues.push(msg[1])));
+		views.audit.subscribe(eachMessage((msg) => msg[0] === "DATA" && audit.push(msg[1])));
 
 		outcomes.down([
 			[
@@ -380,14 +381,14 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 1", () => {
 		const evidence: WorkItemEvidenceRecorded[] = [];
 		const views: unknown[] = [];
 		workItemRuns.effectRuns.subscribe(
-			(msg) => msg[0] === "DATA" && seededRuns.push(msg[1] as EffectRun),
+			eachMessage((msg) => msg[0] === "DATA" && seededRuns.push(msg[1] as EffectRun)),
 		);
 		interpreter.decisions.subscribe(() => {});
 		completion.results.subscribe(() => {});
 		mapper.evidence.subscribe(
-			(msg) => msg[0] === "DATA" && evidence.push(msg[1] as WorkItemEvidenceRecorded),
+			eachMessage((msg) => msg[0] === "DATA" && evidence.push(msg[1] as WorkItemEvidenceRecorded)),
 		);
-		mapper.views.subscribe((msg) => msg[0] === "DATA" && views.push(msg[1]));
+		mapper.views.subscribe(eachMessage((msg) => msg[0] === "DATA" && views.push(msg[1])));
 
 		workItems.down([
 			[
@@ -569,11 +570,11 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 1", () => {
 		const statuses: AgentRequestStatusChanged[] = [];
 		const results: EffectRunResult[] = [];
 		satisfaction.status.subscribe(
-			(msg) => msg[0] === "DATA" && statuses.push(msg[1] as AgentRequestStatusChanged),
+			eachMessage((msg) => msg[0] === "DATA" && statuses.push(msg[1] as AgentRequestStatusChanged)),
 		);
 		interpreter.decisions.subscribe(() => {});
 		completion.results.subscribe(
-			(msg) => msg[0] === "DATA" && results.push(msg[1] as EffectRunResult),
+			eachMessage((msg) => msg[0] === "DATA" && results.push(msg[1] as EffectRunResult)),
 		);
 
 		effectRuns.down([
@@ -707,7 +708,7 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 1", () => {
 		});
 		const statuses: AgentRequestStatusChanged[] = [];
 		satisfaction.status.subscribe(
-			(msg) => msg[0] === "DATA" && statuses.push(msg[1] as AgentRequestStatusChanged),
+			eachMessage((msg) => msg[0] === "DATA" && statuses.push(msg[1] as AgentRequestStatusChanged)),
 		);
 		const contextReq = issued("context-1", "ctx-op", "context");
 		const promptReq = issued("prompt-1", "prompt-op", "prompt");
@@ -798,7 +799,7 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 1", () => {
 		});
 		const statuses: AgentRequestStatusChanged[] = [];
 		satisfaction.status.subscribe(
-			(msg) => msg[0] === "DATA" && statuses.push(msg[1] as AgentRequestStatusChanged),
+			eachMessage((msg) => msg[0] === "DATA" && statuses.push(msg[1] as AgentRequestStatusChanged)),
 		);
 		const catalog = localBuiltinToolProviderCatalog({
 			providerId: "local",

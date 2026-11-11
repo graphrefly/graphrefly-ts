@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import ts from "typescript";
 import { graph } from "../../src/graph/graph.js";
 import { strictJsonCodec } from "../../src/json/codec.js";
+import { eachMessage } from "../../src/node/each-message.js";
 import type {
 	AgentRequestFact,
 	AgentRequestIssued,
@@ -296,12 +297,16 @@ function duplicateEffectRunSuppressionPassed(): boolean {
 	const projected = workItemEffectRunProjector(g, { workItems, effectRequests: requests });
 	const runs: EffectRun[] = [];
 	const issueCodes: string[] = [];
-	projected.effectRuns.subscribe((message) => {
-		if (message[0] === "DATA") runs.push(message[1] as EffectRun);
-	});
-	projected.issues.subscribe((message) => {
-		if (message[0] === "DATA") issueCodes.push((message[1] as { readonly code: string }).code);
-	});
+	projected.effectRuns.subscribe(
+		eachMessage((message) => {
+			if (message[0] === "DATA") runs.push(message[1] as EffectRun);
+		}),
+	);
+	projected.issues.subscribe(
+		eachMessage((message) => {
+			if (message[0] === "DATA") issueCodes.push((message[1] as { readonly code: string }).code);
+		}),
+	);
 	workItems.down([["DATA", { kind: "work-item", workItemId: "d687-duplicate" }]]);
 	const request = {
 		kind: "work-item-effect-requested" as const,

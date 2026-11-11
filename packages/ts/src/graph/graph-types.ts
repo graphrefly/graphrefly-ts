@@ -45,4 +45,19 @@ export interface GraphOptions {
 	 * use a dedicated dispatcher: `graph({ dispatcher: new Dispatcher(), profile: true })`.
 	 */
 	profile?: boolean;
+	/**
+	 * Host reporter (R-failure@3): a failure with no node to end, such as a sink that throws, is
+	 * reported here as `{ source, error }` and the delivery goes on. A reporter that throws is
+	 * ignored; with no reporter nothing is kept.
+	 */
+	report?: HostReporter;
 }
+
+/** A failure reported to the graph's host reporter (R-failure@3). */
+export interface HostFailure {
+	readonly source: string;
+	readonly error: unknown;
+}
+
+/** The graph's host reporter callback (R-failure@3). */
+export type HostReporter = (failure: HostFailure) => void;

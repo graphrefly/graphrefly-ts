@@ -6,6 +6,7 @@ import type {
 } from "../executors/tool-provider-runtime.js";
 import { attachToolProviderAdapterRuntime } from "../executors/tool-provider-runtime.js";
 import { type Graph, graph } from "../graph/graph.js";
+import { eachMessage } from "../node/each-message.js";
 import type { Node } from "../node/node.js";
 import {
 	type AgentRequestFact,
@@ -218,44 +219,52 @@ function visibleOutcomeResultCandidates(
 		}
 	}
 	const unsubscribes = [
-		opts.outcomes.subscribe((msg) => {
-			if (msg[0] !== "DATA") return;
-			const outcome = msg[1] as ExecutorOutcome;
-			state.outcomes.set(outcome.outcomeId, outcome);
-			tryEmit();
-		}),
-		opts.requestStatus.subscribe((msg) => {
-			if (msg[0] !== "DATA") return;
-			const status = msg[1] as AgentRequestStatusChanged;
-			state.statusByRequest.set(status.requestId, status);
-			tryEmit();
-		}),
-		opts.issues.subscribe((msg) => {
-			if (msg[0] !== "DATA") return;
-			const issue = msg[1] as DataIssue;
-			if (issue.subjectId !== undefined) {
-				const bucket = state.issuesByRequest.get(issue.subjectId) ?? [];
-				bucket.push(issue);
-				state.issuesByRequest.set(issue.subjectId, bucket);
-			}
-			tryEmit();
-		}),
-		opts.audit.subscribe((msg) => {
-			if (msg[0] !== "DATA") return;
-			const audit = msg[1] as AgentRuntimeAuditRecord;
-			if (audit.subjectId !== undefined) {
-				const bucket = state.auditByRequest.get(audit.subjectId) ?? [];
-				bucket.push(audit.id);
-				state.auditByRequest.set(audit.subjectId, bucket);
-			}
-			const outcomeId = audit.metadata?.outcomeId;
-			if (typeof outcomeId === "string") {
-				const bucket = state.auditByOutcome.get(outcomeId) ?? [];
-				bucket.push(audit.id);
-				state.auditByOutcome.set(outcomeId, bucket);
-			}
-			tryEmit();
-		}),
+		opts.outcomes.subscribe(
+			eachMessage((msg) => {
+				if (msg[0] !== "DATA") return;
+				const outcome = msg[1] as ExecutorOutcome;
+				state.outcomes.set(outcome.outcomeId, outcome);
+				tryEmit();
+			}),
+		),
+		opts.requestStatus.subscribe(
+			eachMessage((msg) => {
+				if (msg[0] !== "DATA") return;
+				const status = msg[1] as AgentRequestStatusChanged;
+				state.statusByRequest.set(status.requestId, status);
+				tryEmit();
+			}),
+		),
+		opts.issues.subscribe(
+			eachMessage((msg) => {
+				if (msg[0] !== "DATA") return;
+				const issue = msg[1] as DataIssue;
+				if (issue.subjectId !== undefined) {
+					const bucket = state.issuesByRequest.get(issue.subjectId) ?? [];
+					bucket.push(issue);
+					state.issuesByRequest.set(issue.subjectId, bucket);
+				}
+				tryEmit();
+			}),
+		),
+		opts.audit.subscribe(
+			eachMessage((msg) => {
+				if (msg[0] !== "DATA") return;
+				const audit = msg[1] as AgentRuntimeAuditRecord;
+				if (audit.subjectId !== undefined) {
+					const bucket = state.auditByRequest.get(audit.subjectId) ?? [];
+					bucket.push(audit.id);
+					state.auditByRequest.set(audit.subjectId, bucket);
+				}
+				const outcomeId = audit.metadata?.outcomeId;
+				if (typeof outcomeId === "string") {
+					const bucket = state.auditByOutcome.get(outcomeId) ?? [];
+					bucket.push(audit.id);
+					state.auditByOutcome.set(outcomeId, bucket);
+				}
+				tryEmit();
+			}),
+		),
 	];
 	return {
 		candidates,
@@ -376,18 +385,32 @@ function createDogfoodHarness(
 		evidence: [] as WorkItemEvidenceRecorded[],
 	};
 	const unsubscribes = [
-		adapterInputs.inputs.subscribe((msg) => msg[0] === "DATA" && seen.inputs.push(msg[1])),
-		runtime.outcomes.subscribe((msg) => msg[0] === "DATA" && seen.outcomes.push(msg[1])),
-		runtime.status.subscribe((msg) => msg[0] === "DATA" && seen.agentStatus.push(msg[1])),
-		runtime.runStatus.subscribe((msg) => msg[0] === "DATA" && seen.runStatus.push(msg[1])),
-		runtime.runtimeStatus.subscribe((msg) => msg[0] === "DATA" && seen.runtimeStatus.push(msg[1])),
-		runtime.issues.subscribe((msg) => msg[0] === "DATA" && seen.issues.push(msg[1])),
-		runtime.audit.subscribe((msg) => msg[0] === "DATA" && seen.audit.push(msg[1])),
-		resultCandidates.candidates.subscribe(
-			(msg) => msg[0] === "DATA" && seen.resultCandidates.push(msg[1]),
+		adapterInputs.inputs.subscribe(
+			eachMessage((msg) => msg[0] === "DATA" && seen.inputs.push(msg[1])),
 		),
-		completion.results.subscribe((msg) => msg[0] === "DATA" && seen.results.push(msg[1])),
-		evidenceMapper.evidence.subscribe((msg) => msg[0] === "DATA" && seen.evidence.push(msg[1])),
+		runtime.outcomes.subscribe(
+			eachMessage((msg) => msg[0] === "DATA" && seen.outcomes.push(msg[1])),
+		),
+		runtime.status.subscribe(
+			eachMessage((msg) => msg[0] === "DATA" && seen.agentStatus.push(msg[1])),
+		),
+		runtime.runStatus.subscribe(
+			eachMessage((msg) => msg[0] === "DATA" && seen.runStatus.push(msg[1])),
+		),
+		runtime.runtimeStatus.subscribe(
+			eachMessage((msg) => msg[0] === "DATA" && seen.runtimeStatus.push(msg[1])),
+		),
+		runtime.issues.subscribe(eachMessage((msg) => msg[0] === "DATA" && seen.issues.push(msg[1]))),
+		runtime.audit.subscribe(eachMessage((msg) => msg[0] === "DATA" && seen.audit.push(msg[1]))),
+		resultCandidates.candidates.subscribe(
+			eachMessage((msg) => msg[0] === "DATA" && seen.resultCandidates.push(msg[1])),
+		),
+		completion.results.subscribe(
+			eachMessage((msg) => msg[0] === "DATA" && seen.results.push(msg[1])),
+		),
+		evidenceMapper.evidence.subscribe(
+			eachMessage((msg) => msg[0] === "DATA" && seen.evidence.push(msg[1])),
+		),
 		evidenceMapper.views.subscribe(() => {}),
 	];
 	let disposed = false;

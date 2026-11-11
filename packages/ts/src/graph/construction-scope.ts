@@ -323,11 +323,14 @@ export function startConstruction(graph: Graph, owner: OwnedConstruction): void 
 	let code: StartupFact["code"];
 	try {
 		for (const lease of owner.roots) {
-			nodeRuntimeHost(lease.node)._subscribeOwned(() => {}, {
-				record: (release) => {
-					lease.unsubscribe = release;
+			nodeRuntimeHost(lease.node)._subscribeOwned(
+				{ kind: "sink", fn: () => {} },
+				{
+					record: (release) => {
+						lease.unsubscribe = release;
+					},
 				},
-			});
+			);
 			if (
 				owner.nodes.some(
 					(node) =>

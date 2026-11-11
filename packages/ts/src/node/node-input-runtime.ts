@@ -2,8 +2,8 @@ import type { DeliveryMeta } from "../ctx/types.js";
 import type { Handle } from "../dispatcher/index.js";
 import type { Message } from "../protocol/messages.js";
 import { errorPayload, isTerminal, SENTINEL } from "../protocol/messages.js";
+import { isMarking } from "./node-output-runtime.js";
 import type { NodeRuntimeHost } from "./node-runtime-host.js";
-import { DeliveryFailure } from "./protocol-guards.js";
 
 export function nodeRecordDepProjection<T>(
 	self: NodeRuntimeHost<T>,
@@ -13,7 +13,8 @@ export function nodeRecordDepProjection<T>(
 	const token = delivery?.wave ?? {};
 	if (self._dep.waveTokens[idx] !== token) {
 		self._dep.waveData[idx].push([]);
-		self._dep.waveLive[idx].push(delivery !== undefined);
+		// A snapshot (what a new dependent receives at subscription) is not a live wave.
+		self._dep.waveLive[idx].push(delivery !== undefined && delivery.snapshot !== true);
 		self._dep.waveTokens[idx] = token;
 	}
 	return self._dep.waveData[idx][self._dep.waveData[idx].length - 1];
@@ -38,9 +39,12 @@ export function nodeReceiveFromDep<T>(
 	if (self._value.terminal !== undefined) return;
 
 	if (t === "INVALIDATE") {
-		const projection = self._recordDepProjection(idx, delivery);
-		projection.push(SENTINEL);
-		if (projection.some((v) => v !== SENTINEL) && isLastInDeliveredWave) self._maybeRun();
+		// R-invalidation / R-wave: what came before an INVALIDATE on this input is gone, and the
+		// INVALIDATE is not a value for the function: under the auto policy the node is
+		// invalidated without running. INVALIDATE always travels as an array of its own.
+		self._dep.waveData[idx] = [];
+		self._dep.waveLive[idx] = [];
+		self._dep.waveTokens[idx] = undefined;
 		// The dep's value is gone — drop our cached latest view to SENTINEL so the
 		// never-emitted detector reads correctly, C-3) and cascade (idempotent).
 		self._dep.prev[idx] = SENTINEL;
@@ -171,7 +175,7 @@ export function nodeMarkDirty<T>(self: NodeRuntimeHost<T>): void {
 	self._value.status = "dirty";
 	if (!self._wave.emittedDirtyThisWave) {
 		self._wave.emittedDirtyThisWave = true;
-		self._emitToSubs(["PENDING"]);
+		self._markDependents();
 	}
 }
 
@@ -206,8 +210,16 @@ export function nodeTryRun<T>(self: NodeRuntimeHost<T>): void {
 		return;
 	}
 	if (!self._wave.hasCalledFnOnce) {
-		if (self._slot.partial || self._allDepsSettled()) self._runWave();
-		// else: first-run gate holds fn until every dep has settled (R-first-run-gate).
+		if (self._slot.partial || self._allDepsSettled()) {
+			self._runWave();
+			return;
+		}
+		// The first-run gate (TS sugar) holds fn until every dep has a value; a node it holds still
+		// settles a pending mark with the kernel's RESOLVED (R-wave), so nothing below it waits.
+		if (self._wave.emittedDirtyThisWave) {
+			self._publish([[["RESOLVED"]]]);
+			self._wave.emittedDirtyThisWave = false;
+		}
 		return;
 	}
 	self._runWave();
@@ -262,6 +274,7 @@ export function nodeRunWave<T>(self: NodeRuntimeHost<T>): void {
 	const ctx = self._buildCtx();
 	const wasDirty = self._wave.emittedDirtyThisWave;
 	self._wave.emittedSettleThisWave = false;
+	self._wave.runOutput = [];
 	self._wave.insideRunWave = true;
 	let thrown: { readonly error: unknown } | undefined;
 	try {
@@ -271,27 +284,16 @@ export function nodeRunWave<T>(self: NodeRuntimeHost<T>): void {
 	} finally {
 		self._wave.insideRunWave = false;
 	}
-	if (thrown !== undefined) {
-		// R-failure: a delivery failure is the caller's, passed on unchanged; a throw from the
-		// function itself (including an output ctx.down rejected) is this node's ERROR.
-		if (thrown.error instanceof DeliveryFailure) throw thrown.error.cause;
-		self._down([
-			["ERROR", errorPayload(thrown.error, "node function threw without a valid error payload")],
-		]);
-	}
+	let out: Message[][] = self._wave.runOutput.map((a) => [...a]);
+	self._wave.runOutput = [];
+	// R-failure: a throw from the function (including an output ctx.down rejected) is this node's
+	// ERROR; what it sent before the throw is dropped.
+	if (thrown !== undefined)
+		out = [
+			[["ERROR", errorPayload(thrown.error, "node function threw without a valid error payload")]],
+		];
 
-	// R-wave: a node that was marked pending and sent nothing in its run gets exactly one RESOLVED
-	// from the kernel, the only output the kernel adds (filter-reject / distinctUntilChanged-dup /
-	// any no-emit fn), so operator bodies stay protocol-clean. Status reflects cache freshness: a
-	// carried value -> resolved, never-valued -> sentinel. EXEMPT: terminal/INVALIDATE waves (they
-	// set _emittedSettleThisWave and balance their own pending mark). An ASYNC-pool node is not
-	// exempt: its run sent nothing in this wave, so it settles now, and its later ctx.down is a
-	// new wave with its own PENDING (C-4: no PENDING stays open while the work runs).
-	if (wasDirty && !self._wave.emittedSettleThisWave && self._value.terminal === undefined) {
-		self._down([["RESOLVED"]]);
-	}
-
-	// roll wave-local state forward
+	// The run consumed this wave's input.
 	for (let i = 0; i < self._dep.batch.length; i++) {
 		self._dep.batch[i] = null;
 		self._dep.waveData[i] = [];
@@ -299,5 +301,14 @@ export function nodeRunWave<T>(self: NodeRuntimeHost<T>): void {
 		self._dep.waveLive[i] = [];
 		self._dep.terminalInput[i] = undefined;
 	}
+
+	// R-wave: a node that was marked pending and sent nothing in its run gets exactly one RESOLVED
+	// from the kernel, the only output the kernel adds (filter-reject / distinctUntilChanged-dup /
+	// any no-emit fn). An ASYNC-pool node is not exempt: its run sent nothing in this wave, so it
+	// settles now, and its later ctx.down is a new wave with its own PENDING (C-4).
+	if (wasDirty && self._value.terminal === undefined && !out.some((a) => a.some(isMarking)))
+		out.push([["RESOLVED"]]);
+	// R-wave: the run's arrays reach its subscribers after it returned, in order.
+	if (out.length > 0) self._publish(out);
 	self._wave.emittedDirtyThisWave = false;
 }

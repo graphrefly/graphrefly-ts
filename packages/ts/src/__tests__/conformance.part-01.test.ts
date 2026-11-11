@@ -24,6 +24,7 @@ import {
 	node,
 	take,
 } from "../index.js";
+import { eachMessage } from "../node/each-message.js";
 
 const types = (msgs: Message[]) => msgs.map((m) => m[0]);
 const data = (msgs: Message[]) =>
@@ -31,7 +32,7 @@ const data = (msgs: Message[]) =>
 const _flush = () => new Promise((r) => setTimeout(r, 0));
 function collect(n: { subscribe(s: (m: Message) => void): () => void }) {
 	const msgs: Message[] = [];
-	const unsub = n.subscribe((m) => msgs.push(m));
+	const unsub = n.subscribe(eachMessage((m) => msgs.push(m)));
 	return { msgs, unsub };
 }
 
@@ -54,7 +55,7 @@ describe("C-3 INVALIDATE × ctx.state × onInvalidate (R-invalidate-idempotent, 
 
 		msgs.length = 0;
 		s.down([["INVALIDATE"]]);
-		expect(types(msgs)).toEqual(["INVALIDATE"]); // cascaded downstream exactly once
+		expect(types(msgs)).toEqual(["PENDING", "INVALIDATE"]); // cascaded downstream exactly once
 		expect(onInv).toBe(1);
 		expect(d.cache).toBeUndefined();
 		expect(d.status).toBe("sentinel");
@@ -88,7 +89,7 @@ describe("C-4 a sync leg and an async leg: the async result is a later wave, not
 			},
 			{ pool: "async" },
 		);
-		c.subscribe((m) => cOut.push(m));
+		c.subscribe(eachMessage((m) => cOut.push(m)));
 		const d = node<number>([b, c], (ctx: Ctx) => {
 			dRuns++;
 			ctx.down([["DATA", (depLatest(ctx, 0) as number) + (depLatest(ctx, 1) as number)]]);
@@ -429,7 +430,14 @@ describe("C-12 occurrences stay DATA; RESOLVED is undirty-only (R-resolved-undir
 		const g = graph();
 		const src = g.initNode(fromIter<number>([1, 1, 1]), []);
 		const { msgs } = collect(src);
-		expect(types(msgs)).toEqual(["START", "DATA", "DATA", "DATA", "COMPLETE"]);
+		// Each source array carries the kernel's PENDING first (R-wave).
+		expect(types(msgs).filter((t) => t !== "PENDING")).toEqual([
+			"START",
+			"DATA",
+			"DATA",
+			"DATA",
+			"COMPLETE",
+		]);
 		expect(data(msgs)).toEqual([1, 1, 1]); // not [1] — the pre-D49 equals-absorption bug
 	});
 

@@ -2,6 +2,7 @@ import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
 import type { RetentionPolicy } from "../graph/policies/types.js";
 import { canonicalTupleKey, compoundTupleKey } from "../identity.js";
+import { eachMessage } from "../node/each-message.js";
 import type {
 	EffectiveRuntimeRetentionPolicy,
 	ReplayEvidenceClassification,
@@ -919,28 +920,32 @@ export function attachToolProviderAdapterRuntime<TArguments = unknown, TResult =
 		);
 	}
 
-	const unsubscribeRetentionPolicy = retentionPolicy.subscribe((msg) => {
-		if (msg[0] === "DATA") applyRetentionPolicyFact(msg[1] as RuntimeRetentionPolicyFact);
-	});
-	const unsubscribeInputs = opts.inputs.subscribe((msg) => {
-		if (msg[0] !== "DATA") return;
-		const input = msg[1] as ToolProviderAdapterInput<TArguments>;
-		if (isRetentionEvidenceClosed(input.adapterInputId)) {
-			adapterInputs.delete(input.adapterInputId);
-			dropProjectorInput(input.adapterInputId);
-			return;
-		}
-		if (trimmedAdapterInputIds.delete(input.adapterInputId)) {
-			retentionEvidence.delete(`adapter-input-trimmed:${input.adapterInputId}`);
-		}
-		const sequence = nextRetentionSequence();
-		adapterInputs.set(
-			input.adapterInputId,
-			adapterInputRetentionEntry(input.adapterInputId, sequence, input, nowMs()),
-			input,
-		);
-		trimAdapterInputs();
-	});
+	const unsubscribeRetentionPolicy = retentionPolicy.subscribe(
+		eachMessage((msg) => {
+			if (msg[0] === "DATA") applyRetentionPolicyFact(msg[1] as RuntimeRetentionPolicyFact);
+		}),
+	);
+	const unsubscribeInputs = opts.inputs.subscribe(
+		eachMessage((msg) => {
+			if (msg[0] !== "DATA") return;
+			const input = msg[1] as ToolProviderAdapterInput<TArguments>;
+			if (isRetentionEvidenceClosed(input.adapterInputId)) {
+				adapterInputs.delete(input.adapterInputId);
+				dropProjectorInput(input.adapterInputId);
+				return;
+			}
+			if (trimmedAdapterInputIds.delete(input.adapterInputId)) {
+				retentionEvidence.delete(`adapter-input-trimmed:${input.adapterInputId}`);
+			}
+			const sequence = nextRetentionSequence();
+			adapterInputs.set(
+				input.adapterInputId,
+				adapterInputRetentionEntry(input.adapterInputId, sequence, input, nowMs()),
+				input,
+			);
+			trimAdapterInputs();
+		}),
+	);
 	const runProjector = toolProviderAdapterRunProjectorInternal(graph, {
 		name: `${name}/runs`,
 		inputs: opts.inputs,
@@ -972,23 +977,31 @@ export function attachToolProviderAdapterRuntime<TArguments = unknown, TResult =
 			classifyRetainedRunRequestReplayEvidence,
 		},
 	});
-	const unsubscribeRunProjectorStatus = runProjector.status.subscribe((msg) => {
-		if (msg[0] === "DATA") {
-			const statusFact = msg[1] as ToolProviderAdapterRunStatus;
-			runStatus.down([["DATA", statusFact]]);
-		}
-	});
-	const unsubscribeRunProjectorIssues = runProjector.issues.subscribe((msg) => {
-		if (msg[0] === "DATA") publishIssue(msg[1] as DataIssue, false);
-	});
-	const unsubscribeRunProjectorAudit = runProjector.audit.subscribe((msg) => {
-		if (msg[0] === "DATA") audit.down([["DATA", msg[1] as AgentRuntimeAuditRecord]]);
-	});
-	const unsubscribeRunRequests = runProjector.requests.subscribe((msg) => {
-		if (msg[0] !== "DATA") return;
-		const request = msg[1] as ToolProviderAdapterRunRequested;
-		runRequest(request);
-	});
+	const unsubscribeRunProjectorStatus = runProjector.status.subscribe(
+		eachMessage((msg) => {
+			if (msg[0] === "DATA") {
+				const statusFact = msg[1] as ToolProviderAdapterRunStatus;
+				runStatus.down([["DATA", statusFact]]);
+			}
+		}),
+	);
+	const unsubscribeRunProjectorIssues = runProjector.issues.subscribe(
+		eachMessage((msg) => {
+			if (msg[0] === "DATA") publishIssue(msg[1] as DataIssue, false);
+		}),
+	);
+	const unsubscribeRunProjectorAudit = runProjector.audit.subscribe(
+		eachMessage((msg) => {
+			if (msg[0] === "DATA") audit.down([["DATA", msg[1] as AgentRuntimeAuditRecord]]);
+		}),
+	);
+	const unsubscribeRunRequests = runProjector.requests.subscribe(
+		eachMessage((msg) => {
+			if (msg[0] !== "DATA") return;
+			const request = msg[1] as ToolProviderAdapterRunRequested;
+			runRequest(request);
+		}),
+	);
 
 	return {
 		runRequests: runProjector.requests,

@@ -249,11 +249,15 @@ function attachGovernedConsumer(
 		{ name: `${name}/protected-effect` },
 	);
 	const stopEffect = protectedEffect.subscribe(() => undefined);
-	const stopAdmissions = adapter.admission.admissions.subscribe((message) => {
-		if (message[0] === "DATA") admissionFacts.push(message[1] as KeyedRateLimitAdmission);
+	const stopAdmissions = adapter.admission.admissions.subscribe((msgs) => {
+		for (const message of msgs) {
+			if (message[0] === "DATA") admissionFacts.push(message[1] as KeyedRateLimitAdmission);
+		}
 	});
-	const stopDenials = adapter.admission.denials.subscribe((message) => {
-		if (message[0] === "DATA") denials.push(message[1] as KeyedRateLimitDenial);
+	const stopDenials = adapter.admission.denials.subscribe((msgs) => {
+		for (const message of msgs) {
+			if (message[0] === "DATA") denials.push(message[1] as KeyedRateLimitDenial);
+		}
 	});
 	return {
 		graph: g,

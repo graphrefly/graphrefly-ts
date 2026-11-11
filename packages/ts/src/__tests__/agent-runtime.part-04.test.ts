@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { DataIssue } from "../data/index.js";
 import { graph } from "../graph/graph.js";
+import { eachMessage } from "../node/each-message.js";
 import {
 	type AgentRequestIssued,
 	buildToolProviderAdapterInputs,
@@ -291,13 +292,20 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 4", () => {
 		const issues: DataIssue[] = [];
 		const audit: unknown[] = [];
 		runtime.runStatus.subscribe(
-			(msg) => msg[0] === "DATA" && runStatus.push(msg[1] as ToolProviderAdapterRunStatus),
+			eachMessage(
+				(msg) => msg[0] === "DATA" && runStatus.push(msg[1] as ToolProviderAdapterRunStatus),
+			),
 		);
 		runtime.runtimeStatus.subscribe(
-			(msg) => msg[0] === "DATA" && runtimeStatus.push(msg[1] as ToolProviderAdapterRuntimeStatus),
+			eachMessage(
+				(msg) =>
+					msg[0] === "DATA" && runtimeStatus.push(msg[1] as ToolProviderAdapterRuntimeStatus),
+			),
 		);
-		runtime.issues.subscribe((msg) => msg[0] === "DATA" && issues.push(msg[1] as DataIssue));
-		runtime.audit.subscribe((msg) => msg[0] === "DATA" && audit.push(msg[1]));
+		runtime.issues.subscribe(
+			eachMessage((msg) => msg[0] === "DATA" && issues.push(msg[1] as DataIssue)),
+		);
+		runtime.audit.subscribe(eachMessage((msg) => msg[0] === "DATA" && audit.push(msg[1])));
 
 		inputs.down([["DATA", ready]]);
 		runRequests.down([
@@ -382,12 +390,19 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 4", () => {
 		const runtimeStatus: ToolProviderAdapterRuntimeStatus[] = [];
 		const issues: DataIssue[] = [];
 		runtime.runStatus.subscribe(
-			(msg) => msg[0] === "DATA" && runStatus.push(msg[1] as ToolProviderAdapterRunStatus),
+			eachMessage(
+				(msg) => msg[0] === "DATA" && runStatus.push(msg[1] as ToolProviderAdapterRunStatus),
+			),
 		);
 		runtime.runtimeStatus.subscribe(
-			(msg) => msg[0] === "DATA" && runtimeStatus.push(msg[1] as ToolProviderAdapterRuntimeStatus),
+			eachMessage(
+				(msg) =>
+					msg[0] === "DATA" && runtimeStatus.push(msg[1] as ToolProviderAdapterRuntimeStatus),
+			),
 		);
-		runtime.issues.subscribe((msg) => msg[0] === "DATA" && issues.push(msg[1] as DataIssue));
+		runtime.issues.subscribe(
+			eachMessage((msg) => msg[0] === "DATA" && issues.push(msg[1] as DataIssue)),
+		);
 
 		inputs.down([["DATA", ready]]);
 		runRequests.down([
@@ -467,13 +482,20 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 4", () => {
 		const issues: DataIssue[] = [];
 		const audit: unknown[] = [];
 		runtime.runStatus.subscribe(
-			(msg) => msg[0] === "DATA" && runStatus.push(msg[1] as ToolProviderAdapterRunStatus),
+			eachMessage(
+				(msg) => msg[0] === "DATA" && runStatus.push(msg[1] as ToolProviderAdapterRunStatus),
+			),
 		);
 		runtime.runtimeStatus.subscribe(
-			(msg) => msg[0] === "DATA" && runtimeStatus.push(msg[1] as ToolProviderAdapterRuntimeStatus),
+			eachMessage(
+				(msg) =>
+					msg[0] === "DATA" && runtimeStatus.push(msg[1] as ToolProviderAdapterRuntimeStatus),
+			),
 		);
-		runtime.issues.subscribe((msg) => msg[0] === "DATA" && issues.push(msg[1] as DataIssue));
-		runtime.audit.subscribe((msg) => msg[0] === "DATA" && audit.push(msg[1]));
+		runtime.issues.subscribe(
+			eachMessage((msg) => msg[0] === "DATA" && issues.push(msg[1] as DataIssue)),
+		);
+		runtime.audit.subscribe(eachMessage((msg) => msg[0] === "DATA" && audit.push(msg[1])));
 
 		inputs.down([
 			["DATA", first],
@@ -618,13 +640,20 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 4", () => {
 		const issues: DataIssue[] = [];
 		const audit: unknown[] = [];
 		runtime.runtimeStatus.subscribe(
-			(msg) => msg[0] === "DATA" && runtimeStatus.push(msg[1] as ToolProviderAdapterRuntimeStatus),
+			eachMessage(
+				(msg) =>
+					msg[0] === "DATA" && runtimeStatus.push(msg[1] as ToolProviderAdapterRuntimeStatus),
+			),
 		);
 		runtime.runStatus.subscribe(
-			(msg) => msg[0] === "DATA" && runStatus.push(msg[1] as ToolProviderAdapterRunStatus),
+			eachMessage(
+				(msg) => msg[0] === "DATA" && runStatus.push(msg[1] as ToolProviderAdapterRunStatus),
+			),
 		);
-		runtime.issues.subscribe((msg) => msg[0] === "DATA" && issues.push(msg[1] as DataIssue));
-		runtime.audit.subscribe((msg) => msg[0] === "DATA" && audit.push(msg[1]));
+		runtime.issues.subscribe(
+			eachMessage((msg) => msg[0] === "DATA" && issues.push(msg[1] as DataIssue)),
+		);
+		runtime.audit.subscribe(eachMessage((msg) => msg[0] === "DATA" && audit.push(msg[1])));
 
 		inputs.down([["DATA", first]]);
 		runRequests.down([
@@ -775,7 +804,10 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 4", () => {
 		});
 		const runtimeStatus: ToolProviderAdapterRuntimeStatus[] = [];
 		runtime.runtimeStatus.subscribe(
-			(msg) => msg[0] === "DATA" && runtimeStatus.push(msg[1] as ToolProviderAdapterRuntimeStatus),
+			eachMessage(
+				(msg) =>
+					msg[0] === "DATA" && runtimeStatus.push(msg[1] as ToolProviderAdapterRuntimeStatus),
+			),
 		);
 
 		inputs.down([["DATA", ready]]);

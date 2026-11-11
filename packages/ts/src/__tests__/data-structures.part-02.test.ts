@@ -17,6 +17,7 @@ import { reactiveList } from "../graph/data-structures/reactive-list.js";
 import { mergeReactiveLogs, reactiveLog, scanLog } from "../graph/data-structures/reactive-log.js";
 import { graph } from "../graph/graph.js";
 import { Dispatcher, type Message } from "../index.js";
+import { eachMessage } from "../node/each-message.js";
 import type { Node } from "../node/node.js";
 
 const _types = (m: Message[]) => m.map((x) => x[0]);
@@ -25,7 +26,7 @@ const data = <T>(m: Message[]): T[] =>
 
 function collect(n: { subscribe(s: (m: Message) => void): () => void }) {
 	const msgs: Message[] = [];
-	const unsub = n.subscribe((m) => msgs.push(m));
+	const unsub = n.subscribe(eachMessage((m) => msgs.push(m)));
 	return { msgs, unsub };
 }
 

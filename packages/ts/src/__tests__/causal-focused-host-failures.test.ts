@@ -24,6 +24,7 @@ import type { NodeFn } from "../ctx/types.js";
 import { Dispatcher, type Handle } from "../dispatcher/index.js";
 import { ColdConstructionError, ConstructionScope } from "../graph/construction-scope.js";
 import { Graph } from "../graph/graph.js";
+import { eachMessage } from "../node/each-message.js";
 
 it("scheduler failure before write retains known no-submit without executing", async () => {
 	const run = runHost();
@@ -89,7 +90,7 @@ it("removing a real guard dependency faults without positional fallback", async 
 		run.teardown();
 	}
 });
-it("real source delivery throw preserves completed record and faults owner", async () => {
+it("a throwing source observer is isolated: the record completes and the host keeps serving (R-failure@3)", async () => {
 	const run = runHost();
 	let stop: (() => void) | undefined;
 	try {
@@ -97,21 +98,19 @@ it("real source delivery throw preserves completed record and faults owner", asy
 		run.drive([evaluationFixture()]);
 		await drain();
 		let armed = false;
-		stop = run.host.source.subscribe((m) => {
-			if (armed && m[0] === "DATA") throw new Error("delivery observer fault");
-		});
+		stop = run.host.source.subscribe(
+			eachMessage((m) => {
+				if (armed && m[0] === "DATA") throw new Error("delivery observer fault");
+			}),
+		);
 		armed = true;
 		run.pending.resolve({ bytesWritten: Buffer.byteLength(run.calls[0]) });
 		await drain();
-		expect(run.host.inspect().fault).toBe("delivery-failed");
+		// The sink's failure goes to the graph's host reporter, not into the host's write.
+		expect(run.host.inspect().fault).toBeUndefined();
 		expect(run.host.inspect().records[0].outcome?.state).toBe("succeeded");
-		expect(run.host.inspect().normalEndReady).toBe(false);
 		stop();
 		stop = undefined;
-		run.drive([evaluationFixture(1)]);
-		await drain();
-		expect(run.calls).toHaveLength(1);
-		expect(run.host.inspect().records).toHaveLength(1);
 	} finally {
 		stop?.();
 		run.teardown();
@@ -152,9 +151,11 @@ it("64-request burst retains bounded outcomes but reports pending overload and c
 			[...run.state().effects.values()].filter((r) => r.outcome?.state === "succeeded"),
 		).toHaveLength(1);
 		const issues: unknown[] = [];
-		const stopIssues = run.host.consume.view.issues.subscribe((m) => {
-			if (m[0] === "DATA") issues.push(m[1]);
-		});
+		const stopIssues = run.host.consume.view.issues.subscribe(
+			eachMessage((m) => {
+				if (m[0] === "DATA") issues.push(m[1]);
+			}),
+		);
 		expect(issues).toContainEqual(
 			expect.objectContaining({ code: "causal-occurrence/terminal-pending-bound" }),
 		);

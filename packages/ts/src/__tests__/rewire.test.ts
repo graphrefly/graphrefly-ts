@@ -10,10 +10,11 @@
 import { describe, expect, it } from "vitest";
 import type { Ctx, Message } from "../index.js";
 import { Dispatcher, depLatest, type Node, node } from "../index.js";
+import { eachMessage } from "../node/each-message.js";
 
 function collect(n: Node) {
 	const msgs: Message[] = [];
-	const unsub = n.subscribe((m) => msgs.push(m));
+	const unsub = n.subscribe(eachMessage((m) => msgs.push(m)));
 	return { msgs, unsub };
 }
 const num = (ctx: Ctx, i: number): number => depLatest(ctx, i) as number;

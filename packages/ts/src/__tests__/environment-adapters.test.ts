@@ -12,6 +12,7 @@ import {
 } from "../graph/environment.js";
 import { graph } from "../graph/graph.js";
 import { retryPolicy } from "../graph/resilience.js";
+import { eachMessage } from "../node/each-message.js";
 
 describe("environment outbound adapters (D130/D132)", () => {
 	it("routes outbound HTTP attempts and results through graph-visible nodes", () => {
@@ -37,8 +38,8 @@ describe("environment outbound adapters (D130/D132)", () => {
 		});
 		const events: unknown[] = [];
 		const statuses: unknown[] = [];
-		bundle.events.subscribe((msg) => events.push(msg));
-		bundle.status.subscribe((msg) => statuses.push(msg));
+		bundle.events.subscribe(eachMessage((msg) => events.push(msg)));
+		bundle.status.subscribe(eachMessage((msg) => statuses.push(msg)));
 
 		source.down([["DATA", "alpha"]]);
 		expect(calls.map((call) => call.request)).toEqual([
@@ -76,8 +77,8 @@ describe("environment outbound adapters (D130/D132)", () => {
 		});
 		const events: unknown[] = [];
 		const statuses: unknown[] = [];
-		bundle.events.subscribe((msg) => events.push(msg));
-		bundle.status.subscribe((msg) => statuses.push(msg));
+		bundle.events.subscribe(eachMessage((msg) => events.push(msg)));
+		bundle.status.subscribe(eachMessage((msg) => statuses.push(msg)));
 
 		source.down([["DATA", "alpha"]]);
 
@@ -167,14 +168,16 @@ describe("environment session adapters (D133)", () => {
 		const statuses: unknown[] = [];
 		const attempts: unknown[] = [];
 		const errors: unknown[] = [];
-		bundle.inbound.subscribe((msg) => inbound.push(msg));
-		bundle.lifecycle.subscribe((msg) => lifecycle.push(msg));
-		bundle.outbound.subscribe((msg) => outbound.push(msg));
-		bundle.status.subscribe((msg) => statuses.push(msg));
-		bundle.attempts.subscribe((msg) => attempts.push(msg));
-		bundle.errors.subscribe((msg) => {
-			if (msg[0] === "DATA") errors.push(msg);
-		});
+		bundle.inbound.subscribe(eachMessage((msg) => inbound.push(msg)));
+		bundle.lifecycle.subscribe(eachMessage((msg) => lifecycle.push(msg)));
+		bundle.outbound.subscribe(eachMessage((msg) => outbound.push(msg)));
+		bundle.status.subscribe(eachMessage((msg) => statuses.push(msg)));
+		bundle.attempts.subscribe(eachMessage((msg) => attempts.push(msg)));
+		bundle.errors.subscribe(
+			eachMessage((msg) => {
+				if (msg[0] === "DATA") errors.push(msg);
+			}),
+		);
 
 		bundle.start();
 		connects[0]?.callback({ kind: "event", event: { kind: "open" } });
@@ -249,9 +252,11 @@ describe("environment session adapters (D133)", () => {
 		const g = graph({ environment: new EnvironmentDrivers({ websocket }) });
 		const bundle = webSocketSession(g, { url: "ws://example.test/socket" }, { name: "session" });
 		const commands: unknown[] = [];
-		bundle.command.subscribe((msg) => {
-			if (msg[0] === "DATA") commands.push(msg);
-		});
+		bundle.command.subscribe(
+			eachMessage((msg) => {
+				if (msg[0] === "DATA") commands.push(msg);
+			}),
+		);
 
 		bundle.start();
 		bundle.send({ data: "hello" });
@@ -285,9 +290,9 @@ describe("environment session adapters (D133)", () => {
 		const outbound: unknown[] = [];
 		const errors: unknown[] = [];
 		const statuses: unknown[] = [];
-		bundle.outbound.subscribe((msg) => outbound.push(msg));
-		bundle.errors.subscribe((msg) => errors.push(msg));
-		bundle.status.subscribe((msg) => statuses.push(msg));
+		bundle.outbound.subscribe(eachMessage((msg) => outbound.push(msg)));
+		bundle.errors.subscribe(eachMessage((msg) => errors.push(msg)));
+		bundle.status.subscribe(eachMessage((msg) => statuses.push(msg)));
 
 		bundle.send("early");
 
@@ -343,7 +348,7 @@ describe("environment session adapters (D133)", () => {
 			{ name: "session", sendPolicy: { kind: "buffer", maxPending: 2 } },
 		);
 		const outbound: unknown[] = [];
-		bundle.outbound.subscribe((msg) => outbound.push(msg));
+		bundle.outbound.subscribe(eachMessage((msg) => outbound.push(msg)));
 
 		bundle.send("a");
 		bundle.send("b");
@@ -407,9 +412,9 @@ describe("environment session adapters (D133)", () => {
 			const attempts: unknown[] = [];
 			const statuses: unknown[] = [];
 			const errors: unknown[] = [];
-			bundle.attempts.subscribe((msg) => attempts.push(msg));
-			bundle.status.subscribe((msg) => statuses.push(msg));
-			bundle.errors.subscribe((msg) => errors.push(msg));
+			bundle.attempts.subscribe(eachMessage((msg) => attempts.push(msg)));
+			bundle.status.subscribe(eachMessage((msg) => statuses.push(msg)));
+			bundle.errors.subscribe(eachMessage((msg) => errors.push(msg)));
 
 			bundle.start();
 			expect(connects).toHaveLength(1);
@@ -471,9 +476,9 @@ describe("environment session adapters (D133)", () => {
 		const lifecycle: unknown[] = [];
 		const outbound: unknown[] = [];
 		const statuses: unknown[] = [];
-		bundle.lifecycle.subscribe((msg) => lifecycle.push(msg));
-		bundle.outbound.subscribe((msg) => outbound.push(msg));
-		bundle.status.subscribe((msg) => statuses.push(msg));
+		bundle.lifecycle.subscribe(eachMessage((msg) => lifecycle.push(msg)));
+		bundle.outbound.subscribe(eachMessage((msg) => outbound.push(msg)));
+		bundle.status.subscribe(eachMessage((msg) => statuses.push(msg)));
 
 		bundle.start();
 		bundle.send("late");
@@ -533,10 +538,12 @@ describe("environment session adapters (D133)", () => {
 		const bundle = webSocketSession(g, { url: "ws://example.test/socket" }, { name: "session" });
 		const statuses: unknown[] = [];
 		const errors: unknown[] = [];
-		bundle.status.subscribe((msg) => statuses.push(msg));
-		bundle.errors.subscribe((msg) => {
-			if (msg[0] === "DATA") errors.push(msg);
-		});
+		bundle.status.subscribe(eachMessage((msg) => statuses.push(msg)));
+		bundle.errors.subscribe(
+			eachMessage((msg) => {
+				if (msg[0] === "DATA") errors.push(msg);
+			}),
+		);
 
 		bundle.start();
 		connectCallback?.({ kind: "event", event: { kind: "open" } });
@@ -585,7 +592,7 @@ describe("environment session adapters (D133)", () => {
 				{ name: "session", retry: retryPolicy(2, { kind: "constant", delayMs: 10 }) },
 			);
 			const attempts: unknown[] = [];
-			bundle.attempts.subscribe((msg) => attempts.push(msg));
+			bundle.attempts.subscribe(eachMessage((msg) => attempts.push(msg)));
 
 			bundle.start();
 			bundle.start();

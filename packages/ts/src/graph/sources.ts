@@ -14,6 +14,7 @@
  */
 
 import type { Ctx } from "../ctx/types.js";
+import { eachMessage } from "../node/each-message.js";
 import type { Node, NodeOptions } from "../node/node.js";
 import { errorPayload } from "../protocol/messages.js";
 import { toCheckpointJson } from "./checkpoint.js";
@@ -1299,15 +1300,17 @@ export function firstValueFrom<T>(source: Node<T>): Promise<T> {
 				shouldUnsub = true;
 			}
 		};
-		unsub = source.subscribe((msg) => {
-			if (msg[0] === "DATA") {
-				finish(() => resolve(msg[1] as T));
-			} else if (msg[0] === "ERROR") {
-				finish(() => reject(msg[1]));
-			} else if (msg[0] === "COMPLETE") {
-				finish(() => reject(new Error("firstValueFrom: completed without DATA")));
-			}
-		});
+		unsub = source.subscribe(
+			eachMessage((msg) => {
+				if (msg[0] === "DATA") {
+					finish(() => resolve(msg[1] as T));
+				} else if (msg[0] === "ERROR") {
+					finish(() => reject(msg[1]));
+				} else if (msg[0] === "COMPLETE") {
+					finish(() => reject(new Error("firstValueFrom: completed without DATA")));
+				}
+			}),
+		);
 		if (shouldUnsub) {
 			unsub?.();
 			unsub = undefined;

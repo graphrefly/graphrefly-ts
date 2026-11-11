@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { Message, ObserveEvent } from "../index.js";
 import { fromIter, graph, tap, throwError } from "../index.js";
+import { eachMessage } from "../node/each-message.js";
 
 describe("tap observer terminal edges (Worker C)", () => {
 	it("tap({ error }) observes an upstream ERROR and forwards the ERROR unchanged", () => {
@@ -11,7 +12,7 @@ describe("tap observer terminal edges (Worker C)", () => {
 		const t = g.initNode(tap<never>({ error: onError }), [src], { name: "tap" });
 		const msgs: Message[] = [];
 
-		t.subscribe((m) => msgs.push(m));
+		t.subscribe(eachMessage((m) => msgs.push(m)));
 
 		expect(onError).toHaveBeenCalledOnce();
 		expect(onError).toHaveBeenCalledWith(err);

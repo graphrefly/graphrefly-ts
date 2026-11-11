@@ -6,6 +6,7 @@ import type {
 	MaterialSnapshot,
 	Publication,
 } from "../../examples/spending-alerts/causal-publication.js";
+import { eachMessage } from "../../packages/ts/src/node/each-message.js";
 import {
 	evaluationFixture,
 	evaluationPack,
@@ -40,9 +41,11 @@ for (const scenario of ["flagged", "root-negative"] as const)
 							policy: { zThreshold: 0.8, dailyRatioThreshold: 5 },
 						});
 		let snapshot: MaterialSnapshot | undefined;
-		const stop = r.built.materials.materialSnapshot.subscribe((m) => {
-			if (m[0] === "DATA") snapshot = m[1] as MaterialSnapshot;
-		});
+		const stop = r.built.materials.materialSnapshot.subscribe(
+			eachMessage((m) => {
+				if (m[0] === "DATA") snapshot = m[1] as MaterialSnapshot;
+			}),
+		);
 		try {
 			r.send("pack", evaluationPack([e], binding));
 			r.send("arrivals", { packRef: binding.packRef, evaluationRefs: [e.evaluationRef] });

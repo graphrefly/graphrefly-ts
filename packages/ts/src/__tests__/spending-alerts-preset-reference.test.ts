@@ -27,6 +27,7 @@ import {
 	profileScenario,
 	rebindEvaluation,
 } from "../../../../scripts/fixtures/spending-preset-scenarios.js";
+import { eachMessage } from "../node/each-message.js";
 
 type Mutable<T> = { -readonly [K in keyof T]: Mutable<T[K]> };
 type Run = ReturnType<typeof presetRun> | ReturnType<typeof referenceRun>;
@@ -332,9 +333,11 @@ for (const name of ["score", "material", "store", "assessment", "evidence"] as c
 		calls!.mockRestore();
 		expect(fn).toBeTypeOf("function");
 		const errors: unknown[] = [];
-		const stop = node.subscribe((m) => {
-			if (m[0] === "ERROR") errors.push(m[1]);
-		});
+		const stop = node.subscribe(
+			eachMessage((m) => {
+				if (m[0] === "ERROR") errors.push(m[1]);
+			}),
+		);
 		try {
 			node.unsubscribeDep(node.deps[0], fn as import("../ctx/types.js").NodeFn);
 			const e = evaluationFixture(),

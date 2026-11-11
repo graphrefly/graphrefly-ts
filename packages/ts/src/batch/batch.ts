@@ -17,8 +17,8 @@ import { dropBoundaryTasksForBatch, enterWave, exitWave } from "./boundary.js";
 
 /** A node target the batch can commit/rollback against (structural, avoids an import cycle). */
 export interface BatchTarget {
+	__markBatchedWave(wave: Wave): void;
 	__commitBatchedWave(wave: Wave): void;
-	__rollbackBatched(): void;
 	__deferBoundary(fn: () => void, batchToken?: object): void;
 }
 
@@ -49,11 +49,17 @@ export function currentBoundaryBatchToken(): object | undefined {
  * Defer a node's tier-3 settle slice into the active batch. Returns true if a batch
  * captured it; false if there is no active batch (caller emits normally).
  */
-export function deferToBatch(target: BatchTarget, tier3Wave: Wave): boolean {
+/** Stage a node's whole array for the commit (the caller passes what is staged so far plus more). */
+export function deferToBatch(target: BatchTarget, wave: Wave): boolean {
 	if (active === null) return false;
 	if (!active.deferred.has(target)) active.order.push(target);
-	active.deferred.set(target, tier3Wave); // last-value coalescing
+	active.deferred.set(target, wave);
 	return true;
+}
+
+/** What a node has staged in the open batch, if anything. */
+export function stagedBatchWave(target: BatchTarget): Wave | undefined {
+	return active?.deferred.get(target);
 }
 
 /**
@@ -73,6 +79,12 @@ function commit(b: ActiveBatch): void {
 	const prev = boundaryOwner;
 	boundaryOwner = b;
 	try {
+		// O3: the commit is one wave: every staged node marks its cone pending first, then each
+		// delivers its one accumulated array, so a fan-in over several of them runs once.
+		for (const target of b.order) {
+			const wave = b.deferred.get(target);
+			if (wave) target.__markBatchedWave(wave);
+		}
 		for (const target of b.order) {
 			const wave = b.deferred.get(target);
 			if (wave) target.__commitBatchedWave(wave);
@@ -87,8 +99,8 @@ function commit(b: ActiveBatch): void {
 }
 
 function rollback(b: ActiveBatch): void {
+	// O3: nothing was delivered before the commit, so there is nothing to compensate.
 	dropBoundaryTasksForBatch(b);
-	for (const target of b.order) target.__rollbackBatched();
 }
 
 /**
@@ -110,8 +122,8 @@ function rollback(b: ActiveBatch): void {
  *   right.set(2);
  * });
  * ```
- * @remarks **Coalescing:** DATA/RESOLVED/INVALIDATE settle slices are deferred until commit so
- *   shared downstream nodes recompute once for the batch.
+ * @remarks **One wave:** the body delivers nothing; its writes commit as one array per node in
+ *   one wave, so shared downstream nodes recompute once for the batch (R-request-order).
  * @category core
  */
 export function batch<R>(fn: (bctx: BatchCtx) => R): R {

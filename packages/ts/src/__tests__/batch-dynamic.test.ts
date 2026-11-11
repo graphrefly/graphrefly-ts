@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { Ctx, Message } from "../index.js";
 import { batch, depLatest, dynamicNode, node } from "../index.js";
+import { eachMessage } from "../node/each-message.js";
 
 function collect(n: { subscribe(s: (m: Message) => void): () => void }) {
 	const msgs: Message[] = [];
-	const unsub = n.subscribe((m) => msgs.push(m));
+	const unsub = n.subscribe(eachMessage((m) => msgs.push(m)));
 	return { msgs, unsub };
 }
 const types = (msgs: Message[]) => msgs.map((m) => m[0]);
@@ -30,21 +31,21 @@ describe("batch (R-batch-coalesce / D12)", () => {
 		expect(d.cache).toBe(30);
 	});
 
-	it("defers DATA to commit: downstream sees PENDING during the batch, DATA after", () => {
+	it("a batch body delivers nothing; the commit delivers one array (R-request-order, O3)", () => {
 		const a = node<number>([], null, { initial: 1 });
 		const { msgs } = collect(a);
 		msgs.length = 0;
 		batch(() => {
 			a.down([["DATA", 9]]);
-			// inside the batch: PENDING emitted, DATA still deferred
-			expect(types(msgs)).toEqual(["PENDING"]);
+			// inside the batch nothing is delivered and nothing changes
+			expect(types(msgs)).toEqual([]);
 			expect(a.cache).toBe(1); // not yet committed
 		});
 		expect(types(msgs)).toEqual(["PENDING", "DATA"]);
 		expect(a.cache).toBe(9);
 	});
 
-	it("rollback on throw discards deferred emissions (downstream un-dirties)", () => {
+	it("a throwing body commits nothing and delivers nothing (no compensating RESOLVED)", () => {
 		const a = node<number>([], null, { initial: 1 });
 		const { msgs } = collect(a);
 		msgs.length = 0;
@@ -55,7 +56,7 @@ describe("batch (R-batch-coalesce / D12)", () => {
 			}),
 		).toThrow("abort");
 		expect(a.cache).toBe(1); // unchanged
-		expect(types(msgs)).toEqual(["PENDING", "RESOLVED"]); // dirty balanced by resolved
+		expect(types(msgs)).toEqual([]); // nothing was delivered, so nothing to balance
 	});
 
 	it("bctx.rollback() is the explicit escape hatch", () => {

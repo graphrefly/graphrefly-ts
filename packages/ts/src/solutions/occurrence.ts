@@ -139,7 +139,6 @@ export function solutionOccurrenceJoin<L, R, O>(
 	// One quiet node is the release boundary (graphrefly-ts:D172): it deduplicates complete matched
 	// occurrences by id and revision and sends only fresh ones, so a duplicate starts no downstream
 	// wave, and what it sends goes out after the current wave as a wave of its own (R-wave).
-	// Bounded replay preserves initial complete DATA for late consumers.
 	const accepted = graph.node<SolutionOccurrence<O>>(
 		[matched],
 		(ctx) => {
@@ -161,7 +160,6 @@ export function solutionOccurrenceJoin<L, R, O>(
 			name: opts.name,
 			factory: opts.factory,
 			quiet: true,
-			replayBuffer: opts.maxOccurrences,
 			meta: {
 				role: "quiet-complete-occurrence",
 				correlation: "exact-id/revision/digest/source-refs",
@@ -434,7 +432,6 @@ export function solutionOccurrenceProjection<TInput, TOutput>(
 		{
 			name: opts.name,
 			factory: opts.factory,
-			replayBuffer: opts.maxOccurrences,
 			completeWhenDepsComplete: false,
 			errorWhenDepsError: true,
 			meta: {

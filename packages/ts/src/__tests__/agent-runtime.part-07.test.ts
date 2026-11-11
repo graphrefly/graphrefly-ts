@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { graph } from "../graph/graph.js";
+import { eachMessage } from "../node/each-message.js";
 import {
 	type AgentRequestFact,
 	type AgentRequestIssued,
@@ -278,15 +279,19 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 7", () => {
 		const issues: unknown[] = [];
 		const audit: unknown[] = [];
 		const protocolErrors: unknown[] = [];
-		adapterInputs.inputs.subscribe((msg) => {
-			if (msg[0] === "DATA") inputs.push(msg[1] as ToolProviderAdapterInput);
-			if (msg[0] === "ERROR") protocolErrors.push(msg[1]);
-		});
-		adapterInputs.issues.subscribe((msg) => {
-			if (msg[0] === "DATA") issues.push(msg[1]);
-			if (msg[0] === "ERROR") protocolErrors.push(msg[1]);
-		});
-		adapterInputs.audit.subscribe((msg) => msg[0] === "DATA" && audit.push(msg[1]));
+		adapterInputs.inputs.subscribe(
+			eachMessage((msg) => {
+				if (msg[0] === "DATA") inputs.push(msg[1] as ToolProviderAdapterInput);
+				if (msg[0] === "ERROR") protocolErrors.push(msg[1]);
+			}),
+		);
+		adapterInputs.issues.subscribe(
+			eachMessage((msg) => {
+				if (msg[0] === "DATA") issues.push(msg[1]);
+				if (msg[0] === "ERROR") protocolErrors.push(msg[1]);
+			}),
+		);
+		adapterInputs.audit.subscribe(eachMessage((msg) => msg[0] === "DATA" && audit.push(msg[1])));
 		const catalog = localBuiltinToolProviderCatalog({ providerId: "adapter-projector" });
 		const profile = catalog.profiles[0];
 		if (profile === undefined) throw new Error("expected profile");
@@ -727,7 +732,7 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 7", () => {
 		});
 		const inputs: ToolProviderAdapterInput[] = [];
 		adapterInputs.inputs.subscribe(
-			(msg) => msg[0] === "DATA" && inputs.push(msg[1] as ToolProviderAdapterInput),
+			eachMessage((msg) => msg[0] === "DATA" && inputs.push(msg[1] as ToolProviderAdapterInput)),
 		);
 		const catalogV1 = localBuiltinToolProviderCatalog({
 			providerId: "adapter-revision",

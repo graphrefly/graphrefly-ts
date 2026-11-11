@@ -2,6 +2,7 @@
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
 import { canonicalTupleKey } from "../identity.js";
+import { eachMessage } from "../node/each-message.js";
 import type { Node } from "../node/node.js";
 import type {
 	AgentRuntimeAuditRecord,
@@ -1546,62 +1547,79 @@ export function localContainerPostgresqlRuntime(
 		}
 	};
 	const unsubs = [
-		opts.inputs.subscribe((m) => {
-			if (m[0] === "DATA") {
-				try {
-					const v = snapshotInput(m[1] as ToolProviderAdapterInput<PostgresqlQueryToolArguments>);
-					inputs.set(v.adapterInputId, v);
-				} catch {
-					emitIssue("local-container-input-invalid", "PostgreSQL input was not strict inert data.");
-				}
-			}
-		}),
-		...opts.manifests.map((n) =>
-			n.subscribe((m) => {
+		opts.inputs.subscribe(
+			eachMessage((m) => {
 				if (m[0] === "DATA") {
 					try {
-						const v = localContainerPostgresqlManifest(m[1] as LocalContainerPostgresqlManifest);
-						const prior = manifests.get(v.fingerprint);
-						if (prior && JSON.stringify(prior) !== JSON.stringify(v)) {
-							emitIssue(
-								"local-container-manifest-conflict",
-								"Manifest fingerprint was reused with different immutable content.",
-							);
-							return;
-						}
-						manifests.set(v.fingerprint, v);
+						const v = snapshotInput(m[1] as ToolProviderAdapterInput<PostgresqlQueryToolArguments>);
+						inputs.set(v.adapterInputId, v);
 					} catch {
-						emitIssue("local-container-manifest-invalid", "Manifest was invalid.");
+						emitIssue(
+							"local-container-input-invalid",
+							"PostgreSQL input was not strict inert data.",
+						);
 					}
 				}
 			}),
+		),
+		...opts.manifests.map((n) =>
+			n.subscribe(
+				eachMessage((m) => {
+					if (m[0] === "DATA") {
+						try {
+							const v = localContainerPostgresqlManifest(m[1] as LocalContainerPostgresqlManifest);
+							const prior = manifests.get(v.fingerprint);
+							if (prior && JSON.stringify(prior) !== JSON.stringify(v)) {
+								emitIssue(
+									"local-container-manifest-conflict",
+									"Manifest fingerprint was reused with different immutable content.",
+								);
+								return;
+							}
+							manifests.set(v.fingerprint, v);
+						} catch {
+							emitIssue("local-container-manifest-invalid", "Manifest was invalid.");
+						}
+					}
+				}),
+			),
 		),
 		...opts.readiness.map((n) =>
-			n.subscribe((m) => {
-				if (m[0] === "DATA") {
-					try {
-						const v = localContainerPostgresqlReadiness(m[1] as LocalContainerPostgresqlReadiness);
-						ready.set(v.manifestFingerprint, v);
-					} catch {
-						emitIssue("local-container-readiness-invalid", "Readiness was invalid.");
+			n.subscribe(
+				eachMessage((m) => {
+					if (m[0] === "DATA") {
+						try {
+							const v = localContainerPostgresqlReadiness(
+								m[1] as LocalContainerPostgresqlReadiness,
+							);
+							ready.set(v.manifestFingerprint, v);
+						} catch {
+							emitIssue("local-container-readiness-invalid", "Readiness was invalid.");
+						}
 					}
-				}
-			}),
+				}),
+			),
 		),
 		...opts.admittedRunRequests.map((n) =>
-			n.subscribe((m) => {
-				if (m[0] === "DATA") execute(m[1] as ToolProviderAdapterRunRequested);
-			}),
+			n.subscribe(
+				eachMessage((m) => {
+					if (m[0] === "DATA") execute(m[1] as ToolProviderAdapterRunRequested);
+				}),
+			),
 		),
 		...(opts.cancellationRequests ?? []).map((n) =>
-			n.subscribe((m) => {
-				if (m[0] === "DATA") requestCancel(m[1] as LocalContainerPostgresqlCancellationRequested);
-			}),
+			n.subscribe(
+				eachMessage((m) => {
+					if (m[0] === "DATA") requestCancel(m[1] as LocalContainerPostgresqlCancellationRequested);
+				}),
+			),
 		),
 		...(opts.cancellationDecisions ?? []).map((n) =>
-			n.subscribe((m) => {
-				if (m[0] === "DATA") decideCancel(m[1] as LocalContainerPostgresqlCancellationDecision);
-			}),
+			n.subscribe(
+				eachMessage((m) => {
+					if (m[0] === "DATA") decideCancel(m[1] as LocalContainerPostgresqlCancellationDecision);
+				}),
+			),
 		),
 	];
 	return Object.freeze({

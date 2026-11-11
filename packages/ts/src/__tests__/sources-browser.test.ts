@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Message } from "../index.js";
 import { graph } from "../index.js";
+import { eachMessage } from "../node/each-message.js";
 import {
 	type AnimationFrameHandle,
 	type AnimationFrameScheduler,
@@ -33,7 +34,7 @@ describe("browser source adapters", () => {
 		};
 		const n = graph().initNode(fromRaf({ scheduler }), [], { name: "frames" });
 		const msgs: Message[] = [];
-		const unsubscribe = n.subscribe((msg) => msgs.push(msg));
+		const unsubscribe = n.subscribe(eachMessage((msg) => msgs.push(msg)));
 
 		const first = callbacks.get(1);
 		callbacks.delete(1);
@@ -81,7 +82,7 @@ describe("browser source adapters", () => {
 			[],
 		);
 		const msgs: Message[] = [];
-		const unsubscribe = n.subscribe((msg) => msgs.push(msg));
+		const unsubscribe = n.subscribe(eachMessage((msg) => msgs.push(msg)));
 
 		expect(callbacks.size).toBe(0);
 		visibilityState = "visible";
@@ -108,7 +109,7 @@ describe("browser source adapters", () => {
 		};
 		const n = graph().initNode(fromIDBRequest(request), []);
 		const msgs: Message[] = [];
-		n.subscribe((msg) => msgs.push(msg));
+		n.subscribe(eachMessage((msg) => msgs.push(msg)));
 
 		request.onsuccess?.call(request, { type: "success" });
 
@@ -127,7 +128,7 @@ describe("browser source adapters", () => {
 		};
 		const n = graph().initNode(fromIDBRequest(request), []);
 		const msgs: Message[] = [];
-		n.subscribe((msg) => msgs.push(msg));
+		n.subscribe(eachMessage((msg) => msgs.push(msg)));
 
 		request.onsuccess?.call(request, { type: "success" });
 
@@ -145,7 +146,7 @@ describe("browser source adapters", () => {
 		};
 		const n = graph().initNode(fromIDBTransaction(transaction), []);
 		const msgs: Message[] = [];
-		n.subscribe((msg) => msgs.push(msg));
+		n.subscribe(eachMessage((msg) => msgs.push(msg)));
 
 		transaction.oncomplete?.call(transaction, { type: "complete" });
 
@@ -165,7 +166,7 @@ describe("browser source adapters", () => {
 		};
 		const n = graph().initNode(fromIDBTransaction(transaction), []);
 		const msgs: Message[] = [];
-		n.subscribe((msg) => msgs.push(msg));
+		n.subscribe(eachMessage((msg) => msgs.push(msg)));
 
 		transaction.onabort?.call(transaction, { type: "abort" });
 

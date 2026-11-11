@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { graph } from "../graph/graph.js";
 import { compoundTupleKey } from "../identity.js";
 import { messageBus } from "../messaging/index.js";
+import { eachMessage } from "../node/each-message.js";
 import { workQueue } from "../work-queue/index.js";
 
 const defaultWorkId = compoundTupleKey("work-queue-work", ["q", "work", "1"]);
@@ -21,10 +22,10 @@ describe("workQueue messageBus-backed lifecycle (D299-D324/D325)", () => {
 		});
 		const records: unknown[] = [];
 		const cursor: unknown[] = [];
-		queue.records.subscribe((msg) => records.push(msg));
+		queue.records.subscribe(eachMessage((msg) => records.push(msg)));
 		bus
 			.subscription({ topic: "work", subscriptionId: "q-admit" })
-			.cursor.subscribe((msg) => cursor.push(msg));
+			.cursor.subscribe(eachMessage((msg) => cursor.push(msg)));
 
 		queue.submit({ id: "a" });
 
@@ -63,10 +64,10 @@ describe("workQueue messageBus-backed lifecycle (D299-D324/D325)", () => {
 		});
 		const records: unknown[] = [];
 		const cursor: unknown[] = [];
-		queue.records.subscribe((msg) => records.push(msg));
+		queue.records.subscribe(eachMessage((msg) => records.push(msg)));
 		bus
 			.subscription({ topic: "work", subscriptionId: "q-admit" })
-			.cursor.subscribe((msg) => cursor.push(msg));
+			.cursor.subscribe(eachMessage((msg) => cursor.push(msg)));
 
 		expect(records).toContainEqual([
 			"DATA",
@@ -93,7 +94,7 @@ describe("workQueue messageBus-backed lifecycle (D299-D324/D325)", () => {
 			now: () => 1,
 		});
 		const records: unknown[] = [];
-		queue.records.subscribe((msg) => records.push(msg));
+		queue.records.subscribe(eachMessage((msg) => records.push(msg)));
 
 		queue.submit("payload", { workId: "custom-work" });
 
@@ -119,8 +120,8 @@ describe("workQueue messageBus-backed lifecycle (D299-D324/D325)", () => {
 		});
 		const records: unknown[] = [];
 		const issues: unknown[] = [];
-		queue.records.subscribe((msg) => records.push(msg));
-		queue.issues.subscribe((msg) => issues.push(msg));
+		queue.records.subscribe(eachMessage((msg) => records.push(msg)));
+		queue.issues.subscribe(eachMessage((msg) => issues.push(msg)));
 
 		queue.submit({ id: "a" });
 		queue.claim({ workerId: "w1", requestedWorkIds: [defaultWorkId], commandId: "claim-1" });
@@ -148,8 +149,8 @@ describe("workQueue messageBus-backed lifecycle (D299-D324/D325)", () => {
 		});
 		const records: unknown[] = [];
 		const issues: unknown[] = [];
-		queue.records.subscribe((msg) => records.push(msg));
-		queue.issues.subscribe((msg) => issues.push(msg));
+		queue.records.subscribe(eachMessage((msg) => records.push(msg)));
+		queue.issues.subscribe(eachMessage((msg) => issues.push(msg)));
 
 		queue.submit({ id: "a" });
 		queue.claim({
@@ -182,8 +183,8 @@ describe("workQueue messageBus-backed lifecycle (D299-D324/D325)", () => {
 		});
 		const records: unknown[] = [];
 		const issues: unknown[] = [];
-		queue.records.subscribe((msg) => records.push(msg));
-		queue.issues.subscribe((msg) => issues.push(msg));
+		queue.records.subscribe(eachMessage((msg) => records.push(msg)));
+		queue.issues.subscribe(eachMessage((msg) => issues.push(msg)));
 
 		queue.submit({ id: "a" });
 		queue.claim({ workerId: "w1", commandId: "claim-1" });
@@ -246,8 +247,8 @@ describe("workQueue messageBus-backed lifecycle (D299-D324/D325)", () => {
 		});
 		const records: unknown[] = [];
 		const issues: unknown[] = [];
-		queue.records.subscribe((msg) => records.push(msg));
-		queue.issues.subscribe((msg) => issues.push(msg));
+		queue.records.subscribe(eachMessage((msg) => records.push(msg)));
+		queue.issues.subscribe(eachMessage((msg) => issues.push(msg)));
 
 		queue.submit({ id: "a" });
 		queue.claim({ workerId: "w1", commandId: "claim-1", idempotencyKey: "idem-claim" });
@@ -277,7 +278,7 @@ describe("workQueue messageBus-backed lifecycle (D299-D324/D325)", () => {
 			leaseDurationMs: 5,
 		});
 		const records: unknown[] = [];
-		queue.records.subscribe((msg) => records.push(msg));
+		queue.records.subscribe(eachMessage((msg) => records.push(msg)));
 
 		queue.submit({ id: "a" });
 		queue.claim({ workerId: "w1", commandId: "claim-1" });
@@ -313,8 +314,8 @@ describe("workQueue messageBus-backed lifecycle (D299-D324/D325)", () => {
 		});
 		const records: unknown[] = [];
 		const issues: unknown[] = [];
-		queue.records.subscribe((msg) => records.push(msg));
-		queue.issues.subscribe((msg) => issues.push(msg));
+		queue.records.subscribe(eachMessage((msg) => records.push(msg)));
+		queue.issues.subscribe(eachMessage((msg) => issues.push(msg)));
 
 		queue.submit({ id: "a" });
 		queue.claim({ workerId: "w1", commandId: "claim-1" });
@@ -352,7 +353,7 @@ describe("workQueue messageBus-backed lifecycle (D299-D324/D325)", () => {
 			retry: { maxAttempts: 2, delayMs: 5 },
 		});
 		const records: unknown[] = [];
-		queue.records.subscribe((msg) => records.push(msg));
+		queue.records.subscribe(eachMessage((msg) => records.push(msg)));
 
 		queue.submit({ id: "a" });
 		queue.claim({ workerId: "w1", commandId: "claim-1" });
@@ -461,8 +462,8 @@ describe("workQueue messageBus-backed lifecycle (D299-D324/D325)", () => {
 		});
 		const records: unknown[] = [];
 		const issues: unknown[] = [];
-		queue.records.subscribe((msg) => records.push(msg));
-		queue.issues.subscribe((msg) => issues.push(msg));
+		queue.records.subscribe(eachMessage((msg) => records.push(msg)));
+		queue.issues.subscribe(eachMessage((msg) => issues.push(msg)));
 
 		queue.submit({ id: "later" }, { notBeforeMs: 10 });
 		queue.claim({ workerId: "early", commandId: "claim-early" });
@@ -494,8 +495,8 @@ describe("workQueue messageBus-backed lifecycle (D299-D324/D325)", () => {
 		});
 		const issues: unknown[] = [];
 		const records: unknown[] = [];
-		queue.issues.subscribe((msg) => issues.push(msg));
-		queue.records.subscribe((msg) => records.push(msg));
+		queue.issues.subscribe(eachMessage((msg) => issues.push(msg)));
+		queue.records.subscribe(eachMessage((msg) => records.push(msg)));
 
 		queue.commands.down([
 			["DATA", { kind: "bogus", commandId: "bad-1" } as never],

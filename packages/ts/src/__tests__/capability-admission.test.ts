@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { graph } from "../graph/graph.js";
 import type { BoundaryCapabilityRef } from "../inspection/boundary.js";
+import { eachMessage } from "../node/each-message.js";
+import type { Wave } from "../protocol/messages.js";
 import {
 	type CapabilityAdmission,
 	type CapabilityAdmissionDecision,
@@ -314,18 +316,20 @@ function collectData<T>(node: {
 	subscribe(sink: (msg: readonly [string, unknown]) => void): () => void;
 }) {
 	const values: T[] = [];
-	node.subscribe((msg) => {
-		if (msg[0] === "DATA") values.push(msg[1] as T);
-	});
+	node.subscribe(
+		eachMessage((msg) => {
+			if (msg[0] === "DATA") values.push(msg[1] as T);
+		}),
+	);
 	return values;
 }
 
-function collectMessages<T>(node: {
-	subscribe(sink: (msg: readonly [string, T?]) => void): () => void;
-}) {
+function collectMessages<T>(node: { subscribe(sink: (msgs: Wave) => void): () => void }) {
 	const messages: readonly [string, T?][] = [];
-	node.subscribe((msg) => {
-		messages.push(msg);
-	});
+	node.subscribe(
+		eachMessage((msg) => {
+			messages.push(msg as readonly [string, T?]);
+		}),
+	);
 	return messages;
 }

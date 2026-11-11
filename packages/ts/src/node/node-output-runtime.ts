@@ -1,144 +1,207 @@
-import { currentBatch, deferToBatch } from "../batch/batch.js";
+import { currentBatch, deferToBatch, stagedBatchWave } from "../batch/batch.js";
 import { deferRewire } from "../batch/boundary.js";
-import type { DeliveryMeta } from "../ctx/types.js";
+import type { Sink } from "../ctx/types.js";
 import type { Message, Wave } from "../protocol/messages.js";
-import { isDeferredTier, isValueTier, messageTier, SENTINEL } from "../protocol/messages.js";
-import type { Node } from "./node.js";
+import { isTerminal, SENTINEL } from "../protocol/messages.js";
+import type { Subscriber } from "./core.js";
 import type { NodeRuntimeHost } from "./node-runtime-host.js";
 import { validateDownPayloads } from "./protocol-guards.js";
 import {
 	advanceNodeVersion,
 	assertNodeVersionDataCompatible,
-	type NodeVersion,
 	snapshotNodeVersionData,
 } from "./versioning.js";
+
+/**
+ * R-wave: an array carrying DATA, RESOLVED, INVALIDATE, COMPLETE or ERROR marks the sender's
+ * dependents pending and goes out with the kernel's PENDING first.
+ */
+export function isMarking(m: Message): boolean {
+	return (
+		m[0] === "DATA" ||
+		m[0] === "RESOLVED" ||
+		m[0] === "INVALIDATE" ||
+		m[0] === "COMPLETE" ||
+		m[0] === "ERROR"
+	);
+}
+
+/**
+ * R-wave: one submitted array, checked and split into the arrays that are published. Messages
+ * keep their written order; a terminal must be last; the array is split at its last INVALIDATE,
+ * so what came before it is dropped and the INVALIDATE goes out as its own array. Throws before
+ * anything is accepted.
+ */
+export function prepareArrays(msgs: Wave): Message[][] {
+	const end = msgs.findIndex((m) => isTerminal(m[0]));
+	if (end >= 0 && end < msgs.length - 1)
+		throw new Error("down: a terminal must be the last message of its array (R-wave)");
+	let cut = -1;
+	for (let i = msgs.length - 1; i >= 0; i--) {
+		if (msgs[i]?.[0] === "INVALIDATE") {
+			cut = i;
+			break;
+		}
+	}
+	const arrays: Message[][] = cut >= 0 ? [[["INVALIDATE"]]] : [];
+	const rest = msgs.slice(cut + 1);
+	if (rest.length > 0) arrays.push([...rest]);
+	return arrays;
+}
 
 export function nodeDown<T>(self: NodeRuntimeHost<T>, msgs: Wave): void {
 	if (self._released) return;
 	validateDownPayloads(msgs);
-	const deliveryWave = {};
-	const assertVersionDataCompatible = (wave: readonly Message[]) => {
-		for (const m of wave) {
-			if (m[0] === "DATA") assertNodeVersionDataCompatible(self._version.policy, m[1]);
-		}
-	};
-	const snapshotVersionData = (wave: readonly Message[]): Message[] =>
-		wave.map((m) =>
-			m[0] === "DATA"
-				? (["DATA", snapshotNodeVersionData(self._version.policy, m[1])] as Message)
-				: m,
-		);
-	assertVersionDataCompatible(msgs);
+	for (const m of msgs) {
+		if (m[0] === "DATA") assertNodeVersionDataCompatible(self._version.policy, m[1]);
+	}
 	// Terminal-is-forever (R-terminals): once COMPLETE/ERROR has been emitted the node's output
-	// is final — a self-emit (state.set / ctx.down) in a LATER wave is a no-op, never resurrecting
-	// the cache or re-emitting. A single wave that goes terminal mid-loop is unaffected: _terminal
-	// is still undefined at entry. Resubscribable reset clears _terminal before any re-emit.
+	// is final; later output is dropped.
 	if (self._value.terminal !== undefined) return;
-	let sorted: Message[] = [...msgs].sort((a, b) => messageTier(a[0]) - messageTier(b[0]));
-	// R-same-wave-merge: collapse repeated INVALIDATE in one wave (Q9) so the
-	// cleanup hook + downstream broadcast fire at most once.
-	const firstInvalidate = sorted.findIndex((m) => m[0] === "INVALIDATE");
-	if (firstInvalidate !== -1) {
-		sorted = sorted.filter((m, i) => m[0] !== "INVALIDATE" || i === firstInvalidate);
+	const arrays = prepareArrays(msgs);
+	if (arrays.length === 0) return;
+	// R-wave: a running function's arrays reach its subscribers after it returned.
+	if (self._wave.insideRunWave) {
+		self._wave.runOutput.push(...arrays);
+		return;
 	}
-	// R-batch-coalesce (D12): inside a batch, emit PENDING immediately but defer the
-	// tier-3 settle slice to commit so a shared downstream recomputes once. Only
-	// external emits defer (fn emits during commit run normally).
-	if (!self._wave.insideRunWave && currentBatch()) {
-		const deferred = snapshotVersionData(sorted.filter((m) => isDeferredTier(m[0])));
-		if (deferred.length > 0) {
-			if (!self._wave.emittedDirtyThisWave) {
-				self._wave.emittedDirtyThisWave = true;
-				self._value.status = "dirty";
-				self._emitToSubs(["PENDING"], { wave: deliveryWave, last: false });
-			}
-			self._wave.batchDirtyOwed = true; // BH1: owe a balancing RESOLVED on rollback
-			deferToBatch(self as unknown as Node<unknown>, deferred);
-			return;
-		}
+	// O3 / R-request-order: a batch body delivers nothing; its writes commit as one array per
+	// node. A terminal already staged must stay last.
+	if (currentBatch()) {
+		const staged = stagedBatchWave(self);
+		if (staged?.some((m) => isTerminal(m[0])))
+			throw new Error("down: a terminal must be the last message of its array (R-wave)");
+		const add = arrays
+			.flat()
+			.map((m) =>
+				m[0] === "DATA"
+					? (["DATA", snapshotNodeVersionData(self._version.policy, m[1])] as Message)
+					: m,
+			);
+		deferToBatch(self, [...(staged ?? []), ...add]);
+		return;
 	}
-	let dataCount = 0;
-	let hasTier3 = false;
-	for (const m of sorted) {
-		if (m[0] === "DATA") dataCount++;
-		if (isValueTier(m[0])) hasTier3 = true;
-	}
-	const plannedVersions: Array<NodeVersion | undefined> = new Array(sorted.length);
-	if (dataCount > 0) {
-		let plannedVersion = self._version.value;
-		for (let i = 0; i < sorted.length; i++) {
-			const m = sorted[i];
-			if (m[0] !== "DATA") continue;
-			plannedVersion = advanceNodeVersion(plannedVersion, self._version.policy, m[1]);
-			plannedVersions[i] = plannedVersion;
-		}
-	}
+	nodePublish(self, arrays);
+}
 
-	// The kernel sends PENDING before an EXTERNAL value emit (R-wave: PENDING is the kernel's
-	// alone; node output carrying PENDING is rejected at ctx.down).
-	if (hasTier3 && !self._wave.insideRunWave && !self._wave.emittedDirtyThisWave) {
+/**
+ * Apply arrays to what this node holds (value, last array, terminal, invalidation) and send what
+ * remains: the kernel marks the cone pending first, through the dependent channel, then each
+ * subscriber receives every array in order before the next subscriber (R-wave).
+ */
+export function nodePublish<T>(self: NodeRuntimeHost<T>, arrays: readonly Message[][]): void {
+	if (self._released) return;
+	const out: Message[][] = [];
+	for (const array of arrays) {
+		if (self._value.terminal !== undefined) break; // nothing after a terminal
+		const kept: Message[] = [];
+		const values: T[] = [];
+		for (const m of array) {
+			if (m[0] === "DATA") {
+				const v = m[1] as T;
+				self._version.value = advanceNodeVersion(self._version.value, self._version.policy, v);
+				self._value.cache = v;
+				self._value.hasData = true;
+				self._value.status = "settled";
+				values.push(v);
+				kept.push(m);
+				continue;
+			}
+			if (m[0] === "RESOLVED") {
+				self._value.status = self._value.hasData ? "resolved" : "sentinel";
+				kept.push(m);
+				continue;
+			}
+			if (m[0] === "INVALIDATE") {
+				// R-invalidation: effective only while a value is retained.
+				if (!self._value.hasData) continue;
+				self._value.cache = SENTINEL;
+				self._value.hasData = false;
+				self._value.lastArray = [];
+				self._value.status = "sentinel";
+				for (const fn of self._hooks.onInvalidate) fn();
+				kept.push(m);
+				continue;
+			}
+			if (m[0] === "COMPLETE") {
+				self._value.terminal = true;
+				self._value.status = "completed";
+				kept.push(m);
+				continue;
+			}
+			if (m[0] === "ERROR") {
+				self._value.terminal = m[1];
+				self._value.status = "errored";
+				kept.push(m);
+			}
+		}
+		// R-subscription: an array with values replaces the retained ones.
+		if (values.length > 0) self._value.lastArray = values;
+		if (kept.length > 0) out.push(kept);
+	}
+	if (out.length === 0) return;
+	if (!self._wave.emittedDirtyThisWave) {
+		// A node publishing without having been marked (a source, a later output, a first run)
+		// marks its own cone first, so a fan-in below waits for every input of the wave.
 		self._wave.emittedDirtyThisWave = true;
-		self._value.status = "dirty";
-		self._emitToSubs(["PENDING"], { wave: deliveryWave, last: false });
+		nodeMarkDependents(self);
 	}
-
-	for (let i = 0; i < sorted.length; i++) {
-		const m = sorted[i];
-		const delivery = { wave: deliveryWave, last: i === sorted.length - 1 };
-		// R-resolved-undirty (D49): a tier-3+ emit this wave means the fn produced a settle,
-		// so no synthesized undirty RESOLVED is owed (see _runWave).
-		if (isDeferredTier(m[0])) self._wave.emittedSettleThisWave = true;
-		if (m[0] === "DATA") {
-			const v = m[1] as T;
-			// R-resolved-undirty (D49): every value-occurrence is emitted as DATA — the
-			// substrate never substitutes DATA->RESOLVED on value-equality. Dedup is opt-in
-			// at the operator layer (distinctUntilChanged), never a substrate behavior.
-			self._value.cache = v;
-			self._value.hasData = true;
-			self._value.status = "settled";
-			self._version.value = plannedVersions[i];
-			if (self._slot.replayN > 0) {
-				self._value.replayRing.push(v);
-				if (self._value.replayRing.length > self._slot.replayN) self._value.replayRing.shift();
-			}
-			self._emitToSubs(["DATA", v], delivery);
-			continue;
-		}
-		if (m[0] === "RESOLVED") {
-			self._value.status = self._value.hasData ? "resolved" : "sentinel";
-			self._emitToSubs(["RESOLVED"], delivery);
-			continue;
-		}
-		if (m[0] === "INVALIDATE") {
-			self._invalidate(delivery);
-			continue;
-		}
-		if (m[0] === "COMPLETE") {
-			if (self._value.terminal !== undefined) continue;
-			self._value.terminal = true;
-			self._value.status = "completed";
-			self._emitToSubs(["COMPLETE"], delivery);
-			continue;
-		}
-		if (m[0] === "ERROR") {
-			if (self._value.terminal !== undefined) continue;
-			self._value.terminal = m[1];
-			self._value.status = "errored";
-			self._emitToSubs(["ERROR", m[1]], delivery);
-		}
-	}
-
+	self._wave.emittedSettleThisWave = true;
+	nodeDeliver(self, out);
 	if (!self._wave.insideRunWave) self._wave.emittedDirtyThisWave = false;
 }
 
-export function nodeInvalidate<T>(self: NodeRuntimeHost<T>, delivery?: DeliveryMeta): void {
+/** R-wave: the kernel's pending mark, sent ahead of the values to dependents only. */
+export function nodeMarkDependents<T>(self: NodeRuntimeHost<T>): void {
+	if (self._released) return;
+	for (const sub of [...self._lifecycle.subscribers]) {
+		if (sub.kind === "dependent") sub.fn(["PENDING"]);
+	}
+}
+
+function nodeDeliver<T>(self: NodeRuntimeHost<T>, out: readonly Message[][]): void {
+	// The subscriber list as it was when publication began (a copy guards against changes).
+	for (const sub of [...self._lifecycle.subscribers]) {
+		if (self._released) return;
+		if (sub.kind === "sink") {
+			for (const array of out) nodeCallSink(self, sub, [["PENDING"], ...array]);
+			continue;
+		}
+		for (const array of out) {
+			const wave = {};
+			for (let i = 0; i < array.length; i++)
+				sub.fn(array[i] as Message, { wave, last: i === array.length - 1 });
+		}
+	}
+}
+
+/**
+ * R-failure: a sink that throws has no node to end. Its failure goes to the graph's host reporter
+ * as { source, error } and the fanout goes on; with no reporter nothing is kept, and a reporter
+ * that throws is ignored.
+ */
+export function nodeCallSink<T>(
+	self: NodeRuntimeHost<T>,
+	sub: Subscriber & { kind: "sink" },
+	array: Wave,
+): void {
+	const sink: Sink = sub.fn;
+	try {
+		sink(array);
+	} catch (error) {
+		const report = self._core.report;
+		if (report === undefined) return;
+		try {
+			report({ source: `sink of ${self._slot.name ?? "node"}`, error });
+		} catch {
+			// a reporter that throws is ignored
+		}
+	}
+}
+
+export function nodeInvalidate<T>(self: NodeRuntimeHost<T>): void {
 	if (!self._value.hasData) return; // never-populated or already-reset → no-op
-	self._value.cache = SENTINEL;
-	self._value.hasData = false;
-	self._value.status = "sentinel";
-	self._value.replayRing = []; // BH6: invalidated values are stale — don't replay them
-	for (const fn of self._hooks.onInvalidate) fn();
-	self._emitToSubs(["INVALIDATE"], delivery);
+	nodePublish(self, [[["INVALIDATE"]]]);
 }
 
 export function nodeAllDepsTerminal<T>(self: NodeRuntimeHost<T>): boolean {
@@ -156,11 +219,11 @@ export function nodeResetLifecycle<T>(self: NodeRuntimeHost<T>): void {
 	self._value.terminal = undefined;
 	self._wave.hasCalledFnOnce = false;
 	self._resetDepState();
-	self._value.replayRing = []; // BH6
 	const isCompute = self._slot.handle !== null || self._slot.deps.length > 0;
 	if (isCompute) {
 		self._value.cache = SENTINEL;
 		self._value.hasData = false;
+		self._value.lastArray = [];
 		self._value.status = "sentinel";
 	} else {
 		self._value.status = self._value.hasData ? "settled" : "sentinel";
@@ -168,31 +231,17 @@ export function nodeResetLifecycle<T>(self: NodeRuntimeHost<T>): void {
 	if (!self._privateState.persist) self._privateState.value = SENTINEL;
 }
 
-export function nodeEmitToSubs<T>(
-	self: NodeRuntimeHost<T>,
-	msg: Message,
-	delivery?: DeliveryMeta,
-): void {
-	if (self._released) return;
-	// Copy guards against subscribe/unsubscribe during iteration.
-	const subs = [...self._lifecycle.subscribers];
-	for (const sink of subs) sink(msg, delivery);
+export function nodeMarkBatchedWave<T>(self: NodeRuntimeHost<T>, wave: Wave): void {
+	// O3: a batch commit is one wave: every staged node marks its cone before any delivers.
+	if (self._released || self._value.terminal !== undefined) return;
+	if (!wave.some(isMarking) || self._wave.emittedDirtyThisWave) return;
+	self._wave.emittedDirtyThisWave = true;
+	self._value.status = "dirty";
+	nodeMarkDependents(self);
 }
 
 export function nodeCommitBatchedWave<T>(self: NodeRuntimeHost<T>, wave: Wave): void {
-	self._wave.batchDirtyOwed = false; // commit delivers the real settle (BH1)
-	self._down(wave); // batch is inactive at commit -> processes normally
-}
-
-export function nodeRollbackBatched<T>(self: NodeRuntimeHost<T>): void {
-	// BH1: keyed on _batchDirtyOwed (not _emittedDirtyThisWave, which a fn wave between
-	// defer and rollback would have reset) so the balancing RESOLVED is never skipped.
-	if (self._wave.batchDirtyOwed) {
-		self._wave.batchDirtyOwed = false;
-		self._wave.emittedDirtyThisWave = false;
-		self._value.status = self._value.hasData ? "settled" : "sentinel";
-		self._emitToSubs(["RESOLVED"]);
-	}
+	self._down(wave); // batch is inactive at commit -> publishes normally
 }
 
 export function nodeDeferBoundary<T>(

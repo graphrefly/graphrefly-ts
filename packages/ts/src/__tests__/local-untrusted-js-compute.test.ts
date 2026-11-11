@@ -19,6 +19,7 @@ import {
 } from "../executors/local-untrusted-js-compute.js";
 import { Graph } from "../graph/graph.js";
 import { strictCanonicalJsonBytes } from "../json/codec.js";
+import { eachMessage } from "../node/each-message.js";
 import type {
 	AgentRuntimeAuditRecord,
 	ExecutorOutcome,
@@ -666,24 +667,36 @@ describe("D667 local untrusted JS compute Graph-visible runtime", () => {
 		const cleanupSeen: unknown[] = [];
 		const audits: AgentRuntimeAuditRecord[] = [];
 		const unsubscribes = [
-			fixture.runtime.runStatus.subscribe((message) => {
-				if (message[0] === "DATA") statuses.push(message[1]);
-			}),
-			fixture.runtime.outcomes.subscribe((message) => {
-				if (message[0] === "DATA") outcomesSeen.push(message[1]);
-			}),
-			fixture.runtime.lifecycle.subscribe((message) => {
-				if (message[0] === "DATA") lifecycleStates.push(message[1].state);
-			}),
-			fixture.runtime.usage.subscribe((message) => {
-				if (message[0] === "DATA") usageSeen.push(message[1]);
-			}),
-			fixture.runtime.cleanup.subscribe((message) => {
-				if (message[0] === "DATA") cleanupSeen.push(message[1]);
-			}),
-			fixture.runtime.audit.subscribe((message) => {
-				if (message[0] === "DATA") audits.push(message[1]);
-			}),
+			fixture.runtime.runStatus.subscribe(
+				eachMessage((message) => {
+					if (message[0] === "DATA") statuses.push(message[1]);
+				}),
+			),
+			fixture.runtime.outcomes.subscribe(
+				eachMessage((message) => {
+					if (message[0] === "DATA") outcomesSeen.push(message[1]);
+				}),
+			),
+			fixture.runtime.lifecycle.subscribe(
+				eachMessage((message) => {
+					if (message[0] === "DATA") lifecycleStates.push(message[1].state);
+				}),
+			),
+			fixture.runtime.usage.subscribe(
+				eachMessage((message) => {
+					if (message[0] === "DATA") usageSeen.push(message[1]);
+				}),
+			),
+			fixture.runtime.cleanup.subscribe(
+				eachMessage((message) => {
+					if (message[0] === "DATA") cleanupSeen.push(message[1]);
+				}),
+			),
+			fixture.runtime.audit.subscribe(
+				eachMessage((message) => {
+					if (message[0] === "DATA") audits.push(message[1]);
+				}),
+			),
 		];
 		fixture.publishAuthority();
 		fixture.requestNode.down([["DATA", fixture.request]]);
@@ -764,18 +777,26 @@ describe("D667 local untrusted JS compute Graph-visible runtime", () => {
 		const cancellationsSeen: unknown[] = [];
 		const issuesSeen: string[] = [];
 		const unsubscribes = [
-			fixture.runtime.runStatus.subscribe((message) => {
-				if (message[0] === "DATA") statuses.push(message[1]);
-			}),
-			fixture.runtime.outcomes.subscribe((message) => {
-				if (message[0] === "DATA") outcomesSeen.push(message[1]);
-			}),
-			fixture.runtime.cancellations.subscribe((message) => {
-				if (message[0] === "DATA") cancellationsSeen.push(message[1]);
-			}),
-			fixture.runtime.issues.subscribe((message) => {
-				if (message[0] === "DATA") issuesSeen.push(message[1].code);
-			}),
+			fixture.runtime.runStatus.subscribe(
+				eachMessage((message) => {
+					if (message[0] === "DATA") statuses.push(message[1]);
+				}),
+			),
+			fixture.runtime.outcomes.subscribe(
+				eachMessage((message) => {
+					if (message[0] === "DATA") outcomesSeen.push(message[1]);
+				}),
+			),
+			fixture.runtime.cancellations.subscribe(
+				eachMessage((message) => {
+					if (message[0] === "DATA") cancellationsSeen.push(message[1]);
+				}),
+			),
+			fixture.runtime.issues.subscribe(
+				eachMessage((message) => {
+					if (message[0] === "DATA") issuesSeen.push(message[1].code);
+				}),
+			),
 		];
 		fixture.publishAuthority();
 		fixture.requestNode.down([["DATA", fixture.request]]);
@@ -853,9 +874,11 @@ describe("D667 local untrusted JS compute Graph-visible runtime", () => {
 		};
 		const fixture = setup(driver);
 		const statuses: ToolProviderAdapterRunStatus[] = [];
-		const unsubscribe = fixture.runtime.runStatus.subscribe((message) => {
-			if (message[0] === "DATA") statuses.push(message[1]);
-		});
+		const unsubscribe = fixture.runtime.runStatus.subscribe(
+			eachMessage((message) => {
+				if (message[0] === "DATA") statuses.push(message[1]);
+			}),
+		);
 		fixture.publishAuthority();
 		fixture.requestNode.down([["DATA", fixture.request]]);
 		await eventually(() => statuses.some((entry) => entry.status === "started"));

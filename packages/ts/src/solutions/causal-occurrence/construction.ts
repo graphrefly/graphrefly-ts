@@ -110,7 +110,6 @@ function projectFact<T, K extends AuthorityFact<T>["kind"]>(
 	authority: Node<AuthorityEmission<T>>,
 	name: string,
 	kind: K,
-	replayBuffer: number,
 ): Node<Extract<AuthorityFact<T>, { kind: K }>["value"]> {
 	return graph.node(
 		[authority],
@@ -126,7 +125,7 @@ function projectFact<T, K extends AuthorityFact<T>["kind"]>(
 				);
 			if (values.length > 0) ctx.down(values);
 		},
-		{ name, factory: "causalOccurrenceFactProjection", replayBuffer },
+		{ name, factory: "causalOccurrenceFactProjection" },
 	);
 }
 
@@ -214,17 +213,10 @@ export function buildCausalNodes<T>(
 		},
 	);
 
-	const rawRelease = projectFact(
-		graph,
-		authority,
-		`${opts.name}/release-candidates`,
-		"release",
-		opts.maxOccurrences,
-	);
+	const rawRelease = projectFact(graph, authority, `${opts.name}/release-candidates`, "release");
 	// The release boundary is one quiet node (graphrefly-ts:D172): it forwards each release
 	// candidate, and a quiet node's output goes out after the current wave as a wave of its own
-	// (R-wave), so nothing below waits on the authority's wave. Bounded replay preserves earlier
-	// releases for late consumers.
+	// (R-wave), so nothing below waits on the authority's wave.
 	const released = graph.node<CausalOccurrence<T>>(
 		[rawRelease],
 		(ctx) => {
@@ -235,43 +227,18 @@ export function buildCausalNodes<T>(
 			name: `${opts.name}/released`,
 			factory: "causalOccurrenceReleased",
 			quiet: true,
-			replayBuffer: opts.maxOccurrences,
 		},
 	);
 
 	const result: CausalOccurrenceBundle<T> = {
 		startup,
 		released,
-		currentness: projectFact(
-			graph,
-			authority,
-			`${opts.name}/currentness`,
-			"currentness",
-			opts.maxOccurrences,
-		),
-		terminals: projectFact(
-			graph,
-			authority,
-			`${opts.name}/terminals`,
-			"terminal",
-			opts.maxOccurrences,
-		),
-		conservation: projectFact(
-			graph,
-			authority,
-			`${opts.name}/conservation`,
-			"conservation",
-			opts.maxEffects,
-		),
-		coverage: projectFact(graph, authority, `${opts.name}/coverage`, "coverage", opts.maxEvidence),
-		quiescence: projectFact(
-			graph,
-			authority,
-			`${opts.name}/quiescence`,
-			"quiescence",
-			opts.maxOccurrences,
-		),
-		issues: projectFact(graph, authority, `${opts.name}/issues`, "issue", opts.maxPending),
+		currentness: projectFact(graph, authority, `${opts.name}/currentness`, "currentness"),
+		terminals: projectFact(graph, authority, `${opts.name}/terminals`, "terminal"),
+		conservation: projectFact(graph, authority, `${opts.name}/conservation`, "conservation"),
+		coverage: projectFact(graph, authority, `${opts.name}/coverage`, "coverage"),
+		quiescence: projectFact(graph, authority, `${opts.name}/quiescence`, "quiescence"),
+		issues: projectFact(graph, authority, `${opts.name}/issues`, "issue"),
 	};
 	const committedEffects = graph.node<CommittedEffectsView>(
 		[authority],

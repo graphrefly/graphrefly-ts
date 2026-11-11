@@ -37,12 +37,14 @@ export function mountSpendingView(
 	try {
 		for (const port of ports) {
 			stops.push(
-				view[port].subscribe((message) => {
-					if (closed) return;
-					if (message[0] === "DATA") values[port] = message[1];
-					else if (message[0] === "INVALIDATE" || message[0] === "ERROR") delete values[port];
-					else return;
-					if (!mounting) publish();
+				view[port].subscribe((msgs) => {
+					for (const message of msgs) {
+						if (closed) continue;
+						if (message[0] === "DATA") values[port] = message[1];
+						else if (message[0] === "INVALIDATE" || message[0] === "ERROR") delete values[port];
+						else continue;
+						if (!mounting) publish();
+					}
 				}),
 			);
 		}

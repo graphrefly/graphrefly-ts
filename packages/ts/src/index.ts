@@ -238,6 +238,8 @@ export {
 	Graph,
 	type GraphOptions,
 	graph,
+	type HostFailure,
+	type HostReporter,
 	StateNode,
 	type SugarOpts,
 	type TopologyGroup,

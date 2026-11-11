@@ -28,6 +28,7 @@ import {
 	type NodeId,
 	type NodeSlot,
 	type PrivateState,
+	type Subscriber,
 	type SyncCtxState,
 	type ValueState,
 	type VersionState,
@@ -65,13 +66,15 @@ import {
 } from "./node-lifecycle-runtime.js";
 import {
 	nodeAllDepsTerminal,
+	nodeCallSink,
 	nodeCommitBatchedWave,
 	nodeDeferBoundary,
 	nodeDown,
-	nodeEmitToSubs,
 	nodeInvalidate,
+	nodeMarkBatchedWave,
+	nodeMarkDependents,
+	nodePublish,
 	nodeResetLifecycle,
-	nodeRollbackBatched,
 } from "./node-output-runtime.js";
 import { nodeApplyRewireNext, nodeRequestRewireNext, nodeRewire } from "./node-rewire-runtime.js";
 import { nodeRuntimeHost } from "./node-runtime-host.js";
@@ -180,7 +183,8 @@ export class Node<T = unknown> {
 		void node._makeState;
 		void node._invalidate;
 		void node._allDepsTerminal;
-		void node._emitToSubs;
+		void node._markDependents;
+		void node._publish;
 	}
 
 	constructor(
@@ -214,10 +218,11 @@ export class Node<T = unknown> {
 				hasData: false,
 				status: "sentinel" as Status,
 				terminal: undefined,
-				replayRing: [] as T[],
+				lastArray: [] as T[],
 			};
 			if (opts.initial !== undefined) {
 				value.cache = opts.initial as T;
+				value.lastArray = [opts.initial as T];
 				value.hasData = true;
 				value.status = "settled";
 			}
@@ -235,14 +240,13 @@ export class Node<T = unknown> {
 					errorWhenDepsError: opts.errorWhenDepsError ?? true,
 					resubscribable: opts.resubscribable ?? false,
 					quiet: opts.quiet ?? false,
-					replayN: opts.replayBuffer ?? 0,
 					dynamic: opts.dynamic ?? false,
 					name: opts.name,
 					factory: opts.factory,
 				},
 				{
 					dep,
-					lifecycle: { subscribers: new Set<Sink>(), activated: false },
+					lifecycle: { subscribers: new Set<Subscriber>(), activated: false },
 					value,
 					wave: {
 						pending: 0,
@@ -250,9 +254,9 @@ export class Node<T = unknown> {
 						emittedDirtyThisWave: false,
 						emittedSettleThisWave: false,
 						insideRunWave: false,
+						runOutput: [],
 						inDepMutation: false,
 						rewireRunPending: false,
-						batchDirtyOwed: false,
 					},
 					privateState: { value: SENTINEL, persist: false },
 					hooks: { onDeactivation: [], onInvalidate: [] },
@@ -330,12 +334,19 @@ export class Node<T = unknown> {
 		return this._slot.handle;
 	}
 
-	/** R-push-subscribe: a new sink receives START, then cached DATA (or PENDING if dirty). */
+	/**
+	 * R-subscription: a new sink first receives one array, START followed by the node's snapshot
+	 * (the DATA values of the last array it sent that carried any DATA); after that it receives
+	 * every array the node sends, each with the kernel's PENDING first (graphrefly-ts:D175).
+	 */
 	subscribe(sink: Sink): () => void {
-		return this._subscribeOwned(sink);
+		return this._subscribeOwned({ kind: "sink", fn: sink });
 	}
 
-	private _subscribeOwned(sink: Sink, acquisition?: SubscriptionAcquisition): () => void {
+	private _subscribeOwned(
+		subscriber: Subscriber,
+		acquisition?: SubscriptionAcquisition,
+	): () => void {
 		this._assertNotReleased("subscribe");
 		// Wave-owner boundary (R-rewire-deferred / D47): the activation cascade can run fns that
 		// issue ctx.rewireNext; the OUTERMOST exit drains them. Nested subscribes (dep wiring)
@@ -354,23 +365,32 @@ export class Node<T = unknown> {
 					);
 			}
 
-			this._lifecycle.subscribers.add(sink);
 			const unsubscribe = () => {
-				if (!this._lifecycle.subscribers.delete(sink)) return;
+				if (!this._lifecycle.subscribers.delete(subscriber)) return;
 				if (this._lifecycle.subscribers.size === 0) this._deactivate();
 			};
-			// D161: ownership precedes START, cached DATA and dependency activation.
+			// D161: ownership precedes START, the snapshot and dependency activation.
 			acquisition?.record(unsubscribe);
-			sink(["START"]);
-			if (this._slot.replayN > 0 && this._value.replayRing.length > 0) {
-				// R-replay-buffer: late subscriber gets the last N DATA after START.
-				for (const v of this._value.replayRing) sink(["DATA", v]);
-			} else if (this._value.hasData) {
-				sink(["DATA", this._value.cache]);
-			} else if (this._value.status === "dirty" && !this._slot.quiet) {
-				sink(["PENDING"]);
+			this._lifecycle.subscribers.add(subscriber);
+			const start: Message[] = [
+				["START"],
+				...this._value.lastArray.map((v) => ["DATA", v] as Message),
+			];
+			if (subscriber.kind === "sink") {
+				nodeCallSink(nodeRuntimeHost(this), subscriber, start);
+			} else {
+				// A new dependent receives the snapshot as one input array, not a live wave.
+				const wave = {};
+				for (let i = 0; i < start.length; i++)
+					subscriber.fn(start[i] as Message, {
+						wave,
+						last: i === start.length - 1,
+						snapshot: true,
+					});
 			}
-
+			// R-subscription / R-lifetime: subscribing activates an inactive node; the activation's
+			// run is a wave of its own after the START array (see the phase 2 report: the reference
+			// activates before START, which open question Q-START-ORDER is about).
 			if (!this._lifecycle.activated) this._activate();
 
 			return unsubscribe;
@@ -593,16 +613,20 @@ export class Node<T = unknown> {
 		nodeDown(nodeRuntimeHost(this), msgs);
 	}
 
-	private _invalidate(delivery?: DeliveryMeta): void {
-		nodeInvalidate(nodeRuntimeHost(this), delivery);
+	private _invalidate(): void {
+		nodeInvalidate(nodeRuntimeHost(this));
 	}
 
 	private _allDepsTerminal(): boolean {
 		return nodeAllDepsTerminal(nodeRuntimeHost(this));
 	}
 
-	private _emitToSubs(msg: Message, delivery?: DeliveryMeta): void {
-		nodeEmitToSubs(nodeRuntimeHost(this), msg, delivery);
+	private _publish(arrays: readonly Message[][]): void {
+		nodePublish(nodeRuntimeHost(this), arrays);
+	}
+
+	private _markDependents(): void {
+		nodeMarkDependents(nodeRuntimeHost(this));
 	}
 
 	/** R-terminal: resubscribable reset clears terminal + dep state + re-arms the gate. */
@@ -611,13 +635,12 @@ export class Node<T = unknown> {
 	}
 
 	/** Batch commit (R-batch-coalesce): deliver the deferred tier-3 wave now. */
-	__commitBatchedWave(wave: Wave): void {
-		nodeCommitBatchedWave(nodeRuntimeHost(this), wave);
+	__markBatchedWave(wave: Wave): void {
+		nodeMarkBatchedWave(nodeRuntimeHost(this), wave);
 	}
 
-	/** Batch rollback: balance the immediate PENDING with a RESOLVED so downstream un-dirties. */
-	__rollbackBatched(): void {
-		nodeRollbackBatched(nodeRuntimeHost(this));
+	__commitBatchedWave(wave: Wave): void {
+		nodeCommitBatchedWave(nodeRuntimeHost(this), wave);
 	}
 
 	/** B49: enqueue a committed-boundary task on this node's graph-local core. */

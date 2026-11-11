@@ -32,8 +32,6 @@ export interface NodeOptions<T = unknown> {
 	 * that sends nothing sends nothing below (no RESOLVED). Default false.
 	 */
 	quiet?: boolean;
-	/** Buffer the last N outgoing DATA for late subscribers (R-replay-buffer). */
-	replayBuffer?: number;
 	/**
 	 * D109 node runtime versioning policy. Default is nodev0 (`{level:0,counter}`); `false`
 	 * disables runtime version metadata for this node.

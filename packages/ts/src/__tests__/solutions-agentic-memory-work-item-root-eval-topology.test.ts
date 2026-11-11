@@ -100,6 +100,7 @@ import {
 	ROOT_EVAL_TOPOLOGY_QUALIFICATION,
 } from "../../evals/graph-native-rerun-avoidance/root-eval-topology-qualification.js";
 import type { DescribeSnapshot } from "../graph/describe.js";
+import { eachMessage } from "../node/each-message.js";
 import type { Node } from "../node/node.js";
 
 const createTopology = (
@@ -464,17 +465,23 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 		const arrivals = topology.nodes.observation.deps[0]!.deps[0]!;
 		const contributions: { source: string; revision: number; digest: string; value: unknown }[] =
 			[];
-		const stopArrivals = arrivals.subscribe((message) => {
-			if (message[0] === "DATA") contributions.push(...(message[1] as typeof contributions));
-		});
+		const stopArrivals = arrivals.subscribe(
+			eachMessage((message) => {
+				if (message[0] === "DATA") contributions.push(...(message[1] as typeof contributions));
+			}),
+		);
 		const observations: unknown[] = [];
 		const rejections: unknown[] = [];
-		const stopObservations = topology.nodes.observation.subscribe((message) => {
-			if (message[0] === "DATA") observations.push(message[1]);
-		});
-		const stopRejections = topology.nodes.observationRejections.subscribe((message) => {
-			if (message[0] === "DATA") rejections.push(message[1]);
-		});
+		const stopObservations = topology.nodes.observation.subscribe(
+			eachMessage((message) => {
+				if (message[0] === "DATA") observations.push(message[1]);
+			}),
+		);
+		const stopRejections = topology.nodes.observationRejections.subscribe(
+			eachMessage((message) => {
+				if (message[0] === "DATA") rejections.push(message[1]);
+			}),
+		);
 		try {
 			await runRootEval(topology, twoPhaseExecutor());
 			const count = observations.length;
@@ -707,15 +714,21 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 		const feasibility: unknown[] = [];
 		const progress: EvalProgressLeaseState[] = [];
 		const admissions: EvalAdmittedEffect[] = [];
-		const stopFeasibility = topology.nodes.scheduleFeasibility.subscribe((message) => {
-			if (message[0] === "DATA") feasibility.push(message[1]);
-		});
-		const stopProgress = topology.nodes.progressLease.subscribe((message) => {
-			if (message[0] === "DATA") progress.push(message[1]);
-		});
-		const stopAdmissions = topology.nodes.providerAdmissions.subscribe((message) => {
-			if (message[0] === "DATA") admissions.push(message[1]);
-		});
+		const stopFeasibility = topology.nodes.scheduleFeasibility.subscribe(
+			eachMessage((message) => {
+				if (message[0] === "DATA") feasibility.push(message[1]);
+			}),
+		);
+		const stopProgress = topology.nodes.progressLease.subscribe(
+			eachMessage((message) => {
+				if (message[0] === "DATA") progress.push(message[1]);
+			}),
+		);
+		const stopAdmissions = topology.nodes.providerAdmissions.subscribe(
+			eachMessage((message) => {
+				if (message[0] === "DATA") admissions.push(message[1]);
+			}),
+		);
 		const result = await runRootEval(topology, twoPhaseExecutor());
 		const proof = rootEvalScheduleFeasibility(ROOT_EVAL_REPLICATE_COUNT);
 		expect(feasibility).toContainEqual(proof);
@@ -763,9 +776,11 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 			},
 		});
 		const progress: EvalProgressLeaseState[] = [];
-		const stop = topology.nodes.progressAdmissionLease.subscribe((message) => {
-			if (message[0] === "DATA") progress.push(message[1]);
-		});
+		const stop = topology.nodes.progressAdmissionLease.subscribe(
+			eachMessage((message) => {
+				if (message[0] === "DATA") progress.push(message[1]);
+			}),
+		);
 		try {
 			const start = Object.freeze({
 				kind: "eval-campaign-start" as const,
@@ -835,15 +850,21 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 		const admissions: unknown[] = [];
 		const budgets: unknown[] = [];
 		const stops = [
-			topology.nodes.progressAdmissionLease.subscribe((message) => {
-				if (message[0] === "DATA") progress.push(message[1]);
-			}),
-			topology.nodes.providerAdmissions.subscribe((message) => {
-				if (message[0] === "DATA") admissions.push(message[1]);
-			}),
-			topology.nodes.budgets.subscribe((message) => {
-				if (message[0] === "DATA") budgets.push(message[1]);
-			}),
+			topology.nodes.progressAdmissionLease.subscribe(
+				eachMessage((message) => {
+					if (message[0] === "DATA") progress.push(message[1]);
+				}),
+			),
+			topology.nodes.providerAdmissions.subscribe(
+				eachMessage((message) => {
+					if (message[0] === "DATA") admissions.push(message[1]);
+				}),
+			),
+			topology.nodes.budgets.subscribe(
+				eachMessage((message) => {
+					if (message[0] === "DATA") budgets.push(message[1]);
+				}),
+			),
 		];
 		try {
 			topology.inputs.start.down([
@@ -2310,11 +2331,13 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 		const controller = new AbortController();
 		const topology = createTopology();
 		let callerAdmissionSeen = false;
-		const stop = topology.nodes.executorEffects.subscribe((message) => {
-			if (message[0] !== "DATA") return;
-			callerAdmissionSeen = true;
-			queueMicrotask(() => controller.abort(new Error("cancel before deferred caller turn")));
-		});
+		const stop = topology.nodes.executorEffects.subscribe(
+			eachMessage((message) => {
+				if (message[0] !== "DATA") return;
+				callerAdmissionSeen = true;
+				queueMicrotask(() => controller.abort(new Error("cancel before deferred caller turn")));
+			}),
+		);
 		let executorCalls = 0;
 		const running = runRootEval(
 			topology,
@@ -2428,9 +2451,12 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 	it("observes an explicit empty retry lifecycle on the no-retry path", async () => {
 		const topology = createTopology();
 		const retrySnapshots: (readonly EvalExecutableEffect[])[] = [];
-		const stop = topology.nodes.retryActiveEffects.subscribe((message) => {
-			if (message[0] === "DATA") retrySnapshots.push(message[1] as readonly EvalExecutableEffect[]);
-		});
+		const stop = topology.nodes.retryActiveEffects.subscribe(
+			eachMessage((message) => {
+				if (message[0] === "DATA")
+					retrySnapshots.push(message[1] as readonly EvalExecutableEffect[]);
+			}),
+		);
 		const result = await runRootEval(topology, twoPhaseExecutor());
 		stop();
 		expect(retrySnapshots.length).toBeGreaterThan(0);
@@ -2464,29 +2490,35 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 			}
 		};
 		const stops = [
-			topology.nodes.retryActivity.subscribe((message) => {
-				if (message[0] === "DATA")
-					retryActivityCounts.push((message[1] as EvalEffectClassActivitySnapshot).activeEffects);
-			}),
-			topology.nodes.effectActivity.subscribe((message) => {
-				if (message[0] === "DATA")
-					effectActivitySnapshots.push(message[1] as EvalEffectActivitySnapshot);
-			}),
-			topology.nodes.budgets.subscribe((message) => {
-				if (message[0] === "DATA")
-					admittedRetryAttempts.push((message[1] as EvalBudgetState).admittedRetryAttempts);
-			}),
-			topology.nodes.campaignActiveEffects.subscribe((message) =>
-				recordActive(message, "eval-admitted-effect"),
+			topology.nodes.retryActivity.subscribe(
+				eachMessage((message) => {
+					if (message[0] === "DATA")
+						retryActivityCounts.push((message[1] as EvalEffectClassActivitySnapshot).activeEffects);
+				}),
 			),
-			topology.nodes.toolActiveEffects.subscribe((message) =>
-				recordActive(message, "eval-admitted-tool-effect"),
+			topology.nodes.effectActivity.subscribe(
+				eachMessage((message) => {
+					if (message[0] === "DATA")
+						effectActivitySnapshots.push(message[1] as EvalEffectActivitySnapshot);
+				}),
 			),
-			topology.nodes.retryActiveEffects.subscribe((message) =>
-				recordActive(message, "eval-admitted-retry-delay"),
+			topology.nodes.budgets.subscribe(
+				eachMessage((message) => {
+					if (message[0] === "DATA")
+						admittedRetryAttempts.push((message[1] as EvalBudgetState).admittedRetryAttempts);
+				}),
 			),
-			topology.nodes.billingActiveEffects.subscribe((message) =>
-				recordActive(message, "eval-admitted-billing-observation"),
+			topology.nodes.campaignActiveEffects.subscribe(
+				eachMessage((message) => recordActive(message, "eval-admitted-effect")),
+			),
+			topology.nodes.toolActiveEffects.subscribe(
+				eachMessage((message) => recordActive(message, "eval-admitted-tool-effect")),
+			),
+			topology.nodes.retryActiveEffects.subscribe(
+				eachMessage((message) => recordActive(message, "eval-admitted-retry-delay")),
+			),
+			topology.nodes.billingActiveEffects.subscribe(
+				eachMessage((message) => recordActive(message, "eval-admitted-billing-observation")),
 			),
 		];
 		const base = twoPhaseExecutor({
@@ -3764,10 +3796,12 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 			let started = 0;
 			let completed = 0;
 			const base = twoPhaseExecutor();
-			topology.nodes.budgets.subscribe((message) => {
-				if (message[0] === "DATA")
-					activeSnapshots.push((message[1] as { readonly activeEffects: number }).activeEffects);
-			});
+			topology.nodes.budgets.subscribe(
+				eachMessage((message) => {
+					if (message[0] === "DATA")
+						activeSnapshots.push((message[1] as { readonly activeEffects: number }).activeEffects);
+				}),
+			);
 			await expect(
 				runRootEval(topology, async (effect) => {
 					started += 1;
@@ -3788,10 +3822,12 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 			reservationMicrousd: 100,
 		});
 		const reportedCosts: number[] = [];
-		overReservationTopology.nodes.budgets.subscribe((message) => {
-			if (message[0] === "DATA")
-				reportedCosts.push((message[1] as EvalBudgetState).providerReportedMicrousd);
-		});
+		overReservationTopology.nodes.budgets.subscribe(
+			eachMessage((message) => {
+				if (message[0] === "DATA")
+					reportedCosts.push((message[1] as EvalBudgetState).providerReportedMicrousd);
+			}),
+		);
 		await expect(
 			runRootEval(
 				overReservationTopology,
@@ -3890,9 +3926,11 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 	it("deduplicates identical cleanup replay and rejects contradictory replay", () => {
 		const topology = createTopology();
 		const diagnostics: unknown[] = [];
-		const stop = topology.nodes.verificationDiagnostics.subscribe((message) => {
-			if (message[0] === "DATA") diagnostics.push(message[1]);
-		});
+		const stop = topology.nodes.verificationDiagnostics.subscribe(
+			eachMessage((message) => {
+				if (message[0] === "DATA") diagnostics.push(message[1]);
+			}),
+		);
 		topology.inputs.start.down([
 			["DATA", { kind: "eval-campaign-start", campaignRef: topology.campaignRef }],
 		]);
@@ -4182,9 +4220,11 @@ describe("D154 adaptive route settlement and coherent terminal QA", () => {
 			.subscribe((event) => {
 				if (event.msg[0] === "DATA") canonical.push(event.msg[1] as EvalProviderOutcome);
 			});
-		const stopBudget = topology.nodes.budgets.subscribe((message) => {
-			if (message[0] === "DATA") budgets.push(message[1] as EvalBudgetState);
-		});
+		const stopBudget = topology.nodes.budgets.subscribe(
+			eachMessage((message) => {
+				if (message[0] === "DATA") budgets.push(message[1] as EvalBudgetState);
+			}),
+		);
 		const base = twoPhaseExecutor({
 			onProvider(effect) {
 				const proof = nonbillableCostEvidence({
@@ -4232,9 +4272,11 @@ describe("D154 adaptive route settlement and coherent terminal QA", () => {
 	it("rejects a mismatched first cost proof before freeing its active reservation", async () => {
 		const topology = createTopology({ reservationMicrousd: 100 });
 		const budgets: EvalBudgetState[] = [];
-		const stop = topology.nodes.budgets.subscribe((message) => {
-			if (message[0] === "DATA") budgets.push(message[1] as EvalBudgetState);
-		});
+		const stop = topology.nodes.budgets.subscribe(
+			eachMessage((message) => {
+				if (message[0] === "DATA") budgets.push(message[1] as EvalBudgetState);
+			}),
+		);
 		try {
 			await expect(
 				runRootEval(
@@ -4276,9 +4318,11 @@ describe("D154 adaptive route settlement and coherent terminal QA", () => {
 	it("conserves reported and unknown provider costs on the current Together route", async () => {
 		const topology = createTopology({ reservationMicrousd: 100 });
 		const budgets: EvalBudgetState[] = [];
-		const stop = topology.nodes.budgets.subscribe((message) => {
-			if (message[0] === "DATA") budgets.push(message[1] as EvalBudgetState);
-		});
+		const stop = topology.nodes.budgets.subscribe(
+			eachMessage((message) => {
+				if (message[0] === "DATA") budgets.push(message[1] as EvalBudgetState);
+			}),
+		);
 		try {
 			const result = await runRootEval(
 				topology,
@@ -4341,10 +4385,12 @@ describe("D154 adaptive route settlement and coherent terminal QA", () => {
 		const intervals: number[] = [];
 		const spacings: Array<Record<string, unknown>> = [];
 		const providerEffects: EvalAdmittedEffect[] = [];
-		const stop = topology.nodes.providerCapacity.subscribe((message) => {
-			if (message[0] === "DATA")
-				intervals.push((message[1] as EvalProviderCapacityState).providerStartIntervalMs);
-		});
+		const stop = topology.nodes.providerCapacity.subscribe(
+			eachMessage((message) => {
+				if (message[0] === "DATA")
+					intervals.push((message[1] as EvalProviderCapacityState).providerStartIntervalMs);
+			}),
+		);
 		const stopSpacing = topology.graph
 			.observe("eval/provider/start-spacing-readiness")
 			.subscribe((event) => {
@@ -4395,9 +4441,11 @@ describe("D154 adaptive route settlement and coherent terminal QA", () => {
 		let candidate: EvalProviderOutcome | undefined;
 		const spacings: unknown[] = [];
 		const budgets: EvalBudgetState[] = [];
-		const stop = topology.nodes.budgets.subscribe((message) => {
-			if (message[0] === "DATA") budgets.push(message[1] as EvalBudgetState);
-		});
+		const stop = topology.nodes.budgets.subscribe(
+			eachMessage((message) => {
+				if (message[0] === "DATA") budgets.push(message[1] as EvalBudgetState);
+			}),
+		);
 		const stopSpacing = topology.graph
 			.observe("eval/provider/start-spacing-readiness")
 			.subscribe((event) => {
@@ -4620,9 +4668,11 @@ describe("D154 adaptive route settlement and coherent terminal QA", () => {
 	it("rejects failed cleanup instead of publishing a successful incomplete-budget terminal", async () => {
 		const topology = createTopology({ maxAttempts: 1 });
 		const rejections: unknown[] = [];
-		const stop = topology.nodes.observationRejections.subscribe((message) => {
-			if (message[0] === "DATA") rejections.push(message[1]);
-		});
+		const stop = topology.nodes.observationRejections.subscribe(
+			eachMessage((message) => {
+				if (message[0] === "DATA") rejections.push(message[1]);
+			}),
+		);
 		try {
 			await expect(
 				runRootEval(

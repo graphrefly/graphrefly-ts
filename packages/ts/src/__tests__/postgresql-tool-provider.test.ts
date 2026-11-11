@@ -14,6 +14,7 @@ import {
 } from "../executors/postgresql-tool-provider.js";
 import { graph } from "../graph/graph.js";
 import { compoundTupleKey } from "../identity.js";
+import { eachMessage } from "../node/each-message.js";
 import type {
 	ExecutorOutcome,
 	ToolProviderAdapterInput,
@@ -125,9 +126,11 @@ function collect<T>(node: {
 	subscribe(callback: (message: readonly [string, unknown]) => void): () => void;
 }): T[] {
 	const values: T[] = [];
-	node.subscribe((message) => {
-		if (message[0] === "DATA") values.push(message[1] as T);
-	});
+	node.subscribe(
+		eachMessage((message) => {
+			if (message[0] === "DATA") values.push(message[1] as T);
+		}),
+	);
 	return values;
 }
 

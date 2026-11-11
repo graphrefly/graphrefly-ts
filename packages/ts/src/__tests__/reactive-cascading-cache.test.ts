@@ -6,13 +6,15 @@ import {
 	reactiveCascadingCache,
 	requireKvVersioned,
 } from "../index.js";
+import { eachMessage } from "../node/each-message.js";
+import type { Wave } from "../protocol/messages.js";
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
-function dataOf<T>(node: { subscribe: (sink: (msg: unknown[]) => void) => () => void }): T[] {
+function dataOf<T>(node: { subscribe: (sink: (msgs: Wave) => void) => () => void }): T[] {
 	const out: T[] = [];
-	node.subscribe((msg) => {
-		if (msg[0] === "DATA") out.push(msg[1] as T);
+	node.subscribe((msgs) => {
+		for (const msg of msgs) if (msg[0] === "DATA") out.push(msg[1] as T);
 	});
 	return out;
 }
@@ -320,9 +322,11 @@ describe("reactiveCascadingCache (D104/D105/D107)", () => {
 			name: "cache",
 		});
 		const values: number[] = [];
-		const unsubscribe = cache.value.subscribe((msg) => {
-			if (msg[0] === "DATA") values.push(msg[1] as number);
-		});
+		const unsubscribe = cache.value.subscribe(
+			eachMessage((msg) => {
+				if (msg[0] === "DATA") values.push(msg[1] as number);
+			}),
+		);
 
 		request.down([["DATA", "k"]]);
 		await flush();

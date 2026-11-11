@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { depBatch } from "../ctx/types.js";
 import { graph } from "../graph/graph.js";
 import { type WorkerDerivedJob, type WorkerDerivedSettle, workerDerived } from "../graph/worker.js";
+import { eachMessage } from "../node/each-message.js";
 
 interface CapturedWorker<TInput, TResult> {
 	readonly job: WorkerDerivedJob<TInput, TResult>;
@@ -30,7 +31,7 @@ describe("workerDerived — backend-required helper-first worker slice (D148)", 
 			},
 		});
 		const seen: unknown[] = [];
-		doubled.subscribe((msg) => seen.push(msg));
+		doubled.subscribe(eachMessage((msg) => seen.push(msg)));
 
 		src.set(2);
 		expect(jobs).toHaveLength(1);
@@ -61,7 +62,7 @@ describe("workerDerived — backend-required helper-first worker slice (D148)", 
 			},
 		});
 		const seen: unknown[] = [];
-		worker.subscribe((msg) => seen.push(msg));
+		worker.subscribe(eachMessage((msg) => seen.push(msg)));
 
 		src.set(1);
 		src.set(2);
@@ -96,7 +97,7 @@ describe("workerDerived — backend-required helper-first worker slice (D148)", 
 			},
 		});
 		const seen: unknown[] = [];
-		worker.subscribe((msg) => seen.push(msg));
+		worker.subscribe(eachMessage((msg) => seen.push(msg)));
 
 		src.set(2);
 
@@ -134,7 +135,7 @@ describe("workerDerived — backend-required helper-first worker slice (D148)", 
 			},
 		});
 		const seen: unknown[] = [];
-		worker.subscribe((msg) => seen.push(msg));
+		worker.subscribe(eachMessage((msg) => seen.push(msg)));
 
 		src.set(2);
 		captured?.({ ok: true, value: 3 });
@@ -172,7 +173,7 @@ describe("workerDerived — backend-required helper-first worker slice (D148)", 
 			},
 		});
 		const seen: unknown[] = [];
-		worker.subscribe((msg) => seen.push(msg));
+		worker.subscribe(eachMessage((msg) => seen.push(msg)));
 
 		src.set(1);
 		captured?.settle({ ok: true, value: 1 });
@@ -230,7 +231,7 @@ describe("workerDerived — backend-required helper-first worker slice (D148)", 
 			},
 		});
 		const seen: unknown[] = [];
-		worker.subscribe((msg) => seen.push(msg));
+		worker.subscribe(eachMessage((msg) => seen.push(msg)));
 
 		src.set(2);
 
@@ -284,7 +285,7 @@ describe("workerDerived — backend-required helper-first worker slice (D148)", 
 			},
 		});
 		const seen: unknown[] = [];
-		worker.subscribe((msg) => seen.push(msg));
+		worker.subscribe(eachMessage((msg) => seen.push(msg)));
 
 		src.set(1);
 
@@ -314,7 +315,7 @@ describe("workerDerived — backend-required helper-first worker slice (D148)", 
 			},
 		});
 		const seen: unknown[] = [];
-		worker.subscribe((msg) => seen.push(msg));
+		worker.subscribe(eachMessage((msg) => seen.push(msg)));
 
 		src.set(1);
 

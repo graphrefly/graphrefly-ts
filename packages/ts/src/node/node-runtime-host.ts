@@ -8,6 +8,7 @@ import type {
 	NodeId,
 	NodeSlot,
 	PrivateState,
+	Subscriber,
 	SyncCtxState,
 	ValueState,
 	VersionState,
@@ -40,7 +41,7 @@ export interface NodeRuntimeHost<T = unknown> {
 	_assertRewireDepOwner(dep: Node<unknown>): void;
 	_rewire(newDeps: Node<unknown>[], fn: NodeFn, opts?: { allowTerminalOwner?: boolean }): boolean;
 	_activate(): void;
-	_subscribeOwned(sink: Sink, acquisition?: SubscriptionAcquisition): () => void;
+	_subscribeOwned(subscriber: Subscriber, acquisition?: SubscriptionAcquisition): () => void;
 	_subscribeDepAt(depNode: Node<unknown>, opts?: { seedRestored?: boolean }): void;
 	_seedRestoredDepAt(idx: number, depNode: Node<unknown>): void;
 	_deactivate(): void;
@@ -70,12 +71,13 @@ export interface NodeRuntimeHost<T = unknown> {
 	_refreshCtx(ctx: Ctx): void;
 	_makeState(): CtxState;
 	_down(msgs: Wave): void;
-	_invalidate(delivery?: DeliveryMeta): void;
+	_invalidate(): void;
 	_allDepsTerminal(): boolean;
 	_resetLifecycle(): void;
-	_emitToSubs(msg: Message, delivery?: DeliveryMeta): void;
+	_markDependents(): void;
+	_publish(arrays: readonly Message[][]): void;
 	__commitBatchedWave(wave: Wave): void;
-	__rollbackBatched(): void;
+	__markBatchedWave(wave: Wave): void;
 	__deferBoundary(fn: () => void, batchToken?: object): void;
 }
 

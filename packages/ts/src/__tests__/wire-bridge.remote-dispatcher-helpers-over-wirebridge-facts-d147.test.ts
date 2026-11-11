@@ -8,6 +8,7 @@ import {
 } from "../adapters/index.js";
 import { graph } from "../graph/graph.js";
 import { batch } from "../index.js";
+import { eachMessage } from "../node/each-message.js";
 
 describe("remote dispatcher helpers over wireBridge facts (D147)", () => {
 	it("remoteCall emits request facts and projects later response/status/error facts", () => {
@@ -28,10 +29,10 @@ describe("remote dispatcher helpers over wireBridge facts (D147)", () => {
 		const results: unknown[] = [];
 		const status: unknown[] = [];
 		const errors: unknown[] = [];
-		bridge.outbound.subscribe((msg) => outbound.push(msg));
-		remote.results.subscribe((msg) => results.push(msg));
-		remote.status.subscribe((msg) => status.push(msg));
-		remote.errors.subscribe((msg) => errors.push(msg));
+		bridge.outbound.subscribe(eachMessage((msg) => outbound.push(msg)));
+		remote.results.subscribe(eachMessage((msg) => results.push(msg)));
+		remote.status.subscribe(eachMessage((msg) => status.push(msg)));
+		remote.errors.subscribe(eachMessage((msg) => errors.push(msg)));
 
 		remote.call("upper", "req-1", "hello");
 		expect(outbound.at(-1)).toEqual([
@@ -114,9 +115,9 @@ describe("remote dispatcher helpers over wireBridge facts (D147)", () => {
 		const results: unknown[] = [];
 		const errors: unknown[] = [];
 		const status: unknown[] = [];
-		remote.results.subscribe((msg) => results.push(msg));
-		remote.errors.subscribe((msg) => errors.push(msg));
-		remote.status.subscribe((msg) => status.push(msg));
+		remote.results.subscribe(eachMessage((msg) => results.push(msg)));
+		remote.errors.subscribe(eachMessage((msg) => errors.push(msg)));
+		remote.status.subscribe(eachMessage((msg) => status.push(msg)));
 
 		bridge.inbound.down([
 			[
@@ -204,9 +205,9 @@ describe("remote dispatcher helpers over wireBridge facts (D147)", () => {
 		const results: unknown[] = [];
 		const errors: unknown[] = [];
 		const status: unknown[] = [];
-		remote.results.subscribe((msg) => results.push(msg));
-		remote.errors.subscribe((msg) => errors.push(msg));
-		remote.status.subscribe((msg) => status.push(msg));
+		remote.results.subscribe(eachMessage((msg) => results.push(msg)));
+		remote.errors.subscribe(eachMessage((msg) => errors.push(msg)));
+		remote.status.subscribe(eachMessage((msg) => status.push(msg)));
 
 		batch(() => {
 			bridge.inbound.down([
@@ -298,10 +299,10 @@ describe("remote dispatcher helpers over wireBridge facts (D147)", () => {
 		const responses: unknown[] = [];
 		const errors: unknown[] = [];
 		const status: unknown[] = [];
-		remote.results.subscribe((msg) => results.push(msg));
-		remote.responses.subscribe((msg) => responses.push(msg));
-		remote.errors.subscribe((msg) => errors.push(msg));
-		remote.status.subscribe((msg) => status.push(msg));
+		remote.results.subscribe(eachMessage((msg) => results.push(msg)));
+		remote.responses.subscribe(eachMessage((msg) => responses.push(msg)));
+		remote.errors.subscribe(eachMessage((msg) => errors.push(msg)));
+		remote.status.subscribe(eachMessage((msg) => status.push(msg)));
 
 		remote.call("upper", "req-1", "hello");
 		bridge.inbound.down([
@@ -419,8 +420,8 @@ describe("remote dispatcher helpers over wireBridge facts (D147)", () => {
 		const remote = remoteCall<string, string>(g, bridge, { name: "rpc" });
 		const results: unknown[] = [];
 		const errors: unknown[] = [];
-		remote.results.subscribe((msg) => results.push(msg));
-		remote.errors.subscribe((msg) => errors.push(msg));
+		remote.results.subscribe(eachMessage((msg) => results.push(msg)));
+		remote.errors.subscribe(eachMessage((msg) => errors.push(msg)));
 
 		remote.call("upper", "req-1", "first");
 		remote.call("upper", "req-1", "second");
@@ -496,8 +497,8 @@ describe("remote dispatcher helpers over wireBridge facts (D147)", () => {
 		const remote = remoteCall<string, string>(g, bridge, { name: "rpc" });
 		const results: unknown[] = [];
 		const errors: unknown[] = [];
-		remote.results.subscribe((msg) => results.push(msg));
-		remote.errors.subscribe((msg) => errors.push(msg));
+		remote.results.subscribe(eachMessage((msg) => results.push(msg)));
+		remote.errors.subscribe(eachMessage((msg) => errors.push(msg)));
 
 		remote.call("upper", "req-1", "first");
 		remote.call("upper", "req-1", "second");
@@ -575,9 +576,9 @@ describe("remote dispatcher helpers over wireBridge facts (D147)", () => {
 		const outbound: unknown[] = [];
 		const responseCommands: unknown[] = [];
 		const requests: unknown[] = [];
-		bridge.outbound.subscribe((msg) => outbound.push(msg));
-		responder.responseCommands.subscribe((msg) => responseCommands.push(msg));
-		responder.requests.subscribe((msg) => requests.push(msg));
+		bridge.outbound.subscribe(eachMessage((msg) => outbound.push(msg)));
+		responder.responseCommands.subscribe(eachMessage((msg) => responseCommands.push(msg)));
+		responder.requests.subscribe(eachMessage((msg) => requests.push(msg)));
 
 		bridge.inbound.down([
 			[
@@ -640,7 +641,7 @@ describe("remote dispatcher helpers over wireBridge facts (D147)", () => {
 			handlers: [remoteResponderHandler("upper", (request) => request.payload.toUpperCase())],
 		});
 		const outbound: unknown[] = [];
-		bridge.outbound.subscribe((msg) => outbound.push(msg));
+		bridge.outbound.subscribe(eachMessage((msg) => outbound.push(msg)));
 		expect(g.describe().edges).toContainEqual({
 			from: "responder/responseCommands",
 			to: "bridge/command",
@@ -684,7 +685,7 @@ describe("remote dispatcher helpers over wireBridge facts (D147)", () => {
 		});
 		const outbound: unknown[] = [];
 		const unsub = responder.status.subscribe(() => {});
-		bridge.outbound.subscribe((msg) => outbound.push(msg));
+		bridge.outbound.subscribe(eachMessage((msg) => outbound.push(msg)));
 
 		expect(() => responder.release()).toThrow(/live subscribers/);
 		expect(g.describe().edges).toContainEqual({
@@ -732,8 +733,8 @@ describe("remote dispatcher helpers over wireBridge facts (D147)", () => {
 		});
 		const errors: unknown[] = [];
 		const outbound: unknown[] = [];
-		responder.errors.subscribe((msg) => errors.push(msg));
-		bridge.outbound.subscribe((msg) => outbound.push(msg));
+		responder.errors.subscribe(eachMessage((msg) => errors.push(msg)));
+		bridge.outbound.subscribe(eachMessage((msg) => outbound.push(msg)));
 
 		bridge.inbound.down([
 			[
@@ -771,9 +772,9 @@ describe("remote dispatcher helpers over wireBridge facts (D147)", () => {
 		const errors: unknown[] = [];
 		const results: unknown[] = [];
 		const status: unknown[] = [];
-		remote.errors.subscribe((msg) => errors.push(msg));
-		remote.results.subscribe((msg) => results.push(msg));
-		remote.status.subscribe((msg) => status.push(msg));
+		remote.errors.subscribe(eachMessage((msg) => errors.push(msg)));
+		remote.results.subscribe(eachMessage((msg) => results.push(msg)));
+		remote.status.subscribe(eachMessage((msg) => status.push(msg)));
 
 		remote.call("upper", "req-1", "hello");
 		bridge.inbound.down([
@@ -825,9 +826,9 @@ describe("remote dispatcher helpers over wireBridge facts (D147)", () => {
 		const errors: unknown[] = [];
 		const results: unknown[] = [];
 		const status: unknown[] = [];
-		remote.errors.subscribe((msg) => errors.push(msg));
-		remote.results.subscribe((msg) => results.push(msg));
-		remote.status.subscribe((msg) => status.push(msg));
+		remote.errors.subscribe(eachMessage((msg) => errors.push(msg)));
+		remote.results.subscribe(eachMessage((msg) => results.push(msg)));
+		remote.status.subscribe(eachMessage((msg) => status.push(msg)));
 
 		bridge.inbound.down([
 			[
@@ -907,7 +908,7 @@ describe("remote dispatcher helpers over wireBridge facts (D147)", () => {
 			],
 		});
 		const errors: unknown[] = [];
-		responder.errors.subscribe((msg) => errors.push(msg));
+		responder.errors.subscribe(eachMessage((msg) => errors.push(msg)));
 
 		bridge.inbound.down([
 			[
@@ -945,8 +946,8 @@ describe("remote dispatcher helpers over wireBridge facts (D147)", () => {
 		});
 		const errors: unknown[] = [];
 		const outbound: unknown[] = [];
-		responder.errors.subscribe((msg) => errors.push(msg));
-		bridge.outbound.subscribe((msg) => outbound.push(msg));
+		responder.errors.subscribe(eachMessage((msg) => errors.push(msg)));
+		bridge.outbound.subscribe(eachMessage((msg) => outbound.push(msg)));
 
 		bridge.inbound.down([
 			[

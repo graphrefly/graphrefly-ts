@@ -19,6 +19,7 @@ import {
 } from "../executors/managed-untrusted-js-compute.js";
 import { graph } from "../graph/graph.js";
 import { compoundTupleKey } from "../identity.js";
+import { eachMessage } from "../node/each-message.js";
 import type { Node } from "../node/node.js";
 import type {
 	ExecutorOutcome,
@@ -196,9 +197,11 @@ const collect = <T>(node: {
 	subscribe(cb: (m: readonly [string, unknown]) => void): () => void;
 }) => {
 	const values: T[] = [];
-	node.subscribe((m) => {
-		if (m[0] === "DATA") values.push(m[1] as T);
-	});
+	node.subscribe(
+		eachMessage((m) => {
+			if (m[0] === "DATA") values.push(m[1] as T);
+		}),
+	);
 	return values;
 };
 
@@ -489,9 +492,11 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 				now: () => 10,
 			});
 			let disposed: Promise<void> | undefined;
-			const unsubscribe = runtime.lifecycle.subscribe((message) => {
-				if (message[0] === "DATA" && message[1].state === state) disposed = runtime.dispose();
-			});
+			const unsubscribe = runtime.lifecycle.subscribe(
+				eachMessage((message) => {
+					if (message[0] === "DATA" && message[1].state === state) disposed = runtime.dispose();
+				}),
+			);
 			inputs.down([["DATA", input()]]);
 			manifests.down([["DATA", manifest()]]);
 			postures.down([["DATA", readiness()]]);
@@ -1249,15 +1254,19 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 		const acknowledgements = collect(runtime.cancellations);
 		const outcomes = collect<ExecutorOutcome>(runtime.outcomes);
 		const issues = collect<{ code: string }>(runtime.issues);
-		const unsubscribeAdmission = runtime.cancellationAdmissions.subscribe((message) => {
-			if (message[0] === "DATA" && message[1].state === "admitted")
-				cancellations.down([
-					["DATA", cancellation({ cancellationId: "cancel:js-compute:reentrant-second" })],
-				]);
-		});
-		const unsubscribe = runtime.admittedRunRequests.subscribe((message) => {
-			if (message[0] === "DATA") decideCancellation(cancellations, decisions, proposals);
-		});
+		const unsubscribeAdmission = runtime.cancellationAdmissions.subscribe(
+			eachMessage((message) => {
+				if (message[0] === "DATA" && message[1].state === "admitted")
+					cancellations.down([
+						["DATA", cancellation({ cancellationId: "cancel:js-compute:reentrant-second" })],
+					]);
+			}),
+		);
+		const unsubscribe = runtime.admittedRunRequests.subscribe(
+			eachMessage((message) => {
+				if (message[0] === "DATA") decideCancellation(cancellations, decisions, proposals);
+			}),
+		);
 		inputs.down([["DATA", input()]]);
 		manifests.down([["DATA", manifest()]]);
 		postures.down([["DATA", readiness()]]);
@@ -1350,15 +1359,17 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 		const outcomes = collect<ExecutorOutcome>(runtime.outcomes);
 		const cleanup = collect<ManagedUntrustedJsComputeCleanupStatus>(runtime.cleanup);
 		const cleanupSucceeded = new Promise<void>((resolve) => {
-			const unsubscribe = runtime.cleanup.subscribe((message) => {
-				if (
-					message[0] === "DATA" &&
-					(message[1] as ManagedUntrustedJsComputeCleanupStatus).state === "succeeded"
-				) {
-					unsubscribe();
-					resolve();
-				}
-			});
+			const unsubscribe = runtime.cleanup.subscribe(
+				eachMessage((message) => {
+					if (
+						message[0] === "DATA" &&
+						(message[1] as ManagedUntrustedJsComputeCleanupStatus).state === "succeeded"
+					) {
+						unsubscribe();
+						resolve();
+					}
+				}),
+			);
 		});
 		inputs.down([["DATA", input()]]);
 		manifests.down([["DATA", manifest({ executionTimeoutMs: 100, cleanupTimeoutMs: 10 })]]);
@@ -1868,9 +1879,11 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 			now: () => 10,
 		});
 		let reentrantDispose: Promise<void> | undefined;
-		runtime.outcomes.subscribe((message) => {
-			if (message[0] === "DATA") reentrantDispose = runtime.dispose();
-		});
+		runtime.outcomes.subscribe(
+			eachMessage((message) => {
+				if (message[0] === "DATA") reentrantDispose = runtime.dispose();
+			}),
+		);
 		inputs.down([["DATA", input()]]);
 		manifests.down([["DATA", manifest()]]);
 		postures.down([["DATA", readiness()]]);

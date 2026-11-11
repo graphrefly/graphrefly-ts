@@ -381,12 +381,14 @@ export function persistReactiveCollection<T, K extends PersistableKind>(
 		for (const item of pending) callDone(item.done);
 	}
 
-	stop = (collection.delta as Node<PersistableChange<T, K>>).subscribe(
-		(msg: Message, delivery?: DeliveryMeta) => {
+	stop = (collection.delta as Node<PersistableChange<T, K>>).subscribe((msgs) => {
+		// The START array carries the snapshot; it is not a change (R-subscription).
+		const snapshot = msgs[0]?.[0] === "START";
+		for (const msg of msgs) {
 			if (disposeRequested) return;
 			const change = dataOf<PersistableChange<T, K>>(msg);
-			if (change === undefined) return;
-			if (subscribing && delivery === undefined) return;
+			if (change === undefined) continue;
+			if (subscribing && snapshot) continue;
 			observedChangesSinceSnapshot += 1;
 			enqueueChange(change);
 			if (
@@ -395,8 +397,8 @@ export function persistReactiveCollection<T, K extends PersistableKind>(
 			) {
 				enqueueSnapshot();
 			}
-		},
-	);
+		}
+	});
 	subscribing = false;
 
 	if (opts.snapshotOnAttach !== false) enqueueSnapshot();

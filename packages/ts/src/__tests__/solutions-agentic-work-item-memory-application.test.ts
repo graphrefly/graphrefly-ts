@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, expectTypeOf, it } from "vitest";
 import { graph } from "../graph/graph.js";
 import * as packageRoot from "../index.js";
+import { eachMessage } from "../node/each-message.js";
 import type { Message } from "../protocol/messages.js";
 import type { ScoreSignal } from "../scoring/index.js";
 import type {
@@ -36,7 +37,7 @@ const data = <T>(messages: Message[]): T[] =>
 
 function collect(node: { subscribe(sink: (messages: Message) => void): () => void }) {
 	const messages: Message[] = [];
-	const unsubscribe = node.subscribe((message) => messages.push(message));
+	const unsubscribe = node.subscribe(eachMessage((message) => messages.push(message)));
 	return { messages, unsubscribe };
 }
 

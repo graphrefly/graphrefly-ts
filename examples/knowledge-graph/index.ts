@@ -103,8 +103,10 @@ function activate<T>(node: {
 	subscribe: (sink: (message: readonly [string, unknown?]) => void) => () => void;
 }): { readonly value: T; readonly unsubscribe: () => void } {
 	let latest: T | undefined;
-	const unsubscribe = node.subscribe(([type, value]) => {
-		if (type === "DATA") latest = value as T;
+	const unsubscribe = node.subscribe((msgs) => {
+		for (const [type, value] of msgs) {
+			if (type === "DATA") latest = value as T;
+		}
 	});
 	if (latest === undefined) {
 		unsubscribe();

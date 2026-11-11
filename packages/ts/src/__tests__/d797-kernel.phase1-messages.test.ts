@@ -9,6 +9,7 @@
 import { describe, expect, it } from "vitest";
 import type { Ctx, Message, Wave } from "../index.js";
 import { node } from "../index.js";
+import { eachMessage } from "../node/each-message.js";
 
 const types = (msgs: readonly Message[]) => msgs.map((m) => m[0]);
 
@@ -37,7 +38,7 @@ describe("C-26: the message set is closed: PULL, PAUSE, RESUME and TEARDOWN are 
 			ctx.down([["DATA", 99]]);
 		});
 		const s = recorder();
-		n.subscribe(s.sink);
+		n.subscribe(eachMessage(s.sink));
 
 		expect(runs).toBe(1);
 		expect(n.status).toBe("errored");
@@ -81,7 +82,7 @@ describe("C-42: the message set is closed and nothing travels upstream", () => {
 			ctx.down([["DATA", 42]]);
 		});
 		const s = recorder();
-		n.subscribe(s.sink);
+		n.subscribe(eachMessage(s.sink));
 
 		expect(rejected).toEqual([
 			"PULL",
@@ -106,7 +107,7 @@ describe("C-42: the message set is closed and nothing travels upstream", () => {
 			ctx.down([["PENDING"]]);
 		});
 		const s = recorder();
-		n.subscribe(s.sink);
+		n.subscribe(eachMessage(s.sink));
 		expect(n.status).toBe("errored");
 		expect(types(s.msgs).at(-1)).toBe("ERROR");
 		expect(types(s.msgs).filter((t) => t === "ERROR")).toHaveLength(1);
@@ -151,8 +152,8 @@ describe("C-12 (c): RESOLVED is the kernel's alone", () => {
 		});
 		const s = recorder();
 		const ds = recorder();
-		n.subscribe(s.sink);
-		d.subscribe(ds.sink);
+		n.subscribe(eachMessage(s.sink));
+		d.subscribe(eachMessage(ds.sink));
 		s.msgs.length = 0;
 		a.down([["DATA", 2]]);
 		expect(n.status).toBe("errored");
@@ -167,7 +168,7 @@ describe("C-12 (c): RESOLVED is the kernel's alone", () => {
 		const a = node<number>([], null, { initial: 1 });
 		const n = node<number>([a], () => {});
 		const s = recorder();
-		n.subscribe(s.sink);
+		n.subscribe(eachMessage(s.sink));
 		s.msgs.length = 0;
 		a.down([["DATA", 2]]);
 		expect(types(s.msgs)).toEqual(["PENDING", "RESOLVED"]);

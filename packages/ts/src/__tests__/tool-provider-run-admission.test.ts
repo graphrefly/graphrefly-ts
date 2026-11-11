@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { DataIssue } from "../data/index.js";
 import { graph } from "../graph/graph.js";
 import { compoundTupleKey } from "../identity.js";
+import { eachMessage } from "../node/each-message.js";
 import type {
 	ToolProviderAdapterInput,
 	ToolProviderAdapterRunRequested,
@@ -89,20 +90,32 @@ function createHarness() {
 		views: [] as ToolProviderRunAdmissionViews[],
 	};
 	bundle.proposals.subscribe(
-		(msg) => msg[0] === "DATA" && seen.proposals.push(msg[1] as ToolProviderRunAdmissionProposal),
+		eachMessage(
+			(msg) => msg[0] === "DATA" && seen.proposals.push(msg[1] as ToolProviderRunAdmissionProposal),
+		),
 	);
 	bundle.admissions.subscribe(
-		(msg) => msg[0] === "DATA" && seen.admissions.push(msg[1] as ToolProviderRunAdmission),
+		eachMessage(
+			(msg) => msg[0] === "DATA" && seen.admissions.push(msg[1] as ToolProviderRunAdmission),
+		),
 	);
 	bundle.approvedRunRequests.subscribe(
-		(msg) => msg[0] === "DATA" && seen.approved.push(msg[1] as ToolProviderAdapterRunRequested),
+		eachMessage(
+			(msg) => msg[0] === "DATA" && seen.approved.push(msg[1] as ToolProviderAdapterRunRequested),
+		),
 	);
 	bundle.status.subscribe(
-		(msg) => msg[0] === "DATA" && seen.status.push(msg[1] as ToolProviderRunAdmissionStatus),
+		eachMessage(
+			(msg) => msg[0] === "DATA" && seen.status.push(msg[1] as ToolProviderRunAdmissionStatus),
+		),
 	);
-	bundle.issues.subscribe((msg) => msg[0] === "DATA" && seen.issues.push(msg[1] as DataIssue));
+	bundle.issues.subscribe(
+		eachMessage((msg) => msg[0] === "DATA" && seen.issues.push(msg[1] as DataIssue)),
+	);
 	bundle.views.subscribe(
-		(msg) => msg[0] === "DATA" && seen.views.push(msg[1] as ToolProviderRunAdmissionViews),
+		eachMessage(
+			(msg) => msg[0] === "DATA" && seen.views.push(msg[1] as ToolProviderRunAdmissionViews),
+		),
 	);
 	return { inputs, runRequests, decisions, seen };
 }

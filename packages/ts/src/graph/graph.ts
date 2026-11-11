@@ -17,6 +17,7 @@ import { type BatchCtx, batch as batchRun } from "../batch/batch.js";
 import { type Ctx, depCount, depLatest, type NodeFn } from "../ctx/types.js";
 import { type Dispatcher, defaultDispatcher } from "../dispatcher/index.js";
 import { NodeCore } from "../node/core.js";
+import { eachMessage } from "../node/each-message.js";
 import {
 	checkpointStateOfNode,
 	getNodeOwner,
@@ -97,7 +98,14 @@ export type {
 	TopologyGroupOptions,
 	TopologyGroupReleaseOptions,
 } from "./graph-topology-group.js";
-export type { DerivedFn, EffectFn, GraphOptions, SugarOpts } from "./graph-types.js";
+export type {
+	DerivedFn,
+	EffectFn,
+	GraphOptions,
+	HostFailure,
+	HostReporter,
+	SugarOpts,
+} from "./graph-types.js";
 
 interface Entry {
 	node: Node<unknown>;
@@ -147,8 +155,24 @@ export function assertGraphLocalNode(owner: Graph, n: Node<unknown>, label: stri
  * @category graph
  */
 export class StateNode<T> extends Node<T> {
+	/** Host input (R-wave@2): write a value; one write is one wave (in a batch, one array). */
 	set(v: T): void {
 		this.down([["DATA", v]]);
+	}
+
+	/** Host input (R-invalidation): drop the retained value; effective only while one is held. */
+	invalidate(): void {
+		this.down([["INVALIDATE"]]);
+	}
+
+	/** Host input (R-terminals): end this state with COMPLETE. */
+	complete(): void {
+		this.down([["COMPLETE"]]);
+	}
+
+	/** Host input (R-terminals): end this state with ERROR carrying `error`. */
+	error(error: unknown): void {
+		this.down([["ERROR", error]]);
 	}
 }
 
@@ -195,6 +219,7 @@ export class Graph {
 		this._versioning = opts.versioning;
 		this._environment = opts.environment ?? EnvironmentDrivers.empty();
 		if (opts.profile) this._dispatcher.setRecording(true);
+		this._core.report = opts.report;
 		graphRegistrations.set(this, new GraphRegistration(this));
 	}
 
@@ -713,9 +738,11 @@ export class Graph {
 		return {
 			subscribe: (sink) => {
 				const unsubs = targets.map(([id, n]) =>
-					n.subscribe((msg) => {
-						sink({ path: id, msg, tier: messageTier(msg[0]), seq: this._clock++ });
-					}),
+					n.subscribe(
+						eachMessage((msg) => {
+							sink({ path: id, msg, tier: messageTier(msg[0]), seq: this._clock++ });
+						}),
+					),
 				);
 				return () => {
 					for (const u of unsubs) u();

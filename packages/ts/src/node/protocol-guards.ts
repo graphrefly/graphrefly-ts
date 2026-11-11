@@ -36,12 +36,3 @@ export function validateNodeOutput(msgs: Wave): void {
 		}
 	}
 }
-
-/**
- * @internal R-failure: a failure raised while delivering a running function's own output (a sink
- * or a dependent's failure) is not that function's throw. ctx.down marks it so the running node's
- * invocation passes it on to its caller unchanged instead of becoming the node's ERROR.
- */
-export class DeliveryFailure {
-	constructor(readonly cause: unknown) {}
-}

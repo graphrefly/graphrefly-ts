@@ -20,6 +20,7 @@ import {
 import { oracleRequest } from "../../../../scripts/fixtures/spending-preset-oracle.js";
 import { batch } from "../batch/batch.js";
 import { Graph } from "../graph/graph.js";
+import { eachMessage } from "../node/each-message.js";
 
 type Host = ReturnType<typeof composeOfflineSpending>;
 function setup(graph = new Graph({ name: "graded-entry" })) {
@@ -141,9 +142,11 @@ for (const mode of ["off", "summary"] as const) {
 			hosts.forEach((host, i) => {
 				for (const [name, node] of Object.entries(host.consume.view))
 					stops.push(
-						node.subscribe((m) => {
-							if (m[0] === "DATA") outputs[i].push([name, m[1]]);
-						}),
+						node.subscribe(
+							eachMessage((m) => {
+								if (m[0] === "DATA") outputs[i].push([name, m[1]]);
+							}),
+						),
 					);
 			});
 			await drain();

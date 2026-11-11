@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 import { readFileSync, writeFileSync } from "node:fs";
 import type { Evaluation } from "../../examples/spending-alerts/causal-inputs.js";
+import { eachMessage } from "../../packages/ts/src/node/each-message.js";
 import { oracleCanonical, verifyBusiness } from "./spending-preset-oracle.js";
 import {
 	type Arm,
@@ -60,17 +61,19 @@ function trace(run: ReturnType<typeof measurementArm>) {
 	assert.ok("graph" in run);
 	const changes: string[] = [];
 	let prior = "";
-	const stop = run.graph.find("spending/causal/authority")!.subscribe((m) => {
-		if (m[0] !== "DATA") return;
-		const text = JSON.stringify({
-			fact: (m[1] as { fact: unknown }).fact,
-			effects: snapshot(run).effects,
-		});
-		if (text !== prior) {
-			changes.push(text);
-			prior = text;
-		}
-	});
+	const stop = run.graph.find("spending/causal/authority")!.subscribe(
+		eachMessage((m) => {
+			if (m[0] !== "DATA") return;
+			const text = JSON.stringify({
+				fact: (m[1] as { fact: unknown }).fact,
+				effects: snapshot(run).effects,
+			});
+			if (text !== prior) {
+				changes.push(text);
+				prior = text;
+			}
+		}),
+	);
 	return { changes, stop };
 }
 function preflight() {

@@ -17,10 +17,11 @@ import {
 	take,
 	timer,
 } from "../index.js";
+import { eachMessage } from "../node/each-message.js";
 
 function collect(n: { subscribe(s: (m: Message) => void): () => void }) {
 	const msgs: Message[] = [];
-	n.subscribe((m) => msgs.push(m));
+	n.subscribe(eachMessage((m) => msgs.push(m)));
 	return msgs;
 }
 const types = (msgs: Message[]) => msgs.map((m) => m[0]);
@@ -256,7 +257,8 @@ describe("restoreGraph — fresh graph restore (R-restore / D94 / D95)", () => {
 			restored.find("mapped") as { subscribe(s: (m: Message) => void): () => void },
 		);
 
-		expect(types(msgs)).toEqual(["START", "DATA"]);
+		// START comes first; the activation's run is a wave of its own (open question on order).
+		expect(types(msgs)).toEqual(["START", "PENDING", "DATA"]);
 		expect(restored.find("mapped")?.cache).toBe(2);
 	});
 
@@ -281,7 +283,7 @@ describe("restoreGraph — fresh graph restore (R-restore / D94 / D95)", () => {
 		});
 		const msgs = collect(restoredMapped);
 
-		expect(types(msgs)).toEqual(["START", "DATA", "DATA"]);
+		expect(types(msgs)).toEqual(["START", "DATA", "PENDING", "DATA"]);
 		expect(msgs.filter((m) => m[0] === "DATA").map((m) => m[1])).toEqual([2, 11]);
 		expect(restored.find("mapped")?.cache).toBe(11);
 	});

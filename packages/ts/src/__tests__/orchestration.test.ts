@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { graph } from "../graph/graph.js";
 import { compoundTupleKey } from "../identity.js";
+import { eachMessage } from "../node/each-message.js";
 import {
 	backoffDelayMs,
 	breakerBundle,
@@ -43,8 +44,8 @@ describe("graph-visible resilience bundles (D132)", () => {
 		});
 		const retryStatuses: unknown[] = [];
 		const breakerStatuses: unknown[] = [];
-		retry.status.subscribe((msg) => retryStatuses.push(msg));
-		breaker.status.subscribe((msg) => breakerStatuses.push(msg));
+		retry.status.subscribe(eachMessage((msg) => retryStatuses.push(msg)));
+		breaker.status.subscribe(eachMessage((msg) => breakerStatuses.push(msg)));
 
 		events.down([["DATA", { kind: "attempt", attempt: 1 }]]);
 		events.down([["DATA", { kind: "failure", attempt: 1, error: "nope" }]]);
@@ -72,9 +73,9 @@ describe("graph-visible resilience bundles (D132)", () => {
 		const allowed: unknown[] = [];
 		const dropped: unknown[] = [];
 		const statuses: unknown[] = [];
-		bundle.allowed.subscribe((msg) => allowed.push(msg));
-		bundle.dropped.subscribe((msg) => dropped.push(msg));
-		bundle.status.subscribe((msg) => statuses.push(msg));
+		bundle.allowed.subscribe(eachMessage((msg) => allowed.push(msg)));
+		bundle.dropped.subscribe(eachMessage((msg) => dropped.push(msg)));
+		bundle.status.subscribe(eachMessage((msg) => statuses.push(msg)));
 
 		source.down([
 			["DATA", 1],

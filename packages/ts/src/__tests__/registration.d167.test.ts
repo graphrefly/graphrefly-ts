@@ -18,6 +18,7 @@ import { map } from "../graph/operators.js";
 import { type MessageBusCommand, messageBus, toTopic } from "../messaging/index.js";
 import { attachMessageBusCommandSource } from "../messaging/internal.js";
 import { NodeCore } from "../node/core.js";
+import { eachMessage } from "../node/each-message.js";
 import { Node } from "../node/node.js";
 import { nodeRuntimeHost } from "../node/node-runtime-host.js";
 import { ColdNodeAcquisitionError } from "../node/owned-acquisition.js";
@@ -364,9 +365,11 @@ describe("D167 exact command binding and existing D110 batch fate", () => {
 		expect(f.bus.commands.deps).toEqual(rollback ? [] : [f.a, f.b]);
 		if (!rollback) {
 			const seen: unknown[] = [];
-			const unsubscribe = f.bus.commands.subscribe((m) => {
-				if (m[0] === "DATA") seen.push(m[1]);
-			});
+			const unsubscribe = f.bus.commands.subscribe(
+				eachMessage((m) => {
+					if (m[0] === "DATA") seen.push(m[1]);
+				}),
+			);
 			const command: MessageBusCommand = { kind: "declareTopic", topic: "later" };
 			f.b.down([["DATA", command]]);
 			expect(seen).toContainEqual(command);

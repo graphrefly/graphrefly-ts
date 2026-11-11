@@ -17,10 +17,12 @@ const count = g.state(0, { name: "count" });
 // Derived node — recomputes whenever `count` emits DATA.
 const doubled = g.derived([count], (n) => n * 2, { name: "doubled" });
 
-// Subscribe — filter DATA tuples out of the message stream. On subscribe the
-// sink receives START and cached DATA, so you'll see `doubled: 0` first.
-const unsub = doubled.subscribe(([type, data]) => {
-	if (type === "DATA") console.log("doubled:", data);
+// Subscribe: the sink receives whole arrays. The first is START followed by the
+// snapshot (the last array with DATA), so you'll see `doubled: 0` first.
+const unsub = doubled.subscribe((msgs) => {
+	for (const [type, data] of msgs) {
+		if (type === "DATA") console.log("doubled:", data);
+	}
 });
 // → doubled: 0
 

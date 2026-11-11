@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { rootEvalQuietDataBoundary } from "../../evals/graph-native-rerun-avoidance/quiet-data-boundary.js";
 import { graph } from "../graph/graph.js";
+import { eachMessage } from "../node/each-message.js";
 
 describe("D151 quiet complete-DATA boundary", () => {
 	it("preserves a six-occurrence wave, supports bigint through an exact fingerprint, and deduplicates mixed replay", () => {
@@ -15,7 +16,7 @@ describe("D151 quiet complete-DATA boundary", () => {
 			fingerprint: (value) => String(value.version),
 		});
 		const messages: unknown[][] = [];
-		const stop = boundary.output.subscribe((message) => messages.push([...message]));
+		const stop = boundary.output.subscribe(eachMessage((message) => messages.push([...message])));
 		try {
 			const values = Array.from({ length: 6 }, (_, index) => ({ id: String(index), version: 1n }));
 			input.down(values.map((value) => ["DATA", value]));
@@ -41,9 +42,11 @@ describe("D151 quiet complete-DATA boundary", () => {
 			key: (value) => value.id,
 		});
 		const data: unknown[] = [];
-		const stop = boundary.output.subscribe((message) => {
-			if (message[0] === "DATA") data.push(message[1]);
-		});
+		const stop = boundary.output.subscribe(
+			eachMessage((message) => {
+				if (message[0] === "DATA") data.push(message[1]);
+			}),
+		);
 		const errors: unknown[] = [];
 		const unobserve = owner.observe("accepted/validated").subscribe((event) => {
 			if (event.msg[0] === "ERROR") errors.push(event.msg[1]);

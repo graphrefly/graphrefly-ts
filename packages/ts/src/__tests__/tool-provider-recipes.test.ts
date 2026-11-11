@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { toolProviderExecutionRecipe } from "../executors/tool-provider.js";
 import type { ToolProviderAdapterBinding } from "../executors/tool-provider-runtime.js";
 import { graph } from "../graph/graph.js";
+import { eachMessage } from "../node/each-message.js";
 import {
 	type AgentRequestFact,
 	type AgentRequestIssued,
@@ -140,8 +141,10 @@ function collectData<T>(node: {
 	subscribe(sink: (msg: readonly [string, unknown?]) => void): unknown;
 }): T[] {
 	const out: T[] = [];
-	node.subscribe((msg) => {
-		if (msg[0] === "DATA") out.push(msg[1] as T);
-	});
+	node.subscribe(
+		eachMessage((msg) => {
+			if (msg[0] === "DATA") out.push(msg[1] as T);
+		}),
+	);
 	return out;
 }

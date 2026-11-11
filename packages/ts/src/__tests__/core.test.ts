@@ -12,10 +12,11 @@ import {
 	strictCanonicalJsonBytes,
 	strictJsonCodec,
 } from "../index.js";
+import { eachMessage } from "../node/each-message.js";
 
 function collect(n: { subscribe(s: (m: Message) => void): () => void }) {
 	const msgs: Message[] = [];
-	const unsub = n.subscribe((m) => msgs.push(m));
+	const unsub = n.subscribe(eachMessage((m) => msgs.push(m)));
 	return { msgs, unsub };
 }
 
@@ -339,9 +340,11 @@ describe("B49 core-slot migration", () => {
 		expect(coreOf(a)).not.toBe(coreOf(bareOp));
 
 		const seen: number[] = [];
-		c.subscribe((msg) => {
-			if (msg[0] === "DATA") seen.push(msg[1] as number);
-		});
+		c.subscribe(
+			eachMessage((msg) => {
+				if (msg[0] === "DATA") seen.push(msg[1] as number);
+			}),
+		);
 		a.set(2);
 		expect(seen.at(-1)).toBe(3);
 	});

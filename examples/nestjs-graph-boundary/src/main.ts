@@ -417,10 +417,12 @@ class GraphAuditLogger implements OnModuleDestroy {
 			}`,
 		);
 	});
-	private readonly stopDiagnostics = diagnosticsIn.node.subscribe((msg) => {
-		if (msg[0] !== "DATA") return;
-		const envelope = msg[1] as NestBoundaryEnvelope;
-		this.logger.warn(`nest.diagnostic ${JSON.stringify(envelope.payload)}`);
+	private readonly stopDiagnostics = diagnosticsIn.node.subscribe((msgs) => {
+		for (const msg of msgs) {
+			if (msg[0] !== "DATA") continue;
+			const envelope = msg[1] as NestBoundaryEnvelope;
+			this.logger.warn(`nest.diagnostic ${JSON.stringify(envelope.payload)}`);
+		}
 	});
 
 	auditEntry(requestId: string): AuditEntry | undefined {

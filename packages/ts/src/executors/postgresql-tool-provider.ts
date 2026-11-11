@@ -9,6 +9,7 @@
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
 import { canonicalTupleKey, compoundTupleKey } from "../identity.js";
+import { eachMessage } from "../node/each-message.js";
 import type { Node } from "../node/node.js";
 import type {
 	AgentRequestStatusChanged,
@@ -819,28 +820,36 @@ export function postgresqlToolProviderRuntime(
 	}
 
 	const unsubscribers = [
-		opts.inputs.subscribe((msg) => {
-			if (msg[0] === "DATA") {
-				const input = msg[1] as ToolProviderAdapterInput<PostgresqlQueryToolArguments>;
-				if (input.providerId === providerId) {
-					inputs.set(input.adapterInputId, snapshotAdapterInput(input));
+		opts.inputs.subscribe(
+			eachMessage((msg) => {
+				if (msg[0] === "DATA") {
+					const input = msg[1] as ToolProviderAdapterInput<PostgresqlQueryToolArguments>;
+					if (input.providerId === providerId) {
+						inputs.set(input.adapterInputId, snapshotAdapterInput(input));
+					}
 				}
-			}
-		}),
-		...opts.admittedRunRequests.map((node) =>
-			node.subscribe((msg) => {
-				if (msg[0] === "DATA") execute(msg[1] as ToolProviderAdapterRunRequested);
 			}),
+		),
+		...opts.admittedRunRequests.map((node) =>
+			node.subscribe(
+				eachMessage((msg) => {
+					if (msg[0] === "DATA") execute(msg[1] as ToolProviderAdapterRunRequested);
+				}),
+			),
 		),
 		...(opts.cancellationRequests ?? []).map((node) =>
-			node.subscribe((msg) => {
-				if (msg[0] === "DATA") requestCancellation(msg[1] as PostgresqlRunCancellationRequested);
-			}),
+			node.subscribe(
+				eachMessage((msg) => {
+					if (msg[0] === "DATA") requestCancellation(msg[1] as PostgresqlRunCancellationRequested);
+				}),
+			),
 		),
 		...(opts.cancellationDecisions ?? []).map((node) =>
-			node.subscribe((msg) => {
-				if (msg[0] === "DATA") decideCancellation(msg[1] as PostgresqlRunCancellationDecision);
-			}),
+			node.subscribe(
+				eachMessage((msg) => {
+					if (msg[0] === "DATA") decideCancellation(msg[1] as PostgresqlRunCancellationDecision);
+				}),
+			),
 		),
 	];
 

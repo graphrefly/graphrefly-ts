@@ -10,13 +10,26 @@ import type { EnvironmentDrivers } from "../graph/environment.js";
 import type { Node } from "../node/node.js";
 import { type Message, SENTINEL, type Wave } from "../protocol/messages.js";
 
-/** A downstream sink callback (the only way to connect to a node's output). */
-export type Sink = (msg: Message, delivery?: DeliveryMeta) => void;
+/**
+ * A downstream sink (graphrefly-ts:D175): called once per array the node sends, with the whole
+ * array; the first array is START followed by the node's snapshot (R-subscription). Arrays that
+ * carry DATA, RESOLVED, INVALIDATE, COMPLETE or ERROR begin with the kernel's PENDING (R-wave).
+ */
+export type Sink = (msgs: Wave) => void;
+
+/**
+ * @internal A dependent node's connection to one dependency: it receives each message with the
+ * array it belongs to (`wave` is one token per array, `last` marks its end); `snapshot` marks the
+ * snapshot a new dependent receives, which is not a live wave. A bare PENDING with no delivery is
+ * the kernel's pending mark, sent ahead of the values through the whole cone (R-wave).
+ */
+export type DependentSink = (msg: Message, delivery?: DeliveryMeta) => void;
 
 /** Internal delivery metadata used to preserve the upstream `ctx.down(msgs)` wave boundary. */
 export interface DeliveryMeta {
 	readonly wave: object;
 	readonly last: boolean;
+	readonly snapshot?: boolean;
 }
 
 /**

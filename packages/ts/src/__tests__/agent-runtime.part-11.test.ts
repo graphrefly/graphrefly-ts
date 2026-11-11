@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { graph } from "../graph/graph.js";
+import { eachMessage } from "../node/each-message.js";
 import {
 	type AgentRequestIssued,
 	buildToolProviderAdapterInputs,
@@ -275,8 +276,10 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 11", () => {
 		});
 		const proposals: unknown[] = [];
 		const issues: unknown[] = [];
-		projector.proposals.subscribe((msg) => msg[0] === "DATA" && proposals.push(msg[1]));
-		projector.issues.subscribe((msg) => msg[0] === "DATA" && issues.push(msg[1]));
+		projector.proposals.subscribe(
+			eachMessage((msg) => msg[0] === "DATA" && proposals.push(msg[1])),
+		);
+		projector.issues.subscribe(eachMessage((msg) => msg[0] === "DATA" && issues.push(msg[1])));
 		workItems.down([["DATA", workItemSeed("wi-1")]]);
 		policies.down([
 			[
@@ -336,8 +339,10 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 11", () => {
 		});
 		const proposals: unknown[] = [];
 		const issues: unknown[] = [];
-		projector.proposals.subscribe((msg) => msg[0] === "DATA" && proposals.push(msg[1]));
-		projector.issues.subscribe((msg) => msg[0] === "DATA" && issues.push(msg[1]));
+		projector.proposals.subscribe(
+			eachMessage((msg) => msg[0] === "DATA" && proposals.push(msg[1])),
+		);
+		projector.issues.subscribe(eachMessage((msg) => msg[0] === "DATA" && issues.push(msg[1])));
 		workItems.down([["DATA", workItemSeed("wi-1")]]);
 		evidence.down([
 			[
@@ -433,8 +438,10 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 11", () => {
 		});
 		const proposals: unknown[] = [];
 		const issues: unknown[] = [];
-		projector.proposals.subscribe((msg) => msg[0] === "DATA" && proposals.push(msg[1]));
-		projector.issues.subscribe((msg) => msg[0] === "DATA" && issues.push(msg[1]));
+		projector.proposals.subscribe(
+			eachMessage((msg) => msg[0] === "DATA" && proposals.push(msg[1])),
+		);
+		projector.issues.subscribe(eachMessage((msg) => msg[0] === "DATA" && issues.push(msg[1])));
 		workItems.down([["DATA", workItemSeed("wi-1")]]);
 		policies.down([
 			[
@@ -499,8 +506,10 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 11", () => {
 		});
 		const proposals: unknown[] = [];
 		const issues: unknown[] = [];
-		projector.proposals.subscribe((msg) => msg[0] === "DATA" && proposals.push(msg[1]));
-		projector.issues.subscribe((msg) => msg[0] === "DATA" && issues.push(msg[1]));
+		projector.proposals.subscribe(
+			eachMessage((msg) => msg[0] === "DATA" && proposals.push(msg[1])),
+		);
+		projector.issues.subscribe(eachMessage((msg) => msg[0] === "DATA" && issues.push(msg[1])));
 		workItems.down([["DATA", workItemSeed("wi-1")]]);
 		policies.down([
 			[
@@ -572,7 +581,9 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 11", () => {
 		});
 		const proposals: WorkItemDomainActionProposal[] = [];
 		projector.proposals.subscribe(
-			(msg) => msg[0] === "DATA" && proposals.push(msg[1] as WorkItemDomainActionProposal),
+			eachMessage(
+				(msg) => msg[0] === "DATA" && proposals.push(msg[1] as WorkItemDomainActionProposal),
+			),
 		);
 		workItems.down([["DATA", workItemSeed("wi-1")]]);
 		policies.down([
@@ -641,9 +652,11 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 11", () => {
 		const seededRuns: unknown[] = [];
 		const issues: unknown[] = [];
 		const views: unknown[] = [];
-		workItemRuns.effectRuns.subscribe((msg) => msg[0] === "DATA" && seededRuns.push(msg[1]));
-		workItemRuns.issues.subscribe((msg) => msg[0] === "DATA" && issues.push(msg[1]));
-		workItemRuns.views.subscribe((msg) => msg[0] === "DATA" && views.push(msg[1]));
+		workItemRuns.effectRuns.subscribe(
+			eachMessage((msg) => msg[0] === "DATA" && seededRuns.push(msg[1])),
+		);
+		workItemRuns.issues.subscribe(eachMessage((msg) => msg[0] === "DATA" && issues.push(msg[1])));
+		workItemRuns.views.subscribe(eachMessage((msg) => msg[0] === "DATA" && views.push(msg[1])));
 		workItems.down([["DATA", workItemSeed("wi-other")]]);
 
 		effectRequests.down([
@@ -685,9 +698,11 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 11", () => {
 		const seededRuns: unknown[] = [];
 		const issues: unknown[] = [];
 		const views: unknown[] = [];
-		workItemRuns.effectRuns.subscribe((msg) => msg[0] === "DATA" && seededRuns.push(msg[1]));
-		workItemRuns.issues.subscribe((msg) => msg[0] === "DATA" && issues.push(msg[1]));
-		workItemRuns.views.subscribe((msg) => msg[0] === "DATA" && views.push(msg[1]));
+		workItemRuns.effectRuns.subscribe(
+			eachMessage((msg) => msg[0] === "DATA" && seededRuns.push(msg[1])),
+		);
+		workItemRuns.issues.subscribe(eachMessage((msg) => msg[0] === "DATA" && issues.push(msg[1])));
+		workItemRuns.views.subscribe(eachMessage((msg) => msg[0] === "DATA" && views.push(msg[1])));
 		workItems.down([["DATA", workItemSeed("wi-1")]]);
 
 		effectRequests.down([
@@ -742,12 +757,14 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 11", () => {
 		const audit: unknown[] = [];
 		const views: unknown[] = [];
 		projector.admissions.subscribe(
-			(msg) => msg[0] === "DATA" && admissions.push(msg[1] as WorkItemDomainActionAdmission),
+			eachMessage(
+				(msg) => msg[0] === "DATA" && admissions.push(msg[1] as WorkItemDomainActionAdmission),
+			),
 		);
-		projector.status.subscribe((msg) => msg[0] === "DATA" && statuses.push(msg[1]));
-		projector.issues.subscribe((msg) => msg[0] === "DATA" && issues.push(msg[1]));
-		projector.audit.subscribe((msg) => msg[0] === "DATA" && audit.push(msg[1]));
-		projector.views.subscribe((msg) => msg[0] === "DATA" && views.push(msg[1]));
+		projector.status.subscribe(eachMessage((msg) => msg[0] === "DATA" && statuses.push(msg[1])));
+		projector.issues.subscribe(eachMessage((msg) => msg[0] === "DATA" && issues.push(msg[1])));
+		projector.audit.subscribe(eachMessage((msg) => msg[0] === "DATA" && audit.push(msg[1])));
+		projector.views.subscribe(eachMessage((msg) => msg[0] === "DATA" && views.push(msg[1])));
 
 		policies.down([
 			[
@@ -824,9 +841,11 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 11", () => {
 		const admissions: WorkItemDomainActionAdmission[] = [];
 		const statuses: unknown[] = [];
 		projector.admissions.subscribe(
-			(msg) => msg[0] === "DATA" && admissions.push(msg[1] as WorkItemDomainActionAdmission),
+			eachMessage(
+				(msg) => msg[0] === "DATA" && admissions.push(msg[1] as WorkItemDomainActionAdmission),
+			),
 		);
-		projector.status.subscribe((msg) => msg[0] === "DATA" && statuses.push(msg[1]));
+		projector.status.subscribe(eachMessage((msg) => msg[0] === "DATA" && statuses.push(msg[1])));
 
 		proposals.down([
 			["DATA", workItemActionProposal("proposal-reject", "mark-ready")],

@@ -2,6 +2,7 @@
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
 import { canonicalTupleKey, compoundTupleKey } from "../identity.js";
+import { eachMessage } from "../node/each-message.js";
 import type { Node } from "../node/node.js";
 import type {
 	AgentRequestStatusChanged,
@@ -1007,44 +1008,52 @@ export function clickHouseTrustedQueryRuntime(
 	}
 
 	const unsubscribers = [
-		opts.inputs.subscribe((message) => {
-			if (message[0] !== "DATA") return;
-			const input = snapshotClickHouseInput(
-				message[1] as ToolProviderAdapterInput<ClickHouseTrustedQueryExecutionArguments>,
-			);
-			if (input === undefined) return;
-			const fingerprint = productionEvaluationCanonical(input);
-			const prior = inputFingerprints.get(input.adapterInputId);
-			if (prior !== undefined && prior !== fingerprint) {
-				publishIssue(
-					runtimeIssue(
-						"clickhouse-trusted-query-adapter-input-coordinate-conflict",
-						"ClickHouse adapter input id was reused with different immutable coordinates.",
-					),
+		opts.inputs.subscribe(
+			eachMessage((message) => {
+				if (message[0] !== "DATA") return;
+				const input = snapshotClickHouseInput(
+					message[1] as ToolProviderAdapterInput<ClickHouseTrustedQueryExecutionArguments>,
 				);
-				return;
-			}
-			if (prior === undefined) {
-				inputFingerprints.set(input.adapterInputId, fingerprint);
-				inputs.set(input.adapterInputId, input);
-			}
-		}),
-		...opts.admittedRunRequests.map((node) =>
-			node.subscribe((message) => {
-				if (message[0] === "DATA") execute(message[1] as ToolProviderAdapterRunRequested);
+				if (input === undefined) return;
+				const fingerprint = productionEvaluationCanonical(input);
+				const prior = inputFingerprints.get(input.adapterInputId);
+				if (prior !== undefined && prior !== fingerprint) {
+					publishIssue(
+						runtimeIssue(
+							"clickhouse-trusted-query-adapter-input-coordinate-conflict",
+							"ClickHouse adapter input id was reused with different immutable coordinates.",
+						),
+					);
+					return;
+				}
+				if (prior === undefined) {
+					inputFingerprints.set(input.adapterInputId, fingerprint);
+					inputs.set(input.adapterInputId, input);
+				}
 			}),
+		),
+		...opts.admittedRunRequests.map((node) =>
+			node.subscribe(
+				eachMessage((message) => {
+					if (message[0] === "DATA") execute(message[1] as ToolProviderAdapterRunRequested);
+				}),
+			),
 		),
 		...(opts.cancellationRequests ?? []).map((node) =>
-			node.subscribe((message) => {
-				if (message[0] === "DATA")
-					requestCancellation(message[1] as ClickHouseTrustedQueryCancellationRequested);
-			}),
+			node.subscribe(
+				eachMessage((message) => {
+					if (message[0] === "DATA")
+						requestCancellation(message[1] as ClickHouseTrustedQueryCancellationRequested);
+				}),
+			),
 		),
 		...(opts.cancellationDecisions ?? []).map((node) =>
-			node.subscribe((message) => {
-				if (message[0] === "DATA")
-					decideCancellation(message[1] as ClickHouseTrustedQueryCancellationDecision);
-			}),
+			node.subscribe(
+				eachMessage((message) => {
+					if (message[0] === "DATA")
+						decideCancellation(message[1] as ClickHouseTrustedQueryCancellationDecision);
+				}),
+			),
 		),
 	];
 

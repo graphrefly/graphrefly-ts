@@ -1,6 +1,7 @@
 /** Concrete customer-hosted outbound PostgreSQL endpoint binding (D606). */
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
+import { eachMessage } from "../node/each-message.js";
 import type { Node } from "../node/node.js";
 import type {
 	AgentRuntimeAuditRecord,
@@ -782,198 +783,216 @@ export function customerHostedPostgresqlRuntime(
 		void p.catch(() => issue(code, "Customer-hosted runtime-private operation failed."));
 	for (const n of opts.releaseNodes)
 		unsubs.push(
-			n.subscribe((m) => {
-				if (m[0] === "DATA")
-					try {
-						release = customerHostedPostgresqlRelease(m[1] as CustomerHostedPostgresqlRelease);
-					} catch {
-						issue("customer-hosted-release-invalid", "Customer-hosted release is invalid.");
-					}
-			}),
+			n.subscribe(
+				eachMessage((m) => {
+					if (m[0] === "DATA")
+						try {
+							release = customerHostedPostgresqlRelease(m[1] as CustomerHostedPostgresqlRelease);
+						} catch {
+							issue("customer-hosted-release-invalid", "Customer-hosted release is invalid.");
+						}
+				}),
+			),
 		);
 	for (const n of opts.enrollmentNodes)
 		unsubs.push(
-			n.subscribe((m) => {
-				if (m[0] === "DATA")
-					try {
-						const next = customerHostedPostgresqlEnrollment(
-							m[1] as CustomerHostedPostgresqlEnrollment,
-						);
-						const work = enrollmentTail.then(async () => {
-							const result = validateStoreResult(await opts.store.upsertEnrollment(next, now()));
-							if (!result.accepted) throw new TypeError("Enrollment persistence rejected.");
-							enrollment = next;
-							if (next.state === "revoked") {
-								for (const fact of await opts.store.revoke(next, now())) {
-									const value = storeLifecycle(fact);
-									if (!sameEndpoint(value as EndpointPin, next))
-										throw new TypeError("Revocation endpoint mismatch.");
-									assertCurrentTerminal(value, active);
-									emitLife(value);
+			n.subscribe(
+				eachMessage((m) => {
+					if (m[0] === "DATA")
+						try {
+							const next = customerHostedPostgresqlEnrollment(
+								m[1] as CustomerHostedPostgresqlEnrollment,
+							);
+							const work = enrollmentTail.then(async () => {
+								const result = validateStoreResult(await opts.store.upsertEnrollment(next, now()));
+								if (!result.accepted) throw new TypeError("Enrollment persistence rejected.");
+								enrollment = next;
+								if (next.state === "revoked") {
+									for (const fact of await opts.store.revoke(next, now())) {
+										const value = storeLifecycle(fact);
+										if (!sameEndpoint(value as EndpointPin, next))
+											throw new TypeError("Revocation endpoint mismatch.");
+										assertCurrentTerminal(value, active);
+										emitLife(value);
+									}
+									await stopCustomerHostedWorkerOnDisconnect(opts.workerDriver);
+								} else {
+									emitLife(lifecycle("enrolled", now(), undefined, next));
 								}
-								await stopCustomerHostedWorkerOnDisconnect(opts.workerDriver);
-							} else {
-								emitLife(lifecycle("enrolled", now(), undefined, next));
-							}
-						});
-						enrollmentTail = work.catch(() => {});
-						run(
-							work,
-							next.state === "revoked"
-								? "customer-hosted-revoke-failed"
-								: "customer-hosted-enrollment-persist-failed",
-						);
-					} catch {
-						issue("customer-hosted-enrollment-invalid", "Customer-hosted enrollment is invalid.");
-					}
-			}),
+							});
+							enrollmentTail = work.catch(() => {});
+							run(
+								work,
+								next.state === "revoked"
+									? "customer-hosted-revoke-failed"
+									: "customer-hosted-enrollment-persist-failed",
+							);
+						} catch {
+							issue("customer-hosted-enrollment-invalid", "Customer-hosted enrollment is invalid.");
+						}
+				}),
+			),
 		);
 	for (const n of opts.readinessNodes)
 		unsubs.push(
-			n.subscribe((m) => {
-				if (m[0] === "DATA")
-					try {
-						readiness = customerHostedPostgresqlReadiness(
-							m[1] as CustomerHostedPostgresqlReadiness,
-						);
-					} catch {
-						issue("customer-hosted-readiness-invalid", "Customer-hosted readiness is invalid.");
-					}
-			}),
+			n.subscribe(
+				eachMessage((m) => {
+					if (m[0] === "DATA")
+						try {
+							readiness = customerHostedPostgresqlReadiness(
+								m[1] as CustomerHostedPostgresqlReadiness,
+							);
+						} catch {
+							issue("customer-hosted-readiness-invalid", "Customer-hosted readiness is invalid.");
+						}
+				}),
+			),
 		);
 	unsubs.push(
-		opts.inputs.subscribe((m) => {
-			if (m[0] !== "DATA") return;
-			const input = m[1] as ToolProviderAdapterInput;
-			if (input.kind === "tool-provider-adapter-input" && typeof input.adapterInputId === "string")
-				inputs.set(input.adapterInputId, snapshot(input));
-		}),
+		opts.inputs.subscribe(
+			eachMessage((m) => {
+				if (m[0] !== "DATA") return;
+				const input = m[1] as ToolProviderAdapterInput;
+				if (
+					input.kind === "tool-provider-adapter-input" &&
+					typeof input.adapterInputId === "string"
+				)
+					inputs.set(input.adapterInputId, snapshot(input));
+			}),
+		),
 	);
 	for (const n of opts.approvedRunRequestNodes)
 		unsubs.push(
-			n.subscribe((m) => {
-				if (m[0] !== "DATA") return;
-				let envelope: CustomerHostedPostgresqlAdmittedEnvelope;
-				try {
-					const request = m[1] as ToolProviderAdapterRunRequested;
-					const input = inputs.get(request.adapterInputId);
-					if (!input || !enrollment) throw new TypeError("Missing approved input or enrollment.");
-					envelope = customerHostedPostgresqlAdmittedEnvelopeFromApprovedRun(
-						request,
-						input,
-						enrollment,
+			n.subscribe(
+				eachMessage((m) => {
+					if (m[0] !== "DATA") return;
+					let envelope: CustomerHostedPostgresqlAdmittedEnvelope;
+					try {
+						const request = m[1] as ToolProviderAdapterRunRequested;
+						const input = inputs.get(request.adapterInputId);
+						if (!input || !enrollment) throw new TypeError("Missing approved input or enrollment.");
+						envelope = customerHostedPostgresqlAdmittedEnvelopeFromApprovedRun(
+							request,
+							input,
+							enrollment,
+						);
+					} catch {
+						issue(
+							"customer-hosted-admission-invalid",
+							"Customer-hosted admitted envelope is invalid.",
+						);
+						return;
+					}
+					run(
+						(async () => {
+							if (
+								!release ||
+								!enrollment ||
+								!readiness ||
+								!ready(release, enrollment, readiness, now())
+							) {
+								issue(
+									"customer-hosted-admission-not-ready",
+									"Customer-hosted admission failed closed.",
+								);
+								return;
+							}
+							if (!sameEndpoint(envelope, enrollment))
+								throw new TypeError("Admission endpoint mismatch.");
+							const result = validateStoreResult(await opts.store.admit(envelope, now()));
+							if (!result.accepted) {
+								issue(result.code, "Customer-hosted admission was rejected.");
+								return;
+							}
+							if (
+								!result.lifecycle ||
+								result.lifecycle.state !== "queued" ||
+								!sameCoordinates(result.lifecycle as CustomerHostedPostgresqlCoordinates, envelope)
+							)
+								throw new TypeError("Admission store result omitted exact queued lifecycle.");
+							emit(admittedEnvelopes, envelope);
+							emitLife(result.lifecycle ?? lifecycle("queued", now(), undefined, envelope));
+						})(),
+						"customer-hosted-admission-failed",
 					);
-				} catch {
-					issue(
-						"customer-hosted-admission-invalid",
-						"Customer-hosted admitted envelope is invalid.",
-					);
-					return;
-				}
-				run(
-					(async () => {
-						if (
-							!release ||
-							!enrollment ||
-							!readiness ||
-							!ready(release, enrollment, readiness, now())
-						) {
-							issue(
-								"customer-hosted-admission-not-ready",
-								"Customer-hosted admission failed closed.",
-							);
-							return;
-						}
-						if (!sameEndpoint(envelope, enrollment))
-							throw new TypeError("Admission endpoint mismatch.");
-						const result = validateStoreResult(await opts.store.admit(envelope, now()));
-						if (!result.accepted) {
-							issue(result.code, "Customer-hosted admission was rejected.");
-							return;
-						}
-						if (
-							!result.lifecycle ||
-							result.lifecycle.state !== "queued" ||
-							!sameCoordinates(result.lifecycle as CustomerHostedPostgresqlCoordinates, envelope)
-						)
-							throw new TypeError("Admission store result omitted exact queued lifecycle.");
-						emit(admittedEnvelopes, envelope);
-						emitLife(result.lifecycle ?? lifecycle("queued", now(), undefined, envelope));
-					})(),
-					"customer-hosted-admission-failed",
-				);
-			}),
+				}),
+			),
 		);
 	for (const n of opts.cancellationNodes ?? [])
 		unsubs.push(
-			n.subscribe((m) => {
-				if (m[0] !== "DATA") return;
-				let r: CustomerHostedPostgresqlCancellationRequested;
-				try {
-					r = customerHostedPostgresqlCancellation(
-						m[1] as CustomerHostedPostgresqlCancellationRequested,
+			n.subscribe(
+				eachMessage((m) => {
+					if (m[0] !== "DATA") return;
+					let r: CustomerHostedPostgresqlCancellationRequested;
+					try {
+						r = customerHostedPostgresqlCancellation(
+							m[1] as CustomerHostedPostgresqlCancellationRequested,
+						);
+					} catch {
+						issue(
+							"customer-hosted-cancel-invalid",
+							"Customer-hosted cancellation pins are invalid.",
+						);
+						return;
+					}
+					run(
+						(async () => {
+							const current = active.get(`${r.runId}:${r.attempt}`);
+							if (!current || !sameLease(current, r)) {
+								emit(cancellations, {
+									kind: "customer-hosted-postgresql-cancellation-posture",
+									cancellationId: r.cancellationId,
+									runId: r.runId,
+									attempt: r.attempt,
+									state: "rejected",
+									code: "stale-session",
+								});
+								return;
+							}
+							const result = validateStoreResult(await opts.store.persistCancellation(r, now()));
+							if (!result.accepted) {
+								emit(cancellations, {
+									kind: "customer-hosted-postgresql-cancellation-posture",
+									cancellationId: r.cancellationId,
+									runId: r.runId,
+									attempt: r.attempt,
+									state: "rejected",
+									code: result.code,
+								});
+								return;
+							}
+							if (
+								!result.lifecycle ||
+								result.lifecycle.state !== "cancel-pending" ||
+								!sameLease(result.lifecycle as CustomerHostedPostgresqlLeaseCoordinates, r)
+							)
+								throw new TypeError("Cancellation persistence omitted exact lifecycle.");
+							emit(cancellations, {
+								kind: "customer-hosted-postgresql-cancellation-posture",
+								cancellationId: r.cancellationId,
+								runId: r.runId,
+								attempt: r.attempt,
+								state: "persisted-pending",
+							});
+							await opts.transport.send(r.tenantId, r.endpointId, r.sessionEpoch, {
+								kind: "cancel",
+								messageId: `cancel:${r.cancellationId}`,
+								cancellationId: r.cancellationId,
+								...coordinates(r),
+							});
+							await opts.workerDriver.stop();
+							emit(cancellations, {
+								kind: "customer-hosted-postgresql-cancellation-posture",
+								cancellationId: r.cancellationId,
+								runId: r.runId,
+								attempt: r.attempt,
+								state: "dispatched-unconfirmed",
+							});
+						})(),
+						"customer-hosted-cancel-failed",
 					);
-				} catch {
-					issue("customer-hosted-cancel-invalid", "Customer-hosted cancellation pins are invalid.");
-					return;
-				}
-				run(
-					(async () => {
-						const current = active.get(`${r.runId}:${r.attempt}`);
-						if (!current || !sameLease(current, r)) {
-							emit(cancellations, {
-								kind: "customer-hosted-postgresql-cancellation-posture",
-								cancellationId: r.cancellationId,
-								runId: r.runId,
-								attempt: r.attempt,
-								state: "rejected",
-								code: "stale-session",
-							});
-							return;
-						}
-						const result = validateStoreResult(await opts.store.persistCancellation(r, now()));
-						if (!result.accepted) {
-							emit(cancellations, {
-								kind: "customer-hosted-postgresql-cancellation-posture",
-								cancellationId: r.cancellationId,
-								runId: r.runId,
-								attempt: r.attempt,
-								state: "rejected",
-								code: result.code,
-							});
-							return;
-						}
-						if (
-							!result.lifecycle ||
-							result.lifecycle.state !== "cancel-pending" ||
-							!sameLease(result.lifecycle as CustomerHostedPostgresqlLeaseCoordinates, r)
-						)
-							throw new TypeError("Cancellation persistence omitted exact lifecycle.");
-						emit(cancellations, {
-							kind: "customer-hosted-postgresql-cancellation-posture",
-							cancellationId: r.cancellationId,
-							runId: r.runId,
-							attempt: r.attempt,
-							state: "persisted-pending",
-						});
-						await opts.transport.send(r.tenantId, r.endpointId, r.sessionEpoch, {
-							kind: "cancel",
-							messageId: `cancel:${r.cancellationId}`,
-							cancellationId: r.cancellationId,
-							...coordinates(r),
-						});
-						await opts.workerDriver.stop();
-						emit(cancellations, {
-							kind: "customer-hosted-postgresql-cancellation-posture",
-							cancellationId: r.cancellationId,
-							runId: r.runId,
-							attempt: r.attempt,
-							state: "dispatched-unconfirmed",
-						});
-					})(),
-					"customer-hosted-cancel-failed",
-				);
-			}),
+				}),
+			),
 		);
 	const onMessage = (raw: unknown) => {
 		if (disposed) return;

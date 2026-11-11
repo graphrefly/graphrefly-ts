@@ -8,6 +8,7 @@ import {
 	startConstruction,
 } from "../../packages/ts/src/graph/construction-scope.js";
 import { Graph } from "../../packages/ts/src/graph/graph.js";
+import { eachMessage } from "../../packages/ts/src/node/each-message.js";
 import type { Node } from "../../packages/ts/src/node/node.js";
 import { checkpointStateOfNode } from "../../packages/ts/src/node/runtime-accessors.js";
 import type { CausalBinding } from "../../packages/ts/src/solutions/causal-occurrence/capabilities.js";
@@ -206,12 +207,14 @@ export function publicationRun(
 				events++;
 				summaryBytes += Buffer.byteLength(JSON.stringify({ path: event.path, type: event.msg[0] }));
 			});
-		ui = built.publication.subscribe((m) => {
-			if (m[0] === "DATA") {
-				latest = m[1];
-				dataEvents++;
-			}
-		});
+		ui = built.publication.subscribe(
+			eachMessage((m) => {
+				if (m[0] === "DATA") {
+					latest = m[1];
+					dataEvents++;
+				}
+			}),
+		);
 	};
 	const disconnect = () => {
 		ui?.();

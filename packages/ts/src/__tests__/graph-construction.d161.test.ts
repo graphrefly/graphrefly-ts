@@ -11,6 +11,7 @@ import {
 } from "../graph/construction-scope.js";
 import { Graph } from "../graph/graph.js";
 import { NodeCore, type NodeId } from "../node/core.js";
+import { eachMessage } from "../node/each-message.js";
 import { Node } from "../node/node.js";
 import { nodeRuntimeHost } from "../node/node-runtime-host.js";
 import { checkpointStateOfNode, subscriberCountOfNode } from "../node/runtime-accessors.js";
@@ -353,9 +354,11 @@ describe("D161 graph construction ownership", () => {
 	it("retains failed deep dependency leases without disturbing a shared existing subscriber", () => {
 		const f = simple();
 		const values: unknown[] = [];
-		f.a.subscribe((m) => {
-			if (m[0] === "DATA") values.push(m[1]);
-		});
+		f.a.subscribe(
+			eachMessage((m) => {
+				if (m[0] === "DATA") values.push(m[1]);
+			}),
+		);
 		const original = nodeRuntimeHost(f.b)._subscribeOwned.bind(nodeRuntimeHost(f.b));
 		vi.spyOn(nodeRuntimeHost(f.b), "_subscribeOwned").mockImplementation((sink, acquisition) =>
 			original((m, d) => {
@@ -377,14 +380,23 @@ describe("D161 graph construction ownership", () => {
 	it("does not call startup successful before exitWave drain returns", () => {
 		const f = simple();
 		const original = nodeRuntimeHost(f.join)._subscribeOwned.bind(nodeRuntimeHost(f.join));
-		vi.spyOn(nodeRuntimeHost(f.join), "_subscribeOwned").mockImplementation((sink, acquisition) =>
-			original((m, d) => {
-				sink(m, d);
-				if (m[0] === "START")
-					deferRewire(nodeRuntimeHost(f.join)._core, () => {
-						throw new Error("drain failure");
-					});
-			}, acquisition),
+		vi.spyOn(nodeRuntimeHost(f.join), "_subscribeOwned").mockImplementation(
+			(subscriber, acquisition) =>
+				original(
+					subscriber.kind === "sink"
+						? {
+								kind: "sink",
+								fn: (msgs) => {
+									subscriber.fn(msgs);
+									if (msgs[0]?.[0] === "START")
+										deferRewire(nodeRuntimeHost(f.join)._core, () => {
+											throw new Error("drain failure");
+										});
+								},
+							}
+						: subscriber,
+					acquisition,
+				),
 		);
 		const owner = f.scope.seal(f.startup, [f.join]);
 		f.scope.transferToGraph(owner);
@@ -399,21 +411,25 @@ describe("D161 graph construction ownership", () => {
 		const owner = f.scope.seal(f.startup, [f.join]);
 		f.scope.transferToGraph(owner);
 		// An external observer is installed after handoff, before the native start driver.
-		f.startup.subscribe((m) => {
-			if (m[0] === "DATA") {
-				seen.push(m[1]);
-				if ((m[1] as { state: string }).state === "started") throw new Error("delivery");
-			}
-		});
+		f.startup.subscribe(
+			eachMessage((m) => {
+				if (m[0] === "DATA") {
+					seen.push(m[1]);
+					if ((m[1] as { state: string }).state === "started") throw new Error("delivery");
+				}
+			}),
+		);
 		startConstruction(f.graph, owner);
 		expect(owner.phase).toBe("started");
-		expect(owner.deliveryError).toBeDefined();
+		// R-failure@3: the consumer's throw is caught per sink and goes to the host reporter.
+		expect(owner.deliveryError).toBeUndefined();
 		expect(seen.map((v) => (v as { state: string }).state)).toEqual(["starting", "started"]);
 	});
 
-	it("a producer's throw at startup is its ERROR: startup faults and keeps the admission it made", () => {
-		// R-failure@3: the watermark producer's throw after its first DATA is that node's ERROR, and
-		// the causal nodes below it end with it (auto ERROR), so startup reports a protocol error.
+	it("a producer's throw at startup is its ERROR: what it sent first is dropped and startup faults", () => {
+		// R-failure@3: the watermark producer's throw is that node's ERROR and what it sent before
+		// the throw is dropped; the causal nodes below it end with it (auto ERROR), so startup
+		// reports a protocol error and no effect is admitted.
 		const f = causal(new Graph(), true);
 		const full = causalComposition(f.graph).composeFull(f.options, binding);
 		const authority = f.graph.find("causal/authority")!;
@@ -422,7 +438,7 @@ describe("D161 graph construction ownership", () => {
 		];
 		expect(full.startup.cache?.state).toBe("faulted");
 		expect(full.startup.cache?.code).toBe("protocol-error");
-		expect(effects()[0]?.admission?.state).toBe("admitted");
+		expect(effects()).toEqual([]);
 		expect(authority.status).toBe("errored");
 		expect(constructionOf(f.graph, "causal")?.phase).toBe("faulted");
 	});
@@ -457,9 +473,11 @@ describe("D161 graph construction ownership", () => {
 		expect(full.retained.execution).toBe(full.execution);
 		expect(Object.keys(full.identity)).toEqual(["released", "currentness", "issues"]);
 		const values: unknown[] = [];
-		full.execution.causalQuiescence.subscribe((m) => {
-			if (m[0] === "DATA") values.push(m[1]);
-		});
+		full.execution.causalQuiescence.subscribe(
+			eachMessage((m) => {
+				if (m[0] === "DATA") values.push(m[1]);
+			}),
+		);
 		f.options.watermarks.down([["DATA", { revisionDomain: "d", revision: 2 }]]);
 		expect(values.length).toBeGreaterThan(0);
 		expect(values.every((v) => !("retainedEvidence" in (v as object)))).toBe(true);
@@ -700,9 +718,11 @@ describe("D161 graph construction ownership", () => {
 		const g = new Graph({ dispatcher: new CountingDispatcher() });
 		const source = g.state(1, { name: "source" });
 		const seen: unknown[] = [];
-		source.subscribe((m) => {
-			if (m[0] === "DATA") seen.push(m[1]);
-		});
+		source.subscribe(
+			eachMessage((m) => {
+				if (m[0] === "DATA") seen.push(m[1]);
+			}),
+		);
 		for (let i = 0; i < 20; i++) {
 			const name = `view-${i}`;
 			const scope = prepareConstruction(g, {
@@ -750,9 +770,11 @@ describe("D161 graph construction ownership", () => {
 			{ name: "test/guard" },
 		);
 		let calls = 0;
-		const stop = request.subscribe((m) => {
-			if (m[0] === "DATA" && m[1] === true) calls++;
-		});
+		const stop = request.subscribe(
+			eachMessage((m) => {
+				if (m[0] === "DATA" && m[1] === true) calls++;
+			}),
+		);
 		expect(calls).toBe(fault ? 0 : 1);
 		authorized.set({ instance: "causal", epoch: 2, admitted: true });
 		authorized.set({ instance: "other", epoch: 1, admitted: true });

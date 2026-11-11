@@ -9,6 +9,7 @@ import {
 	startConstruction,
 } from "../graph/construction-scope.js";
 import { Graph } from "../graph/graph.js";
+import { eachMessage } from "../node/each-message.js";
 import { checkpointStateOfNode, subscriberCountOfNode } from "../node/runtime-accessors.js";
 import {
 	assertCausalCapabilities,
@@ -372,9 +373,11 @@ describe("D162 private shared cold assembly", () => {
 						// Native startup has no fn handle; this is the exact external handle set.
 						const a = graph.find("external/a")!;
 						stops.push(
-							a.subscribe((m) => {
-								if (m[0] === "DATA") shared.push(m[1] as number);
-							}),
+							a.subscribe(
+								eachMessage((m) => {
+									if (m[0] === "DATA") shared.push(m[1] as number);
+								}),
+							),
 						);
 					}
 					if (n === at) throw new Error("post-acquisition fault");
@@ -457,9 +460,11 @@ describe("D162 private shared cold assembly", () => {
 		expect(owner.phase).toBe("faulted");
 		expect(effects(f)[0]?.admission?.state).toBe("admitted");
 		const seen: unknown[] = [];
-		const stop = f.built.ports.conservation.subscribe((m) => {
-			if (m[0] === "DATA") seen.push(m[1]);
-		});
+		const stop = f.built.ports.conservation.subscribe(
+			eachMessage((m) => {
+				if (m[0] === "DATA") seen.push(m[1]);
+			}),
+		);
 		stop();
 		expect(effects(f)[0]?.outcome).toBeUndefined();
 		const outcome: CausalEffectOutcome = {
@@ -472,15 +477,19 @@ describe("D162 private shared cold assembly", () => {
 		};
 		f.outcomes.down([["DATA", { ...outcome, admissionRef: { kind: "admission", id: "wrong" } }]]);
 		expect(effects(f)[0]?.outcome).toBeUndefined();
-		const collect = f.built.ports.conservation.subscribe((m) => {
-			if (m[0] === "DATA") seen.push(m[1]);
-		});
+		const collect = f.built.ports.conservation.subscribe(
+			eachMessage((m) => {
+				if (m[0] === "DATA") seen.push(m[1]);
+			}),
+		);
 		f.outcomes.down([["DATA", outcome]]);
 		f.outcomes.down([["DATA", outcome]]);
 		collect();
-		const again = f.built.ports.conservation.subscribe((m) => {
-			if (m[0] === "DATA") seen.push(m[1]);
-		});
+		const again = f.built.ports.conservation.subscribe(
+			eachMessage((m) => {
+				if (m[0] === "DATA") seen.push(m[1]);
+			}),
+		);
 		again();
 		expect(effects(f)[0]?.outcome?.state).toBe("failed");
 		expect(seen).toContainEqual(expect.objectContaining({ active: 0, failed: 1, admitted: 1 }));
@@ -493,9 +502,11 @@ describe("D162 private shared cold assembly", () => {
 		const owner = own(f);
 		startConstruction(f.graph, owner);
 		const values: unknown[] = [];
-		const stop = f.value.subscribe((m) => {
-			if (m[0] === "DATA") values.push(m[1]);
-		});
+		const stop = f.value.subscribe(
+			eachMessage((m) => {
+				if (m[0] === "DATA") values.push(m[1]);
+			}),
+		);
 		stop();
 		expect(values).toEqual([f.occurrence]);
 		expect(f.count.cache).toBe("value-5".length);

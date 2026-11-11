@@ -138,20 +138,21 @@ export function subscribeNodeValues<T>(
 
 	let subscribing = true;
 	const skipSynchronousHandshakeData = opts.changesOnly || opts.immediate;
-	const sink: Sink = (msg, delivery?: DeliveryMeta) => {
-		switch (msg[0]) {
-			case "DATA":
-				if (skipSynchronousHandshakeData && subscribing && delivery === undefined) {
-					return;
-				}
-				run(msg[1] as T);
-				return;
-			case "ERROR":
-				opts.onError?.(msg[1]);
-				return;
-			case "COMPLETE":
-				opts.onComplete?.();
-				return;
+	const sink: Sink = (msgs) => {
+		// The START array carries the snapshot handed over at subscription (R-subscription).
+		const handshake = msgs[0]?.[0] === "START";
+		for (const msg of msgs) {
+			switch (msg[0]) {
+				case "DATA":
+					if (skipSynchronousHandshakeData && subscribing && handshake) continue;
+					run(msg[1] as T);
+					continue;
+				case "ERROR":
+					opts.onError?.(msg[1]);
+					continue;
+				case "COMPLETE":
+					opts.onComplete?.();
+			}
 		}
 	};
 	const unsubscribe = node.subscribe(sink);

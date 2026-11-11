@@ -6,13 +6,16 @@ import {
 	type MessageBusAvailablePage,
 	messageBus,
 } from "../messaging/index.js";
+import { eachMessage } from "../node/each-message.js";
 import { type EventFlowRecord, eventFlow, eventFlowProjection } from "../patterns/event-flow.js";
 
 function collect<T>(node: Node<T>): T[] {
 	const seen: T[] = [];
-	node.subscribe((msg) => {
-		if (msg[0] === "DATA") seen.push(msg[1] as T);
-	});
+	node.subscribe(
+		eachMessage((msg) => {
+			if (msg[0] === "DATA") seen.push(msg[1] as T);
+		}),
+	);
 	return seen;
 }
 

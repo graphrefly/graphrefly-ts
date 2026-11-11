@@ -9,6 +9,7 @@ import {
 	startConstruction,
 } from "../../packages/ts/src/graph/construction-scope.js";
 import { Graph } from "../../packages/ts/src/graph/graph.js";
+import { eachMessage } from "../../packages/ts/src/node/each-message.js";
 import type { Node } from "../../packages/ts/src/node/node.js";
 import { checkpointStateOfNode } from "../../packages/ts/src/node/runtime-accessors.js";
 import { causalColdNodeNames } from "../../packages/ts/src/solutions/causal-occurrence/construction.js";
@@ -163,12 +164,14 @@ export function graphArm(arm: Exclude<Arm, "plain">, mode: Mode) {
 		if (stops.length) return;
 		for (const [name, node] of observed)
 			stops.push(
-				node.subscribe((m) => {
-					if (m[0] === "DATA") {
-						latest[name] = m[1];
-						counts[name] = (counts[name] ?? 0) + 1;
-					}
-				}),
+				node.subscribe(
+					eachMessage((m) => {
+						if (m[0] === "DATA") {
+							latest[name] = m[1];
+							counts[name] = (counts[name] ?? 0) + 1;
+						}
+					}),
+				),
 			);
 	}
 	function disconnect() {
