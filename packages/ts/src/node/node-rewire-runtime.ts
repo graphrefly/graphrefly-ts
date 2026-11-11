@@ -351,12 +351,16 @@ function nodeApplyReplace<T>(
 	}
 }
 
-/** R-node: the current definition: declared dependencies, the instance's function, setup, recipe. */
+/** R-node@2: the current definition: declared deps, the instance's fn, setup, recipe, policies. */
 export function nodeDefinition<T>(self: NodeRuntimeHost<T>): NodeDefinition {
 	return {
 		deps: [...self._slot.declaredDeps],
 		fn: self._slot.fn,
 		setup: self._slot.setup,
 		recipe: self._slot.recipe,
+		complete: self._slot.completePolicy,
+		error: self._slot.errorPolicy,
+		invalidate: self._slot.invalidatePolicy,
+		quiet: self._slot.quiet,
 	};
 }

@@ -140,11 +140,18 @@ export interface ReplaceOptions {
 	readonly recipe?: unknown;
 }
 
-/** R-node: a node's current definition; reading it changes nothing. */
+/**
+ * R-node@2: a node's current definition, its declared dependencies, its current instance's
+ * function, setup and recipe, and its policies; reading it changes nothing.
+ */
 export interface NodeDefinition {
 	readonly deps: readonly Node<unknown>[];
 	readonly fn: NodeFn | null;
 	// biome-ignore lint/suspicious/noConfusingVoidType: a setup returns its cleanup or nothing.
 	readonly setup: ((ctx: Ctx) => (() => void) | undefined | void) | undefined;
 	readonly recipe: unknown;
+	readonly complete: TerminalPolicy;
+	readonly error: TerminalPolicy;
+	readonly invalidate: TerminalPolicy;
+	readonly quiet: boolean;
 }
