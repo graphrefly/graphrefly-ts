@@ -155,9 +155,15 @@ export function assertGraphLocalNode(owner: Graph, n: Node<unknown>, label: stri
  * @category graph
  */
 export class StateNode<T> extends Node<T> {
-	/** Host input (R-wave@2): write a value; one write is one wave (in a batch, one array). */
-	set(v: T): void {
-		this.down([["DATA", v]]);
+	/**
+	 * Host input (R-request-order): write a value; one write is one wave (in a batch, one array).
+	 * Given a function, computes the value from the current one when the write runs in request
+	 * order, and a function that returns its argument (Object.is) writes nothing. To write a
+	 * function as a value, wrap it: `set(() => fn)`.
+	 */
+	set(v: T | ((prev: T | undefined) => T)): void {
+		if (typeof v === "function") this._writeFn(v as (prev: T | undefined) => T);
+		else this.down([["DATA", v]]);
 	}
 
 	/** Host input (R-invalidation): drop the retained value; effective only while one is held. */
@@ -526,7 +532,14 @@ export class Graph {
 
 	/** Declarative batch (D12): one wave, success→commit / throw→rollback. */
 	batch<T>(fn: (bctx: BatchCtx) => T): T {
-		return batchRun(fn);
+		const result = batchRun(fn);
+		// A body that returns a promise committed its synchronous part; later writes are separate.
+		if (typeof (result as { then?: unknown } | null | undefined)?.then === "function")
+			this._core.report?.({
+				source: "batch",
+				error: "batch body returned a promise; writes after its first suspension are separate waves",
+			});
+		return result;
 	}
 
 	/** Embed a child graph addressable under `at` (R-mount; mount has no deps). */

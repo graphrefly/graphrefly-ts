@@ -1,4 +1,4 @@
-import { currentBoundaryBatchToken } from "../batch/batch.js";
+import { type BatchTarget, currentBoundaryBatchToken, noteBatchLifetime } from "../batch/batch.js";
 import { deferRewire, enterWave, exitWave } from "../batch/boundary.js";
 import {
 	CTX_DEP_CACHE,
@@ -54,6 +54,7 @@ export function nodeMakeCtx<T>(
 		down: (msgs) => {
 			if (self._released || signal.aborted) return;
 			validateNodeOutput(msgs);
+			noteBatchLifetime(self as unknown as BatchTarget, signal);
 			if (self._slot.quiet && self._wave.insideRunWave) {
 				// R-wave: a quiet node's output during its run goes out after the current wave
 				// as a new wave of its own, so nothing below it waits for it in this wave.

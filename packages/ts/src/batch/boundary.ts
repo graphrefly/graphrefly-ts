@@ -32,8 +32,14 @@
 import type { NodeCore } from "../node/core.js";
 
 let depth = 0;
-const pendingCores: NodeCore[] = [];
+/** A queued task that belongs to no one core (a batch commit touches several). */
+interface DirectTask {
+	readonly apply: () => void;
+}
+const pendingCores: Array<NodeCore | DirectTask> = [];
 let pendingHead = 0;
+/** Requests that run before everything queued (a committing batch's body requests). */
+let priority: Array<() => void> = [];
 
 /** @internal D161: construction is allowed only outside a synchronous cascade. */
 export function isWaveActive(): boolean {
@@ -48,7 +54,17 @@ export function enterWave(): void {
 /** Exit a wave cascade; the OUTERMOST exit (depth → 0) drains the deferred-rewire queue. */
 export function exitWave(): void {
 	depth--;
-	if (depth === 0 && pendingHead < pendingCores.length) drain();
+	if (depth === 0 && (priority.length > 0 || pendingHead < pendingCores.length)) drain();
+}
+
+/** R-request-order: queue a request that belongs to no one core. */
+export function deferDirect(apply: () => void): void {
+	pendingCores.push({ apply });
+}
+
+/** R-request-order: a committing batch's requests run before anything its commit wave asks for. */
+export function deferFirst(ops: ReadonlyArray<() => void>): void {
+	priority = [...ops, ...priority];
 }
 
 export interface DeferredBoundaryOptions {
@@ -72,8 +88,8 @@ export function deferRewire(
 export function dropBoundaryTasksForBatch(batchToken: object): void {
 	const seen = new Set<NodeCore>();
 	for (let i = pendingHead; i < pendingCores.length; i++) {
-		const core = pendingCores[i] as NodeCore;
-		if (seen.has(core)) continue;
+		const core = pendingCores[i] as NodeCore | DirectTask;
+		if ("apply" in core || seen.has(core)) continue;
 		seen.add(core);
 		core.dropBoundaryTasksForBatch(batchToken);
 	}
@@ -93,9 +109,37 @@ function drain(): void {
 	// wave boundary (a stale, misattributed rewire). Drain every thunk; re-surface the FIRST
 	// escape once the queue is empty so the error stays visible without corrupting the queue.
 	let escaped: { e: unknown } | null = null;
-	while (pendingHead < pendingCores.length) {
-		const core = pendingCores[pendingHead++] as NodeCore;
-		const task = core.shiftBoundaryTask();
+	const run = (apply: () => void, core?: NodeCore): void => {
+		depth++;
+		try {
+			apply();
+		} catch (e) {
+			// R-request-order: a queued request's caller has returned, so its failure goes to the
+			// graph's host reporter; with none, it is re-thrown once the queue is empty.
+			const report = core?.report;
+			if (report !== undefined) {
+				try {
+					report({ source: "queued request", error: e });
+				} catch {
+					// a reporter that throws is ignored
+				}
+			} else if (escaped === null) escaped = { e };
+		} finally {
+			depth--;
+		}
+	};
+	while (priority.length > 0 || pendingHead < pendingCores.length) {
+		const first = priority.shift();
+		if (first !== undefined) {
+			run(first);
+			continue;
+		}
+		const entry = pendingCores[pendingHead++] as NodeCore | DirectTask;
+		if ("apply" in entry) {
+			run(entry.apply);
+			continue;
+		}
+		const task = entry.shiftBoundaryTask();
 		if (task === undefined) continue;
 		if (task.batchToken !== undefined) {
 			// A stale token means the batch never reached the committed boundary (D110). Rollback
@@ -104,16 +148,9 @@ function drain(): void {
 			const committed = (task.batchToken as { committed?: boolean }).committed === true;
 			if (!committed) continue;
 		}
-		depth++;
-		try {
-			task.apply();
-		} catch (e) {
-			if (escaped === null) escaped = { e };
-		} finally {
-			depth--;
-		}
+		run(task.apply, entry);
 	}
 	pendingCores.length = 0;
 	pendingHead = 0;
-	if (escaped !== null) throw escaped.e;
+	if (escaped !== null) throw (escaped as { e: unknown }).e;
 }

@@ -329,7 +329,7 @@ describe("reactiveIndex (D60 #4) — ordered snapshot + Z reverse-lookup", () =>
 		);
 	});
 
-	it("D73 per-row capacity deletes expose intermediate byPrimary states", () => {
+	it("D73 per-row capacity deletes each send a wave after the capacity run (R-request-order)", () => {
 		const g = graph();
 		const max = g.state(3, { name: "max" });
 		const idx = reactiveIndex<string, number>({
@@ -347,7 +347,7 @@ describe("reactiveIndex (D60 #4) — ordered snapshot + Z reverse-lookup", () =>
 			["a"],
 			["a", "b"],
 			["a", "b", "c"],
-			["b", "c"],
+			["c"],
 			["c"],
 		]);
 	});

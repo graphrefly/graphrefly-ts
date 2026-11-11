@@ -84,21 +84,16 @@ describe("Graph — 8-verb sugar (CSP-2)", () => {
 		expect(bad.status.output).toBe("errored");
 	});
 
-	it("R-reentrancy via graph (D37): a synchronous feedback cycle yields ERROR, not a hang", () => {
+	it("C-6 via graph: an effect's write to its upstream is a later request and the loop can end", () => {
 		const g = graph();
 		const s = g.state(0);
-		const d = g.derived([s], (n) => n + 1);
-		const seen: Message[] = [];
-		// effect feeds back into s → S→D→E→S cycle. The substrate rejects the re-entry
-		// (throw); the graph layer's value-level boundary catches it → ERROR. No hang.
+		const d = g.derived([s], (n) => (n as number) + 1);
 		const e = g.effect([d], (n) => {
-			s.set(n as number);
+			if ((n as number) < 3) s.set(n as number);
 		});
-		expect(() => e.subscribe(eachMessage((m) => seen.push(m)))).not.toThrow(); // caught, not escaped
-		// R-reentrancy: the ERROR lands on a node ON the cycle — the value-level catch nearest
-		// the throw on the synchronous unwind (impl-determined, d or e), NOT necessarily the
-		// re-entered node. Assert SOME cycle node errored, not which (per the amended spec).
-		expect([d.status.output, e.status.output]).toContain("errored");
+		expect(() => e.subscribe(() => {})).not.toThrow();
+		expect(d.cache).toBe(3);
+		expect(e.status.output).toBe("open");
 	});
 });
 

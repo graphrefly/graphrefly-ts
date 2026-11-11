@@ -12,13 +12,24 @@
  * dominant use (coalescing a diamond join to one recompute) is exact here.
  */
 
+import type { NodeCore } from "../node/core.js";
 import type { Wave } from "../protocol/messages.js";
-import { dropBoundaryTasksForBatch, enterWave, exitWave } from "./boundary.js";
+import {
+	deferDirect,
+	deferFirst,
+	deferRewire,
+	dropBoundaryTasksForBatch,
+	enterWave,
+	exitWave,
+	isWaveActive,
+} from "./boundary.js";
 
 /** A node target the batch can commit/rollback against (structural, avoids an import cycle). */
 export interface BatchTarget {
 	__markBatchedWave(wave: Wave): void;
 	__commitBatchedWave(wave: Wave): void;
+	/** Compute the function writes staged for this node (set(fn)); throws to fail the commit. */
+	__resolveBatchedWave(wave: Wave): Wave;
 	__deferBoundary(fn: () => void, batchToken?: object): void;
 }
 
@@ -27,9 +38,18 @@ export interface BatchCtx {
 	rollback(): void;
 }
 
+/** A function write staged by set(fn), computed when the write runs (R-request-order). */
+export class DeferredWrite {
+	constructor(readonly fn: (prev: unknown) => unknown) {}
+}
+
 interface ActiveBatch {
 	order: BatchTarget[];
 	deferred: Map<BatchTarget, Wave>;
+	/** The lifetime that staged a node's output; a commit drops what a closed lifetime staged. */
+	lifetimes: Map<BatchTarget, AbortSignal>;
+	/** Topology requests the body made; they run after the commit (R-request-order). */
+	requests: Array<() => void>;
 	committed: boolean;
 	rolledBack: boolean;
 }
@@ -57,6 +77,32 @@ export function deferToBatch(target: BatchTarget, wave: Wave): boolean {
 	return true;
 }
 
+/** R-request-order: output staged through this lifetime is dropped if it closes before the commit. */
+export function noteBatchLifetime(target: BatchTarget, signal: AbortSignal): void {
+	active?.lifetimes.set(target, signal);
+}
+
+/**
+ * R-request-order: run a request now, or, if a wave is being delivered, after it, in the order
+ * requests were made. Inside a batch body it runs after the batch's commit.
+ */
+export function request(core: NodeCore, op: () => void): void {
+	if (active !== null) {
+		active.requests.push(op);
+		return;
+	}
+	if (isWaveActive()) {
+		deferRewire(core, op);
+		return;
+	}
+	enterWave();
+	try {
+		op();
+	} finally {
+		exitWave();
+	}
+}
+
 /** What a node has staged in the open batch, if anything. */
 export function stagedBatchWave(target: BatchTarget): Wave | undefined {
 	return active?.deferred.get(target);
@@ -78,17 +124,22 @@ export function deferAfterBatchForTarget(target: BatchTarget, fn: () => void): b
 function commit(b: ActiveBatch): void {
 	const prev = boundaryOwner;
 	boundaryOwner = b;
+	// R-request-order: the body's requests run after this wave, before anything the wave asks for,
+	// and also when a function write fails the commit.
+	deferFirst(b.requests);
 	try {
+		// A function write sees the writes staged before it; a throw commits nothing.
+		const staged: Array<[BatchTarget, Wave]> = [];
+		for (const target of b.order) {
+			const wave = b.deferred.get(target);
+			if (wave === undefined || b.lifetimes.get(target)?.aborted === true) continue;
+			const resolved = target.__resolveBatchedWave(wave);
+			if (resolved.length > 0) staged.push([target, resolved]);
+		}
 		// O3: the commit is one wave: every staged node marks its cone pending first, then each
 		// delivers its one accumulated array, so a fan-in over several of them runs once.
-		for (const target of b.order) {
-			const wave = b.deferred.get(target);
-			if (wave) target.__markBatchedWave(wave);
-		}
-		for (const target of b.order) {
-			const wave = b.deferred.get(target);
-			if (wave) target.__commitBatchedWave(wave);
-		}
+		for (const [target, wave] of staged) target.__markBatchedWave(wave);
+		for (const [target, wave] of staged) target.__commitBatchedWave(wave);
 		b.committed = true;
 	} catch (e) {
 		dropBoundaryTasksForBatch(b);
@@ -127,42 +178,53 @@ function rollback(b: ActiveBatch): void {
  * @category core
  */
 export function batch<R>(fn: (bctx: BatchCtx) => R): R {
-	// Wave-owner boundary (R-rewire-deferred / D47): bracket the whole batch (fn + commit) so a
-	// ctx.rewireNext issued by a fn that runs during COMMIT drains AFTER the commit, never on the
-	// un-committed view. Inner waves (state.set, commit cascade) nest under this owner.
-	enterWave();
-	try {
-		if (active !== null) {
-			// Nested batch joins the outer frame (one commit at the outermost exit).
-			const outer = active;
-			return fn({
-				rollback: () => {
-					outer.rolledBack = true;
-				},
-			});
-		}
-		const b: ActiveBatch = { order: [], deferred: new Map(), committed: false, rolledBack: false };
-		active = b;
-		const bctx: BatchCtx = {
+	// O3: a batch is one synchronous wave, which an async function cannot hold open.
+	if (Object.prototype.toString.call(fn) === "[object AsyncFunction]")
+		throw new TypeError(
+			"batch: the body must be synchronous; finish asynchronous work first, then batch the writes",
+		);
+	if (active !== null) {
+		// A batch inside a batch body joins the outer one (one commit).
+		const outer = active;
+		return fn({
 			rollback: () => {
-				b.rolledBack = true;
+				outer.rolledBack = true;
 			},
-		};
-		let result: R;
+		});
+	}
+	const b: ActiveBatch = {
+		order: [],
+		deferred: new Map(),
+		lifetimes: new Map(),
+		requests: [],
+		committed: false,
+		rolledBack: false,
+	};
+	const bctx: BatchCtx = {
+		rollback: () => {
+			b.rolledBack = true;
+		},
+	};
+	// The body runs at once, also during a wave, and nothing is delivered while it runs.
+	const during = isWaveActive();
+	enterWave();
+	active = b;
+	let result: R;
+	try {
 		try {
 			result = fn(bctx);
-		} catch (e) {
+		} finally {
 			active = null;
-			rollback(b);
-			throw e;
 		}
-		active = null;
 		if (b.rolledBack) rollback(b);
-		else {
-			commit(b);
-		}
-		return result;
+		else if (during)
+			deferDirect(() => commit(b)); // the commit is a request (R-request-order)
+		else commit(b);
+	} catch (e) {
+		rollback(b);
+		throw e;
 	} finally {
 		exitWave();
 	}
+	return result;
 }

@@ -493,7 +493,7 @@ describe("CQRS application infrastructure (B63 / D125 / D129)", () => {
 		]);
 	});
 
-	it("does not downgrade protocol reentrancy from command handlers into CQRS error facts", () => {
+	it("a dispatch from a command handler is a later request, not a reentry (C-6)", () => {
 		const g = graph();
 		let app!: ReturnType<typeof cqrs>;
 		app = cqrs(g, {
@@ -511,9 +511,8 @@ describe("CQRS application infrastructure (B63 / D125 / D129)", () => {
 		const errors: unknown[] = [];
 		app.errors.subscribe(eachMessage((msg) => errors.push(msg)));
 
-		const runtimeError = watchError(g, "orders/runtime");
 		app.dispatch({ id: "cmd-1", type: "PlaceOrder", payload: {} });
-		expect(runtimeError()).toMatch(/R-reentrancy|D37|feedback cycle/i);
+		expect(g.find("orders/runtime")?.status.output).toBe("open");
 		expect(errors).not.toContainEqual(["DATA", expect.objectContaining({ code: "handler-threw" })]);
 	});
 
@@ -542,7 +541,7 @@ describe("CQRS application infrastructure (B63 / D125 / D129)", () => {
 		expect(errors).not.toContainEqual(["DATA", expect.objectContaining({ code: "handler-threw" })]);
 	});
 
-	it("does not downgrade protocol reentrancy from projection reducers into projection facts", () => {
+	it("a dispatch from a projection reducer is a later request, not a reentry (C-6)", () => {
 		const g = graph();
 		const app = cqrs(g, {
 			name: "orders",
@@ -567,9 +566,8 @@ describe("CQRS application infrastructure (B63 / D125 / D129)", () => {
 		const projectionErrors: unknown[] = [];
 		projection.errors.subscribe(eachMessage((msg) => projectionErrors.push(msg)));
 
-		const projectionError = watchError(g, "orders/count");
 		app.dispatch({ id: "cmd-1", type: "PlaceOrder", payload: {} });
-		expect(projectionError()).toMatch(/R-reentrancy|D37|feedback cycle/i);
+		expect(g.find("orders/count")?.status.output).toBe("open");
 		expect(projectionErrors).not.toContainEqual([
 			"DATA",
 			expect.objectContaining({ code: "projection-threw" }),

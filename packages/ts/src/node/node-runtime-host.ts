@@ -71,6 +71,7 @@ export interface NodeRuntimeHost<T = unknown> {
 	_markDependents(): void;
 	_publish(arrays: readonly Message[][]): void;
 	__commitBatchedWave(wave: Wave): void;
+	__resolveBatchedWave(wave: Wave): Wave;
 	__markBatchedWave(wave: Wave): void;
 	__deferBoundary(fn: () => void, batchToken?: object): void;
 }

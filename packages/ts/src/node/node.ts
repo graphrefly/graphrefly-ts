@@ -13,12 +13,20 @@
  * control (async), batch, and dynamicNode land in later slices.
  */
 
-import { currentBoundaryBatchToken } from "../batch/batch.js";
+import {
+	type BatchTarget,
+	currentBatch,
+	currentBoundaryBatchToken,
+	DeferredWrite,
+	deferToBatch,
+	request,
+	stagedBatchWave,
+} from "../batch/batch.js";
 import { deferRewire, enterWave, exitWave, isWaveActive } from "../batch/boundary.js";
 import type { Ctx, CtxState, DeliveryMeta, NodeFn, Sink } from "../ctx/types.js";
 import { defaultDispatcher, type Handle } from "../dispatcher/index.js";
 import { EnvironmentDrivers } from "../graph/environment.js";
-import { type Message, SENTINEL, type Wave } from "../protocol/messages.js";
+import { isTerminal, type Message, SENTINEL, type Wave } from "../protocol/messages.js";
 import {
 	type DepBookkeeping,
 	type LifecycleState,
@@ -328,7 +336,19 @@ export class Node<T = unknown> {
 	 * every array the node sends, each with the kernel's PENDING first (graphrefly-ts:D175).
 	 */
 	subscribe(sink: Sink): () => void {
-		return this._subscribeOwned({ kind: "sink", fn: sink });
+		this._assertNotReleased("subscribe");
+		// R-request-order: subscribe and unsubscribe are requests; during a wave they wait for it.
+		let stop: (() => void) | undefined;
+		let cancelled = false;
+		request(this._core, () => {
+			if (!cancelled) stop = this._subscribeOwned({ kind: "sink", fn: sink });
+		});
+		return () => {
+			request(this._core, () => {
+				cancelled = true;
+				stop?.();
+			});
+		};
 	}
 
 	private _subscribeOwned(
@@ -393,14 +413,45 @@ export class Node<T = unknown> {
 		// R-terminals: a host input to an ended node is refused.
 		if (this._value.terminal !== undefined)
 			throw new Error("down: this node has ended (R-terminals)");
-		// Wave-owner boundary (D47): a state.set / external push that drives a fn issuing
-		// ctx.rewireNext drains at this outermost exit.
-		enterWave();
-		try {
+		if (currentBatch()) {
 			this._down(msgs);
-		} finally {
-			exitWave();
+			return;
 		}
+		// R-request-order: during a wave a host input waits for it, so no function is reentered.
+		request(this._core, () => {
+			// Checked again: a queued input may find its node ended by an earlier request.
+			if (this._value.terminal !== undefined)
+				throw new Error("down: this node has ended (R-terminals)");
+			this._down(msgs);
+		});
+	}
+
+	/**
+	 * R-request-order: write through a function of the current value. It runs when the write takes
+	 * its place in request order (in a batch, at the commit); a result equal to its argument
+	 * (Object.is) writes nothing.
+	 */
+	protected _writeFn(fn: (prev: T | undefined) => T): void {
+		this._assertNotReleased("set");
+		if (this._value.terminal !== undefined)
+			throw new Error("set: this node has ended (R-terminals)");
+		const deferred = new DeferredWrite(fn as (prev: unknown) => unknown);
+		if (currentBatch()) {
+			const staged = stagedBatchWave(this as unknown as BatchTarget);
+			if (staged?.some((m) => isTerminal(m[0])))
+				throw new Error("set: a terminal must be the last message of its array (R-wave)");
+			deferToBatch(this as unknown as BatchTarget, [
+				...(staged ?? []),
+				["DATA", deferred] as Message,
+			]);
+			return;
+		}
+		request(this._core, () => {
+			if (this._value.terminal !== undefined)
+				throw new Error("set: this node has ended (R-terminals)");
+			const resolved = this.__resolveBatchedWave([["DATA", deferred]]);
+			if (resolved.length > 0) this._down(resolved);
+		});
 	}
 
 	// ── rewire (R-rewire / D42): intra-graph runtime topology mutation ──
@@ -597,6 +648,28 @@ export class Node<T = unknown> {
 	/** Batch commit (R-batch-coalesce): deliver the deferred tier-3 wave now. */
 	__markBatchedWave(wave: Wave): void {
 		nodeMarkBatchedWave(nodeRuntimeHost(this), wave);
+	}
+
+	__resolveBatchedWave(wave: Wave): Wave {
+		let current: unknown = this._value.hasData ? this._value.cache : undefined;
+		const out: Message[] = [];
+		for (const m of wave) {
+			if (m[0] === "INVALIDATE") current = undefined;
+			if (m[0] !== "DATA") {
+				out.push(m);
+				continue;
+			}
+			if (!(m[1] instanceof DeferredWrite)) {
+				current = m[1];
+				out.push(m);
+				continue;
+			}
+			const next = m[1].fn(current);
+			if (Object.is(next, current)) continue;
+			current = next;
+			out.push(["DATA", next]);
+		}
+		return out;
 	}
 
 	__commitBatchedWave(wave: Wave): void {

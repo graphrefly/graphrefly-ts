@@ -2,6 +2,7 @@ import { type Ctx, depBatch, depLiveWaves, depWaves } from "../ctx/types.js";
 import type { Graph } from "../graph/graph.js";
 import { compoundTupleKey } from "../identity.js";
 import type { Node } from "../node/node.js";
+import { nodeRuntimeHost } from "../node/node-runtime-host.js";
 import { SENTINEL } from "../protocol/messages.js";
 import type { CanonicalWireEdgeFrame } from "./bridge-protobuf.js";
 import type {
@@ -684,7 +685,9 @@ function gateFn(
 				const drain = releaseDrain(expectedIds);
 				releaseDrains.set(cohort, drain);
 				try {
-					releaseCohorts.down([["DATA", cohort]]);
+					// The held bridge (phase 6 of D797-KERNEL-MIGRATION-TS) keeps its in-run delivery: the
+					// gate checks the drain right after this write, so it cannot be a queued request.
+					nodeRuntimeHost(releaseCohorts)._down([["DATA", cohort]]);
 					const missing = drain.missing();
 					if (missing.length > 0) {
 						throw new Error(

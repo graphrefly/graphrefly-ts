@@ -128,25 +128,19 @@ describe("C-4 a sync leg and an async leg: the async result is a later wave, not
 	});
 });
 
-describe("C-6 synchronous feedback cycle → ERROR (R-reentrancy / D37)", () => {
-	it("rejects a sync feedback cycle as ERROR (no hang, no _pending desync)", () => {
-		// state S → derived D (=n+1) → effect E; E writes back to S, closing S→D→E→S.
+describe("C-6 a function's write to its own upstream is a later request", () => {
+	it("reaches the function in a later wave; nothing is reentered and the loop ends", () => {
 		const g = graph();
 		const s = g.state(0);
 		const d = g.derived([s], (n) => (n as number) + 1);
+		const runs: number[] = [];
 		const e = g.effect([d], (n) => {
-			s.set(n as number); // feedback → re-enters the wave
+			runs.push(n as number);
+			if ((n as number) < 3) s.set(n as number);
 		});
-		let escaped = false;
-		try {
-			e.subscribe(() => {});
-		} catch {
-			escaped = true; // the substrate throw must NOT escape — the graph layer catches it (D30)
-		}
-		expect(escaped).toBe(false);
-		// R-reentrancy: ERROR lands on a node ON the cycle — the value-level catch nearest the
-		// throw on the unwind (impl-determined, d or e), not necessarily the re-entered node.
-		expect([d.status.output, e.status.output]).toContain("errored");
+		expect(() => e.subscribe(() => {})).not.toThrow();
+		expect(runs).toEqual([1, 2, 3]);
+		expect(d.cache).toBe(3);
 	});
 });
 
