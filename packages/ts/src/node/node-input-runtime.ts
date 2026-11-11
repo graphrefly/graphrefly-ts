@@ -2,6 +2,7 @@ import type { DeliveryMeta } from "../ctx/types.js";
 import type { Handle } from "../dispatcher/index.js";
 import type { Message } from "../protocol/messages.js";
 import { errorPayload, isTerminal, SENTINEL } from "../protocol/messages.js";
+import { nodeDeferQuietOutput } from "./node-context-runtime.js";
 import { isMarking } from "./node-output-runtime.js";
 import type { NodeRuntimeHost } from "./node-runtime-host.js";
 
@@ -20,11 +21,6 @@ export function nodeRecordDepProjection<T>(
 	return self._dep.waveData[idx][self._dep.waveData[idx].length - 1];
 }
 
-export function nodeDepProjectionHasData<T>(self: NodeRuntimeHost<T>, idx: number): boolean {
-	const projection = self._dep.waveData[idx][self._dep.waveData[idx].length - 1];
-	return projection?.some((v) => v !== SENTINEL) ?? false;
-}
-
 export function nodeReceiveFromDep<T>(
 	self: NodeRuntimeHost<T>,
 	idx: number,
@@ -34,75 +30,9 @@ export function nodeReceiveFromDep<T>(
 	if (self._released) return;
 	const t = msg[0];
 	if (t === "START") return;
-	const isLastInDeliveredWave = delivery?.last ?? true;
-	// Terminal-is-forever (R-terminals): an ended node's function never runs again.
+	// R-terminals: an ended node's function never runs again; its input is dropped.
 	if (self._value.terminal !== undefined) return;
-
-	if (t === "INVALIDATE") {
-		// R-invalidation / R-wave: what came before an INVALIDATE on this input is gone, and the
-		// INVALIDATE is not a value for the function: under the auto policy the node is
-		// invalidated without running. INVALIDATE always travels as an array of its own.
-		self._dep.waveData[idx] = [];
-		self._dep.waveLive[idx] = [];
-		self._dep.waveTokens[idx] = undefined;
-		// The dep's value is gone — drop our cached latest view to SENTINEL so the
-		// never-emitted detector reads correctly, C-3) and cascade (idempotent).
-		self._dep.prev[idx] = SENTINEL;
-		self._dep.hasData[idx] = false;
-		self._dep.batch[idx] = null;
-		// EC3: un-wedge the dirty bookkeeping if this dep had gone PENDING first, so an
-		// INVALIDATE-before-DATA doesn't strand _pending / downstream forever
-		// (R-invalidate-idempotent — exists to prevent the wedged-PENDING deadlock).
-		if (self._dep.dirty[idx]) {
-			self._dep.dirty[idx] = false;
-			self._wave.pending--;
-		}
-		const hadData = self._value.hasData;
-		self._invalidate(); // cascades INVALIDATE iff populated; no-op otherwise
-		// If we broadcast PENDING this wave but _invalidate produced no settle (the node
-		// was never populated, so the cascade is suppressed per the rule), un-dirty
-		// downstream with a RESOLVED once all deps have settled.
-		if (self._wave.pending === 0 && self._wave.emittedDirtyThisWave) {
-			if (!hadData) self._down([["RESOLVED"]]);
-			else self._wave.emittedDirtyThisWave = false;
-		}
-		return;
-	}
-
-	if (isTerminal(t)) {
-		// Tier 5 (R-tier / D34): COMPLETE | ERROR — ONE branch routed by the CENTRAL tier table,
-		// not a per-variant string check (feedback_use_tier_for_signal_routing). The shared terminal
-		// bookkeeping (record the terminal + release the in-wave PENDING) runs for ANY tier-5 message;
-		// only the COMPLETE-vs-ERROR cascade differs, so discriminate by the type within the tier.
-		const isError = t === "ERROR";
-		const errPayload = isError ? (msg as readonly ["ERROR", unknown])[1] : undefined;
-		self._dep.terminal[idx] = isError ? errPayload : true;
-		self._dep.terminalInput[idx] = isError ? errPayload : true;
-		// R-terminal-settles-dirty (B35): a terminal RELEASES this dep's outstanding in-wave PENDING
-		// contribution (the exactly-one-settle invariant) — exactly as DATA/RESOLVED/INVALIDATE do
-		// (a dirty-then-terminal-without-DATA dep would otherwise strand _pending and wedge the node,
-		// the deadlock R-invalidate-idempotent prevents for INVALIDATE).
-		self._releaseDepDirty(idx);
-		const ranValueBeforeTerminal = self._depProjectionHasData(idx) && isLastInDeliveredWave;
-		if (ranValueBeforeTerminal) self._maybeRun();
-		if (isError && self._slot.errorWhenDepsError) {
-			self._down([["ERROR", errPayload]]); // auto-cascade ERROR → node itself terminal
-		} else if (self._slot.terminalAsRealInput) {
-			if (ranValueBeforeTerminal) return;
-			self._maybeRun(); // rescue/reduce/catch/*Map: the fn reads depTerminal(ctx, idx)
-		} else if (self._slot.completeWhenDepsComplete && self._allDepsTerminal()) {
-			// R-deps-terminal auto-COMPLETE + B42: COMPLETE once ALL deps are TERMINAL (each COMPLETE
-			// or an absorbed ERROR) — so an absorbed-error dep terminating LAST still fires the
-			// cascade. terminalAsRealInput is checked FIRST so a rescue recovers via _maybeRun rather
-			// than being preempted (no operator sets both completeWhenDepsComplete:true + tari:true).
-			self._down([["COMPLETE"]]);
-		} else {
-			// absorbed terminal, NOT an input + not auto-completing: the dep's signalled change did
-			// not materialise (no DATA) → un-dirty downstream, keep cache (R-resolved-undirty balance).
-			self._settleAfterAbsorbedTerminal();
-		}
-		return;
-	}
+	const last = delivery?.last ?? true;
 
 	if (t === "PENDING") {
 		if (!self._dep.dirty[idx]) {
@@ -123,47 +53,32 @@ export function nodeReceiveFromDep<T>(
 		self._dep.prev[idx] = v;
 		self._dep.hasData[idx] = true;
 		self._dep.tier[idx] = 3;
-		if (self._dep.dirty[idx]) {
-			self._dep.dirty[idx] = false;
-			self._wave.pending--;
-		}
-		if (isLastInDeliveredWave) self._maybeRun();
-		return;
-	}
-
-	if (t === "RESOLVED") {
+	} else if (t === "RESOLVED") {
 		self._recordDepProjection(idx, delivery);
 		self._dep.tier[idx] = 3;
-		if (self._dep.dirty[idx]) {
-			self._dep.dirty[idx] = false;
-			self._wave.pending--;
-		}
-		if (isLastInDeliveredWave) self._maybeRun();
-		return;
-	}
-}
-
-export function nodeReleaseDepDirty<T>(self: NodeRuntimeHost<T>, idx: number): void {
+	} else if (t === "INVALIDATE") {
+		// R-invalidation: what came before an INVALIDATE on this input is gone, and what comes
+		// after it is ordinary input. What it does to this node is decided once the wave settles.
+		self._dep.waveData[idx] = [];
+		self._dep.waveLive[idx] = [];
+		self._dep.waveTokens[idx] = undefined;
+		self._dep.batch[idx] = null;
+		self._dep.prev[idx] = SENTINEL;
+		self._dep.hasData[idx] = false;
+		self._dep.invalidated[idx] = true;
+	} else if (isTerminal(t)) {
+		// R-terminals: record the dependency's end; the policies are applied once the wave settles.
+		const ended = t === "ERROR" ? (msg as readonly ["ERROR", unknown])[1] : true;
+		self._dep.terminal[idx] = ended;
+		self._dep.terminalInput[idx] = ended;
+	} else return;
+	// R-wave: DATA, RESOLVED, INVALIDATE and a terminal each settle this input's pending mark once.
 	if (self._dep.dirty[idx]) {
 		self._dep.dirty[idx] = false;
 		self._wave.pending--;
 	}
-}
-
-export function nodeSettleAfterAbsorbedTerminal<T>(self: NodeRuntimeHost<T>): void {
-	if (self._wave.pending !== 0 || !self._wave.emittedDirtyThisWave) return;
-	// A real value occurred this wave (some OTHER dep delivered DATA) → recompute. _maybeRun
-	// runs the fn ONLY if it's not gated (first-run gate open); it may emit DATA, a
-	// fn-synthesized undirty RESOLVED, or nothing (gated / gate still holds).
-	const sawData = self._dep.batch.some((b) => b !== null && b.length > 0);
-	if (sawData) self._maybeRun();
-	// If after that the node STILL owes a downstream settle (no DATA occurred, OR the recompute
-	// was gated — e.g. the first-run gate holds because the terminated dep never delivered and
-	// terminalAsRealInput is false), balance the broadcast PENDING with one undirty RESOLVED
-	// (R-resolved-undirty), keeping the cache (a terminal, unlike INVALIDATE, leaves the value).
-	// Without this fallback a PENDING-then-terminal-without-DATA dep on a pre-first-run multi-dep
-	// node would strand the PENDING → downstream wedged (the B35 class, in the gate-holds corner).
-	if (self._wave.emittedDirtyThisWave) self._down([["RESOLVED"]]);
+	// A delivery is all of a node's arrays for the wave; the node settles once, at its end.
+	if (last) self._maybeRun();
 }
 
 export function nodeMarkDirty<T>(self: NodeRuntimeHost<T>): void {
@@ -183,8 +98,9 @@ export function nodeMaybeRun<T>(self: NodeRuntimeHost<T>): void {
 	// R-rewire: an added cached dep's push-on-subscribe lands here mid-mutation. Defer
 	// the fn-run to ONE atomic two-phase settle after every added dep is wired, so the
 	// fn never fires on a partially-populated added-dep view (multi-add) — _settleRewire
-	// drains this flag.
-	if (self._wave.inDepMutation) {
+	// drains this flag. R-lifetime: activation likewise runs the function once, on every
+	// dependency's snapshot.
+	if (self._wave.inDepMutation || self._wave.activating) {
 		self._wave.rewireRunPending = true;
 		return;
 	}
@@ -193,86 +109,155 @@ export function nodeMaybeRun<T>(self: NodeRuntimeHost<T>): void {
 
 export function nodeSettleRewire<T>(self: NodeRuntimeHost<T>): void {
 	if (self._wave.pending > 0) return;
-	if (self._slot.handle === null) {
-		self._passthroughEmit();
+	if (
+		self._slot.handle !== null &&
+		!self._wave.hasCalledFnOnce &&
+		!(self._slot.partial || self._allDepsSettled())
+	)
 		return;
-	}
-	if (!self._wave.hasCalledFnOnce && !(self._slot.partial || self._allDepsSettled())) return;
 	self._markDirty(); // phase 1 (no-op if already dirty, e.g. unsubscribeDep auto-settle)
-	self._runWave(); // phase 2: fn → DATA/RESOLVED
+	nodeSettle(self, true); // phase 2: fn → DATA, or the kernel's RESOLVED
 }
 
 export function nodeTryRun<T>(self: NodeRuntimeHost<T>): void {
 	if (self._wave.pending > 0) return;
-	if (self._slot.handle === null) {
-		// Passthrough wire (deps, no fn): forward the latest dep DATA downstream.
-		self._passthroughEmit();
-		return;
-	}
-	if (!self._wave.hasCalledFnOnce) {
-		if (self._slot.partial || self._allDepsSettled()) {
-			self._runWave();
-			return;
-		}
-		// The first-run gate (TS sugar) holds fn until every dep has a value; a node it holds still
-		// settles a pending mark with the kernel's RESOLVED (R-wave), so nothing below it waits.
-		if (self._wave.emittedDirtyThisWave) {
-			self._publish([[["RESOLVED"]]]);
-			self._wave.emittedDirtyThisWave = false;
-		}
-		return;
-	}
-	self._runWave();
+	nodeSettle(self, false);
 }
 
+/**
+ * The first-run gate (TS sugar, not protocol): before its first run in a lifetime a node waits
+ * until every dependency has a value, unless `partial`. A dependency that has ended under a
+ * manual policy for its terminal counts, since its terminal is input.
+ */
 export function nodeAllDepsSettled<T>(self: NodeRuntimeHost<T>): boolean {
 	for (let i = 0; i < self._slot.deps.length; i++) {
 		if (self._dep.hasData[i]) continue;
-		if (self._slot.terminalAsRealInput && self._dep.terminal[i] !== undefined) continue;
+		const t = self._dep.terminal[i];
+		if (t !== undefined && nodeTerminalPolicy(self, t) === "manual") continue;
 		return false;
 	}
 	return true;
 }
 
-export function nodePassthroughEmit<T>(self: NodeRuntimeHost<T>): void {
-	// Single-dep wire: relay dep 0's latest batch value as DATA.
-	const b = self._dep.batch[0];
-	if (b !== null && b.length > 0) {
-		self._down([["DATA", b[b.length - 1]]]);
-	} else if (self._wave.emittedDirtyThisWave) {
-		// R-resolved-undirty (D49): the dep settled via an undirty RESOLVED (no DATA in the
-		// batch), but this wire already broadcast PENDING downstream this wave — balance it with
-		// a RESOLVED so downstream un-dirties instead of wedging. Routed through _down (NOT a
-		// bare _emitToSubs) so the balance respects batch-defer (D12), matching
-		// the zero-dep un-dirty path. Without this, a passthrough over a filter-reject /
-		// distinctUntilChanged-dup leaves a dangling PENDING (the wedge D49 made common).
-		self._down([["RESOLVED"]]);
+function nodeTerminalPolicy<T>(self: NodeRuntimeHost<T>, t: unknown): "auto" | "manual" {
+	return t === true ? self._slot.completePolicy : self._slot.errorPolicy;
+}
+
+/**
+ * Settle one wave at this node, once every pending input has settled (R-wave, R-terminals,
+ * R-invalidation), in the reference kernel's order:
+ * 1. auto ERROR: a dependency's ERROR ends the node without running its function; an
+ *    INVALIDATE that reached it earlier in the wave takes effect first;
+ * 2. auto INVALIDATE: an input's INVALIDATE invalidates the node without running its function;
+ * 3. the function runs on what remains: values, a terminal under the manual policy, an
+ *    INVALIDATE under the manual policy, or the first run of a lifetime (`force` for activation
+ *    and rewire);
+ * 4. auto COMPLETE: once every dependency has ended, COMPLETE follows the run's output;
+ * 5. a node marked pending that sent nothing gets the kernel's one RESOLVED.
+ * All of it goes out as one delivery, so a dependent settles once on it.
+ */
+export function nodeSettle<T>(self: NodeRuntimeHost<T>, force: boolean): void {
+	if (self._value.terminal !== undefined || self._released) return;
+	const wasDirty = self._wave.emittedDirtyThisWave;
+	const n = self._slot.deps.length;
+	const anyInvalidated = self._dep.invalidated.some((b) => b);
+
+	if (self._slot.errorPolicy === "auto") {
+		const at = self._dep.terminalInput.findIndex((t) => t !== undefined && t !== true);
+		if (at >= 0) {
+			const error = self._dep.terminalInput[at];
+			nodeConsumeInput(self);
+			const end: Message[][] = [];
+			if (anyInvalidated && self._value.hasData) end.push([["INVALIDATE"]]);
+			end.push([["ERROR", error]]);
+			nodeSettleOutput(self, [], end, wasDirty);
+			return;
+		}
 	}
-	self._dep.batch[0] = null;
+
+	const lead: Message[][] =
+		anyInvalidated && self._slot.invalidatePolicy === "auto" && self._value.hasData
+			? [[["INVALIDATE"]]]
+			: [];
+
+	let out: Message[][] = [];
+	// The first-run gate holds the function's input until it opens, so the first run sees it all.
+	let gateOpen = true;
+	if (self._slot.handle === null) {
+		// Passthrough wire (deps, no fn): relay dep 0's latest value of the wave.
+		const b = self._dep.batch[0];
+		if (b !== null && b !== undefined && b.length > 0) out = [[["DATA", b[b.length - 1]]]];
+	} else {
+		gateOpen = self._wave.hasCalledFnOnce || self._slot.partial || self._allDepsSettled();
+		const manualTerminal = self._dep.terminalInput.some(
+			(t) => t !== undefined && nodeTerminalPolicy(self, t) === "manual",
+		);
+		const runs =
+			gateOpen &&
+			(force ||
+				!self._wave.hasCalledFnOnce ||
+				self._dep.waveData.some((w) => w.length > 0) ||
+				manualTerminal ||
+				(anyInvalidated && self._slot.invalidatePolicy === "manual"));
+		if (runs) out = nodeInvoke(self);
+	}
+	if (gateOpen) nodeConsumeInput(self);
+
+	const allEnded = n > 0 && self._dep.terminal.every((t) => t !== undefined);
+	const endsItself = out.some((a) => a.some((m) => isTerminal(m[0])));
+	if (self._slot.completePolicy === "auto" && allEnded && !endsItself) out.push([["COMPLETE"]]);
+	nodeSettleOutput(self, lead, out, wasDirty);
+}
+
+/** The input a settlement consumed. */
+function nodeConsumeInput<T>(self: NodeRuntimeHost<T>): void {
+	for (let i = 0; i < self._dep.batch.length; i++) {
+		self._dep.batch[i] = null;
+		self._dep.waveData[i] = [];
+		self._dep.waveTokens[i] = undefined;
+		self._dep.waveLive[i] = [];
+		self._dep.terminalInput[i] = undefined;
+		self._dep.invalidated[i] = false;
+	}
+}
+
+/**
+ * Send a settlement's arrays. A quiet node passes an auto INVALIDATE on now and sends the rest
+ * after the wave as a new wave of its own; nothing waits for it, so it needs no RESOLVED.
+ */
+function nodeSettleOutput<T>(
+	self: NodeRuntimeHost<T>,
+	now: Message[][],
+	rest: Message[][],
+	wasDirty: boolean,
+): void {
+	if (self._slot.quiet) {
+		if (now.length > 0) self._publish(now);
+		for (const array of rest) nodeDeferQuietOutput(self, array);
+		return;
+	}
+	const out = [...now, ...rest];
+	if (wasDirty && !out.some((a) => a.some(isMarking))) out.push([["RESOLVED"]]);
+	if (out.length > 0) self._publish(out);
 	self._wave.emittedDirtyThisWave = false;
 }
 
-export function nodeRunWave<T>(self: NodeRuntimeHost<T>): void {
+/** One run of the node's function; returns the arrays it sent (R-invocation, R-failure). */
+function nodeInvoke<T>(self: NodeRuntimeHost<T>): Message[][] {
 	// R-reentrancy (D37): a fn that re-drives its own dep mid-wave re-enters here while
 	// _insideRunWave is still set — a synchronous feedback cycle. Reject (throw); the graph
 	// layer catches it and converts to [[ERROR, e]] (D30). The try/finally resets the flag
-	// on every frame as the throw unwinds, leaving the graph clean for the catch. Detection
-	// is node-local and free — it reuses the existing _insideRunWave flag (no new structure,
-	// dispatcher stays a pure funnel).
+	// on every frame as the throw unwinds, leaving the graph clean for the catch.
 	if (self._wave.insideRunWave)
 		throw new Error(
 			"synchronous feedback cycle: node fn re-entered its own wave (R-reentrancy / D37)",
 		);
 	self._wave.hasCalledFnOnce = true;
 	// R-cleanup-hooks per-run lifecycle (D28 clarification): clear BOTH hook lists
-	// before the fn runs; the fn body re-registers the current run's hooks. Only the
-	// latest run's registrations are live — a re-run supersedes the prior run's hooks,
-	// discarded WITHOUT firing (no fire-on-rerun; onRerun stays cut). Fixes the push-only
-	// accumulation (K stale hooks fired after K runs). C-14.
+	// before the fn runs; the fn body re-registers the current run's hooks.
 	self._hooks.onInvalidate = [];
 	self._hooks.onDeactivation = [];
 	const ctx = self._buildCtx();
-	const wasDirty = self._wave.emittedDirtyThisWave;
 	self._wave.emittedSettleThisWave = false;
 	self._wave.runOutput = [];
 	self._wave.insideRunWave = true;
@@ -281,34 +266,17 @@ export function nodeRunWave<T>(self: NodeRuntimeHost<T>): void {
 		self._slot.dispatcher.invoke(self._slot.handle as Handle, ctx);
 	} catch (error) {
 		thrown = { error };
+		if (process.env.DBG) console.log("THROW", self._slot.name, (error as Error)?.message);
 	} finally {
 		self._wave.insideRunWave = false;
 	}
-	let out: Message[][] = self._wave.runOutput.map((a) => [...a]);
+	const out: Message[][] = self._wave.runOutput.map((a) => [...a]);
 	self._wave.runOutput = [];
 	// R-failure: a throw from the function (including an output ctx.down rejected) is this node's
 	// ERROR; what it sent before the throw is dropped.
 	if (thrown !== undefined)
-		out = [
+		return [
 			[["ERROR", errorPayload(thrown.error, "node function threw without a valid error payload")]],
 		];
-
-	// The run consumed this wave's input.
-	for (let i = 0; i < self._dep.batch.length; i++) {
-		self._dep.batch[i] = null;
-		self._dep.waveData[i] = [];
-		self._dep.waveTokens[i] = undefined;
-		self._dep.waveLive[i] = [];
-		self._dep.terminalInput[i] = undefined;
-	}
-
-	// R-wave: a node that was marked pending and sent nothing in its run gets exactly one RESOLVED
-	// from the kernel, the only output the kernel adds (filter-reject / distinctUntilChanged-dup /
-	// any no-emit fn). An ASYNC-pool node is not exempt: its run sent nothing in this wave, so it
-	// settles now, and its later ctx.down is a new wave with its own PENDING (C-4).
-	if (wasDirty && self._value.terminal === undefined && !out.some((a) => a.some(isMarking)))
-		out.push([["RESOLVED"]]);
-	// R-wave: the run's arrays reach its subscribers after it returned, in order.
-	if (out.length > 0) self._publish(out);
-	self._wave.emittedDirtyThisWave = false;
+	return out;
 }

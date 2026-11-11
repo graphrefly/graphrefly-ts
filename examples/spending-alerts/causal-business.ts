@@ -59,7 +59,6 @@ export function nodeMaker(
 				name: `${prefix}/${name}`,
 				factory: `spending/${name}`,
 				partial: true,
-				errorWhenDepsError: true,
 			},
 		);
 		edges.set(node, expected);
@@ -100,6 +99,9 @@ export function join<T>(
 	fn: (values: readonly unknown[], e: Evaluation) => T,
 ): Node<BusinessFrame<T>> {
 	return make(name, deps, (ctx) => {
+		// The kernel runs a node once when it activates (R-lifetime); a join with no input yet has
+		// nothing to say, so it waits for its first frame.
+		if (deps.every((_, i) => depWaves(ctx, i).length === 0)) return;
 		let state = ctx.state.get<{ maps: Map<string, Item<unknown>>[]; valid: boolean[] }>();
 		if (!state) {
 			state = { maps: deps.map(() => new Map()), valid: deps.map(() => false) };

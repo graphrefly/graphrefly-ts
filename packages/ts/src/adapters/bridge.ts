@@ -593,8 +593,7 @@ function wireBridgeAckDriverEventsNode<TOutbound, TInbound>(
 			name: `${name}/events`,
 			factory: "wireBridgeAckDriverEvents",
 			partial: true,
-			completeWhenDepsComplete: false,
-			errorWhenDepsError: false,
+			terminal: { complete: "manual", error: "manual" },
 		},
 	);
 }
@@ -746,8 +745,7 @@ export function wireBridgeProtobuf(
 			name: `${name}/inboundResults`,
 			factory: "wireBridgeProtobufInboundResults",
 			partial: true,
-			completeWhenDepsComplete: false,
-			errorWhenDepsError: false,
+			terminal: { complete: "manual", error: "manual" },
 		},
 	);
 	const outboundResults = topology.node<WireBridgeProtobufOutboundResult>(
@@ -771,8 +769,7 @@ export function wireBridgeProtobuf(
 			name: `${name}/outboundResults`,
 			factory: "wireBridgeProtobufOutboundResults",
 			partial: true,
-			completeWhenDepsComplete: false,
-			errorWhenDepsError: false,
+			terminal: { complete: "manual", error: "manual" },
 		},
 	);
 	const inboundEvents = topology.node<WireBridgeProtobufInboundEvent>(
@@ -788,8 +785,7 @@ export function wireBridgeProtobuf(
 			name: `${name}/inboundEvents`,
 			factory: "wireBridgeProtobufInboundEvents",
 			partial: true,
-			completeWhenDepsComplete: false,
-			errorWhenDepsError: false,
+			terminal: { complete: "manual", error: "manual" },
 		},
 	);
 	const outboundEvents = topology.node<WireBridgeProtobufOutboundEvent>(
@@ -805,8 +801,7 @@ export function wireBridgeProtobuf(
 			name: `${name}/outboundEvents`,
 			factory: "wireBridgeProtobufOutboundEvents",
 			partial: true,
-			completeWhenDepsComplete: false,
-			errorWhenDepsError: false,
+			terminal: { complete: "manual", error: "manual" },
 		},
 	);
 	const inboundDecoded = topology.node<
@@ -824,8 +819,7 @@ export function wireBridgeProtobuf(
 			name: `${name}/inboundDecoded`,
 			factory: "wireBridgeProtobufInboundDecoded",
 			partial: true,
-			completeWhenDepsComplete: false,
-			errorWhenDepsError: false,
+			terminal: { complete: "manual", error: "manual" },
 		},
 	);
 	const outboundBytes = topology.node<Uint8Array>(
@@ -842,8 +836,7 @@ export function wireBridgeProtobuf(
 			name: `${name}/outboundBytes`,
 			factory: "wireBridgeProtobufOutboundBytes",
 			partial: true,
-			completeWhenDepsComplete: false,
-			errorWhenDepsError: false,
+			terminal: { complete: "manual", error: "manual" },
 		},
 	);
 	const issues = topology.node<WireBridgeProtobufIssue>(
@@ -864,8 +857,7 @@ export function wireBridgeProtobuf(
 			name: `${name}/issues`,
 			factory: "wireBridgeProtobufIssues",
 			partial: true,
-			completeWhenDepsComplete: false,
-			errorWhenDepsError: false,
+			terminal: { complete: "manual", error: "manual" },
 		},
 	);
 	const status = topology.node<WireBridgeProtobufStatus>(
@@ -920,8 +912,7 @@ export function wireBridgeProtobuf(
 			name: `${name}/status`,
 			factory: "wireBridgeProtobufStatus",
 			partial: true,
-			completeWhenDepsComplete: false,
-			errorWhenDepsError: false,
+			terminal: { complete: "manual", error: "manual" },
 		},
 	);
 	try {
@@ -1173,9 +1164,7 @@ function wireBridgeEventsNode<TOutbound, TInbound>(
 			name: `${name}/events`,
 			factory: "wireBridgeEvents",
 			partial: true,
-			errorWhenDepsError: false,
-			completeWhenDepsComplete: false,
-			terminalAsRealInput: true,
+			terminal: { complete: "manual", error: "manual" },
 		},
 	);
 }

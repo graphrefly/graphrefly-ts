@@ -144,8 +144,7 @@ export function agenticMemoryRecordAdmissionPolicySourceBundle(
 		{
 			name: `${name}/projection`,
 			factory: "agenticMemoryRecordAdmissionPolicySource",
-			completeWhenDepsComplete: false,
-			errorWhenDepsError: false,
+			terminal: { complete: "manual", error: "manual" },
 		},
 	);
 	return {

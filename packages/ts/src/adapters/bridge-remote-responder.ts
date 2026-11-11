@@ -190,8 +190,7 @@ export function remoteResponderEventsNode<TRequest, TResponse>(
 			name: `${name}/events`,
 			factory: "remoteResponderEvents",
 			partial: true,
-			completeWhenDepsComplete: false,
-			errorWhenDepsError: false,
+			terminal: { complete: "manual", error: "manual" },
 		},
 	);
 }
@@ -229,8 +228,7 @@ export function remoteResponderResponseCommandsNode<TRequest, TResponse>(
 		{
 			name: `${name}/responseCommands`,
 			factory: "remoteResponderResponseCommands",
-			completeWhenDepsComplete: false,
-			errorWhenDepsError: false,
+			terminal: { complete: "manual", error: "manual" },
 		},
 	);
 }
@@ -251,7 +249,7 @@ export function remoteResponderRequestsNode<TRequest, TResponse>(
 		{
 			name: `${name}/requests`,
 			factory: "remoteResponderRequests",
-			completeWhenDepsComplete: false,
+			terminal: { complete: "manual" },
 		},
 	);
 }
@@ -297,8 +295,7 @@ export function remoteResponderStatusNode<TRequest, TResponse>(
 			name: `${name}/status`,
 			factory: "remoteResponderStatus",
 			partial: true,
-			completeWhenDepsComplete: false,
-			errorWhenDepsError: false,
+			terminal: { complete: "manual", error: "manual" },
 		},
 	);
 }
@@ -325,6 +322,6 @@ export function remoteResponderErrorsNode<TRequest, TResponse>(
 				}
 			}
 		},
-		{ name: `${name}/errors`, factory: "remoteResponderErrors", completeWhenDepsComplete: false },
+		{ name: `${name}/errors`, factory: "remoteResponderErrors", terminal: { complete: "manual" } },
 	);
 }

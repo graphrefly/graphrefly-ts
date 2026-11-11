@@ -58,62 +58,36 @@ describe("terminal (R-terminal, R-deps-terminal)", () => {
 		expect(() => s.down([["ERROR", true]])).toThrow(/non-boolean/);
 	});
 
-	it("non-resubscribable terminal rejects late subscribe (R2.2.7.b)", () => {
+	it("an ended node can be subscribed; its START snapshot carries its terminal (R-terminals)", () => {
 		const s = node<number>([], null, { initial: 1 });
 		collect(s);
 		s.down([["COMPLETE"]]);
-		expect(() => s.subscribe(() => {})).toThrow(/non-resubscribable/);
-	});
-
-	it("resubscribable terminal resets on late subscribe (R2.2.7.a)", () => {
-		const s = node<number>([], null, { initial: 1, resubscribable: true });
-		collect(s);
-		s.down([["COMPLETE"]]);
+		const late: unknown[] = [];
+		s.subscribe((msgs) => late.push(msgs));
+		expect(late).toEqual([[["START"], ["DATA", 1], ["COMPLETE"]]]);
 		expect(s.status).toBe("completed");
-		const { msgs } = collect(s); // resets, then push-on-subscribe
-		expect(s.status).toBe("settled");
-		expect(msgs).toContainEqual(["DATA", 1]);
 	});
 
-	it("resubscribable reset detaches terminal-era subscribers (R-terminal fresh lifecycle)", () => {
-		const s = node<number>([], null, { initial: 1, resubscribable: true });
-		const old = collect(s);
-		s.down([["COMPLETE"]]);
-		old.msgs.length = 0;
-
-		const fresh = collect(s); // resets, then attaches this subscriber to the fresh lifecycle
-		fresh.msgs.length = 0;
-		s.down([["DATA", 2]]);
-
-		expect(old.msgs).toEqual([]);
-		expect(types(fresh.msgs)).toEqual(["PENDING", "DATA"]);
-		expect(fresh.msgs.at(-1)).toEqual(["DATA", 2]);
-	});
-
-	it("B30: terminal-is-forever on SELF-emit — set()/down() after terminal is a no-op", () => {
-		// The upstream path (_receiveFromDep) already drops on terminal; B30 closes the
-		// self-emit gap in _down (a post-terminal state.set / ctx.down must not resurrect),
-		// matching the Rust arm's Core::down blanket guard (R-terminal / D17).
+	it("host input to an ended node is refused and changes nothing (R-terminals)", () => {
 		const s = node<number>([], null, { initial: 1 });
 		const { msgs } = collect(s);
 		s.down([["COMPLETE"]]);
 		expect(s.status).toBe("completed");
 		msgs.length = 0;
 
-		s.down([["DATA", 42]]); // self-emit in a LATER wave after terminal → no-op
-		expect(msgs).toEqual([]); // nothing emitted
-		expect(s.cache).toBe(1); // cache NOT overwritten by 42
-		expect(s.status).toBe("completed"); // still terminal
+		expect(() => s.down([["DATA", 42]])).toThrow(/ended/);
+		expect(msgs).toEqual([]);
+		expect(s.cache).toBe(1);
+		expect(s.status).toBe("completed");
 
-		// also a no-op after ERROR (DATA + INVALIDATE both dropped)
 		const e = node<number>([], null, { initial: 7 });
 		const ce = collect(e);
 		e.down([["ERROR", new Error("boom")]]);
 		ce.msgs.length = 0;
-		e.down([["DATA", 99]]);
-		e.down([["INVALIDATE"]]);
-		expect(ce.msgs).toEqual([]); // neither DATA nor INVALIDATE escapes
-		expect(e.cache).toBe(7); // cache preserved (errored node)
+		expect(() => e.down([["DATA", 99]])).toThrow(/ended/);
+		expect(() => e.down([["INVALIDATE"]])).toThrow(/ended/);
+		expect(ce.msgs).toEqual([]);
+		expect(e.cache).toBe(7);
 		expect(e.status).toBe("errored");
 	});
 });

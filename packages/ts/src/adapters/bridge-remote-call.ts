@@ -49,8 +49,7 @@ export function remoteCall<TRequest = unknown, TResponse = unknown>(
 	const timeouts = graph.node<RemoteCallTimeout>([], null, {
 		name: `${name}/timeouts`,
 		factory: "remoteCallTimeouts",
-		completeWhenDepsComplete: false,
-		errorWhenDepsError: false,
+		terminal: { complete: "manual", error: "manual" },
 	});
 	const responses = remoteCallResponsesNode(graph, bridge.events, timeouts, name);
 	const results = remoteCallResultsNode(graph, responses, name);
@@ -305,8 +304,7 @@ function remoteCallResponsesNode<TRequest, TResponse>(
 			name: `${name}/responses`,
 			factory: "remoteCallResponses",
 			partial: true,
-			completeWhenDepsComplete: false,
-			errorWhenDepsError: false,
+			terminal: { complete: "manual", error: "manual" },
 		},
 	);
 }
@@ -335,7 +333,7 @@ function remoteCallResultsNode<TResponse>(
 				}
 			}
 		},
-		{ name: `${name}/results`, factory: "remoteCallResults", completeWhenDepsComplete: false },
+		{ name: `${name}/results`, factory: "remoteCallResults", terminal: { complete: "manual" } },
 	);
 }
 
@@ -503,8 +501,7 @@ function remoteCallStatusNode<TRequest, TResponse>(
 			name: `${name}/status`,
 			factory: "remoteCallStatus",
 			partial: true,
-			completeWhenDepsComplete: false,
-			errorWhenDepsError: false,
+			terminal: { complete: "manual", error: "manual" },
 		},
 	);
 }
@@ -657,8 +654,7 @@ function remoteCallErrorsNode<TRequest, TResponse>(
 			name: `${name}/errors`,
 			factory: "remoteCallErrors",
 			partial: true,
-			completeWhenDepsComplete: false,
-			errorWhenDepsError: false,
+			terminal: { complete: "manual", error: "manual" },
 		},
 	);
 }

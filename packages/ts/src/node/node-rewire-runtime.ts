@@ -3,7 +3,7 @@ import { deferRewire } from "../batch/boundary.js";
 import type { NodeFn } from "../ctx/types.js";
 import { errorPayload, SENTINEL } from "../protocol/messages.js";
 import type { Node } from "./node.js";
-import { type NodeRuntimeHost, nodeRuntimeHost } from "./node-runtime-host.js";
+import type { NodeRuntimeHost } from "./node-runtime-host.js";
 import { notifyTopologyDepsChanged } from "./runtime-accessors.js";
 import type { RewireOp } from "./types.js";
 
@@ -34,7 +34,7 @@ export function nodeApplyRewireNext<T>(self: NodeRuntimeHost<T>, op: RewireOp): 
 			self._rewire(self._dedupDeps(op.deps), op.fn, { allowTerminalOwner: true });
 		}
 	} catch (e) {
-		// An invalid deferred op (cycle / self / non-resubscribable terminal dep) surfaces as
+		// An invalid deferred op (cycle / self / duplicate) surfaces as
 		// an ERROR on this node (D30-consistent) rather than stranding the rest of the drain
 		// queue. Reachable only on misuse — higher-order operator inners are fresh, acyclic
 		// leaf sources. Coerce a SENTINEL reason (a rewire fn that `throw undefined`s) to a real
@@ -128,6 +128,7 @@ export function nodeRewire<T>(
 		self._dep.tier = newTier;
 		self._dep.terminal = newTerminal;
 		self._dep.terminalInput = newTerminalInput;
+		self._dep.invalidated = new Array(n).fill(false);
 		self._dep.unsubs = newUnsubs;
 		self._dep.idxBoxes = newBoxes;
 		self._dep.waveData = newDeps.map(() => []);
@@ -196,11 +197,7 @@ export function validateNodeRewire<T>(
 			throw new Error(
 				"rewire: would create a cycle — dep already transitively depends on this node (R-rewire / D42)",
 			);
-		const dep = nodeRuntimeHost(d);
-		if (dep._value.terminal !== undefined && !dep._slot.resubscribable)
-			throw new Error(
-				"rewire: cannot add a non-resubscribable terminal dep — would wedge (R-rewire / D42)",
-			);
+		// R-terminals: an ended node can be added; its snapshot carries its terminal.
 		self._assertRewireDepOwner(d);
 	}
 }

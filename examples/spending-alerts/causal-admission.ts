@@ -128,6 +128,183 @@ export function buildAdmission(
 		"inbox",
 		binding,
 	);
+	const policyPass = (ctx: Ctx, verification: VerificationFrame | undefined): void => {
+		const s = collect(ctx, 3) as RowsState & { issued?: Map<string, PolicyDecision> };
+		s.issued ??= new Map();
+		const current = latest<CurrentFrame>(ctx, 3),
+			local = latest<LocalAuthorityFrame>(ctx, 5),
+			inbox = latest<InboxObservationFrame>(ctx, 6);
+		const rows: Item<PolicyDecision>[] = [],
+			problems = [];
+		if (!s.valid.every(Boolean)) {
+			ctx.down([["DATA", frame([], [], false)]]);
+			return;
+		}
+		// The current immutable verification frame is unchanged throughout this invocation.
+		let receiptConflict: boolean | undefined;
+		// Checked inputs are parsed passive JSON and deeply frozen; binding is a
+		// private snapshot. Reuse full canonical text only during this callback.
+		let comparisonTexts: Map<unknown, string> | undefined;
+		const comparisonKey = (value: unknown): string => {
+			const prior = comparisonTexts?.get(value);
+			if (prior !== undefined) return prior;
+			const text = canonicalMaterial(value);
+			comparisonTexts ??= new Map();
+			comparisonTexts.set(value, text);
+			return text;
+		};
+		const sameInInvocation = (left: unknown, right: unknown): boolean =>
+			comparisonKey(left) === comparisonKey(right);
+		for (const [k, r] of s.maps[0]) {
+			const e = r.evaluation,
+				gate = s.maps[1].get(k)?.value as Flagged | undefined,
+				material = s.maps[2].get(k)?.value as MaterialResult | undefined;
+			if (!gate || !material) continue;
+			const prior = s.issued.get(k);
+			if (prior) continue;
+			let state: "completed" | "failed" = "completed",
+				admission: CausalEffectAdmission | undefined,
+				reason = "no-publish";
+			if (gate.flagged) {
+				if (material.kind === "rejected") {
+					state = "failed";
+					reason = material.issue.code;
+				} else if (material.kind !== "retained") continue;
+				else {
+					const p = proposalForMaterial(material.material),
+						requestDigest = material.material.body.payloadDigest;
+					if (!verification) {
+						problems.push(issue("policy-input-pending", e.evaluationRef));
+						continue;
+					}
+					const candidates = verification.receipts.filter(
+						(v) =>
+							sameInInvocation(v.occurrence, e.occurrence) &&
+							v.inputDigest === e.inputDigest &&
+							v.policyDigest === e.policyDigest &&
+							v.sourceDigest === binding.sourceDigest &&
+							v.runtimeDigest === binding.runtimeDigest &&
+							v.requestDigest === requestDigest &&
+							v.verifierRevision === VERIFIER_REVISION &&
+							v.numericDomainRef === NUMERIC_DOMAIN,
+					);
+					if (receiptConflict === undefined) {
+						const receipts = new Map<string, string>();
+						receiptConflict = false;
+						for (const v of verification.receipts) {
+							const key = hash(v.receiptRef),
+								digest = hash(v);
+							if (receipts.has(key) && receipts.get(key) !== digest) receiptConflict = true;
+							receipts.set(key, digest);
+						}
+					}
+					if (
+						receiptConflict ||
+						candidates.length !== 1 ||
+						candidates[0].verdict === "unavailable"
+					) {
+						problems.push(issue("verification-pending-or-conflict", e.evaluationRef));
+						continue;
+					}
+					const receipt = candidates[0];
+					if (receipt.verdict === "fail") {
+						reason = "verification-rejected";
+						state = "failed";
+						admission = frozen({
+							...p,
+							admissionRef: {
+								kind: "spending-admission",
+								id: hash({
+									proposal: p,
+									receiptRef: receipt.receiptRef,
+									verdict: "fail",
+									binding,
+								}),
+							},
+							state: "rejected",
+						});
+					} else {
+						if (!current || !local || !inbox) {
+							problems.push(issue("policy-input-pending", e.evaluationRef));
+							continue;
+						}
+						const c = current.current.find((f) => sameInInvocation(f.occurrence, e.occurrence));
+						if (
+							!c ||
+							!sameInInvocation(c.policyRef, e.policyRef) ||
+							c.policyDigest !== e.policyDigest ||
+							c.watermark < e.occurrence.revision
+						) {
+							problems.push(issue("policy-current-mismatch", e.evaluationRef));
+							continue;
+						}
+						const grants = local.grants.filter(
+							(g) =>
+								sameInInvocation(g.occurrence, e.occurrence) &&
+								g.requestDigest === requestDigest &&
+								sameInInvocation(g.destinationRef, binding.destinationRef) &&
+								g.hostEpoch === binding.hostEpoch &&
+								g.replayScope.hostEpoch === binding.hostEpoch &&
+								g.replayScope.compositionEpoch === binding.compositionEpoch,
+						);
+						if (grants.length !== 1) {
+							problems.push(issue("grant-pending-or-conflict", e.evaluationRef));
+							continue;
+						}
+						const grant = grants[0];
+						const refused =
+							grant.revoked ||
+							local.stop ||
+							local.tick < grant.validFrom ||
+							local.tick > grant.validThrough;
+						if (
+							!refused &&
+							(!inbox.readiness.ready ||
+								inbox.readiness.availableSlots !== 1 ||
+								local.tick < inbox.readiness.observedAt ||
+								local.tick > inbox.readiness.validThrough)
+						) {
+							problems.push(issue("inbox-not-ready", e.evaluationRef));
+							continue;
+						}
+						reason = refused ? "publication-rejected" : "fixture-admission";
+						state = refused ? "failed" : "completed";
+						admission = frozen({
+							...p,
+							admissionRef: {
+								kind: "spending-admission",
+								id: hash({
+									proposal: p,
+									receiptRef: receipt.receiptRef,
+									grantRef: grant.grantRef,
+									binding,
+								}),
+							},
+							state: refused ? "rejected" : "admitted",
+						});
+					}
+				}
+			}
+			const terminal: CausalBranchTerminal = {
+				occurrence: e.occurrence,
+				branch: "publication-policy",
+				state,
+				result:
+					state === "failed"
+						? { kind: "error", error: issue(reason, e.evaluationRef) }
+						: { kind: "ok", value: { reason, evidenceMode: "fixture-observations" } },
+			};
+			if (s.issued.size >= 64) {
+				problems.push(issue("policy-capacity", e.evaluationRef));
+				continue;
+			}
+			const value = frozen({ terminal, ...(admission ? { admission } : {}) });
+			s.issued.set(k, value);
+			rows.push({ evaluation: e, value });
+		}
+		ctx.state.set(s);
+		if (rows.length || problems.length) ctx.down([["DATA", frame(rows, problems)]]);
+	};
 	const publicationPolicy = make<BusinessFrame<PolicyDecision>>(
 		"publicationPolicy",
 		[
@@ -140,182 +317,15 @@ export function buildAdmission(
 			inboxFacts,
 		],
 		(ctx) => {
-			const s = collect(ctx, 3) as RowsState & { issued?: Map<string, PolicyDecision> };
-			s.issued ??= new Map();
-			const current = latest<CurrentFrame>(ctx, 3),
-				verification = latest<VerificationFrame>(ctx, 4),
-				local = latest<LocalAuthorityFrame>(ctx, 5),
-				inbox = latest<InboxObservationFrame>(ctx, 6);
-			const rows: Item<PolicyDecision>[] = [],
-				problems = [];
-			if (!s.valid.every(Boolean)) {
-				ctx.down([["DATA", frame([], [], false)]]);
-				return;
-			}
-			// The current immutable verification frame is unchanged throughout this invocation.
-			let receiptConflict: boolean | undefined;
-			// Checked inputs are parsed passive JSON and deeply frozen; binding is a
-			// private snapshot. Reuse full canonical text only during this callback.
-			let comparisonTexts: Map<unknown, string> | undefined;
-			const comparisonKey = (value: unknown): string => {
-				const prior = comparisonTexts?.get(value);
-				if (prior !== undefined) return prior;
-				const text = canonicalMaterial(value);
-				comparisonTexts ??= new Map();
-				comparisonTexts.set(value, text);
-				return text;
-			};
-			const sameInInvocation = (left: unknown, right: unknown): boolean =>
-				comparisonKey(left) === comparisonKey(right);
-			for (const [k, r] of s.maps[0]) {
-				const e = r.evaluation,
-					gate = s.maps[1].get(k)?.value as Flagged | undefined,
-					material = s.maps[2].get(k)?.value as MaterialResult | undefined;
-				if (!gate || !material) continue;
-				const prior = s.issued.get(k);
-				if (prior) continue;
-				let state: "completed" | "failed" = "completed",
-					admission: CausalEffectAdmission | undefined,
-					reason = "no-publish";
-				if (gate.flagged) {
-					if (material.kind === "rejected") {
-						state = "failed";
-						reason = material.issue.code;
-					} else if (material.kind !== "retained") continue;
-					else {
-						const p = proposalForMaterial(material.material),
-							requestDigest = material.material.body.payloadDigest;
-						if (!verification) {
-							problems.push(issue("policy-input-pending", e.evaluationRef));
-							continue;
-						}
-						const candidates = verification.receipts.filter(
-							(v) =>
-								sameInInvocation(v.occurrence, e.occurrence) &&
-								v.inputDigest === e.inputDigest &&
-								v.policyDigest === e.policyDigest &&
-								v.sourceDigest === binding.sourceDigest &&
-								v.runtimeDigest === binding.runtimeDigest &&
-								v.requestDigest === requestDigest &&
-								v.verifierRevision === VERIFIER_REVISION &&
-								v.numericDomainRef === NUMERIC_DOMAIN,
-						);
-						if (receiptConflict === undefined) {
-							const receipts = new Map<string, string>();
-							receiptConflict = false;
-							for (const v of verification.receipts) {
-								const key = hash(v.receiptRef),
-									digest = hash(v);
-								if (receipts.has(key) && receipts.get(key) !== digest) receiptConflict = true;
-								receipts.set(key, digest);
-							}
-						}
-						if (
-							receiptConflict ||
-							candidates.length !== 1 ||
-							candidates[0].verdict === "unavailable"
-						) {
-							problems.push(issue("verification-pending-or-conflict", e.evaluationRef));
-							continue;
-						}
-						const receipt = candidates[0];
-						if (receipt.verdict === "fail") {
-							reason = "verification-rejected";
-							state = "failed";
-							admission = frozen({
-								...p,
-								admissionRef: {
-									kind: "spending-admission",
-									id: hash({
-										proposal: p,
-										receiptRef: receipt.receiptRef,
-										verdict: "fail",
-										binding,
-									}),
-								},
-								state: "rejected",
-							});
-						} else {
-							if (!current || !local || !inbox) {
-								problems.push(issue("policy-input-pending", e.evaluationRef));
-								continue;
-							}
-							const c = current.current.find((f) => sameInInvocation(f.occurrence, e.occurrence));
-							if (
-								!c ||
-								!sameInInvocation(c.policyRef, e.policyRef) ||
-								c.policyDigest !== e.policyDigest ||
-								c.watermark < e.occurrence.revision
-							) {
-								problems.push(issue("policy-current-mismatch", e.evaluationRef));
-								continue;
-							}
-							const grants = local.grants.filter(
-								(g) =>
-									sameInInvocation(g.occurrence, e.occurrence) &&
-									g.requestDigest === requestDigest &&
-									sameInInvocation(g.destinationRef, binding.destinationRef) &&
-									g.hostEpoch === binding.hostEpoch &&
-									g.replayScope.hostEpoch === binding.hostEpoch &&
-									g.replayScope.compositionEpoch === binding.compositionEpoch,
-							);
-							if (grants.length !== 1) {
-								problems.push(issue("grant-pending-or-conflict", e.evaluationRef));
-								continue;
-							}
-							const grant = grants[0];
-							const refused =
-								grant.revoked ||
-								local.stop ||
-								local.tick < grant.validFrom ||
-								local.tick > grant.validThrough;
-							if (
-								!refused &&
-								(!inbox.readiness.ready ||
-									inbox.readiness.availableSlots !== 1 ||
-									local.tick < inbox.readiness.observedAt ||
-									local.tick > inbox.readiness.validThrough)
-							) {
-								problems.push(issue("inbox-not-ready", e.evaluationRef));
-								continue;
-							}
-							reason = refused ? "publication-rejected" : "fixture-admission";
-							state = refused ? "failed" : "completed";
-							admission = frozen({
-								...p,
-								admissionRef: {
-									kind: "spending-admission",
-									id: hash({
-										proposal: p,
-										receiptRef: receipt.receiptRef,
-										grantRef: grant.grantRef,
-										binding,
-									}),
-								},
-								state: refused ? "rejected" : "admitted",
-							});
-						}
-					}
-				}
-				const terminal: CausalBranchTerminal = {
-					occurrence: e.occurrence,
-					branch: "publication-policy",
-					state,
-					result:
-						state === "failed"
-							? { kind: "error", error: issue(reason, e.evaluationRef) }
-							: { kind: "ok", value: { reason, evidenceMode: "fixture-observations" } },
-				};
-				if (s.issued.size >= 64) {
-					problems.push(issue("policy-capacity", e.evaluationRef));
-					continue;
-				}
-				const value = frozen({ terminal, ...(admission ? { admission } : {}) });
-				s.issued.set(k, value);
-				rows.push({ evaluation: e, value });
-			}
-			ctx.state.set(s);
-			if (rows.length || problems.length) ctx.down([["DATA", frame(rows, problems)]]);
+			// One policy pass per verification frame of this run, in arrival order: a delivery brings
+			// all of a wave's arrays to one run (R-wave), and each frame was the current verification
+			// when it arrived.
+			const frames = depWaves(ctx, 4)
+				.flat()
+				.filter((f) => (f as Checked<VerificationFrame>)?.valid)
+				.map((f) => (f as Checked<VerificationFrame> & { valid: true }).value);
+			if (frames.length < 2) policyPass(ctx, latest<VerificationFrame>(ctx, 4));
+			else for (const verification of frames) policyPass(ctx, verification);
 		},
 	);
 	const occurrences = make<CausalOccurrence<Omit<Evaluation, "occurrence">>>(

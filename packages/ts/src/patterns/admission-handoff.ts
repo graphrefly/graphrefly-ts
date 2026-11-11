@@ -196,8 +196,7 @@ export function admissionHandoff<T, R = unknown>(
 			name: `${name}/correlation`,
 			factory: "admissionHandoffCorrelation",
 			partial: true,
-			completeWhenDepsComplete: false,
-			errorWhenDepsError: false,
+			terminal: { complete: "manual", error: "manual" },
 			meta: {
 				pattern: "admission-handoff",
 				role: "correlation-authority",
@@ -249,8 +248,7 @@ export function admissionHandoff<T, R = unknown>(
 			factory: "admissionHandoffAccepted",
 			quiet: true,
 			partial: true,
-			completeWhenDepsComplete: false,
-			errorWhenDepsError: false,
+			terminal: { complete: "manual", error: "manual" },
 			meta: { pattern: "admission-handoff", role: "quiet-causal-boundary" },
 		},
 	);
@@ -676,7 +674,7 @@ function projectRuntimeFact<T, R, TOut>(
 				if (value !== undefined) ctx.down([["DATA", value]]);
 			}
 		},
-		{ name, factory, completeWhenDepsComplete: false, errorWhenDepsError: false },
+		{ name, factory, terminal: { complete: "manual", error: "manual" } },
 	);
 }
 

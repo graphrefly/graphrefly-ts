@@ -579,8 +579,7 @@ export function keyedRateLimitAdmissionBundle(
 			name: `${name}/runtime`,
 			factory: "keyedRateLimitAdmission",
 			partial: true,
-			completeWhenDepsComplete: false,
-			errorWhenDepsError: false,
+			terminal: { complete: "manual", error: "manual" },
 		},
 	);
 	return {
@@ -1014,8 +1013,7 @@ function runtimeProjection<TFact extends KeyedRateLimitRuntimeFact>(
 		{
 			name,
 			factory,
-			completeWhenDepsComplete: false,
-			errorWhenDepsError: false,
+			terminal: { complete: "manual", error: "manual" },
 		},
 	);
 }

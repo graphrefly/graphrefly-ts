@@ -5,7 +5,7 @@ import type { EnvironmentDrivers } from "./environment.js";
 
 /** Map a tuple of Nodes to the tuple of their value types (typed value-level fn args). */
 export type DepValues<D extends readonly Node<unknown>[]> = {
-	[K in keyof D]: D[K] extends Node<infer V> ? V : never;
+	[K in keyof D]: D[K] extends Node<infer V> ? V | undefined : never;
 };
 
 /** Value-level derived fn: receives dep values, returns the next value (undefined = no emit). */

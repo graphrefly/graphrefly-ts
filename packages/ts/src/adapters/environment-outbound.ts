@@ -6,7 +6,7 @@
  * hidden sink side channel.
  */
 
-import { type Ctx, depBatch } from "../ctx/types.js";
+import { type Ctx, depBatch, isTerminalError, terminalErrorValue } from "../ctx/types.js";
 import type {
 	DriverCancel,
 	HttpResponse,
@@ -92,8 +92,9 @@ function outboundNodes<TValue, TResult>(
 			}
 			ctx.state.set(next);
 			ctx.down([["DATA", next]]);
+			forwardError(ctx);
 		},
-		{ name: `${name}/status`, factory: "outboundStatus" },
+		{ name: `${name}/status`, factory: "outboundStatus", terminal: { error: "manual" } },
 	);
 	const attempts = graph.node<number>(
 		[events],
@@ -102,8 +103,9 @@ function outboundNodes<TValue, TResult>(
 				const typed = event as OutboundEvent<TValue, TResult>;
 				if ("attempt" in typed) ctx.down([["DATA", typed.attempt]]);
 			}
+			forwardError(ctx);
 		},
-		{ name: `${name}/attempts`, factory: "outboundAttempts" },
+		{ name: `${name}/attempts`, factory: "outboundAttempts", terminal: { error: "manual" } },
 	);
 	const errors = graph.node<unknown>(
 		[events],
@@ -112,10 +114,21 @@ function outboundNodes<TValue, TResult>(
 				const typed = event as OutboundEvent<TValue, TResult>;
 				if ("error" in typed) ctx.down([["DATA", typed.error]]);
 			}
+			forwardError(ctx);
 		},
-		{ name: `${name}/errors`, factory: "outboundErrors" },
+		{ name: `${name}/errors`, factory: "outboundErrors", terminal: { error: "manual" } },
 	);
 	return { events, status, attempts, errors };
+}
+
+/**
+ * The ledgers record the events that came with the outbound node's ERROR in the same wave before
+ * ending with it: under the auto ERROR policy a dependency's ERROR would end them without running
+ * (R-terminals), dropping the final "exhausted" event.
+ */
+function forwardError(ctx: Ctx): void {
+	const t = ctx.terminal[0];
+	if (isTerminalError(t)) ctx.down([["ERROR", terminalErrorValue(t)]]);
 }
 
 function reduceStatus<TValue, TResult>(

@@ -79,9 +79,7 @@ function checkInputs(registrar: GraphLifecycleRegistrar, inputs: readonly Node<u
 		if (seen.has(node)) continue;
 		seen.add(node);
 		registrar.assertRegisteredNode(node, "construction input/dependency");
-		const host = nodeRuntimeHost(node);
-		if (host._value.terminal !== undefined && !host._slot.resubscribable)
-			throw new Error("construction input is terminal and non-resubscribable");
+		// R-terminals: an ended input can be depended on; its snapshot carries its terminal.
 		pending.push(...node.deps);
 	}
 }

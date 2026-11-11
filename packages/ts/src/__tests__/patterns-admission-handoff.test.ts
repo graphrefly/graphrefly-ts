@@ -191,7 +191,9 @@ describe("admissionHandoff pattern (graphrefly-ts:D147)", () => {
 			["DATA", decision("admitted", "two", "fp-two")],
 		]);
 
-		expect(accepted.map((message) => message[0])).toEqual(["PENDING", "DATA", "PENDING", "DATA"]);
+		// R-wave: the decision node's two arrays reach the handoff as one delivery, so it runs once
+		// and sends both admissions in one array.
+		expect(accepted.map((message) => message[0])).toEqual(["PENDING", "DATA", "DATA"]);
 		expect(
 			accepted
 				.filter((message) => message[0] === "DATA")

@@ -10074,9 +10074,8 @@ function runtimeOptions(name: string, factory: string) {
 		name: `${name}/runtime`,
 		factory,
 		partial: true,
-		completeWhenDepsComplete: false,
-		errorWhenDepsError: false,
-	};
+		terminal: { complete: "manual", error: "manual" },
+	} as const;
 }
 
 function familyBundle(

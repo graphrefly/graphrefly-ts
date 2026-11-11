@@ -297,8 +297,7 @@ export function attachKeyedRateLimitAuthority(
 		{
 			name: `${name}/events`,
 			factory: "attachKeyedRateLimitAuthority",
-			completeWhenDepsComplete: false,
-			errorWhenDepsError: false,
+			terminal: { complete: "manual", error: "manual" },
 		},
 	);
 	const correlationFacts = adapterProjection(
@@ -462,8 +461,7 @@ function adapterProjection<TFact extends KeyedRateLimitAuthorityAdapterFact>(
 		{
 			name,
 			factory,
-			completeWhenDepsComplete: false,
-			errorWhenDepsError: false,
+			terminal: { complete: "manual", error: "manual" },
 		},
 	);
 }

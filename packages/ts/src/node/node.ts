@@ -42,15 +42,11 @@ import {
 } from "./node-context-runtime.js";
 import {
 	nodeAllDepsSettled,
-	nodeDepProjectionHasData,
 	nodeMarkDirty,
 	nodeMaybeRun,
-	nodePassthroughEmit,
 	nodeReceiveFromDep,
 	nodeRecordDepProjection,
-	nodeReleaseDepDirty,
-	nodeRunWave,
-	nodeSettleAfterAbsorbedTerminal,
+	nodeSettle,
 	nodeSettleRewire,
 	nodeTryRun,
 } from "./node-input-runtime.js";
@@ -65,16 +61,13 @@ import {
 	nodeSubscriberCount,
 } from "./node-lifecycle-runtime.js";
 import {
-	nodeAllDepsTerminal,
 	nodeCallSink,
 	nodeCommitBatchedWave,
 	nodeDeferBoundary,
 	nodeDown,
-	nodeInvalidate,
 	nodeMarkBatchedWave,
 	nodeMarkDependents,
 	nodePublish,
-	nodeResetLifecycle,
 } from "./node-output-runtime.js";
 import { nodeApplyRewireNext, nodeRequestRewireNext, nodeRewire } from "./node-rewire-runtime.js";
 import { nodeRuntimeHost } from "./node-runtime-host.js";
@@ -166,23 +159,17 @@ export class Node<T = unknown> {
 		void node._subscribeDepAt;
 		void node._seedRestoredDepAt;
 		void node._recordDepProjection;
-		void node._depProjectionHasData;
 		void node._receiveFromDep;
-		void node._releaseDepDirty;
-		void node._settleAfterAbsorbedTerminal;
 		void node._markDirty;
 		void node._maybeRun;
 		void node._settleRewire;
 		void node._tryRun;
 		void node._allDepsSettled;
-		void node._passthroughEmit;
 		void node._runWave;
 		void node._buildCtx;
 		void node._makeCtx;
 		void node._refreshCtx;
 		void node._makeState;
-		void node._invalidate;
-		void node._allDepsTerminal;
 		void node._markDependents;
 		void node._publish;
 	}
@@ -235,10 +222,9 @@ export class Node<T = unknown> {
 					dispatcher,
 					environment,
 					partial: opts.partial ?? false,
-					terminalAsRealInput: opts.terminalAsRealInput ?? false,
-					completeWhenDepsComplete: opts.completeWhenDepsComplete ?? true,
-					errorWhenDepsError: opts.errorWhenDepsError ?? true,
-					resubscribable: opts.resubscribable ?? false,
+					completePolicy: opts.terminal?.complete ?? "auto",
+					errorPolicy: opts.terminal?.error ?? "auto",
+					invalidatePolicy: opts.invalidate ?? "auto",
 					quiet: opts.quiet ?? false,
 					dynamic: opts.dynamic ?? false,
 					name: opts.name,
@@ -256,6 +242,7 @@ export class Node<T = unknown> {
 						insideRunWave: false,
 						runOutput: [],
 						inDepMutation: false,
+						activating: false,
 						rewireRunPending: false,
 					},
 					privateState: { value: SENTINEL, persist: false },
@@ -353,18 +340,6 @@ export class Node<T = unknown> {
 		// just inc/dec the depth.
 		enterWave();
 		try {
-			// R-terminal: late subscribe to a terminal node either resets (resubscribable)
-			// or is rejected (non-resubscribable, R2.2.7.b).
-			if (this._value.terminal !== undefined) {
-				if (this._slot.resubscribable) {
-					this._restoredActivationPending = false;
-					this._resetLifecycle();
-				} else
-					throw new Error(
-						"subscribe: node is non-resubscribable and has terminated; the stream is permanently over (R-terminal / R2.2.7.b)",
-					);
-			}
-
 			const unsubscribe = () => {
 				if (!this._lifecycle.subscribers.delete(subscriber)) return;
 				if (this._lifecycle.subscribers.size === 0) this._deactivate();
@@ -372,9 +347,15 @@ export class Node<T = unknown> {
 			// D161: ownership precedes START, the snapshot and dependency activation.
 			acquisition?.record(unsubscribe);
 			this._lifecycle.subscribers.add(subscriber);
+			// R-subscription / R-terminals: an ended node can be subscribed; its snapshot carries its
+			// last values and then its terminal, and its function never runs again.
+			const terminal = this._value.terminal;
 			const start: Message[] = [
 				["START"],
 				...this._value.lastArray.map((v) => ["DATA", v] as Message),
+				...(terminal === undefined
+					? []
+					: [(terminal === true ? ["COMPLETE"] : ["ERROR", terminal]) as Message]),
 			];
 			if (subscriber.kind === "sink") {
 				nodeCallSink(nodeRuntimeHost(this), subscriber, start);
@@ -391,7 +372,7 @@ export class Node<T = unknown> {
 			// R-subscription / R-lifetime: subscribing activates an inactive node; the activation's
 			// run is a wave of its own after the START array (see the phase 2 report: the reference
 			// activates before START, which open question Q-START-ORDER is about).
-			if (!this._lifecycle.activated) this._activate();
+			if (!this._lifecycle.activated && this._value.terminal === undefined) this._activate();
 
 			return unsubscribe;
 		} finally {
@@ -406,6 +387,9 @@ export class Node<T = unknown> {
 	down(msgs: Wave): void {
 		this._assertNotReleased("down");
 		validateNodeOutput(msgs);
+		// R-terminals: a host input to an ended node is refused.
+		if (this._value.terminal !== undefined)
+			throw new Error("down: this node has ended (R-terminals)");
 		// Wave-owner boundary (D47): a state.set / external push that drives a fn issuing
 		// ctx.rewireNext drains at this outermost exit.
 		enterWave();
@@ -542,20 +526,8 @@ export class Node<T = unknown> {
 		return nodeRecordDepProjection(nodeRuntimeHost(this), idx, delivery);
 	}
 
-	private _depProjectionHasData(idx: number): boolean {
-		return nodeDepProjectionHasData(nodeRuntimeHost(this), idx);
-	}
-
 	private _receiveFromDep(idx: number, msg: Message, delivery?: DeliveryMeta): void {
 		nodeReceiveFromDep(nodeRuntimeHost(this), idx, msg, delivery);
-	}
-
-	private _releaseDepDirty(idx: number): void {
-		nodeReleaseDepDirty(nodeRuntimeHost(this), idx);
-	}
-
-	private _settleAfterAbsorbedTerminal(): void {
-		nodeSettleAfterAbsorbedTerminal(nodeRuntimeHost(this));
 	}
 
 	private _markDirty(): void {
@@ -578,12 +550,9 @@ export class Node<T = unknown> {
 		return nodeAllDepsSettled(nodeRuntimeHost(this));
 	}
 
-	private _passthroughEmit(): void {
-		nodePassthroughEmit(nodeRuntimeHost(this));
-	}
-
+	/** Settle now, running the function (activation's first run of a depless producer). */
 	private _runWave(): void {
-		nodeRunWave(nodeRuntimeHost(this));
+		nodeSettle(nodeRuntimeHost(this), true);
 	}
 
 	private _buildCtx(): Ctx {
@@ -594,6 +563,7 @@ export class Node<T = unknown> {
 		waveData: unknown[][][];
 		waveLive?: boolean[][];
 		terminal: unknown[];
+		invalidated?: boolean[];
 		latest: unknown[];
 	}): Ctx {
 		return nodeMakeCtx(nodeRuntimeHost(this), snapshot);
@@ -613,25 +583,12 @@ export class Node<T = unknown> {
 		nodeDown(nodeRuntimeHost(this), msgs);
 	}
 
-	private _invalidate(): void {
-		nodeInvalidate(nodeRuntimeHost(this));
-	}
-
-	private _allDepsTerminal(): boolean {
-		return nodeAllDepsTerminal(nodeRuntimeHost(this));
-	}
-
 	private _publish(arrays: readonly Message[][]): void {
 		nodePublish(nodeRuntimeHost(this), arrays);
 	}
 
 	private _markDependents(): void {
 		nodeMarkDependents(nodeRuntimeHost(this));
-	}
-
-	/** R-terminal: resubscribable reset clears terminal + dep state + re-arms the gate. */
-	private _resetLifecycle(): void {
-		nodeResetLifecycle(nodeRuntimeHost(this));
 	}
 
 	/** Batch commit (R-batch-coalesce): deliver the deferred tier-3 wave now. */

@@ -9,12 +9,12 @@
  */
 
 import { describe, expect, it } from "vitest";
-import type { Ctx, Message, NodeFn } from "../index.js";
-import { batch, depBatch, depLatest, dynamicNode, fromPromise, graph, node } from "../index.js";
+import type { Ctx, Message } from "../index.js";
+import { depLatest, dynamicNode, fromPromise, graph, node } from "../index.js";
 import { eachMessage } from "../node/each-message.js";
 
 const types = (msgs: Message[]) => msgs.map((m) => m[0]);
-const data = (msgs: Message[]) =>
+const _data = (msgs: Message[]) =>
 	msgs.filter((m) => m[0] === "DATA").map((m) => (m as ["DATA", unknown])[1]);
 const flush = () => new Promise((r) => setTimeout(r, 0));
 function collect(n: { subscribe(s: (m: Message) => void): () => void }) {
@@ -121,9 +121,7 @@ describe("C-23 raw ctx waveData is the only dep-value input (R-fn-contract / R-c
 			},
 			{
 				partial: true,
-				completeWhenDepsComplete: false,
-				errorWhenDepsError: false,
-				terminalAsRealInput: true,
+				terminal: { complete: "manual", error: "manual" },
 			},
 		);
 		collect(n);
@@ -142,9 +140,7 @@ describe("C-23 raw ctx waveData is the only dep-value input (R-fn-contract / R-c
 			},
 			{
 				partial: true,
-				completeWhenDepsComplete: false,
-				errorWhenDepsError: false,
-				terminalAsRealInput: true,
+				terminal: { complete: "manual", error: "manual" },
 			},
 		);
 		collect(m);
@@ -161,9 +157,7 @@ describe("C-23 raw ctx waveData is the only dep-value input (R-fn-contract / R-c
 			},
 			{
 				partial: true,
-				completeWhenDepsComplete: false,
-				errorWhenDepsError: false,
-				terminalAsRealInput: true,
+				terminal: { complete: "manual", error: "manual" },
 			},
 		);
 		collect(p);
@@ -186,8 +180,7 @@ describe("C-23 raw ctx waveData is the only dep-value input (R-fn-contract / R-c
 			},
 			{
 				partial: true,
-				completeWhenDepsComplete: false,
-				terminalAsRealInput: true,
+				terminal: { complete: "manual" },
 			},
 		);
 		collect(n);

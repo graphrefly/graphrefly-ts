@@ -123,8 +123,7 @@ export function processBundle<
 	const command = topology.node<ProcessCommand<TCommand>>([], null, {
 		name: `${name}/command`,
 		factory: "processCommand",
-		completeWhenDepsComplete: false,
-		errorWhenDepsError: false,
+		terminal: { complete: "manual", error: "manual" },
 	});
 	const runtime = topology.node<ProcessRuntimeFact<TState, TEvent, TEffect>>(
 		[command],
@@ -157,8 +156,7 @@ export function processBundle<
 			name: `${name}/runtime`,
 			factory: "processRuntime",
 			meta: { process: "facts-plus-reducer", d: "D136" },
-			completeWhenDepsComplete: false,
-			errorWhenDepsError: false,
+			terminal: { complete: "manual", error: "manual" },
 		},
 	);
 	const events = processProjection<ProcessEvent<TEvent>, TState, TEvent, TEffect>(
@@ -297,8 +295,7 @@ export function processEffectRunner<TEffect = unknown, TResult = unknown>(
 			name: `${name}/requests`,
 			factory: "processEffectRunnerRequests",
 			partial: true,
-			completeWhenDepsComplete: false,
-			errorWhenDepsError: false,
+			terminal: { complete: "manual", error: "manual" },
 		},
 	);
 	const runtime = topology.node<ProcessEffectRunnerFact<TResult>>(
@@ -328,8 +325,7 @@ export function processEffectRunner<TEffect = unknown, TResult = unknown>(
 			factory: "processEffectRunner",
 			meta: { process: "effect-runner", d: "D156" },
 			partial: true,
-			completeWhenDepsComplete: false,
-			errorWhenDepsError: false,
+			terminal: { complete: "manual", error: "manual" },
 		},
 	);
 	const outcomes = processEffectRunnerProjection<ProcessEffectOutcome<TResult>, TResult>(
@@ -418,8 +414,7 @@ export function processEffectRunner<TEffect = unknown, TResult = unknown>(
 			name: `${name}/status`,
 			factory: "processEffectRunnerStatus",
 			partial: true,
-			completeWhenDepsComplete: false,
-			errorWhenDepsError: false,
+			terminal: { complete: "manual", error: "manual" },
 		},
 	);
 	const retainRunnerNodes = () => [
@@ -499,8 +494,7 @@ function processEffectRunnerProjection<T, TResult>(
 			name,
 			factory,
 			partial: true,
-			completeWhenDepsComplete: false,
-			errorWhenDepsError: false,
+			terminal: { complete: "manual", error: "manual" },
 		},
 	);
 }
@@ -824,7 +818,7 @@ function processProjection<TOut, TState, TEvent, TEffect>(
 				if (selected !== undefined) ctx.down([["DATA", selected]]);
 			}
 		},
-		{ name, factory, completeWhenDepsComplete: false, errorWhenDepsError: false },
+		{ name, factory, terminal: { complete: "manual", error: "manual" } },
 	);
 }
 

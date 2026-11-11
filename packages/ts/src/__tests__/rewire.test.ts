@@ -161,14 +161,14 @@ describe("rewire — rejects (R-rewire / D42)", () => {
 	it("rejects rewire on a terminal node", () => {
 		const a = node<number>([], null, { initial: 1 });
 		const d = node<number>([a], (ctx) => ctx.down([["DATA", num(ctx, 0)]]), {
-			completeWhenDepsComplete: false,
+			terminal: { complete: "manual" },
 		});
 		collect(d);
 		d.down([["COMPLETE"]]); // d terminal
 		expect(() => d.replaceDeps([a], (ctx) => ctx.down([["DATA", 0]]))).toThrow(/terminal/);
 	});
 
-	it("rejects adding a non-resubscribable terminal dep", () => {
+	it("an ended node can be added as a dependency; its snapshot carries its terminal (R-terminals)", () => {
 		const term = node<number>([], (ctx) => ctx.down([["COMPLETE"]])); // producer → terminal on activation
 		collect(term);
 		expect(term.status).toBe("completed");
@@ -176,9 +176,10 @@ describe("rewire — rejects (R-rewire / D42)", () => {
 		const a = node<number>([], null, { initial: 1 });
 		const d = node<number>([a], (ctx) => ctx.down([["DATA", num(ctx, 0)]]));
 		collect(d);
-		expect(() => d.subscribeDep(term, (ctx) => ctx.down([["DATA", num(ctx, 0)]]))).toThrow(
-			/terminal dep/,
-		);
+		expect(() => d.subscribeDep(term, (ctx) => ctx.down([["DATA", num(ctx, 0)]]))).not.toThrow();
+		expect(d.deps).toEqual([a, term]);
+		// Not every dependency has ended, so auto COMPLETE does not end d.
+		expect(d.status).not.toBe("completed");
 	});
 
 	it("rejects mid-fn rewire (a fn mutating its own deps mid-wave = D37 feedback cycle)", () => {

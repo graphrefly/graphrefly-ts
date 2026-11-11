@@ -243,13 +243,15 @@ describe("remote dispatcher helpers over wireBridge facts (D147)", () => {
 				error: "remoteCall: orphan response for unknown or completed request",
 			},
 		]);
+		// R-wave: the batch's events reach the status node in one run; its one status counts the
+		// orphan response's error and keeps the new request pending.
 		expect(status).toContainEqual([
 			"DATA",
 			expect.objectContaining({
-				state: "errored",
+				state: "requested",
 				operation: "upper",
 				requestId: "req-1",
-				pending: 0,
+				pending: 1,
 				errors: 1,
 			}),
 		]);

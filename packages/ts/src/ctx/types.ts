@@ -159,6 +159,13 @@ export interface Ctx {
 	waveData: WaveData;
 	/** Terminal metadata for the same invocation; terminal values never enter `waveData`. */
 	terminal: TerminalData;
+	/**
+	 * R-invalidation: under the manual INVALIDATE policy, `invalidated[i]` is true when an
+	 * INVALIDATE reached dependency i in this wave; the function decides what to clear and whether
+	 * to send INVALIDATE itself. Always false under the auto policy, where the function does not
+	 * run for an INVALIDATE.
+	 */
+	invalidated: readonly boolean[];
 	state: CtxState;
 	/** Release external resources on deactivation (R-cleanup-hooks). */
 	onDeactivation(fn: () => void): void;

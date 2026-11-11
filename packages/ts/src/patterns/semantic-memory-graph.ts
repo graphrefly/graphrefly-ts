@@ -196,8 +196,7 @@ export function memoryRetrievalBundle<T = unknown>(
 		{
 			name: `${name}/snapshot`,
 			factory: "memoryRetrievalSnapshot",
-			completeWhenDepsComplete: false,
-			errorWhenDepsError: false,
+			terminal: { complete: "manual", error: "manual" },
 		},
 	);
 	return {
@@ -331,8 +330,7 @@ export function knowledgeGraphReducerBundle(
 		{
 			name: `${name}/snapshot`,
 			factory: "knowledgeGraphReducerSnapshot",
-			completeWhenDepsComplete: false,
-			errorWhenDepsError: false,
+			terminal: { complete: "manual", error: "manual" },
 		},
 	);
 	return {
@@ -419,8 +417,7 @@ function retrievalProjection<TFact, T>(
 		{
 			name,
 			factory,
-			completeWhenDepsComplete: false,
-			errorWhenDepsError: false,
+			terminal: { complete: "manual", error: "manual" },
 		},
 	);
 }
@@ -442,8 +439,7 @@ function kgProjection<TFact>(
 		{
 			name,
 			factory,
-			completeWhenDepsComplete: false,
-			errorWhenDepsError: false,
+			terminal: { complete: "manual", error: "manual" },
 		},
 	);
 }

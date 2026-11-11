@@ -52,7 +52,7 @@ export function project<TFact, TSelected>(
 				if (selected !== undefined) ctx.down([["DATA", selected]]);
 			}
 		},
-		{ name, factory, partial: true, completeWhenDepsComplete: false, errorWhenDepsError: false },
+		{ name, factory, partial: true, terminal: { complete: "manual", error: "manual" } },
 	);
 }
 

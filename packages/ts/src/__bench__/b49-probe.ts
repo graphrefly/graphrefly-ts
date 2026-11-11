@@ -159,7 +159,9 @@ function diamondProbe(legs = 128, waves = 2_000): string {
 	const g = graph();
 	const src = g.state(0);
 	const mids = Array.from({ length: legs }, (_, i) => g.derived([src], (v) => (v as number) + i));
-	const join = g.derived(mids, (...vals) => vals.reduce((sum, v) => sum + (v as number), 0));
+	const join = g.derived(mids, (...vals) =>
+		vals.reduce<number>((sum, v) => sum + (v as number), 0),
+	);
 	const sink = subscribeCounts(join);
 	for (let i = 1; i <= waves; i++) src.set(i);
 	const expected = waves + 1;

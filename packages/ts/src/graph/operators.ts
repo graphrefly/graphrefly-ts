@@ -15,7 +15,7 @@ import { constructionAcquisitions, type NodeAcquisition } from "../node/owned-ac
  * The D30 throw→ERROR boundary lives once, in the free {@link initNode} (which `g.initNode`
  * funnels through). The pure-ts `operatorOpts/partialOperatorOpts/gatedOperatorOpts` trio is
  * NOT ported: its sole job (`describeKind:"derived"`) is dead under D6/D39 (factory = the
- * REAL operator name); only the `partial`/`terminalAsRealInput` flags survive, carried
+ * REAL operator name); only the `partial`/the manual policy flags survive, carried
  * per-operator in `op.opts`.
  *
  * Config is folded into the factory (`map(fn)`, `scan(reducer, seed)`, `take(n)`, `merge()`),
@@ -237,7 +237,7 @@ export function operatorNodeFn<TIn, TOut>(op: Operator<TIn, TOut>): NodeFn {
 // equals-absorption); a body that returns WITHOUT emitting gets a substrate-synthesized undirty
 // RESOLVED (R-resolved-undirty) — so a "skip this wave" is a bare `return`. Terminal-emitting
 // operators (reduce/last/find/elementAt) read `depTerminal(ctx, 0)` via the
-// `completeWhenDepsComplete:false + terminalAsRealInput:true` flags (R-deps-terminal): the fn fires
+// the manual COMPLETE policy flags (R-deps-terminal): the fn fires
 // on the source's COMPLETE and emits its final value. NOT 1:1 pure-ts ports — the frozen reference
 // (D41) uses a producer + internal `subscribeOr`, the D45-banned describe island; these are
 // declared-dep nodes whose single edge `describe` shows truthfully.
@@ -451,9 +451,9 @@ export function merge<T>(): Operator<T, T> {
 /**
  * reduce: accumulate over the whole source, emit ONE final value on the source's COMPLETE
  * (RxJS `reduce`). Unlike {@link scan} (which emits every step), reduce stays quiet until the
- * source terminates. `completeWhenDepsComplete:false + terminalAsRealInput:true`: the fn fires on
+ * source terminates. the manual COMPLETE policy: the fn fires on
  * the source COMPLETE (reading `terminal===true`) and emits the accumulator + COMPLETE. An empty
- * source emits the seed (RxJS parity). A source ERROR auto-forwards (errorWhenDepsError default).
+ * source emits the seed (RxJS parity). A source ERROR auto-forwards (the auto ERROR policy).
  *
  * @param reducer - Reducer called with the accumulator and each upstream DATA value.
  * @param seed - Initial accumulator value emitted if the source completes empty.
@@ -470,7 +470,7 @@ export function merge<T>(): Operator<T, T> {
 export function reduce<S, T>(reducer: (acc: T, v: S) => T, seed: T): Operator<S, T> {
 	return {
 		factory: "reduce",
-		opts: { completeWhenDepsComplete: false, terminalAsRealInput: true },
+		opts: { terminal: { complete: "manual" } },
 		body: (ctx) => {
 			const b = depBatch(ctx, 0);
 			let acc = ctx.state.get<T>() ?? seed;
@@ -599,7 +599,7 @@ export function first<S>(pred?: (v: S) => boolean): Operator<S, S> {
 
 /**
  * last: emit the last value matching `pred` (or the last value) on the source's COMPLETE.
- * `completeWhenDepsComplete:false + terminalAsRealInput:true`. EDGE (RxJS divergence, flagged):
+ * the manual COMPLETE policy. EDGE (RxJS divergence, flagged):
  * RxJS `last()` throws EmptyError when no value matched; we COMPLETE without a value (no throw) —
  * GraphReFly has no "complete-or-throw" terminal and SENTINEL forbids emitting a
  * placeholder.
@@ -614,7 +614,7 @@ export function first<S>(pred?: (v: S) => boolean): Operator<S, S> {
 export function last<S>(pred?: (v: S) => boolean): Operator<S, S> {
 	return {
 		factory: "last",
-		opts: { completeWhenDepsComplete: false, terminalAsRealInput: true },
+		opts: { terminal: { complete: "manual" } },
 		body: (ctx) => {
 			const b = depBatch(ctx, 0);
 			if (b) for (const v of b) if (!pred || pred(v as S)) ctx.state.set({ v });
@@ -641,7 +641,7 @@ export function last<S>(pred?: (v: S) => boolean): Operator<S, S> {
 export function find<S>(pred: (v: S) => boolean): Operator<S, S> {
 	return {
 		factory: "find",
-		opts: { completeWhenDepsComplete: false, terminalAsRealInput: true },
+		opts: { terminal: { complete: "manual" } },
 		body: (ctx) => {
 			const b = depBatch(ctx, 0);
 			if (b) {
@@ -672,7 +672,7 @@ export function find<S>(pred: (v: S) => boolean): Operator<S, S> {
 export function elementAt<S>(index: number): Operator<S, S> {
 	return {
 		factory: "elementAt",
-		opts: { completeWhenDepsComplete: false, terminalAsRealInput: true },
+		opts: { terminal: { complete: "manual" } },
 		body: (ctx) => {
 			const b = depBatch(ctx, 0);
 			let count = ctx.state.get<number>() ?? 0;
@@ -701,7 +701,7 @@ export interface TapObserver<T> {
 /**
  * tap: invoke a side effect on each DATA (function form) or on data/error/complete (observer form);
  * values pass through unchanged. The observer form reads source terminals
- * (`completeWhenDepsComplete:false + errorWhenDepsError:false + terminalAsRealInput:true`) so it can
+ * (the manual COMPLETE and ERROR policies) so it can
  * call `error`/`complete` then forward the terminal; the function form lets the substrate
  * auto-cascade terminals.
  * @param fnOrObserver - fn or observer value used by the helper.
@@ -731,29 +731,25 @@ export function tap<S>(fnOrObserver: ((v: S) => void) | TapObserver<S>): Operato
 	return {
 		factory: "tap",
 		opts: {
-			completeWhenDepsComplete: false,
-			errorWhenDepsError: false,
-			terminalAsRealInput: true,
+			terminal: { complete: "manual", error: "manual" },
 		},
 		body: (ctx) => {
-			const terminal = depTerminal(ctx, 0);
-			if (isTerminalComplete(terminal)) {
-				obs.complete?.();
-				ctx.down([["COMPLETE"]]);
-				return;
-			}
-			if (isTerminalError(terminal)) {
-				const err = terminalErrorValue(terminal);
-				obs.error?.(err);
-				ctx.down([["ERROR", err]]);
-				return;
-			}
+			// Values that arrived with the terminal in the same array come first (R-wave order).
 			const b = depBatch(ctx, 0);
 			if (b)
 				for (const v of b) {
 					obs.data?.(v as S);
 					ctx.down([["DATA", v]]);
 				}
+			const terminal = depTerminal(ctx, 0);
+			if (isTerminalComplete(terminal)) {
+				obs.complete?.();
+				ctx.down([["COMPLETE"]]);
+			} else if (isTerminalError(terminal)) {
+				const err = terminalErrorValue(terminal);
+				obs.error?.(err);
+				ctx.down([["ERROR", err]]);
+			}
 		},
 	};
 }
@@ -880,8 +876,8 @@ export function settle<S>(opts: SettleOpts<S>): Operator<S, S> {
 }
 
 // ── Slice 3 — error-handling control (CSP-2.7, D40) ──
-// rescue/catchError ABSORB the source ERROR (errorWhenDepsError:false) and read the error payload
-// from `depTerminal(ctx, 0)` (R-deps-terminal). They set completeWhenDepsComplete:false so a
+// rescue/catchError ABSORB the source ERROR (the manual ERROR policy) and read the error payload
+// from `depTerminal(ctx, 0)` (R-deps-terminal). They set the manual COMPLETE policy so a
 // normal source COMPLETE is forwarded explicitly — which ALSO sidesteps B40 (the
 // completeWhenDepsComplete:true × absorbed-errored-dep auto-complete gap): there is no auto-complete
 // to block. valve is a [source, control] gate (state-verb-legitimate control input).
@@ -904,9 +900,7 @@ export function rescue<S>(recover: (err: unknown) => S): Operator<S, S> {
 	return {
 		factory: "rescue",
 		opts: {
-			errorWhenDepsError: false,
-			completeWhenDepsComplete: false,
-			terminalAsRealInput: true,
+			terminal: { complete: "manual", error: "manual" },
 		},
 		body: (ctx) => {
 			const b = depBatch(ctx, 0);
@@ -943,9 +937,9 @@ export interface ValveOpts {
 /**
  * valve: forward the source's DATA only while `control` (dep 1) is truthy; when closed, stay quiet
  * (undirty RESOLVED). `[source, control]` declared deps + `partial:true` (the control wave can fire
- * before the source ever delivers). `completeWhenDepsComplete:false` — closing the gate (control
+ * before the source ever delivers). the manual COMPLETE policy — closing the gate (control
  * terminating) does NOT complete the valve; only the SOURCE's terminal (read via
- * `terminalAsRealInput`) is forwarded. The `state`-verb control input is a legitimate external
+ * the manual policy) is forwarded. The `state`-verb control input is a legitimate external
  * boundary (D4 / D54), not a forbidden imperative trigger.
  * @param opts - Options that configure the helper.
  * @returns A `Operator<S, S>` value.
@@ -959,7 +953,7 @@ export function valve<S>(opts?: ValveOpts): Operator<S, S> {
 	const abortInFlight = opts?.abortInFlight;
 	return {
 		factory: "valve",
-		opts: { partial: true, completeWhenDepsComplete: false, terminalAsRealInput: true },
+		opts: { partial: true, terminal: { complete: "manual" } },
 		body: (ctx) => {
 			const srcBatch = depBatch(ctx, 0);
 			const ctlBatch = depBatch(ctx, 1);
@@ -978,27 +972,20 @@ export function valve<S>(opts?: ValveOpts): Operator<S, S> {
 				});
 			}
 
-			// Source terminal forwarding (control terminal is absorbed by completeWhenDepsComplete:false).
-			if (isTerminalComplete(srcTerminal)) {
-				ctx.down([["COMPLETE"]]);
-				return;
+			if (controlValue) {
+				if (srcBatch && srcBatch.length > 0) {
+					for (const v of srcBatch) ctx.down([["DATA", v]]);
+				} else {
+					// Gate just opened this wave (control fired, source didn't): re-emit the last source value.
+					const srcLatest = depLatest(ctx, 0);
+					if (ctlBatch && ctlBatch.length > 0 && srcLatest !== undefined)
+						ctx.down([["DATA", srcLatest as S]]);
+				}
 			}
-			if (isTerminalError(srcTerminal)) {
-				ctx.down([["ERROR", terminalErrorValue(srcTerminal)]]);
-				return;
-			}
-
-			if (!controlValue) return; // gate closed → quiet (undirty RESOLVED)
-
-			if (srcBatch && srcBatch.length > 0) {
-				for (const v of srcBatch) ctx.down([["DATA", v]]);
-				return;
-			}
-			// Gate just opened this wave (control fired, source didn't): re-emit the last source value.
-			const srcLatest = depLatest(ctx, 0);
-			if (ctlBatch && ctlBatch.length > 0 && srcLatest !== undefined) {
-				ctx.down([["DATA", srcLatest as S]]);
-			}
+			// Then the source's terminal, after values that came with it; a control terminal is
+			// absorbed by the manual COMPLETE policy. A closed gate sends nothing (the kernel's RESOLVED).
+			if (isTerminalComplete(srcTerminal)) ctx.down([["COMPLETE"]]);
+			else if (isTerminalError(srcTerminal)) ctx.down([["ERROR", terminalErrorValue(srcTerminal)]]);
 		},
 	};
 }

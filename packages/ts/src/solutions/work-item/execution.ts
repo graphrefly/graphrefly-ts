@@ -194,8 +194,7 @@ export function workItemExecutionRecipe<TInput = unknown>(
 			name: `${name}/requestFacts`,
 			factory: "workItemExecutionRequestFacts",
 			partial: true,
-			completeWhenDepsComplete: false,
-			errorWhenDepsError: false,
+			terminal: { complete: "manual", error: "manual" },
 		},
 	);
 	const requests = graph.node<AgentRequestIssued<TInput>>(

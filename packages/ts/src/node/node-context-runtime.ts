@@ -29,6 +29,7 @@ export function nodeBuildCtx<T>(self: NodeRuntimeHost<T>): Ctx {
 		waveData: self._dep.waveData.map((waves) => waves.map((w) => [...w])),
 		waveLive: self._dep.waveLive.map((waves) => [...waves]),
 		terminal: self._dep.terminalInput.map(terminalView),
+		invalidated: nodeInvalidatedView(self),
 		latest: [...self._dep.prev],
 	});
 }
@@ -39,6 +40,7 @@ export function nodeMakeCtx<T>(
 		waveData: unknown[][][];
 		waveLive?: boolean[][];
 		terminal: unknown[];
+		invalidated?: boolean[];
 		latest: unknown[];
 	},
 ): Ctx {
@@ -64,6 +66,7 @@ export function nodeMakeCtx<T>(
 		},
 		waveData: snapshot?.waveData ?? self._dep.waveData,
 		terminal: snapshot?.terminal ?? self._dep.terminalInput.map(terminalView),
+		invalidated: snapshot?.invalidated ?? nodeInvalidatedView(self),
 		state: self._makeState(),
 		onDeactivation: (fn) => {
 			if (self._released) return;
@@ -100,8 +103,15 @@ export function nodeMakeCtx<T>(
 export function nodeRefreshCtx<T>(self: NodeRuntimeHost<T>, ctx: Ctx): void {
 	(ctx as { waveData: WaveData }).waveData = self._dep.waveData;
 	(ctx as { terminal: TerminalData }).terminal = self._dep.terminalInput.map(terminalView);
+	(ctx as { invalidated: readonly boolean[] }).invalidated = nodeInvalidatedView(self);
 	ctx[CTX_DEP_CACHE] = { latest: self._dep.prev };
 	setCtxDepWaveOrigin(ctx, { live: self._dep.waveLive });
+}
+
+function nodeInvalidatedView<T>(self: NodeRuntimeHost<T>): boolean[] {
+	return self._slot.invalidatePolicy === "manual"
+		? [...self._dep.invalidated]
+		: self._dep.invalidated.map(() => false);
 }
 
 export function nodeMakeState<T>(self: NodeRuntimeHost<T>): CtxState {
@@ -121,7 +131,7 @@ export function nodeMakeState<T>(self: NodeRuntimeHost<T>): CtxState {
  * external emit of this node, with the kernel's PENDING before its values (R-wave). Each
  * ctx.down call stays its own array, in call order.
  */
-function nodeDeferQuietOutput<T>(self: NodeRuntimeHost<T>, msgs: Wave): void {
+export function nodeDeferQuietOutput<T>(self: NodeRuntimeHost<T>, msgs: Wave): void {
 	const array: Wave = [...msgs];
 	deferRewire(
 		self._core,

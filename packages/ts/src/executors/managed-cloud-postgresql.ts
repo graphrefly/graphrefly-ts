@@ -1202,50 +1202,42 @@ export function managedCloudPostgresqlRuntime(
 	const admittedEnvelopes = group.node<ManagedCloudPostgresqlAdmittedEnvelope>([], null, {
 		name: `${name}/admittedEnvelopes`,
 		factory: "managedCloudPostgresqlAdmittedEnvelopes",
-		completeWhenDepsComplete: false,
-		errorWhenDepsError: false,
+		terminal: { complete: "manual", error: "manual" },
 	});
 	const lifecycle = group.node<ManagedCloudPostgresqlLifecycleFact>([], null, {
 		name: `${name}/lifecycle`,
 		factory: "managedCloudPostgresqlLifecycle",
-		completeWhenDepsComplete: false,
-		errorWhenDepsError: false,
+		terminal: { complete: "manual", error: "manual" },
 	});
 	const credentialLifecycle = group.node<ManagedCloudPostgresqlCredentialLifecycleFact>([], null, {
 		name: `${name}/credentialLifecycle`,
 		factory: "managedCloudPostgresqlCredentialLifecycle",
-		completeWhenDepsComplete: false,
-		errorWhenDepsError: false,
+		terminal: { complete: "manual", error: "manual" },
 	});
 	const runStatus = group.node<ToolProviderAdapterRunStatus>([], null, {
 		name: `${name}/runStatus`,
 		factory: "managedCloudPostgresqlRunStatus",
-		completeWhenDepsComplete: false,
-		errorWhenDepsError: false,
+		terminal: { complete: "manual", error: "manual" },
 	});
 	const outcomes = group.node<ExecutorOutcome>([], null, {
 		name: `${name}/outcomes`,
 		factory: "managedCloudPostgresqlOutcomes",
-		completeWhenDepsComplete: false,
-		errorWhenDepsError: false,
+		terminal: { complete: "manual", error: "manual" },
 	});
 	const cancellations = group.node<ManagedCloudPostgresqlCancellationPosture>([], null, {
 		name: `${name}/cancellations`,
 		factory: "managedCloudPostgresqlCancellations",
-		completeWhenDepsComplete: false,
-		errorWhenDepsError: false,
+		terminal: { complete: "manual", error: "manual" },
 	});
 	const issues = group.node<DataIssue>([], null, {
 		name: `${name}/issues`,
 		factory: "managedCloudPostgresqlIssues",
-		completeWhenDepsComplete: false,
-		errorWhenDepsError: false,
+		terminal: { complete: "manual", error: "manual" },
 	});
 	const audit = group.node<AgentRuntimeAuditRecord>([], null, {
 		name: `${name}/audit`,
 		factory: "managedCloudPostgresqlAudit",
-		completeWhenDepsComplete: false,
-		errorWhenDepsError: false,
+		terminal: { complete: "manual", error: "manual" },
 	});
 	let manifest: ManagedCloudPostgresqlManifest | undefined;
 	let posture: ManagedCloudPostgresqlReadiness | undefined;

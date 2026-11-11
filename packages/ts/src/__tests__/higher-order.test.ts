@@ -306,7 +306,7 @@ describe("mergeMap (D47 / R-rewire-deferred)", () => {
 		const afterError = msgs.length;
 		a.next(11);
 		b.next(20);
-		s.down([["DATA", 3]]);
+		expect(() => s.down([["DATA", 3]])).toThrow(/ended/); // host input to an ended node (R-terminals)
 		expect(msgs).toHaveLength(afterError);
 	});
 

@@ -12,8 +12,7 @@
  * output; mergeMap bounds memory). Built on the bare `node` primitive via the {@link Operator}
  * factory shape + the `g.initNode` funnel (D43), so the real factory name shows in describe.
  *
- * Lifecycle folding (D47/D81): completeWhenDepsComplete:false + terminalAsRealInput:true +
- * errorWhenDepsError:false — the operator owns completion (emit COMPLETE only when the SOURCE is
+ * Lifecycle folding (D47/D81): the manual COMPLETE and ERROR policies — the operator owns completion (emit COMPLETE only when the SOURCE is
  * done AND no inner is live / pending), and observes source/inner ERROR so it can remove every live
  * inner before emitting ERROR. Those removals drain after terminal via D62: terminal seals output,
  * while helper-owned upstream work still sees unsubscribeDep->_deactivate->onDeactivation teardown.
@@ -281,7 +280,7 @@ function mapOperator<TIn, TOut>(
 		factory,
 		body,
 		// D47/D81 folding: the operator owns completion + terminal ERROR cleanup.
-		opts: { completeWhenDepsComplete: false, terminalAsRealInput: true, errorWhenDepsError: false },
+		opts: { terminal: { complete: "manual", error: "manual" } },
 	};
 }
 
@@ -390,10 +389,10 @@ interface RepeatState {
  *
  * Mechanism (reuses the D47 self-rewire substrate, like the *Map family; NOT an internal subscribe,
  * D45): on activation it mints round 0's inner via `ctx.rewireNext.subscribeDep`; each round's inner DATA
- * is forwarded; on the inner's COMPLETE (`completeWhenDepsComplete:false + terminalAsRealInput:true`)
+ * is forwarded; on the inner's COMPLETE (the manual COMPLETE policy)
  * it unsubscribeDep's the finished inner and, if rounds remain, subscribeDep's a FRESH `factory()` inner (a
  * distinct node → a real net change, not the no-op same-node case); after the last round it emits
- * COMPLETE. An inner ERROR auto-forwards (errorWhenDepsError default → repeat errors). The body is
+ * COMPLETE. An inner ERROR auto-forwards (the auto ERROR policy → repeat errors). The body is
  * SELF-CATCHING (D30) and re-supplied on every rewire. The factory MUST mint a FRESH node per call
  * (a factory returning the same Node makes unsubscribeDep+subscribeDep a net-zero no-op → repeat wedges).
  * @param factory - factory value used by the helper.
@@ -454,6 +453,6 @@ export function repeat<S>(factory: () => NodeInput<S>, count: number): Operator<
 	return {
 		factory: "repeat",
 		body,
-		opts: { completeWhenDepsComplete: false, terminalAsRealInput: true },
+		opts: { terminal: { complete: "manual" } },
 	};
 }

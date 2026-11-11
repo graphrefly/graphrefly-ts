@@ -343,6 +343,7 @@ describe("reactiveIndex (D60 #4) — ordered snapshot + Z reverse-lookup", () =>
 		idx.upsert("c", 3, 3);
 		max.set(1);
 		expect(data<ReadonlyMap<string, number>>(msgs).map((m) => [...m.keys()])).toEqual([
+			[],
 			["a"],
 			["a", "b"],
 			["a", "b", "c"],
@@ -424,8 +425,9 @@ describe("reactiveLog (D60 #5) — incremental view/scan + SENTINEL reject + dec
 		const { msgs: windowMsgs } = collect(window);
 		const { msgs: toEndMsgs } = collect(toEnd);
 
-		expect(data(windowMsgs)).toEqual([]);
-		expect(data(toEndMsgs)).toEqual([]);
+		// R-lifetime: activation runs each view once, so it starts with its current window.
+		expect(data(windowMsgs)).toEqual([[2, 3, 4]]);
+		expect(data(toEndMsgs)).toEqual([[7, 8, 9]]);
 
 		log.append(10);
 		expect(data(windowMsgs).at(-1)).toEqual([2, 3, 4]);
@@ -542,7 +544,7 @@ describe("reactiveLog (D60 #5) — incremental view/scan + SENTINEL reject + dec
 		const log = reactiveLog<number>([10, 20, 30, 40, 50, 60, 70, 80]);
 		const window = log.slice(2, 5);
 		const { msgs } = collect(window);
-		expect(data(msgs)).toEqual([]);
+		expect(data(msgs)).toEqual([[30, 40, 50]]);
 
 		log.trimHead(3);
 
@@ -614,7 +616,8 @@ describe("reactiveLog (D60 #5) — incremental view/scan + SENTINEL reject + dec
 		log.appendMany([2, 3, 4]);
 		log.clear();
 
-		expect(data(msgs)).toEqual([24, 1]);
+		// The activation run folds the empty log to the seed; then 2*3*4, then the cleared log.
+		expect(data(msgs)).toEqual([1, 24, 1]);
 		expect((product as Node<unknown> & { factory?: string }).factory).toBe("reactiveLog.scan");
 	});
 

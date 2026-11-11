@@ -10,11 +10,29 @@ export function nodeActivate<T>(self: NodeRuntimeHost<T>): void {
 	self._restoredActivationPending = false;
 	self._dep.unsubs = new Array(self._slot.deps.length);
 	self._dep.idxBoxes = new Array(self._slot.deps.length);
-	for (const dep of self._slot.deps) self._subscribeDepAt(dep, { seedRestored: seedRestoredDeps });
-	// Depless producer (fn, no deps): run once on activation.
-	if (self._slot.deps.length === 0 && self._slot.handle !== null && !self._wave.hasCalledFnOnce) {
-		self._runWave();
+	// R-lifetime: activation acquires every dependency, then runs the function once on their
+	// snapshots (and whatever they sent as they activated).
+	self._wave.activating = true;
+	try {
+		for (const dep of self._slot.deps)
+			self._subscribeDepAt(dep, { seedRestored: seedRestoredDeps });
+	} finally {
+		self._wave.activating = false;
 	}
+	const deferred = self._wave.rewireRunPending;
+	self._wave.rewireRunPending = false;
+	if (self._slot.handle === null && self._slot.deps.length === 0) return; // a state node has no function
+	if (self._wave.pending > 0) return; // a dependency is mid-wave; the run waits for it
+	// A seeded restore holds its restored values as if it had produced them; it runs only when a
+	// dependency sends something live (the checkpoint stage of D797-KERNEL-MIGRATION-TS revisits
+	// this against R-subscription's seed note).
+	if (seedRestoredDeps) {
+		if (self._slot.deps.length === 0) {
+			if (!self._wave.hasCalledFnOnce) self._runWave();
+		} else if (deferred) self._tryRun();
+		return;
+	}
+	self._runWave();
 }
 
 export function nodeSubscribeDepAt<T>(
@@ -25,15 +43,7 @@ export function nodeSubscribeDepAt<T>(
 	const idx0 = self._slot.deps.indexOf(depNode);
 	const box = { v: idx0 };
 	let ignoreInitialPush = opts.seedRestored === true;
-	if (ignoreInitialPush && idx0 !== -1) {
-		self._seedRestoredDepAt(idx0, depNode);
-		const dep = nodeRuntimeHost(depNode);
-		if (dep._value.terminal !== undefined && !dep._slot.resubscribable) {
-			self._dep.unsubs[idx0] = () => {};
-			self._dep.idxBoxes[idx0] = box;
-			return;
-		}
-	}
+	if (ignoreInitialPush && idx0 !== -1) self._seedRestoredDepAt(idx0, depNode);
 	const dependent: import("../ctx/types.js").DependentSink = (msg, delivery) => {
 		if (ignoreInitialPush && delivery?.snapshot === true) return;
 		if (ignoreInitialPush) ignoreInitialPush = false;
@@ -72,6 +82,7 @@ export function nodeSeedRestoredDepAt<T>(
 	self._dep.tier[idx] = seedData ? 3 : 0;
 	self._dep.terminal[idx] = dep._value.terminal;
 	self._dep.terminalInput[idx] = undefined;
+	self._dep.invalidated[idx] = false;
 }
 
 export function nodeDeactivate<T>(self: NodeRuntimeHost<T>): void {
@@ -83,8 +94,9 @@ export function nodeDeactivate<T>(self: NodeRuntimeHost<T>): void {
 	self._hooks.onDeactivation = [];
 	self._hooks.onInvalidate = [];
 
+	// R-lifetime: deactivation drops a computed node's retained values unless it has ended.
 	const isCompute = self._slot.handle !== null || self._slot.deps.length > 0;
-	if (isCompute) {
+	if (isCompute && self._value.terminal === undefined) {
 		// RAM: compute nodes clear cache; reconnect re-runs fn fresh.
 		self._value.cache = SENTINEL;
 		self._value.hasData = false;
@@ -206,6 +218,7 @@ export function nodeResetDepState<T>(self: NodeRuntimeHost<T>): void {
 		self._dep.tier[i] = 0;
 		self._dep.terminal[i] = undefined;
 		self._dep.terminalInput[i] = undefined;
+		self._dep.invalidated[i] = false;
 	}
 	self._wave.pending = 0;
 	self._wave.emittedDirtyThisWave = false;

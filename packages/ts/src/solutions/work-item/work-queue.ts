@@ -159,8 +159,7 @@ export function workItemWorkQueueRecipe(
 			name: `${name}/runtime`,
 			factory: "workItemWorkQueueEvidenceProjector",
 			partial: true,
-			completeWhenDepsComplete: false,
-			errorWhenDepsError: false,
+			terminal: { complete: "manual", error: "manual" },
 		},
 	);
 	return {
@@ -380,7 +379,7 @@ function project<T>(
 				if (selected !== undefined) ctx.down([["DATA", selected]]);
 			}
 		},
-		{ name, factory, partial: true, completeWhenDepsComplete: false, errorWhenDepsError: false },
+		{ name, factory, partial: true, terminal: { complete: "manual", error: "manual" } },
 	);
 }
 

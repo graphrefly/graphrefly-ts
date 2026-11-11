@@ -262,9 +262,7 @@ export function audit<S>(durationSelector: (v: S) => NodeInput<unknown>): Operat
 		body,
 		opts: {
 			partial: true,
-			completeWhenDepsComplete: false,
-			errorWhenDepsError: false,
-			terminalAsRealInput: true,
+			terminal: { complete: "manual", error: "manual" },
 		},
 	};
 }
@@ -338,7 +336,7 @@ export function timeout<S>(source: Node<S>, ms: number): Node<S> {
 				ctx.down([["COMPLETE"]]);
 				return;
 			}
-			// source ERROR (absorbed via errorWhenDepsError:false) → forward it.
+			// source ERROR (absorbed via the manual ERROR policy) → forward it.
 			if (isTerminalError(srcTerminal)) {
 				if (st.timer) ctx.rewireNext.unsubscribeDep(st.timer, body);
 				ctx.down([["ERROR", terminalErrorValue(srcTerminal)]]);
@@ -365,9 +363,7 @@ export function timeout<S>(source: Node<S>, ms: number): Node<S> {
 			body,
 			opts: {
 				partial: true,
-				completeWhenDepsComplete: false,
-				errorWhenDepsError: false,
-				terminalAsRealInput: true,
+				terminal: { complete: "manual", error: "manual" },
 			},
 		},
 		[source as Node<unknown>, initial],
@@ -424,9 +420,7 @@ export function bufferTime<S>(source: Node<S>, ms: number): Node<S[]> {
 			body,
 			opts: {
 				partial: true,
-				completeWhenDepsComplete: false,
-				errorWhenDepsError: false,
-				terminalAsRealInput: true,
+				terminal: { complete: "manual", error: "manual" },
 			},
 		},
 		[source as Node<unknown>, iv],

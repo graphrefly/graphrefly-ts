@@ -240,6 +240,7 @@ function attachGovernedConsumer(
 	const protectedEffect = g.effect(
 		[adapter.admission.admissions],
 		(admission) => {
+			if (admission === undefined) return;
 			// This placeholder effect reads only admissions. The local Set demonstrates the separate
 			// application-owned effect-receipt boundary; it makes no durability claim.
 			if (applicationEffectReceipts.has(admission.admissionId)) return;

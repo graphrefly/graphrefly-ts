@@ -20,6 +20,8 @@ export interface DepBookkeeping {
 	tier: number[];
 	terminal: Array<true | unknown | undefined>;
 	terminalInput: Array<true | unknown | undefined>;
+	/** Under the manual INVALIDATE policy: an INVALIDATE arrived on this input in this run. */
+	invalidated: boolean[];
 	unsubs: Array<() => void>;
 	idxBoxes: Array<{ v: number }>;
 }
@@ -47,6 +49,8 @@ export interface WaveState {
 	/** The arrays the running function sent; published after it returns (R-wave). */
 	runOutput: Wave[];
 	inDepMutation: boolean;
+	/** R-lifetime: dependencies are being acquired; the first run waits for all their snapshots. */
+	activating: boolean;
 	rewireRunPending: boolean;
 }
 
@@ -93,10 +97,9 @@ export interface NodeSlot<_T> {
 	dispatcher: Dispatcher;
 	environment: EnvironmentDrivers;
 	partial: boolean;
-	terminalAsRealInput: boolean;
-	completeWhenDepsComplete: boolean;
-	errorWhenDepsError: boolean;
-	resubscribable: boolean;
+	completePolicy: "auto" | "manual";
+	errorPolicy: "auto" | "manual";
+	invalidatePolicy: "auto" | "manual";
 	quiet: boolean;
 	dynamic: boolean;
 	name?: string;
@@ -271,6 +274,7 @@ export function makeDepBookkeeping(depCount: number): DepBookkeeping {
 		tier: new Array(depCount),
 		terminal: new Array(depCount),
 		terminalInput: new Array(depCount),
+		invalidated: new Array(depCount),
 		unsubs: [],
 		idxBoxes: [],
 	};
@@ -285,6 +289,7 @@ export function makeDepBookkeeping(depCount: number): DepBookkeeping {
 		dep.tier[i] = 0;
 		dep.terminal[i] = undefined;
 		dep.terminalInput[i] = undefined;
+		dep.invalidated[i] = false;
 	}
 	return dep;
 }

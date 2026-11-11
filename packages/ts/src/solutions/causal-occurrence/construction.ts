@@ -1,4 +1,4 @@
-import { depBatch } from "../../ctx/types.js";
+import { depBatch, depWaves } from "../../ctx/types.js";
 import type { ConstructionScope, StartupFact } from "../../graph/construction-scope.js";
 import type { Graph } from "../../graph/graph.js";
 import type { Node } from "../../node/node.js";
@@ -114,16 +114,20 @@ function projectFact<T, K extends AuthorityFact<T>["kind"]>(
 	return graph.node(
 		[authority],
 		(ctx) => {
-			const values = ((depBatch(ctx, 0) ?? []) as AuthorityEmission<T>[])
-				.filter((raw) => raw.kind === "fact" && raw.fact.kind === kind)
-				.map(
-					(raw) =>
-						[
-							"DATA",
-							(raw as unknown as { fact: Extract<AuthorityFact<T>, { kind: K }> }).fact.value,
-						] as const,
-				);
-			if (values.length > 0) ctx.down(values);
+			// Each fact keeps its own array (R-wave): the authority publishes facts one array each,
+			// and one delivery brings them all to this run.
+			for (const wave of depWaves(ctx, 0)) {
+				const values = (wave as AuthorityEmission<T>[])
+					.filter((raw) => raw.kind === "fact" && raw.fact.kind === kind)
+					.map(
+						(raw) =>
+							[
+								"DATA",
+								(raw as unknown as { fact: Extract<AuthorityFact<T>, { kind: K }> }).fact.value,
+							] as const,
+					);
+				if (values.length > 0) ctx.down(values);
+			}
 		},
 		{ name, factory: "causalOccurrenceFactProjection" },
 	);
@@ -168,11 +172,19 @@ export function buildCausalNodes<T>(
 	const authority = graph.node<AuthorityEmission<T>>(
 		[arrivals],
 		(ctx) => {
-			const { state, outputs, committedViewChanged } = transitionCausalAuthority(
-				ctx.state.get<RuntimeState<T>>(),
-				(depBatch(ctx, 0) ?? []) as Arrival<T>[],
-				opts,
-			);
+			// One transition per input array, in order: a delivery brings a wave's arrays to one run
+			// (R-wave), and each array is an arrival step whose pending work the next step may need.
+			let state = ctx.state.get<RuntimeState<T>>();
+			const outputs: AuthorityFact<T>[] = [];
+			let committedViewChanged = false;
+			const waves = depWaves(ctx, 0);
+			for (const wave of waves.length > 0 ? waves : [[]]) {
+				const step = transitionCausalAuthority(state, wave as Arrival<T>[], opts);
+				state = step.state;
+				outputs.push(...step.outputs);
+				committedViewChanged ||= step.committedViewChanged;
+			}
+			if (state === undefined) return;
 			const committedEffects = prepareCommittedEffectsView(
 				state,
 				committedViewChanged,
@@ -208,8 +220,7 @@ export function buildCausalNodes<T>(
 		{
 			name: `${opts.name}/authority`,
 			factory: "causalOccurrenceAuthority",
-			completeWhenDepsComplete: false,
-			errorWhenDepsError: true,
+			terminal: { complete: "manual" },
 		},
 	);
 
@@ -220,8 +231,8 @@ export function buildCausalNodes<T>(
 	const released = graph.node<CausalOccurrence<T>>(
 		[rawRelease],
 		(ctx) => {
-			const values = depBatch(ctx, 0) ?? [];
-			if (values.length > 0) ctx.down(values.map((value) => ["DATA", value]));
+			for (const wave of depWaves(ctx, 0))
+				if (wave.length > 0) ctx.down(wave.map((value) => ["DATA", value]));
 		},
 		{
 			name: `${opts.name}/released`,

@@ -92,8 +92,7 @@ export function cqrsMessagingRecipe<TPayload = unknown, TCommand = unknown, TEve
 			name: `${name}/runtime`,
 			factory: "cqrsMessagingRuntime",
 			partial: true,
-			completeWhenDepsComplete: false,
-			errorWhenDepsError: false,
+			terminal: { complete: "manual", error: "manual" },
 		},
 	);
 	const issues = project(graph, runtime, `${name}/issues`, "cqrsMessagingIssues", (fact) =>
@@ -221,8 +220,7 @@ export function cqrsMessageAckCommands(
 			name: opts.name ?? "cqrsMessaging/ackCommands",
 			factory: "cqrsMessagingAckCommands",
 			partial: true,
-			completeWhenDepsComplete: false,
-			errorWhenDepsError: false,
+			terminal: { complete: "manual", error: "manual" },
 		},
 	);
 }
@@ -270,8 +268,7 @@ export function cqrsEventOutboxCommands<TEvent>(
 		{
 			name: opts.name ?? "cqrsMessaging/outboxCommands",
 			factory: "cqrsMessagingOutboxCommands",
-			completeWhenDepsComplete: false,
-			errorWhenDepsError: false,
+			terminal: { complete: "manual", error: "manual" },
 		},
 	);
 }
@@ -291,7 +288,7 @@ function project<T, TCommand>(
 				if (value !== undefined) ctx.down([["DATA", value]]);
 			}
 		},
-		{ name, factory, partial: true, completeWhenDepsComplete: false, errorWhenDepsError: false },
+		{ name, factory, partial: true, terminal: { complete: "manual", error: "manual" } },
 	);
 }
 

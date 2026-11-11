@@ -89,8 +89,7 @@ export function agenticMemoryRetentionBundle<T = unknown>(
 		{
 			name: `${name}/projection`,
 			factory: "agenticMemoryRetention",
-			completeWhenDepsComplete: false,
-			errorWhenDepsError: false,
+			terminal: { complete: "manual", error: "manual" },
 		},
 	);
 	return {

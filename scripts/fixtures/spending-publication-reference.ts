@@ -78,7 +78,6 @@ export function buildReferencePublication<T>(
 		{
 			name: "requestMaterialJoin",
 			factory: "spendingRequestMaterialJoin",
-			errorWhenDepsError: true,
 		},
 	);
 	const publication = scope.node<ReturnType<typeof oraclePublication>>(
@@ -90,7 +89,7 @@ export function buildReferencePublication<T>(
 				ctx.down([["DATA", result]]);
 			}
 		},
-		{ name: "publication", factory: "spendingPublication", errorWhenDepsError: true },
+		{ name: "publication", factory: "spendingPublication" },
 	);
 	return Object.freeze({ causal, requestMaterialJoin: join, publication });
 }

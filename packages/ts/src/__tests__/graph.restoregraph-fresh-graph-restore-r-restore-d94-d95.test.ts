@@ -189,7 +189,7 @@ describe("restoreGraph — fresh graph restore (R-restore / D94 / D95)", () => {
 		const memo = original.node([src], (ctx) => ctx.down([["DATA", depLatest(ctx, 0) as number]]), {
 			name: "memo",
 			restore: { ref: "memo" },
-			completeWhenDepsComplete: false,
+			terminal: { complete: "manual" },
 		});
 		collect(memo);
 		src.down([["COMPLETE"]]);
@@ -204,7 +204,7 @@ describe("restoreGraph — fresh graph restore (R-restore / D94 / D95)", () => {
 					(runCtx) => runCtx.down([["DATA", depLatest(runCtx, 0) as number]]),
 					{
 						name: ctx.name,
-						completeWhenDepsComplete: false,
+						terminal: { complete: "manual" },
 					},
 				);
 			},
@@ -433,8 +433,14 @@ describe("restoreGraph — fresh graph restore (R-restore / D94 / D95)", () => {
 		const restored = restoreGraph(g.checkpoint(), { registry: defaultRestoreRegistry });
 		expect(restored.find("done")?.status).toBe("completed");
 		expect(restored.find("failed")?.status).toBe("errored");
-		expect(() => restored.find("done")?.subscribe(() => {})).toThrow(/non-resubscribable/);
-		expect(() => restored.find("failed")?.subscribe(() => {})).toThrow(/non-resubscribable/);
+		// R-terminals: an ended node can be subscribed; its snapshot carries its values and terminal.
+		const doneLog: unknown[] = [];
+		const failedLog: unknown[] = [];
+		restored.find("done")?.subscribe((msgs) => doneLog.push(msgs));
+		restored.find("failed")?.subscribe((msgs) => failedLog.push(msgs));
+		expect(doneLog).toEqual([[["START"], ["DATA", 1], ["COMPLETE"]]]);
+		expect(failedLog).toEqual([[["START"], ["DATA", 2], ["ERROR", "boom"]]]);
+		expect(restored.find("done")?.status).toBe("completed");
 	});
 
 	it("checkpoints and restores D109 node runtime versions", () => {

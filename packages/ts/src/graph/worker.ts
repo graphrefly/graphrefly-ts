@@ -168,8 +168,7 @@ export function workerDerived<TInput, TResult>(
 		name: opts.name ?? "workerDerived",
 		factory: "workerDerived",
 		pool: "async",
-		completeWhenDepsComplete: false,
-		errorWhenDepsError: false,
+		terminal: { complete: "manual", error: "manual" },
 	});
 }
 

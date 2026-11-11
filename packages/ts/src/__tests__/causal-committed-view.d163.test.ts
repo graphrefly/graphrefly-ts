@@ -376,7 +376,9 @@ describe("D163 committed effects through ordinary DATA", () => {
 		expect(() => f.send("effectOutcomes", a.outcome)).not.toThrow();
 		expect(f.graph.find("causal/authority")?.status).toBe("errored");
 		expect(failure).toHaveBeenCalled();
-		expect(f.state()).toBe(before);
+		// The ended authority dropped its private state with its lifetime (R-lifetime); the prior
+		// commit it held was not changed by the failed run.
+		expect(f.state()).toBeUndefined();
 		expect(before.effects.values().next().value?.outcome).toBeUndefined();
 	});
 });

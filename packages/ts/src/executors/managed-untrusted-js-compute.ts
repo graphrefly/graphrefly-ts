@@ -501,38 +501,32 @@ export function managedUntrustedJsComputeRuntime(
 	const admittedRunRequests = group.node<ToolProviderAdapterRunRequested>([], null, {
 		name: `${name}/admittedRunRequests`,
 		factory: "managedUntrustedJsComputeAdmittedRunRequests",
-		completeWhenDepsComplete: false,
-		errorWhenDepsError: false,
+		terminal: { complete: "manual", error: "manual" },
 	});
 	const runStatus = group.node<ToolProviderAdapterRunStatus>([], null, {
 		name: `${name}/runStatus`,
 		factory: "managedUntrustedJsComputeRunStatus",
-		completeWhenDepsComplete: false,
-		errorWhenDepsError: false,
+		terminal: { complete: "manual", error: "manual" },
 	});
 	const lifecycle = group.node<ManagedUntrustedJsComputeLifecycleFact>([], null, {
 		name: `${name}/lifecycle`,
 		factory: "managedUntrustedJsComputeLifecycle",
-		completeWhenDepsComplete: false,
-		errorWhenDepsError: false,
+		terminal: { complete: "manual", error: "manual" },
 	});
 	const cleanup = group.node<ManagedUntrustedJsComputeCleanupStatus>([], null, {
 		name: `${name}/cleanup`,
 		factory: "managedUntrustedJsComputeCleanup",
-		completeWhenDepsComplete: false,
-		errorWhenDepsError: false,
+		terminal: { complete: "manual", error: "manual" },
 	});
 	const movement = group.node<ManagedUntrustedJsComputeMovementEvidence>([], null, {
 		name: `${name}/movement`,
 		factory: "managedUntrustedJsComputeMovement",
-		completeWhenDepsComplete: false,
-		errorWhenDepsError: false,
+		terminal: { complete: "manual", error: "manual" },
 	});
 	const outcomes = group.node<ExecutorOutcome>([], null, {
 		name: `${name}/outcomes`,
 		factory: "managedUntrustedJsComputeOutcomes",
-		completeWhenDepsComplete: false,
-		errorWhenDepsError: false,
+		terminal: { complete: "manual", error: "manual" },
 	});
 	const cancellationProposals = group.node<ManagedUntrustedJsComputeCancellationProposal>(
 		[],
@@ -540,8 +534,7 @@ export function managedUntrustedJsComputeRuntime(
 		{
 			name: `${name}/cancellationProposals`,
 			factory: "managedUntrustedJsComputeCancellationProposals",
-			completeWhenDepsComplete: false,
-			errorWhenDepsError: false,
+			terminal: { complete: "manual", error: "manual" },
 		},
 	);
 	const cancellationAdmissions = group.node<ManagedUntrustedJsComputeCancellationAdmission>(
@@ -550,27 +543,23 @@ export function managedUntrustedJsComputeRuntime(
 		{
 			name: `${name}/cancellationAdmissions`,
 			factory: "managedUntrustedJsComputeCancellationAdmissions",
-			completeWhenDepsComplete: false,
-			errorWhenDepsError: false,
+			terminal: { complete: "manual", error: "manual" },
 		},
 	);
 	const cancellations = group.node<ManagedUntrustedJsComputeCancellationAcknowledgement>([], null, {
 		name: `${name}/cancellations`,
 		factory: "managedUntrustedJsComputeCancellations",
-		completeWhenDepsComplete: false,
-		errorWhenDepsError: false,
+		terminal: { complete: "manual", error: "manual" },
 	});
 	const issues = group.node<DataIssue>([], null, {
 		name: `${name}/issues`,
 		factory: "managedUntrustedJsComputeIssues",
-		completeWhenDepsComplete: false,
-		errorWhenDepsError: false,
+		terminal: { complete: "manual", error: "manual" },
 	});
 	const audit = group.node<AgentRuntimeAuditRecord>([], null, {
 		name: `${name}/audit`,
 		factory: "managedUntrustedJsComputeAudit",
-		completeWhenDepsComplete: false,
-		errorWhenDepsError: false,
+		terminal: { complete: "manual", error: "manual" },
 	});
 	const inputs = new Map<string, ToolProviderAdapterInput<ManagedUntrustedJsComputeArguments>>();
 	let manifest: ManagedUntrustedJsComputeManifest | undefined;

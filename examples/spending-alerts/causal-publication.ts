@@ -468,7 +468,6 @@ export function buildSpendingPublication<T>(
 		{
 			name: projectionNames.join,
 			factory: "spendingRequestMaterialJoin",
-			errorWhenDepsError: true,
 		},
 	);
 	const publication = scope.node<Publication>(
@@ -477,7 +476,7 @@ export function buildSpendingPublication<T>(
 			for (const j of (depBatch(ctx, 0) ?? []) as JoinResult[])
 				ctx.down([["DATA", publicationFor(j, asOf)]]);
 		},
-		{ name: projectionNames.publication, factory: "spendingPublication", errorWhenDepsError: true },
+		{ name: projectionNames.publication, factory: "spendingPublication" },
 	);
 	return Object.freeze({ causal, requestMaterialJoin, publication });
 }

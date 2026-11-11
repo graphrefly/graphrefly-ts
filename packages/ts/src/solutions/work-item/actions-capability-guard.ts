@@ -161,8 +161,7 @@ export function workItemDomainActionCapabilityGuardProjector(
 			name: `${name}/runtime`,
 			factory: "workItemDomainActionCapabilityGuardProjector",
 			partial: true,
-			completeWhenDepsComplete: false,
-			errorWhenDepsError: false,
+			terminal: { complete: "manual", error: "manual" },
 		},
 	);
 	return {

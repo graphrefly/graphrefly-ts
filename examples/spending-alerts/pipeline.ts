@@ -196,7 +196,8 @@ export function spendingAlertsGraph(opts: SpendingAlertsOptions = {}): SpendingA
 	// the structural join point; `deps` above are what `explainPath` walks.
 	const anomalyScore = graph.derived(
 		[txFeed, vendorStats, userProfile],
-		(txn, stats, prof): AnomalyScore => {
+		(txn, stats, prof): AnomalyScore | undefined => {
+			if (txn === undefined || stats === undefined || prof === undefined) return undefined;
 			const scale = stats.std > 0 ? stats.std : Math.max(stats.mean, 1);
 			const zScore = (txn.amount - stats.mean) / scale;
 			const dailyRatio = txn.amount / Math.max(prof.dailyAverage, 1);
@@ -212,7 +213,8 @@ export function spendingAlertsGraph(opts: SpendingAlertsOptions = {}): SpendingA
 	// shortcutting back to `txFeed` or `anomalyScore`.
 	const thresholdGate = graph.derived(
 		[anomalyScore],
-		(score): Flagged => {
+		(score): Flagged | undefined => {
+			if (score === undefined) return undefined;
 			const flagged =
 				score.zScore > zThreshold ||
 				score.dailyRatio > dailyRatioThreshold ||
@@ -228,7 +230,8 @@ export function spendingAlertsGraph(opts: SpendingAlertsOptions = {}): SpendingA
 	// alertMessage`.
 	const reasonFactors = graph.derived(
 		[thresholdGate],
-		(gate): ReasonFactors => {
+		(gate): ReasonFactors | undefined => {
+			if (gate === undefined) return undefined;
 			const { score, txn } = gate;
 			if (!gate.flagged) return { factors: [], severity: "low", txn };
 			const factors: string[] = [];
@@ -255,9 +258,8 @@ export function spendingAlertsGraph(opts: SpendingAlertsOptions = {}): SpendingA
 	// composed downstream through an explicit adapter boundary).
 	graph.derived(
 		[reasonFactors],
-		(reason): string => {
-			return justifier(reason, reason.txn);
-		},
+		(reason): string | undefined =>
+			reason === undefined ? undefined : justifier(reason, reason.txn),
 		{ name: "alertMessage" },
 	);
 

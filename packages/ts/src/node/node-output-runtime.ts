@@ -147,8 +147,30 @@ export function nodePublish<T>(self: NodeRuntimeHost<T>, arrays: readonly Messag
 		nodeMarkDependents(self);
 	}
 	self._wave.emittedSettleThisWave = true;
+	const ending =
+		self._value.terminal !== undefined && out.some((a) => a.some((m) => isTerminal(m[0])));
 	nodeDeliver(self, out);
 	if (!self._wave.insideRunWave) self._wave.emittedDirtyThisWave = false;
+	// R-terminals / R-lifetime: an ended node closes its lifetime after its terminal's fanout.
+	if (ending) nodeCloseEndedLifetime(self);
+}
+
+/**
+ * R-lifetime: closing the lifetime of a node that has ended releases its dependencies, runs its
+ * cleanup, which may still read the private state, and then drops the private state. The node
+ * keeps its values, terminal and subscribers, and its function never runs again.
+ */
+export function nodeCloseEndedLifetime<T>(self: NodeRuntimeHost<T>): void {
+	const unsubs = self._dep.unsubs;
+	self._dep.unsubs = [];
+	self._dep.idxBoxes = [];
+	for (const u of unsubs) u?.();
+	const cleanups = self._hooks.onDeactivation;
+	self._hooks.onDeactivation = [];
+	self._hooks.onInvalidate = [];
+	for (const fn of cleanups) fn();
+	self._resetDepState();
+	self._privateState.value = SENTINEL;
 }
 
 /** R-wave: the kernel's pending mark, sent ahead of the values to dependents only. */
@@ -167,10 +189,14 @@ function nodeDeliver<T>(self: NodeRuntimeHost<T>, out: readonly Message[][]): vo
 			for (const array of out) nodeCallSink(self, sub, [["PENDING"], ...array]);
 			continue;
 		}
-		for (const array of out) {
+		// One delivery: each array is an input array of its own, and the dependent settles once,
+		// after the last of them.
+		for (let a = 0; a < out.length; a++) {
+			const array = out[a] as Message[];
 			const wave = {};
+			const lastArray = a === out.length - 1;
 			for (let i = 0; i < array.length; i++)
-				sub.fn(array[i] as Message, { wave, last: i === array.length - 1 });
+				sub.fn(array[i] as Message, { wave, last: lastArray && i === array.length - 1 });
 		}
 	}
 }
@@ -197,38 +223,6 @@ export function nodeCallSink<T>(
 			// a reporter that throws is ignored
 		}
 	}
-}
-
-export function nodeInvalidate<T>(self: NodeRuntimeHost<T>): void {
-	if (!self._value.hasData) return; // never-populated or already-reset → no-op
-	nodePublish(self, [[["INVALIDATE"]]]);
-}
-
-export function nodeAllDepsTerminal<T>(self: NodeRuntimeHost<T>): boolean {
-	if (self._slot.deps.length === 0) return false;
-	for (const tm of self._dep.terminal) if (tm === undefined) return false;
-	return true;
-}
-
-export function nodeResetLifecycle<T>(self: NodeRuntimeHost<T>): void {
-	for (const u of self._dep.unsubs) if (u) u();
-	self._dep.unsubs = [];
-	self._dep.idxBoxes = [];
-	self._lifecycle.subscribers.clear();
-	self._lifecycle.activated = false;
-	self._value.terminal = undefined;
-	self._wave.hasCalledFnOnce = false;
-	self._resetDepState();
-	const isCompute = self._slot.handle !== null || self._slot.deps.length > 0;
-	if (isCompute) {
-		self._value.cache = SENTINEL;
-		self._value.hasData = false;
-		self._value.lastArray = [];
-		self._value.status = "sentinel";
-	} else {
-		self._value.status = self._value.hasData ? "settled" : "sentinel";
-	}
-	if (!self._privateState.persist) self._privateState.value = SENTINEL;
 }
 
 export function nodeMarkBatchedWave<T>(self: NodeRuntimeHost<T>, wave: Wave): void {

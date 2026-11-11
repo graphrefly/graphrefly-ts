@@ -201,10 +201,8 @@ describe("D161 graph construction ownership", () => {
 	it("preflights the entire input closure and all retired names before allocating", () => {
 		const g = new Graph();
 		const other = new Graph();
-		const dead = g.node([], null, { name: "dead" });
-		dead.down([["COMPLETE"]]);
-		const child = g.node([dead], null, { name: "child" });
-		for (const input of [other.state(1), new Node([], null), child])
+		// An ended node is a valid input (R-terminals): it can be depended on.
+		for (const input of [other.state(1), new Node([], null)])
 			expect(() =>
 				prepareConstruction(g, { name: "bad", epoch: 1, names: ["bad/startup"], inputs: [input] }),
 			).toThrow();
@@ -214,7 +212,7 @@ describe("D161 graph construction ownership", () => {
 		expect(() =>
 			prepareConstruction(g, { name: "bad", epoch: 1, names: ["retired"], inputs: [] }),
 		).toThrow(/retired/);
-		expect(g.describe().nodes).toHaveLength(2);
+		expect(g.describe().nodes).toHaveLength(0);
 	});
 
 	it("rejects active batch and reactive entry before any resource acquisition", () => {
@@ -433,13 +431,11 @@ describe("D161 graph construction ownership", () => {
 		const f = causal(new Graph(), true);
 		const full = causalComposition(f.graph).composeFull(f.options, binding);
 		const authority = f.graph.find("causal/authority")!;
-		const effects = () => [
-			...(checkpointStateOfNode(authority).ctxState.value as RuntimeState<string>).effects.values(),
-		];
 		expect(full.startup.cache?.state).toBe("faulted");
 		expect(full.startup.cache?.code).toBe("protocol-error");
-		expect(effects()).toEqual([]);
 		expect(authority.status).toBe("errored");
+		// R-lifetime: the ended authority's private state, where effects are admitted, is gone.
+		expect(checkpointStateOfNode(authority).ctxState.value).toBeUndefined();
 		expect(constructionOf(f.graph, "causal")?.phase).toBe("faulted");
 	});
 
@@ -449,14 +445,14 @@ describe("D161 graph construction ownership", () => {
 		const authority = f.graph.find("causal/authority")!;
 		f.outcomes.down([["ERROR", "outcome source lost"]]);
 		expect(authority.status).toBe("errored");
-		expect(() => full.execution.conservation.subscribe(() => {})).toThrow(/non-resubscribable/);
-		expect(
-			[
-				...(
-					checkpointStateOfNode(authority).ctxState.value as RuntimeState<string>
-				).effects.values(),
-			][0]?.outcome,
-		).toBeUndefined();
+		// R-terminals: an ended node can still be subscribed; its snapshot ends with its terminal,
+		// and nothing restarts it.
+		const late: unknown[] = [];
+		full.execution.conservation.subscribe(eachMessage((m) => late.push(m[0])));
+		expect(late.at(-1)).toBe("ERROR");
+		expect(authority.status).toBe("errored");
+		// R-lifetime: the ended authority dropped its private state when its lifetime closed.
+		expect(checkpointStateOfNode(authority).ctxState.value).toBeUndefined();
 	});
 
 	it("returns exact narrow handles with real payload projection and rejects wrong bindings", () => {
@@ -700,18 +696,29 @@ describe("D161 graph construction ownership", () => {
 			{ name: "rewired/root" },
 		);
 		const original = nodeRuntimeHost(b)._subscribeOwned.bind(nodeRuntimeHost(b));
-		vi.spyOn(nodeRuntimeHost(b), "_subscribeOwned").mockImplementation((sink, acquisition) =>
-			original((m, d) => {
-				if (m[0] === "START") throw new Error("rewire handshake");
-				sink(m, d);
-			}, acquisition),
+		vi.spyOn(nodeRuntimeHost(b), "_subscribeOwned").mockImplementation((subscriber, acquisition) =>
+			original(
+				subscriber.kind === "dependent"
+					? {
+							kind: "dependent",
+							fn: (m, d) => {
+								if (m[0] === "START") throw new Error("rewire handshake");
+								subscriber.fn(m, d);
+							},
+						}
+					: subscriber,
+				acquisition,
+			),
 		);
 		const owner = scope.seal(startup, [root]);
 		scope.transferToGraph(owner);
 		startConstruction(g, owner);
 		expect(owner.phase).toBe("faulted");
-		expect(subscriberCountOfNode(b)).toBe(1);
-		expect(nodeRuntimeHost(root)._dep.unsubs[1]).toBeTypeOf("function");
+		// The failed handshake is root's ERROR; an ended node closes its lifetime and releases every
+		// dependency it acquired, the rewired one included (R-terminals, R-lifetime).
+		expect(root.status).toBe("errored");
+		expect(subscriberCountOfNode(b)).toBe(0);
+		expect(nodeRuntimeHost(root)._dep.unsubs).toEqual([]);
 	});
 
 	it("releases a completed non-causal view without retaining its owner or disturbing shared sources", () => {

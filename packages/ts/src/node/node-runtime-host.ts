@@ -1,4 +1,4 @@
-import type { Ctx, CtxState, DeliveryMeta, NodeFn, Sink } from "../ctx/types.js";
+import type { Ctx, CtxState, DeliveryMeta, NodeFn } from "../ctx/types.js";
 import type { Message, Wave } from "../protocol/messages.js";
 import type {
 	CleanupHooks,
@@ -50,30 +50,24 @@ export interface NodeRuntimeHost<T = unknown> {
 	_releaseRuntime(): void;
 	_resetDepState(): void;
 	_recordDepProjection(idx: number, delivery: DeliveryMeta | undefined): unknown[];
-	_depProjectionHasData(idx: number): boolean;
 	_receiveFromDep(idx: number, msg: Message, delivery?: DeliveryMeta): void;
-	_releaseDepDirty(idx: number): void;
-	_settleAfterAbsorbedTerminal(): void;
 	_markDirty(): void;
 	_maybeRun(): void;
 	_settleRewire(): void;
 	_tryRun(): void;
 	_allDepsSettled(): boolean;
-	_passthroughEmit(): void;
 	_runWave(): void;
 	_buildCtx(): Ctx;
 	_makeCtx(snapshot?: {
 		waveData: unknown[][][];
 		waveLive?: boolean[][];
 		terminal: unknown[];
+		invalidated?: boolean[];
 		latest: unknown[];
 	}): Ctx;
 	_refreshCtx(ctx: Ctx): void;
 	_makeState(): CtxState;
 	_down(msgs: Wave): void;
-	_invalidate(): void;
-	_allDepsTerminal(): boolean;
-	_resetLifecycle(): void;
 	_markDependents(): void;
 	_publish(arrays: readonly Message[][]): void;
 	__commitBatchedWave(wave: Wave): void;

@@ -126,6 +126,8 @@ function join<T>(
 	fn: (xs: any[], e: Evaluation) => T,
 ) {
 	return make<BusinessFrame<T>>(name, deps, (ctx) => {
+		// As the production join: the activation run with no input yet sends nothing (R-lifetime).
+		if (deps.every((_, i) => depWaves(ctx, i).length === 0)) return;
 		const state = ctx.state.get<{ maps: Map<string, Item<any>>[]; valid: boolean[] }>() ?? {
 			maps: deps.map(() => new Map()),
 			valid: deps.map(() => false),
@@ -317,7 +319,6 @@ export function buildReferencePreset(
 				name: `spending/reference/${name}`,
 				factory: `spendingReference/${name}`,
 				partial: true,
-				errorWhenDepsError: true,
 			},
 		);
 		nodes.set(name, node);
@@ -560,147 +561,155 @@ export function buildReferencePreset(
 					if (r.value.kind === "retained") out.push(["DATA", proposal(r.value.material)]);
 		if (out.length) ctx.down(out);
 	});
+	const permissionPass = (ctx: Parameters<NodeFn>[0], v: VerificationFrame | undefined): void => {
+		const s = collect(ctx, 3);
+		s.issued ??= new Map<string, Decision>();
+		const rows: Item<Decision>[] = [],
+			errors: ReturnType<typeof issue>[] = [];
+		if (!s.valid.every(Boolean)) {
+			ctx.down([["DATA", frame([], [], false)]]);
+			return;
+		}
+		const c = available<CurrentFrame>(ctx, 3),
+			l = available<LocalAuthorityFrame>(ctx, 5),
+			i = available<InboxObservationFrame>(ctx, 6);
+		for (const [id, row] of s.maps[0]) {
+			if (s.issued.has(id)) continue;
+			const e = row.evaluation,
+				g = s.maps[1].get(id)?.value as Flagged | undefined,
+				m = s.maps[2].get(id)?.value as MaterialResult | undefined;
+			if (!g || !m) continue;
+			let why = "no-publish",
+				failed = false,
+				admission: CausalEffectAdmission | undefined;
+			if (g.flagged) {
+				if (m.kind === "rejected") {
+					failed = true;
+					why = m.issue.code;
+				} else if (m.kind !== "retained") continue;
+				else {
+					const p = proposal(m.material),
+						rd = m.material.body.payloadDigest;
+					if (!v) {
+						errors.push(issue("policy-input-pending", e.evaluationRef));
+						continue;
+					}
+					const receipts = v.receipts.filter(
+						(x) =>
+							equal(x.occurrence, e.occurrence) &&
+							x.inputDigest === e.inputDigest &&
+							x.policyDigest === e.policyDigest &&
+							x.sourceDigest === binding.sourceDigest &&
+							x.runtimeDigest === binding.runtimeDigest &&
+							x.requestDigest === rd &&
+							x.verifierRevision === "spending-oracle-v2" &&
+							x.numericDomainRef === "spending-finite-v1",
+					);
+					if (receipts.length !== 1 || receipts[0].verdict === "unavailable") {
+						errors.push(issue("verification-pending-or-conflict", e.evaluationRef));
+						continue;
+					}
+					const receipt = receipts[0];
+					if (receipt.verdict === "fail") {
+						failed = true;
+						why = "verification-rejected";
+						admission = {
+							...p,
+							state: "rejected",
+							admissionRef: {
+								kind: "spending-admission",
+								id: digest({
+									proposal: p,
+									receiptRef: receipt.receiptRef,
+									verdict: "fail",
+									binding,
+								}),
+							},
+						};
+					} else {
+						if (!c || !l || !i) {
+							errors.push(issue("policy-input-pending", e.evaluationRef));
+							continue;
+						}
+						const current = c.current.find((x) => equal(x.occurrence, e.occurrence));
+						if (
+							!current ||
+							!equal(current.policyRef, e.policyRef) ||
+							current.policyDigest !== e.policyDigest ||
+							current.watermark < e.occurrence.revision
+						) {
+							errors.push(issue("policy-current-mismatch", e.evaluationRef));
+							continue;
+						}
+						const grants = l.grants.filter(
+							(x) =>
+								equal(x.occurrence, e.occurrence) &&
+								x.requestDigest === rd &&
+								equal(x.destinationRef, binding.destinationRef) &&
+								x.hostEpoch === binding.hostEpoch &&
+								x.replayScope.hostEpoch === binding.hostEpoch &&
+								x.replayScope.compositionEpoch === binding.compositionEpoch,
+						);
+						if (grants.length !== 1) {
+							errors.push(issue("grant-pending-or-conflict", e.evaluationRef));
+							continue;
+						}
+						const grant = grants[0];
+						failed =
+							grant.revoked || l.stop || l.tick < grant.validFrom || l.tick > grant.validThrough;
+						if (
+							!failed &&
+							(!i.readiness.ready ||
+								i.readiness.availableSlots !== 1 ||
+								l.tick < i.readiness.observedAt ||
+								l.tick > i.readiness.validThrough)
+						) {
+							errors.push(issue("inbox-not-ready", e.evaluationRef));
+							continue;
+						}
+						why = failed ? "publication-rejected" : "fixture-admission";
+						admission = {
+							...p,
+							state: failed ? "rejected" : "admitted",
+							admissionRef: {
+								kind: "spending-admission",
+								id: digest({
+									proposal: p,
+									receiptRef: receipt.receiptRef,
+									grantRef: grant.grantRef,
+									binding,
+								}),
+							},
+						};
+					}
+				}
+			}
+			const terminal: CausalBranchTerminal = {
+				occurrence: e.occurrence,
+				branch: "publication-policy",
+				state: failed ? "failed" : "completed",
+				result: failed
+					? { kind: "error", error: issue(why, e.evaluationRef) }
+					: { kind: "ok", value: { reason: why, evidenceMode: "fixture-observations" } },
+			};
+			const value = freeze({ terminal, ...(admission ? { admission } : {}) });
+			s.issued.set(id, value);
+			rows.push({ evaluation: e, value });
+		}
+		ctx.state.set(s);
+		if (rows.length || errors.length) ctx.down([["DATA", frame(rows, errors)]]);
+	};
 	const permission = make<BusinessFrame<Decision>>(
 		"permission",
 		[selection, gate, store, current, verification, local, inbox],
 		(ctx) => {
-			const s = collect(ctx, 3);
-			s.issued ??= new Map<string, Decision>();
-			const rows: Item<Decision>[] = [],
-				errors: ReturnType<typeof issue>[] = [];
-			if (!s.valid.every(Boolean)) {
-				ctx.down([["DATA", frame([], [], false)]]);
-				return;
-			}
-			const c = available<CurrentFrame>(ctx, 3),
-				v = available<VerificationFrame>(ctx, 4),
-				l = available<LocalAuthorityFrame>(ctx, 5),
-				i = available<InboxObservationFrame>(ctx, 6);
-			for (const [id, row] of s.maps[0]) {
-				if (s.issued.has(id)) continue;
-				const e = row.evaluation,
-					g = s.maps[1].get(id)?.value as Flagged | undefined,
-					m = s.maps[2].get(id)?.value as MaterialResult | undefined;
-				if (!g || !m) continue;
-				let why = "no-publish",
-					failed = false,
-					admission: CausalEffectAdmission | undefined;
-				if (g.flagged) {
-					if (m.kind === "rejected") {
-						failed = true;
-						why = m.issue.code;
-					} else if (m.kind !== "retained") continue;
-					else {
-						const p = proposal(m.material),
-							rd = m.material.body.payloadDigest;
-						if (!v) {
-							errors.push(issue("policy-input-pending", e.evaluationRef));
-							continue;
-						}
-						const receipts = v.receipts.filter(
-							(x) =>
-								equal(x.occurrence, e.occurrence) &&
-								x.inputDigest === e.inputDigest &&
-								x.policyDigest === e.policyDigest &&
-								x.sourceDigest === binding.sourceDigest &&
-								x.runtimeDigest === binding.runtimeDigest &&
-								x.requestDigest === rd &&
-								x.verifierRevision === "spending-oracle-v2" &&
-								x.numericDomainRef === "spending-finite-v1",
-						);
-						if (receipts.length !== 1 || receipts[0].verdict === "unavailable") {
-							errors.push(issue("verification-pending-or-conflict", e.evaluationRef));
-							continue;
-						}
-						const receipt = receipts[0];
-						if (receipt.verdict === "fail") {
-							failed = true;
-							why = "verification-rejected";
-							admission = {
-								...p,
-								state: "rejected",
-								admissionRef: {
-									kind: "spending-admission",
-									id: digest({
-										proposal: p,
-										receiptRef: receipt.receiptRef,
-										verdict: "fail",
-										binding,
-									}),
-								},
-							};
-						} else {
-							if (!c || !l || !i) {
-								errors.push(issue("policy-input-pending", e.evaluationRef));
-								continue;
-							}
-							const current = c.current.find((x) => equal(x.occurrence, e.occurrence));
-							if (
-								!current ||
-								!equal(current.policyRef, e.policyRef) ||
-								current.policyDigest !== e.policyDigest ||
-								current.watermark < e.occurrence.revision
-							) {
-								errors.push(issue("policy-current-mismatch", e.evaluationRef));
-								continue;
-							}
-							const grants = l.grants.filter(
-								(x) =>
-									equal(x.occurrence, e.occurrence) &&
-									x.requestDigest === rd &&
-									equal(x.destinationRef, binding.destinationRef) &&
-									x.hostEpoch === binding.hostEpoch &&
-									x.replayScope.hostEpoch === binding.hostEpoch &&
-									x.replayScope.compositionEpoch === binding.compositionEpoch,
-							);
-							if (grants.length !== 1) {
-								errors.push(issue("grant-pending-or-conflict", e.evaluationRef));
-								continue;
-							}
-							const grant = grants[0];
-							failed =
-								grant.revoked || l.stop || l.tick < grant.validFrom || l.tick > grant.validThrough;
-							if (
-								!failed &&
-								(!i.readiness.ready ||
-									i.readiness.availableSlots !== 1 ||
-									l.tick < i.readiness.observedAt ||
-									l.tick > i.readiness.validThrough)
-							) {
-								errors.push(issue("inbox-not-ready", e.evaluationRef));
-								continue;
-							}
-							why = failed ? "publication-rejected" : "fixture-admission";
-							admission = {
-								...p,
-								state: failed ? "rejected" : "admitted",
-								admissionRef: {
-									kind: "spending-admission",
-									id: digest({
-										proposal: p,
-										receiptRef: receipt.receiptRef,
-										grantRef: grant.grantRef,
-										binding,
-									}),
-								},
-							};
-						}
-					}
-				}
-				const terminal: CausalBranchTerminal = {
-					occurrence: e.occurrence,
-					branch: "publication-policy",
-					state: failed ? "failed" : "completed",
-					result: failed
-						? { kind: "error", error: issue(why, e.evaluationRef) }
-						: { kind: "ok", value: { reason: why, evidenceMode: "fixture-observations" } },
-				};
-				const value = freeze({ terminal, ...(admission ? { admission } : {}) });
-				s.issued.set(id, value);
-				rows.push({ evaluation: e, value });
-			}
-			ctx.state.set(s);
-			if (rows.length || errors.length) ctx.down([["DATA", frame(rows, errors)]]);
+			// As the production policy: one pass per verification frame of this run, in order.
+			const frames = depWaves(ctx, 4)
+				.flat()
+				.filter((f) => (f as Checked<VerificationFrame>)?.valid)
+				.map((f) => (f as Checked<VerificationFrame> & { valid: true }).value);
+			if (frames.length < 2) permissionPass(ctx, available<VerificationFrame>(ctx, 4));
+			else for (const v of frames) permissionPass(ctx, v);
 		},
 	);
 	const occurrences = make<CausalOccurrence<any>>("occurrences", [selection], (ctx) => {

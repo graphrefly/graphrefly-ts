@@ -1052,8 +1052,9 @@ describe("private publication material-v1", () => {
 			plain.acceptError();
 			f.send("effectOutcomes", a.outcome);
 			r.send("effectOutcomes", a.outcome);
-			f.frame(frame);
-			r.frame(frame);
+			// R-terminals: host input to the ended material source is refused.
+			expect(() => f.frame(frame)).toThrow(/ended/);
+			expect(() => r.frame(frame)).toThrow(/ended/);
 			expect(plain.acceptMaterial(frame)).toBeUndefined();
 			expect(plain.acceptView(f.view!)).toBeUndefined();
 			expect([f.stats().dataEvents, r.stats().dataEvents]).toEqual(before);

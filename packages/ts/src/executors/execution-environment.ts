@@ -275,8 +275,7 @@ export function localHostExecutionGate(
 		name: `${name}/runtime`,
 		factory: "localHostExecutionGateRuntime",
 		partial: true,
-		completeWhenDepsComplete: false,
-		errorWhenDepsError: false,
+		terminal: { complete: "manual", error: "manual" },
 	});
 	let disposed = false;
 	return {
@@ -668,7 +667,7 @@ function project<T>(
 				if (value !== undefined) ctx.down([["DATA", value]]);
 			}
 		},
-		{ name, factory, partial: true, completeWhenDepsComplete: false, errorWhenDepsError: false },
+		{ name, factory, partial: true, terminal: { complete: "manual", error: "manual" } },
 	);
 }
 

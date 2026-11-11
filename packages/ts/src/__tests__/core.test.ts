@@ -402,7 +402,7 @@ describe("B49 core-slot migration", () => {
 					queuedInsideRun = boundaryTaskCount(coreOf(op));
 				}
 			},
-			{ completeWhenDepsComplete: false, terminalAsRealInput: true },
+			{ terminal: { complete: "manual" } },
 		);
 		op.subscribe(() => {});
 		trigger.set(1);
@@ -435,7 +435,7 @@ describe("B49 core-slot migration", () => {
 				if (depBatch(ctx, 0)) ctx.rewireNext.subscribeDep(innerA1, opAFn);
 				if (depBatch(ctx, 1)) ctx.rewireNext.subscribeDep(innerA2, opAFn);
 			},
-			{ completeWhenDepsComplete: false, terminalAsRealInput: true },
+			{ terminal: { complete: "manual" } },
 		);
 		const opB = node<number>([sourceB], function opBFn(ctx) {
 			if (depBatch(ctx, 0)) ctx.rewireNext.subscribeDep(innerB1, opBFn);
@@ -613,7 +613,7 @@ describe("D109 node runtime versioning", () => {
 		const terminal = node<unknown>([], null, { initial: 1, versioning: 1 });
 		terminal.down([["COMPLETE"]]);
 		const terminalBefore = terminal.version;
-		expect(() => terminal.down([["DATA", 2n]])).toThrow(/not JSON-encodable/);
+		expect(() => terminal.down([["DATA", 2n]])).toThrow(/ended/);
 		expect(terminal.version).toEqual(terminalBefore);
 		expect(terminal.cache).toBe(1);
 		expect(terminal.status).toBe("completed");

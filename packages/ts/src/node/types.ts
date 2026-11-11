@@ -12,19 +12,32 @@ export type Status =
 	| "completed"
 	| "errored";
 
+/** An auto or manual policy (R-terminals, R-invalidation). */
+export type TerminalPolicy = "auto" | "manual";
+
 export interface NodeOptions<T = unknown> {
 	/** Pre-populate cache; source pushes [DATA, initial] on subscribe (R-initial). `null` is valid. */
 	initial?: T | null;
-	/** First-run gate off when true; fn body must guard SENTINEL per dep (R-first-run-gate). */
+	/**
+	 * First-run gate off when true (TS sugar, not protocol): by default the function's first run
+	 * waits until every dependency has a value, or a terminal its policy gives to the function.
+	 */
 	partial?: boolean;
-	/** A dep terminal also settles the first-run gate (Reduce-class, R-first-run-gate). */
-	terminalAsRealInput?: boolean;
-	/** Auto-emit COMPLETE when ALL deps complete (R-deps-terminal). Default true. */
-	completeWhenDepsComplete?: boolean;
-	/** Auto-emit ERROR when any dep errors (R-deps-terminal). Default true. */
-	errorWhenDepsError?: boolean;
-	/** Allow re-activation after terminal; late subscribe resets the lifecycle (R-terminal). Default false. */
-	resubscribable?: boolean;
+	/**
+	 * Terminal policies (R-terminals): `"auto"` (the default) ends this node from its dependencies'
+	 * terminals: a dependency's ERROR ends it with that ERROR without running its function, and
+	 * once every dependency has ended it completes after the run that sees the last terminal.
+	 * `"manual"` gives that kind of terminal to the function as input (`ctx.terminal[i]`); the
+	 * node ends only when its function sends a terminal.
+	 */
+	terminal?: { readonly complete?: TerminalPolicy; readonly error?: TerminalPolicy };
+	/**
+	 * INVALIDATE policy (R-invalidation): `"auto"` (the default) invalidates this node when an input
+	 * is invalidated, without running its function; `"manual"` gives it to the function as input
+	 * (`ctx.invalidated[i]`), and the node keeps its values until its function clears them or sends
+	 * INVALIDATE itself.
+	 */
+	invalidate?: TerminalPolicy;
 	/**
 	 * Quiet node (R-wave): consumes its input waves without being marked pending or marking its
 	 * dependents pending, so nothing below it waits for it. What its function sends during a run
