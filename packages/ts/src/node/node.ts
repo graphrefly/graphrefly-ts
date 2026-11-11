@@ -70,12 +70,10 @@ import {
 } from "./node-lifecycle-runtime.js";
 import {
 	nodeCallSink,
-	nodeCommitBatchedWave,
-	nodeDeferBoundary,
 	nodeDown,
-	nodeMarkBatchedWave,
 	nodeMarkDependents,
 	nodePublish,
+	nodeResolveBatchedWave,
 } from "./node-output-runtime.js";
 import { nodeRewire } from "./node-rewire-runtime.js";
 import { nodeRuntimeHost } from "./node-runtime-host.js";
@@ -464,10 +462,10 @@ export class Node<T = unknown> {
 			throw new Error("set: this node has ended (R-terminals)");
 		const deferred = new DeferredWrite(fn as (prev: unknown) => unknown);
 		if (currentBatch(this._core)) {
-			const staged = stagedBatchWave(this._core, this as unknown as BatchTarget);
+			const staged = stagedBatchWave(this._core, this as unknown as Node<unknown>);
 			if (staged?.some((m) => isTerminal(m[0])))
 				throw new Error("set: a terminal must be the last message of its array (R-wave)");
-			deferToBatch(this._core, this as unknown as BatchTarget, [
+			deferToBatch(this._core, this as unknown as Node<unknown>, [
 				...(staged ?? []),
 				["DATA", deferred] as Message,
 			]);
@@ -476,7 +474,7 @@ export class Node<T = unknown> {
 		request(this._core, () => {
 			if (this._value.terminal !== undefined)
 				throw new Error("set: this node has ended (R-terminals)");
-			const resolved = this.__resolveBatchedWave([["DATA", deferred]]);
+			const resolved = nodeResolveBatchedWave(nodeRuntimeHost(this), [["DATA", deferred]]);
 			if (resolved.length > 0) this._down(resolved);
 		});
 	}
@@ -638,42 +636,6 @@ export class Node<T = unknown> {
 
 	private _markDependents(): void {
 		nodeMarkDependents(nodeRuntimeHost(this));
-	}
-
-	/** Batch commit (R-batch-coalesce): deliver the deferred tier-3 wave now. */
-	__markBatchedWave(wave: Wave): void {
-		nodeMarkBatchedWave(nodeRuntimeHost(this), wave);
-	}
-
-	__resolveBatchedWave(wave: Wave): Wave {
-		let current: unknown = this._value.hasData ? this._value.cache : undefined;
-		const out: Message[] = [];
-		for (const m of wave) {
-			if (m[0] === "INVALIDATE") current = undefined;
-			if (m[0] !== "DATA") {
-				out.push(m);
-				continue;
-			}
-			if (!(m[1] instanceof DeferredWrite)) {
-				current = m[1];
-				out.push(m);
-				continue;
-			}
-			const next = m[1].fn(current);
-			if (Object.is(next, current)) continue;
-			current = next;
-			out.push(["DATA", next]);
-		}
-		return out;
-	}
-
-	__commitBatchedWave(wave: Wave): void {
-		nodeCommitBatchedWave(nodeRuntimeHost(this), wave);
-	}
-
-	/** B49: enqueue a committed-boundary task on this node's graph-local core. */
-	__deferBoundary(fn: () => void, batchToken?: object): void {
-		nodeDeferBoundary(nodeRuntimeHost(this), fn, batchToken);
 	}
 }
 

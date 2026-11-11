@@ -7,6 +7,14 @@
  */
 
 import type { NodeCore } from "../node/core.js";
+import type { Node } from "../node/node.js";
+import {
+	nodeCommitBatchedWave,
+	nodeDeferBoundary,
+	nodeMarkBatchedWave,
+	nodeResolveBatchedWave,
+} from "../node/node-output-runtime.js";
+import { nodeRuntimeHost } from "../node/node-runtime-host.js";
 import type { Wave } from "../protocol/messages.js";
 import {
 	deferFirst,
@@ -17,14 +25,11 @@ import {
 	isWaveActive,
 } from "./boundary.js";
 
-/** A node target the batch can commit/rollback against (structural, avoids an import cycle). */
-export interface BatchTarget {
-	__markBatchedWave(wave: Wave): void;
-	__commitBatchedWave(wave: Wave): void;
-	/** Compute the function writes staged for this node (set(fn)); throws to fail the commit. */
-	__resolveBatchedWave(wave: Wave): Wave;
-	__deferBoundary(fn: () => void, batchToken?: object): void;
-}
+/**
+ * A node a batch stages output for. The batch reaches it only through the node runtime functions
+ * below, so a node has no public batch entry (graphrefly-ts:D175, REVIEW-D797-migration-fable 2.13).
+ */
+export type BatchTarget = Node<unknown>;
 
 export interface BatchCtx {
 	/** Discard all deferred emissions in this batch instead of committing. */
@@ -117,9 +122,13 @@ export function deferAfterBatchForTarget(
 	const active = activeOf(core);
 	if (active === null || !active.deferred.has(target)) return false;
 	const owner = active;
-	target.__deferBoundary(() => {
-		if (owner.committed) fn();
-	}, owner);
+	nodeDeferBoundary(
+		nodeRuntimeHost(target),
+		() => {
+			if (owner.committed) fn();
+		},
+		owner,
+	);
 	return true;
 }
 
@@ -135,13 +144,13 @@ function commit(core: NodeCore, b: ActiveBatch): void {
 		for (const target of b.order) {
 			const wave = b.deferred.get(target);
 			if (wave === undefined || b.lifetimes.get(target)?.aborted === true) continue;
-			const resolved = target.__resolveBatchedWave(wave);
+			const resolved = nodeResolveBatchedWave(nodeRuntimeHost(target), wave);
 			if (resolved.length > 0) staged.push([target, resolved]);
 		}
 		// O3: the commit is one wave: every staged node marks its cone pending first, then each
 		// delivers its one accumulated array, so a fan-in over several of them runs once.
-		for (const [target, wave] of staged) target.__markBatchedWave(wave);
-		for (const [target, wave] of staged) target.__commitBatchedWave(wave);
+		for (const [target, wave] of staged) nodeMarkBatchedWave(nodeRuntimeHost(target), wave);
+		for (const [target, wave] of staged) nodeCommitBatchedWave(nodeRuntimeHost(target), wave);
 		b.committed = true;
 	} catch (e) {
 		dropBoundaryTasksForBatch(core, b);

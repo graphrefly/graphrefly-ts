@@ -1,9 +1,10 @@
-import { currentBatch, deferToBatch, stagedBatchWave } from "../batch/batch.js";
+import { currentBatch, DeferredWrite, deferToBatch, stagedBatchWave } from "../batch/batch.js";
 import { deferRequest } from "../batch/boundary.js";
 import type { Sink } from "../ctx/types.js";
 import type { Message, Wave } from "../protocol/messages.js";
 import { isTerminal, SENTINEL } from "../protocol/messages.js";
 import type { Subscriber } from "./core.js";
+import type { Node } from "./node.js";
 import { nodeCloseLifetime } from "./node-lifecycle-runtime.js";
 import type { NodeRuntimeHost } from "./node-runtime-host.js";
 import { validateDownPayloads } from "./protocol-guards.js";
@@ -69,7 +70,7 @@ export function nodeDown<T>(self: NodeRuntimeHost<T>, msgs: Wave): void {
 	// O3 / R-request-order: a batch body delivers nothing; its writes commit as one array per
 	// node. A terminal already staged must stay last.
 	if (currentBatch(self._core)) {
-		const staged = stagedBatchWave(self._core, self);
+		const staged = stagedBatchWave(self._core, self as unknown as Node<unknown>);
 		if (staged?.some((m) => isTerminal(m[0])))
 			throw new Error("down: a terminal must be the last message of its array (R-wave)");
 		const add = arrays
@@ -79,7 +80,7 @@ export function nodeDown<T>(self: NodeRuntimeHost<T>, msgs: Wave): void {
 					? (["DATA", snapshotNodeVersionData(self._version.policy, m[1])] as Message)
 					: m,
 			);
-		deferToBatch(self._core, self, [...(staged ?? []), ...add]);
+		deferToBatch(self._core, self as unknown as Node<unknown>, [...(staged ?? []), ...add]);
 		return;
 	}
 	nodePublish(self, arrays);
@@ -218,6 +219,29 @@ export function nodeMarkBatchedWave<T>(self: NodeRuntimeHost<T>, wave: Wave): vo
 	if (!wave.some(isMarking) || self._wave.emittedDirtyThisWave) return;
 	self._wave.emittedDirtyThisWave = true;
 	nodeMarkDependents(self);
+}
+
+/** R-request-order: compute the function writes a batch staged (set(fn)), in staged order. */
+export function nodeResolveBatchedWave<T>(self: NodeRuntimeHost<T>, wave: Wave): Wave {
+	let current: unknown = self._value.hasData ? self._value.cache : undefined;
+	const out: Message[] = [];
+	for (const m of wave) {
+		if (m[0] === "INVALIDATE") current = undefined;
+		if (m[0] !== "DATA") {
+			out.push(m);
+			continue;
+		}
+		if (!(m[1] instanceof DeferredWrite)) {
+			current = m[1];
+			out.push(m);
+			continue;
+		}
+		const next = m[1].fn(current);
+		if (Object.is(next, current)) continue;
+		current = next;
+		out.push(["DATA", next]);
+	}
+	return out;
 }
 
 export function nodeCommitBatchedWave<T>(self: NodeRuntimeHost<T>, wave: Wave): void {

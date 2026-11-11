@@ -68,7 +68,7 @@ export function nodeMakeCtx<T>(
 			validateNodeOutput(msgs);
 			// R-failure: an invalid array throws from ctx.down, before anything is accepted.
 			prepareArrays(msgs);
-			noteBatchLifetime(self._core, self as unknown as BatchTarget, signal);
+			noteBatchLifetime(self._core, self as unknown as Node<unknown>, signal);
 			// R-wave: during the node's run its arrays are its run's output, published after it returns.
 			// Inside a batch body they are staged for the commit (R-request-order).
 			if (self._wave.insideRunWave || currentBatch(self._core)) {
