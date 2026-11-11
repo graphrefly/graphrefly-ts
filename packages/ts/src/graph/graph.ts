@@ -14,7 +14,7 @@ import type { OwnedConstruction } from "./construction-scope.js";
  */
 
 import { type BatchCtx, batchIn, currentBatch } from "../batch/batch.js";
-import { isWaveActive } from "../batch/boundary.js";
+import { isWaveActive, observeFailures, reportFailure } from "../batch/boundary.js";
 import { type Ctx, depCount, depLatest, type NodeFn } from "../ctx/types.js";
 import { type Dispatcher, defaultDispatcher } from "../dispatcher/index.js";
 import { NodeCore } from "../node/core.js";
@@ -539,11 +539,11 @@ export class Graph {
 		const result = batchIn(this._core, fn);
 		// A body that returns a promise committed its synchronous part; later writes are separate.
 		if (typeof (result as { then?: unknown } | null | undefined)?.then === "function")
-			this._core.report?.({
-				source: "batch",
-				error:
-					"batch body returned a promise; writes after its first suspension are separate waves",
-			});
+			reportFailure(
+				this._core,
+				"batch",
+				"batch body returned a promise; writes after its first suspension are separate waves",
+			);
 		return result;
 	}
 
@@ -1229,6 +1229,9 @@ class GraphRegistration implements GraphLifecycleRegistrar {
 	}
 	atWaveBoundary(): boolean {
 		return !isWaveActive(this.host._core) && !currentBatch(this.host._core);
+	}
+	observeFailures<R>(observer: (source: string, error: unknown) => void, run: () => R): R {
+		return observeFailures(this.host._core, observer, run);
 	}
 	readIncoming(nodes: ReadonlySet<Node<unknown>>): Pick<DescribeSnapshot, "edges"> {
 		const describe = this.graph.describe;

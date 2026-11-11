@@ -323,27 +323,39 @@ export function startConstruction(graph: Graph, owner: OwnedConstruction): void 
 		throw new Error("construction is not owned or was already started");
 	owner.phase = "starting";
 	let code: StartupFact["code"];
+	// graphrefly-ts:D181: a request the startup caused that fails is reported, not thrown; the
+	// startup observes it so it does not call itself started.
+	let failed: { readonly error: unknown } | undefined;
+	const registrar = graphRegistrations.get(graph) as GraphLifecycleRegistrar;
 	try {
-		for (const lease of owner.roots) {
-			nodeRuntimeHost(lease.node)._subscribeOwned(
-				{ kind: "sink", fn: () => {} },
-				{
-					record: (release) => {
-						lease.unsubscribe = release;
-					},
-				},
-			);
-			if (
-				owner.nodes.some(
-					(node) =>
-						nodeRuntimeHost(node)._value.terminal !== undefined &&
-						nodeRuntimeHost(node)._value.terminal !== true,
-				)
-			) {
-				code = "protocol-error";
-				throw new Error("construction startup encountered protocol ERROR");
-			}
-		}
+		registrar.observeFailures(
+			(_source, error) => {
+				failed ??= { error };
+			},
+			() => {
+				for (const lease of owner.roots) {
+					nodeRuntimeHost(lease.node)._subscribeOwned(
+						{ kind: "sink", fn: () => {} },
+						{
+							record: (release) => {
+								lease.unsubscribe = release;
+							},
+						},
+					);
+					if (
+						owner.nodes.some(
+							(node) =>
+								nodeRuntimeHost(node)._value.terminal !== undefined &&
+								nodeRuntimeHost(node)._value.terminal !== true,
+						)
+					) {
+						code = "protocol-error";
+						throw new Error("construction startup encountered protocol ERROR");
+					}
+				}
+			},
+		);
+		if (failed !== undefined) throw failed.error;
 		owner.phase = "started";
 	} catch (error) {
 		owner.startupError = error;

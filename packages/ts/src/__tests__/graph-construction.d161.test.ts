@@ -8,17 +8,19 @@ import {
 	prepareConstruction,
 	startConstruction,
 } from "../graph/construction-scope.js";
-import { Graph } from "../graph/graph.js";
-import { NodeCore, type NodeId } from "../node/core.js";
+import { Graph, type GraphOptions } from "../graph/graph.js";
+import { NodeCore, type NodeId, type Subscriber } from "../node/core.js";
 import { Node } from "../node/node.js";
 import { nodeRuntimeHost } from "../node/node-runtime-host.js";
 import { checkpointStateOfNode, subscriberCountOfNode } from "../node/runtime-accessors.js";
+import type { MessageType } from "../protocol/messages.js";
 import {
 	assertCausalCapabilities,
 	type CausalBinding,
 } from "../solutions/causal-occurrence/capabilities.js";
 import type {
 	CausalEffectOutcome,
+	CausalEffectProposal,
 	CausalOccurrenceBundleOptions,
 	RuntimeState,
 } from "../solutions/causal-occurrence/contracts.js";
@@ -31,6 +33,25 @@ import { asState } from "./helpers/as-state.js";
 import { rewireOwnedNode } from "./helpers/owned-rewire.js";
 
 afterEach(() => vi.restoreAllMocks());
+
+/** Wraps a subscriber so the delivery carrying `type` throws `message` instead of arriving. */
+function failingAt(subscriber: Subscriber, type: MessageType, message: string): Subscriber {
+	if (subscriber.kind === "sink")
+		return {
+			kind: "sink",
+			fn: (msgs) => {
+				if (msgs.some((m) => m[0] === type)) throw new Error(message);
+				subscriber.fn(msgs);
+			},
+		};
+	return {
+		kind: "dependent",
+		fn: (m, delivery) => {
+			if (m[0] === type) throw new Error(message);
+			subscriber.fn(m, delivery);
+		},
+	};
+}
 
 class CountingDispatcher extends Dispatcher {
 	readonly live = new Set<Handle>();
@@ -45,9 +66,9 @@ class CountingDispatcher extends Dispatcher {
 	}
 }
 
-function simple(name = "view") {
+function simple(name = "view", report?: GraphOptions["report"]) {
 	const dispatcher = new CountingDispatcher();
-	const graph = new Graph({ dispatcher });
+	const graph = new Graph({ dispatcher, report });
 	const a = graph.state(2, { name: "a" });
 	const b = graph.state(3, { name: "b" });
 	const scope = prepareConstruction(graph, {
@@ -165,7 +186,7 @@ describe("D161 graph construction ownership", () => {
 			if (event.path !== "causal/issues") return;
 			const authority = f.graph.find("causal/authority")!;
 			expect(authority.status.cache).toBe("empty");
-			rewireOwnedNode(authority, [], null);
+			rewireOwnedNode(authority, []);
 			changed = true;
 		});
 		expect(f.graph.describe).toBe(Graph.prototype.describe);
@@ -291,7 +312,11 @@ describe("D161 graph construction ownership", () => {
 		scope.startupSource();
 		const original = NodeCore.prototype.createSlot;
 		let allocated: { core: NodeCore; id: NodeId } | undefined;
-		vi.spyOn(NodeCore.prototype, "createSlot").mockImplementation(function (slot, state) {
+		vi.spyOn(NodeCore.prototype, "createSlot").mockImplementation(function (
+			this: NodeCore,
+			slot,
+			state,
+		) {
 			const result = original.call(this, slot, state);
 			allocated = { core: this, id: result.id };
 			return result;
@@ -336,22 +361,30 @@ describe("D161 graph construction ownership", () => {
 		"START",
 		"DATA",
 	] as const)("records the acquired root lease before throwing %s delivery", (failAt) => {
-		const f = simple();
+		const reports: unknown[] = [];
+		const f = simple("view", (failure) => reports.push(failure));
 		const host = nodeRuntimeHost(f.join);
 		// DATA uses a pre-existing source cache and the actual subscription implementation.
-		const target = failAt === "DATA" ? f.startup : f.join;
+		const target: Node<unknown> = failAt === "DATA" ? f.startup : f.join;
 		const targetHost = nodeRuntimeHost(target);
 		const original = targetHost._subscribeOwned.bind(targetHost);
-		vi.spyOn(targetHost, "_subscribeOwned").mockImplementation((sink, acquisition) =>
-			original((message, delivery) => {
-				if (message[0] === failAt) throw new Error("handshake");
-				sink(message, delivery);
-			}, acquisition),
+		vi.spyOn(targetHost, "_subscribeOwned").mockImplementation((subscriber, acquisition) =>
+			original(failingAt(subscriber, failAt, "handshake"), acquisition),
 		);
 		const owner = f.scope.seal(f.startup, [f.join]);
 		f.scope.transferToGraph(owner);
 		startConstruction(f.graph, owner);
+		// R-failure: a root lease is a sink, and a sink that throws has no node to end: the failure
+		// goes to the graph's reporter, and the startup, which observes the failures it causes
+		// (graphrefly-ts:D181), is faulted.
+		expect(reports).not.toHaveLength(0);
+		for (const report of reports)
+			expect(report).toEqual({
+				source: expect.stringMatching(/^sink of /),
+				error: new Error("handshake"),
+			});
 		expect(owner.phase).toBe("faulted");
+		expect(owner.startupError).toEqual(new Error("handshake"));
 		expect(owner.roots.find((r) => r.node === target)?.unsubscribe).toBeTypeOf("function");
 		expect(subscriberCountOfNode(target)).toBe(1);
 		// R-subscription: activation comes before START, so a failed START finds the node activated.
@@ -367,16 +400,15 @@ describe("D161 graph construction ownership", () => {
 			}
 		});
 		const original = nodeRuntimeHost(f.b)._subscribeOwned.bind(nodeRuntimeHost(f.b));
-		vi.spyOn(nodeRuntimeHost(f.b), "_subscribeOwned").mockImplementation((sink, acquisition) =>
-			original((m, d) => {
-				if (m[0] === "START") throw new Error("deep handshake");
-				sink(m, d);
-			}, acquisition),
+		vi.spyOn(nodeRuntimeHost(f.b), "_subscribeOwned").mockImplementation(
+			(subscriber, acquisition) =>
+				original(failingAt(subscriber, "START", "deep handshake"), acquisition),
 		);
 		const owner = f.scope.seal(f.startup, [f.join]);
 		f.scope.transferToGraph(owner);
 		startConstruction(f.graph, owner);
 		expect(owner.phase).toBe("faulted");
+		expect(String(owner.startupError)).toBe("Error: deep handshake");
 		expect(subscriberCountOfNode(f.a)).toBe(3);
 		expect(subscriberCountOfNode(f.b)).toBe(1);
 		expect(nodeRuntimeHost(f.right)._dep.unsubs[1]).toBeTypeOf("function");
@@ -534,7 +566,7 @@ describe("D161 graph construction ownership", () => {
 		const f = simple();
 		let slots = 0;
 		const releaseSlot = NodeCore.prototype.releaseSlot;
-		vi.spyOn(NodeCore.prototype, "releaseSlot").mockImplementation(function (id) {
+		vi.spyOn(NodeCore.prototype, "releaseSlot").mockImplementation(function (this: NodeCore, id) {
 			if (++slots <= 2) throw undefined;
 			releaseSlot.call(this, id);
 		});
@@ -784,11 +816,15 @@ describe("D161 graph construction ownership", () => {
 		);
 		const request = f.graph.derived(
 			[full.startup, authorized],
-			(startup, grant) =>
-				startup.state === "started" &&
-				startup.instance === grant.instance &&
-				startup.epoch === grant.epoch &&
-				grant.admitted,
+			(startup, grant) => {
+				if (startup === undefined || grant === undefined) return undefined;
+				return (
+					startup.state === "started" &&
+					startup.instance === grant.instance &&
+					startup.epoch === grant.epoch &&
+					grant.admitted
+				);
+			},
 			{ name: "test/guard" },
 		);
 		let calls = 0;
@@ -808,7 +844,7 @@ describe("D161 graph construction ownership", () => {
 
 	it("successful startup and replay without a proposal never fabricate an effect", () => {
 		const f = causal();
-		const proposals = f.graph.node([], null, { name: "input/no-proposal" });
+		const proposals = f.graph.node<CausalEffectProposal>([], null, { name: "input/no-proposal" });
 		const full = causalComposition(f.graph).composeFull(
 			{ ...f.options, effectProposals: proposals },
 			binding,

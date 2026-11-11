@@ -1,5 +1,5 @@
 import { currentBatch, DeferredWrite, deferToBatch, stagedBatchWave } from "../batch/batch.js";
-import { deferRequest } from "../batch/boundary.js";
+import { deferRequest, reportFailure } from "../batch/boundary.js";
 import type { Sink } from "../ctx/types.js";
 import type { Message, Wave } from "../protocol/messages.js";
 import { isTerminal, SENTINEL } from "../protocol/messages.js";
@@ -203,13 +203,7 @@ export function nodeCallSink<T>(
 	try {
 		sink(array);
 	} catch (error) {
-		const report = self._core.report;
-		if (report === undefined) return;
-		try {
-			report({ source: `sink of ${self._slot.name ?? "node"}`, error });
-		} catch {
-			// a reporter that throws is ignored
-		}
+		reportFailure(self._core, `sink of ${self._slot.name ?? "node"}`, error);
 	}
 }
 

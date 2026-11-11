@@ -31,10 +31,58 @@ export interface WaveDomain {
 	batch: unknown;
 	/** The batch whose commit is being delivered, if any (batch.ts). */
 	boundaryOwner: unknown;
+	/** Callers observing this graph's reported failures while their own call runs. */
+	failureObservers: Array<(source: string, error: unknown) => void>;
+}
+
+/**
+ * R-failure@3 with graphrefly-ts:D181 (the user's Q9): a failure that has no caller goes to the
+ * graph's host reporter only; with no reporter it goes to console.error. A reporter that throws
+ * is ignored.
+ */
+export function reportFailure(core: NodeCore, source: string, error: unknown): void {
+	for (const observe of core.domain.failureObservers) observe(source, error);
+	const report = core.report;
+	if (report === undefined) {
+		const message = error instanceof Error ? error.message : String(error);
+		console.error(`graphrefly: ${source} failed: ${message}`, error);
+		return;
+	}
+	try {
+		report({ source, error });
+	} catch {
+		// a reporter that throws is ignored
+	}
+}
+
+/**
+ * Observe the failures this graph reports while `run` runs (a caller that drives a cascade, such
+ * as a construction's startup, learns that a request it caused failed); they are still reported.
+ */
+export function observeFailures<R>(
+	core: NodeCore,
+	observer: (source: string, error: unknown) => void,
+	run: () => R,
+): R {
+	core.domain.failureObservers.push(observer);
+	try {
+		return run();
+	} finally {
+		const at = core.domain.failureObservers.lastIndexOf(observer);
+		if (at >= 0) core.domain.failureObservers.splice(at, 1);
+	}
 }
 
 export function makeWaveDomain(): WaveDomain {
-	return { depth: 0, queue: [], head: 0, priority: [], batch: null, boundaryOwner: null };
+	return {
+		depth: 0,
+		queue: [],
+		head: 0,
+		priority: [],
+		batch: null,
+		boundaryOwner: null,
+		failureObservers: [],
+	};
 }
 
 /** True while this graph is delivering a wave (D161, R-checkpoint). */
@@ -81,27 +129,16 @@ export function dropBoundaryTasksForBatch(core: NodeCore, batchToken: object): v
 
 function drain(core: NodeCore): void {
 	// Each queued request runs as a wave of its own and may queue more, which this loop runs too.
-	// The depth++ around each keeps that wave's own outermost exit from draining again.
-	//
-	// A request whose application throws does not abandon the rest of the queue; with no host
-	// reporter, the first failure is re-thrown once the queue is empty.
+	// The depth++ around each keeps that wave's own outermost exit from draining again. A request
+	// that throws does not abandon the rest of the queue: its caller has returned, so its failure
+	// is reported (R-request-order, R-failure@3).
 	const d = core.domain;
-	let escaped: { e: unknown } | null = null;
 	const run = (apply: () => void): void => {
 		d.depth++;
 		try {
 			apply();
 		} catch (e) {
-			// R-request-order: a queued request's caller has returned, so its failure goes to the
-			// graph's host reporter; with none, it is re-thrown once the queue is empty.
-			const report = core.report;
-			if (report !== undefined) {
-				try {
-					report({ source: "queued request", error: e });
-				} catch {
-					// a reporter that throws is ignored
-				}
-			} else if (escaped === null) escaped = { e };
+			reportFailure(core, "queued request", e);
 		} finally {
 			d.depth--;
 		}
@@ -124,5 +161,4 @@ function drain(core: NodeCore): void {
 	}
 	d.queue = [];
 	d.head = 0;
-	if (escaped !== null) throw (escaped as { e: unknown }).e;
 }

@@ -1,3 +1,4 @@
+import { reportFailure } from "../batch/boundary.js";
 import { strictCanonicalJsonBytes } from "../json/codec.js";
 import { errorPayload, isTerminal, SENTINEL } from "../protocol/messages.js";
 import { makeDepBookkeeping } from "./core.js";
@@ -216,11 +217,7 @@ export function nodeCloseLifetime<T>(
 			try {
 				cleanup();
 			} catch (error) {
-				try {
-					self._core.report?.({ source: `cleanup of ${self._slot.name ?? "node"}`, error });
-				} catch {
-					// a reporter that throws is ignored
-				}
+				reportFailure(self._core, `cleanup of ${self._slot.name ?? "node"}`, error);
 			}
 		}
 	}
