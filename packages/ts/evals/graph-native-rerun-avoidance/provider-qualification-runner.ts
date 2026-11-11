@@ -191,7 +191,7 @@ async function runExclusive(input: Parameters<typeof run>[0]) {
 			join(input.privateRoot, "describe.json"),
 			strictJsonCodec.encode(topology.graph.describe()),
 		);
-		topology.input.down([["DATA", { kind: "start" }]]);
+		topology.input.set({ kind: "start" });
 		for (;;) {
 			if (graphFailed) throw new TypeError("qualification Graph rejected lifecycle");
 			const admission = topology.admission.cache;
@@ -222,15 +222,10 @@ async function runExclusive(input: Parameters<typeof run>[0]) {
 				join(input.privateRoot, `response-${admission.request}.json`),
 				response.bytes,
 			);
-			topology.input.down([
-				[
-					"DATA",
-					{
-						kind: "outcome",
-						outcome: qualificationOutcome(admission, response.status, response.bytes),
-					},
-				],
-			]);
+			topology.input.set({
+				kind: "outcome",
+				outcome: qualificationOutcome(admission, response.status, response.bytes),
+			});
 		}
 		const receipt = topology.terminal.cache as QualificationState | null;
 		if (receipt === null || !receipt.terminal)

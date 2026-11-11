@@ -787,27 +787,24 @@ export function clickHouseTrustedQueryRuntime(
 	let shutdown: Promise<void> | undefined;
 	let topologyReleased = false;
 
-	const publishIssue = (next: DataIssue): void => issues.down([["DATA", next]]);
+	const publishIssue = (next: DataIssue): void => issues.set(next);
 	const publishAudit = (
 		kind: string,
 		subjectId: string,
 		metadata?: Record<string, unknown>,
 	): void => {
 		auditSequence += 1;
-		audit.down([
-			[
-				"DATA",
-				Object.freeze({
-					id: compoundTupleKey("clickhouse-trusted-query-runtime-audit", [
-						name,
-						String(auditSequence),
-					]),
-					kind,
-					subjectId,
-					...(metadata === undefined ? {} : { metadata: Object.freeze(metadata) }),
-				}) satisfies AgentRuntimeAuditRecord,
-			],
-		]);
+		audit.set(
+			Object.freeze({
+				id: compoundTupleKey("clickhouse-trusted-query-runtime-audit", [
+					name,
+					String(auditSequence),
+				]),
+				kind,
+				subjectId,
+				...(metadata === undefined ? {} : { metadata: Object.freeze(metadata) }),
+			}) satisfies AgentRuntimeAuditRecord,
+		);
 	};
 	const publishRunStatus = (
 		request: ToolProviderAdapterRunRequested,
@@ -815,51 +812,45 @@ export function clickHouseTrustedQueryRuntime(
 		outcomeId?: string,
 		nextIssues?: readonly DataIssue[],
 	): void => {
-		runStatus.down([
-			[
-				"DATA",
-				Object.freeze({
-					kind: "tool-provider-adapter-run-status",
-					runId: request.runId,
-					adapterInputId: request.adapterInputId,
-					requestId: request.requestId,
-					operationId: request.operationId,
-					status: next,
-					attempt: request.attempt,
-					...(outcomeId === undefined ? {} : { outcomeId }),
-					...(nextIssues === undefined ? {} : { issues: nextIssues }),
-					sourceRefs: request.sourceRefs,
-					metadata: Object.freeze({ providerId: CLICKHOUSE_TRUSTED_QUERY_PROVIDER_ID }),
-				}) satisfies ToolProviderAdapterRunStatus,
-			],
-		]);
+		runStatus.set(
+			Object.freeze({
+				kind: "tool-provider-adapter-run-status",
+				runId: request.runId,
+				adapterInputId: request.adapterInputId,
+				requestId: request.requestId,
+				operationId: request.operationId,
+				status: next,
+				attempt: request.attempt,
+				...(outcomeId === undefined ? {} : { outcomeId }),
+				...(nextIssues === undefined ? {} : { issues: nextIssues }),
+				sourceRefs: request.sourceRefs,
+				metadata: Object.freeze({ providerId: CLICKHOUSE_TRUSTED_QUERY_PROVIDER_ID }),
+			}) satisfies ToolProviderAdapterRunStatus,
+		);
 	};
 
 	function publishOutcome(
 		run: ClickHouseActiveRun,
 		outcome: ExecutorOutcome<ClickHouseTrustedQueryHostSettlement>,
 	): void {
-		outcomes.down([["DATA", outcome]]);
+		outcomes.set(outcome);
 		publishRunStatus(run.request, outcome.kind, outcome.outcomeId, outcome.issues);
-		status.down([
-			[
-				"DATA",
-				Object.freeze({
-					kind: "status",
-					requestId: run.request.requestId,
-					operationId: run.request.operationId,
-					effectRunId: run.input.effectRunId ?? run.request.runId,
-					status:
-						outcome.kind === "result"
-							? "completed"
-							: outcome.kind === "failure"
-								? "failed"
-								: outcome.kind,
-					sourceRefs: outcome.evidenceRefs,
-					metadata: Object.freeze({ runId: run.request.runId }),
-				}) satisfies AgentRequestStatusChanged,
-			],
-		]);
+		status.set(
+			Object.freeze({
+				kind: "status",
+				requestId: run.request.requestId,
+				operationId: run.request.operationId,
+				effectRunId: run.input.effectRunId ?? run.request.runId,
+				status:
+					outcome.kind === "result"
+						? "completed"
+						: outcome.kind === "failure"
+							? "failed"
+							: outcome.kind,
+				sourceRefs: outcome.evidenceRefs,
+				metadata: Object.freeze({ runId: run.request.runId }),
+			}) satisfies AgentRequestStatusChanged,
+		);
 		publishAudit("clickhouse-trusted-query-runtime-finished", run.request.requestId, {
 			runId: run.request.runId,
 			attempt: run.request.attempt,
@@ -964,7 +955,7 @@ export function clickHouseTrustedQueryRuntime(
 			]),
 		});
 		proposals.set(proposal.proposalId, proposal);
-		cancellationProposals.down([["DATA", proposal]]);
+		cancellationProposals.set(proposal);
 	}
 
 	function decideCancellation(raw: ClickHouseTrustedQueryCancellationDecision): void {
@@ -999,7 +990,7 @@ export function clickHouseTrustedQueryRuntime(
 			state: admitted ? ("admitted" as const) : ("blocked" as const),
 			sourceRefs: decision.sourceRefs,
 		});
-		cancellationAdmissions.down([["DATA", admission]]);
+		cancellationAdmissions.set(admission);
 		if (admitted && run !== undefined) {
 			run.cancelKind = "user";
 			run.controller.abort();

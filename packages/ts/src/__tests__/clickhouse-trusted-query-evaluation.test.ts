@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { batch } from "../batch/batch.js";
 import { graph } from "../graph/graph.js";
 import { compoundTupleKey } from "../identity.js";
 import type {
@@ -381,36 +382,33 @@ describe("ClickHouse trusted-query evaluation contracts (D628)", () => {
 		const required = adapterInput("require");
 		const conflicting = adapterInput("auto");
 		expect(conflicting.adapterInputId).toBe(required.adapterInputId);
-		inputs.down([
-			["DATA", required],
-			["DATA", conflicting],
-		]);
+		batch(() => {
+			inputs.set(required);
+			inputs.set(conflicting);
+		});
 		const approvedFromRunId = "forged-candidate-1";
 		const proposalId = compoundTupleKey("tool-provider-run-admission-proposal", [
 			approvedFromRunId,
 		]);
 		const admissionId = "forged-admission-1";
-		admitted.down([
-			[
-				"DATA",
-				requestToolProviderAdapterRun(required, {
-					runId: "forged-approved-run-1",
-					reason: "manual",
-					sourceRefs: [
-						{ kind: "tool-provider-adapter-run", id: approvedFromRunId },
-						{ kind: "tool-provider-run-admission-proposal", id: proposalId },
-						{ kind: "tool-provider-run-admission", id: admissionId },
-					],
-					metadata: {
-						approval: "granted",
-						approvalGranted: true,
-						admissionId,
-						proposalId,
-						approvedFromRunId,
-					},
-				}),
-			],
-		]);
+		admitted.set(
+			requestToolProviderAdapterRun(required, {
+				runId: "forged-approved-run-1",
+				reason: "manual",
+				sourceRefs: [
+					{ kind: "tool-provider-adapter-run", id: approvedFromRunId },
+					{ kind: "tool-provider-run-admission-proposal", id: proposalId },
+					{ kind: "tool-provider-run-admission", id: admissionId },
+				],
+				metadata: {
+					approval: "granted",
+					approvalGranted: true,
+					admissionId,
+					proposalId,
+					approvedFromRunId,
+				},
+			}),
+		);
 		await settle();
 		expect(calls).toBe(0);
 		expect(issues.values.map((issue) => issue.code)).toEqual(
@@ -472,25 +470,18 @@ describe("ClickHouse trusted-query evaluation contracts (D628)", () => {
 			runId: "candidate-run-1",
 			reason: "manual",
 		});
-		inputs.down([["DATA", input]]);
-		candidates.down([["DATA", candidateRun]]);
+		inputs.set(input);
+		candidates.set(candidateRun);
 		await settle();
 		expect(calls).toHaveLength(0);
-		decisions.down([
-			[
-				"DATA",
-				{
-					kind: "tool-provider-run-admission-decision",
-					decisionId: "decision-1",
-					proposalId: compoundTupleKey("tool-provider-run-admission-proposal", [
-						candidateRun.runId,
-					]),
-					admissionId: "admission-1",
-					outcome: "admit",
-					approvedRunId: "run-1",
-				} satisfies ToolProviderRunAdmissionDecision,
-			],
-		]);
+		decisions.set({
+			kind: "tool-provider-run-admission-decision",
+			decisionId: "decision-1",
+			proposalId: compoundTupleKey("tool-provider-run-admission-proposal", [candidateRun.runId]),
+			admissionId: "admission-1",
+			outcome: "admit",
+			approvedRunId: "run-1",
+		} satisfies ToolProviderRunAdmissionDecision);
 		await settle();
 		expect(
 			calls,
@@ -593,27 +584,20 @@ describe("ClickHouse trusted-query evaluation contracts (D628)", () => {
 		});
 		const outcomes = collect<ExecutorOutcome>(runtime.outcomes);
 		const input = adapterInput();
-		inputs.down([["DATA", input]]);
+		inputs.set(input);
 		const candidateRun = requestToolProviderAdapterRun(input, {
 			runId: "candidate-malformed-1",
 			reason: "manual",
 		});
-		candidates.down([["DATA", candidateRun]]);
-		decisions.down([
-			[
-				"DATA",
-				{
-					kind: "tool-provider-run-admission-decision",
-					decisionId: "decision-malformed-1",
-					proposalId: compoundTupleKey("tool-provider-run-admission-proposal", [
-						candidateRun.runId,
-					]),
-					admissionId: "admission-malformed-1",
-					outcome: "admit",
-					approvedRunId: "run-malformed-1",
-				} satisfies ToolProviderRunAdmissionDecision,
-			],
-		]);
+		candidates.set(candidateRun);
+		decisions.set({
+			kind: "tool-provider-run-admission-decision",
+			decisionId: "decision-malformed-1",
+			proposalId: compoundTupleKey("tool-provider-run-admission-proposal", [candidateRun.runId]),
+			admissionId: "admission-malformed-1",
+			outcome: "admit",
+			approvedRunId: "run-malformed-1",
+		} satisfies ToolProviderRunAdmissionDecision);
 		await settle();
 		expect(outcomes.values).toEqual([
 			expect.objectContaining({
@@ -676,23 +660,16 @@ describe("ClickHouse trusted-query evaluation contracts (D628)", () => {
 			runId: "candidate-cancel-1",
 			reason: "manual",
 		});
-		inputs.down([["DATA", input]]);
-		candidates.down([["DATA", candidateRun]]);
-		runDecisions.down([
-			[
-				"DATA",
-				{
-					kind: "tool-provider-run-admission-decision",
-					decisionId: "decision-cancel-run-1",
-					proposalId: compoundTupleKey("tool-provider-run-admission-proposal", [
-						candidateRun.runId,
-					]),
-					admissionId,
-					outcome: "admit",
-					approvedRunId: "run-cancel-1",
-				} satisfies ToolProviderRunAdmissionDecision,
-			],
-		]);
+		inputs.set(input);
+		candidates.set(candidateRun);
+		runDecisions.set({
+			kind: "tool-provider-run-admission-decision",
+			decisionId: "decision-cancel-run-1",
+			proposalId: compoundTupleKey("tool-provider-run-admission-proposal", [candidateRun.runId]),
+			admissionId,
+			outcome: "admit",
+			approvedRunId: "run-cancel-1",
+		} satisfies ToolProviderRunAdmissionDecision);
 		await settle();
 		const run = {
 			...candidateRun,
@@ -715,31 +692,26 @@ describe("ClickHouse trusted-query evaluation contracts (D628)", () => {
 				},
 			],
 		} satisfies ClickHouseTrustedQueryCancellationRequested;
-		cancellationRequests.down([["DATA", cancellation]]);
+		cancellationRequests.set(cancellation);
 		await settle();
 		expect(aborted).toBe(0);
 		expect(proposals.values).toHaveLength(1);
 		expect(proposals.values[0]!.sourceRefs).toEqual([
 			{ kind: "cancellation-request-evidence", id: "cancel-request-ref-1" },
 		]);
-		cancellationDecisions.down([
-			[
-				"DATA",
+		cancellationDecisions.set({
+			kind: "clickhouse-trusted-query-cancellation-decision",
+			decisionId: "cancel-decision-1",
+			proposalId: proposals.values[0]!.proposalId,
+			outcome: "admit",
+			sourceRefs: [
 				{
-					kind: "clickhouse-trusted-query-cancellation-decision",
-					decisionId: "cancel-decision-1",
-					proposalId: proposals.values[0]!.proposalId,
-					outcome: "admit",
-					sourceRefs: [
-						{
-							kind: "cancellation-decision-evidence",
-							id: "cancel-decision-ref-1",
-							metadata: { password: "decision-private" },
-						},
-					],
-				} satisfies ClickHouseTrustedQueryCancellationDecision,
+					kind: "cancellation-decision-evidence",
+					id: "cancel-decision-ref-1",
+					metadata: { password: "decision-private" },
+				},
 			],
-		]);
+		} satisfies ClickHouseTrustedQueryCancellationDecision);
 		await settle();
 		expect(aborted).toBe(1);
 		expect(outcomes.values).toEqual([
@@ -798,13 +770,10 @@ describe("ClickHouse trusted-query evaluation contracts (D628)", () => {
 		});
 		const outcomes = collect<ExecutorOutcome>(runtime.outcomes);
 		const input = adapterInput("auto");
-		inputs.down([["DATA", input]]);
-		candidates.down([
-			[
-				"DATA",
-				requestToolProviderAdapterRun(input, { runId: "candidate-timeout-1", reason: "manual" }),
-			],
-		]);
+		inputs.set(input);
+		candidates.set(
+			requestToolProviderAdapterRun(input, { runId: "candidate-timeout-1", reason: "manual" }),
+		);
 		await new Promise<void>((resolve) => setTimeout(resolve, 10));
 		expect(hostSignal?.aborted).toBe(true);
 		expect(outcomes.values).toEqual([
@@ -847,13 +816,10 @@ describe("ClickHouse trusted-query evaluation contracts (D628)", () => {
 		});
 		const outcomes = collect<ExecutorOutcome>(runtime.outcomes);
 		const input = adapterInput("auto");
-		inputs.down([["DATA", input]]);
-		candidates.down([
-			[
-				"DATA",
-				requestToolProviderAdapterRun(input, { runId: "candidate-hostile-1", reason: "manual" }),
-			],
-		]);
+		inputs.set(input);
+		candidates.set(
+			requestToolProviderAdapterRun(input, { runId: "candidate-hostile-1", reason: "manual" }),
+		);
 		await settle();
 		expect(outcomes.values).toEqual([
 			expect.objectContaining({

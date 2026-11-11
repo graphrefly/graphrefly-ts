@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { batch } from "../batch/batch.js";
 import type { Message } from "../index.js";
 import {
 	catchError,
@@ -107,7 +108,10 @@ describe("core operators (free-standing factories via g.initNode, D43/D6)", () =
 		});
 		msgs.length = 0;
 
-		s.down([["DATA", 9], ["INVALIDATE"]]);
+		batch(() => {
+			s.set(9);
+			s.invalidate();
+		});
 
 		// R-wave: the source's array is split at its last INVALIDATE, so map sees only the INVALIDATE.
 		expect(msgs).toEqual([["PENDING"], ["INVALIDATE"]]);

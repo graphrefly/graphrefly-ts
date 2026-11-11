@@ -24,6 +24,7 @@ export interface TopologyGroup {
 	readonly name?: string;
 	readonly released: boolean;
 	add<T extends Node<unknown>>(node: T): T;
+	node<T = unknown>(deps?: readonly [], fn?: null, opts?: SugarOpts<T>): StateNode<T>;
 	node<T = unknown>(
 		deps?: readonly Node<unknown>[],
 		fn?: NodeFn | null,
@@ -73,6 +74,12 @@ export class GraphTopologyGroup implements TopologyGroup {
 		return node;
 	}
 
+	node<T = unknown>(deps?: readonly [], fn?: null, opts?: SugarOpts<T>): StateNode<T>;
+	node<T = unknown>(
+		deps?: readonly Node<unknown>[],
+		fn?: NodeFn | null,
+		opts?: SugarOpts<T>,
+	): Node<T>;
 	node<T = unknown>(
 		deps: readonly Node<unknown>[] = [],
 		fn: NodeFn | null = null,

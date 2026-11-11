@@ -1,7 +1,7 @@
 import { currentBatch } from "../batch/batch.js";
 import { isWaveActive } from "../batch/boundary.js";
 import type { NodeFn } from "../ctx/types.js";
-import type { Node } from "../node/node.js";
+import type { Node, StateNode } from "../node/node.js";
 import { nodeRuntimeHost } from "../node/node-runtime-host.js";
 import {
 	cleanupNodeAcquisition,
@@ -41,7 +41,7 @@ export interface OwnedConstruction {
 	readonly epoch: number;
 	readonly nodes: readonly Node<unknown>[];
 	readonly roots: readonly RootLease[];
-	readonly startup: Node<StartupFact>;
+	readonly startup: StateNode<StartupFact>;
 	phase: "owned" | "starting" | "started" | "faulted";
 	startupError?: unknown;
 	deliveryError?: unknown;
@@ -119,7 +119,7 @@ export class ConstructionScope {
 	private phase: "cold" | "sealed" | "transferred" | "aborted" = "cold";
 	private readonly acquisitions: NodeAcquisition[] = [];
 	private sealedOwner?: OwnedConstruction;
-	private startupNode?: Node<StartupFact>;
+	private startupNode?: StateNode<StartupFact>;
 	private readonly available: Set<string>;
 	private readonly manifest: ConstructionManifest;
 	constructor(
@@ -145,6 +145,12 @@ export class ConstructionScope {
 			throw new TypeError("causal construction context mismatch");
 	}
 
+	node<T = unknown>(deps?: readonly [], fn?: null, opts?: SugarOpts<T>): StateNode<T>;
+	node<T = unknown>(
+		deps?: readonly Node<unknown>[],
+		fn?: NodeFn | null,
+		opts?: SugarOpts<T>,
+	): Node<T>;
 	node<T = unknown>(
 		deps: readonly Node<unknown>[] = [],
 		fn: NodeFn | null = null,
@@ -180,8 +186,8 @@ export class ConstructionScope {
 		});
 	}
 
-	startupSource(): Node<StartupFact> {
-		this.startupNode = this.node([], null, {
+	startupSource(): StateNode<StartupFact> {
+		this.startupNode = this.node<StartupFact>([], null, {
 			name: `${this.manifest.name}/startup`,
 			factory: "graphConstructionStartup",
 			initial: Object.freeze({
@@ -208,7 +214,7 @@ export class ConstructionScope {
 		return this.registrar.readIncoming(nodes);
 	}
 
-	seal(startup: Node<StartupFact>, roots: readonly Node<unknown>[]): OwnedConstruction {
+	seal(startup: StateNode<StartupFact>, roots: readonly Node<unknown>[]): OwnedConstruction {
 		stableBoundary();
 		if (this.phase !== "cold" || this.available.size !== 0)
 			throw new Error("construction topology is incomplete or sealed");
@@ -354,7 +360,7 @@ export function startConstruction(graph: Graph, owner: OwnedConstruction): void 
 		...(code === undefined ? {} : { code }),
 	});
 	try {
-		owner.startup.down([["DATA", fact]]);
+		owner.startup.set(fact);
 	} catch (error) {
 		owner.deliveryError = error;
 	}

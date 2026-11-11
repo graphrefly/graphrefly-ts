@@ -1,4 +1,5 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
+import { batch } from "../batch/batch.js";
 import { depBatch } from "../ctx/types.js";
 import { graph } from "../graph/graph.js";
 import * as packageRoot from "../index.js";
@@ -29,6 +30,7 @@ import {
 } from "../solutions/agentic-memory/index.js";
 import * as solutionsAggregate from "../solutions/index.js";
 import type { SolutionOccurrence } from "../solutions/occurrence.js";
+import { asState } from "./helpers/as-state.js";
 
 const decoder = new TextDecoder();
 
@@ -807,11 +809,11 @@ describe("AgenticMemory D789 real keyed exact-use lifecycle", () => {
 			},
 		});
 		expect(() =>
-			input.down([
-				["DATA", { ...a, value: { ...a.value, request: hostileRequest } }],
-				["DATA", { ...b, value: { ...b.value, records: hostileRecords } }],
-				["DATA", useOccurrence("valid")],
-			]),
+			batch(() => {
+				input.set({ ...a, value: { ...a.value, request: hostileRequest } });
+				input.set({ ...b, value: { ...b.value, records: hostileRecords } });
+				input.set(useOccurrence("valid"));
+			}),
 		).not.toThrow();
 		expect(getterCalls).toBe(0);
 		expect(observed.values.map((value) => value.value.status.state)).toEqual([
@@ -829,7 +831,7 @@ describe("AgenticMemory D789 real keyed exact-use lifecycle", () => {
 		const gate = agenticMemoryRecordUseGateBundle(g, { occurrences: input, maxOccurrences: 1 });
 		const observed = collect(gate.snapshot);
 		const a = useOccurrence("a");
-		input.down([["DATA", a]]);
+		input.set(a);
 		const changed = {
 			...a,
 			value: {
@@ -840,7 +842,7 @@ describe("AgenticMemory D789 real keyed exact-use lifecycle", () => {
 				})),
 			},
 		} as unknown as AgenticMemoryRecordUseOccurrence<string>;
-		rejectsIn(g, () => input.down([["DATA", changed]]), /conflicted/u);
+		rejectsIn(g, () => input.set(changed), /conflicted/u);
 		expect(observed.values).toHaveLength(1);
 		observed.unsubscribe();
 	});
@@ -852,7 +854,7 @@ describe("AgenticMemory D789 real keyed exact-use lifecycle", () => {
 		const observed = collect(gate.audit);
 		const source = { kind: "work-item", id: "original" };
 		const a = { ...useOccurrence("a"), occurrenceSourceRefs: [source] };
-		input.down([["DATA", a]]);
+		input.set(a);
 		source.id = "mutated";
 		expect(observed.values[0]?.occurrenceSourceRefs).toEqual([
 			{ kind: "work-item", id: "original" },
@@ -861,17 +863,10 @@ describe("AgenticMemory D789 real keyed exact-use lifecycle", () => {
 		rejectsIn(
 			g,
 			() =>
-				input.down([
-					[
-						"DATA",
-						{
-							...a,
-							occurrenceSourceRefs: [
-								{ kind: "work-item", id: "original", privatePayload: "secret" },
-							],
-						},
-					],
-				]),
+				input.set({
+					...a,
+					occurrenceSourceRefs: [{ kind: "work-item", id: "original", privatePayload: "secret" }],
+				} as never),
 			/only data kind\/id/u,
 		);
 		observed.unsubscribe();
@@ -892,7 +887,7 @@ describe("AgenticMemory D789 real keyed exact-use lifecycle", () => {
 		};
 		rejectsIn(
 			accessorGraph,
-			() => accessorInput.down([["DATA", { ...a, occurrenceSourceRefs: [ref] }]]),
+			() => accessorInput.set({ ...a, occurrenceSourceRefs: [ref] }),
 			/only data kind\/id/u,
 		);
 		expect(called).toBe(false);
@@ -915,7 +910,7 @@ describe("AgenticMemory D789 real keyed exact-use lifecycle", () => {
 			},
 		);
 		const a = { ...useOccurrence("a"), occurrenceSourceRefs: [source] };
-		expect(() => input.down([["DATA", a]])).not.toThrow();
+		expect(() => input.set(a)).not.toThrow();
 		expect(getCalls).toBe(0);
 		expect(observed.values[0]?.occurrenceSourceRefs).toEqual([
 			{ kind: "work-item", id: "original" },
@@ -930,7 +925,7 @@ describe("AgenticMemory D789 real keyed exact-use lifecycle", () => {
 				},
 			},
 		} as unknown as AgenticMemoryRecordUseOccurrence<string>;
-		rejectsIn(g, () => input.down([["DATA", bad]]), /canonical sha256/u);
+		rejectsIn(g, () => input.set(bad), /canonical sha256/u);
 		expect(coercions).toBe(0);
 		observed.unsubscribe();
 	});
@@ -940,10 +935,10 @@ describe("AgenticMemory D789 real keyed exact-use lifecycle", () => {
 		const input = g.node<AgenticMemoryRecordUseOccurrence<string>>([], null);
 		const gate = agenticMemoryRecordUseGateBundle(g, { occurrences: input, maxOccurrences: 1 });
 		const observed = collect(gate.allowedRecords);
-		input.down([
-			["DATA", useOccurrence("same", 1)],
-			["DATA", useOccurrence("same", 2)],
-		]);
+		batch(() => {
+			input.set(useOccurrence("same", 1));
+			input.set(useOccurrence("same", 2));
+		});
 		expect(observed.values.map((value) => value.occurrenceRevision)).toEqual([1, 2]);
 		observed.unsubscribe();
 	});
@@ -964,8 +959,11 @@ describe("AgenticMemory D789 real keyed exact-use lifecycle", () => {
 		const a = useOccurrence("a");
 		const b = useOccurrence("b");
 		const order = delivery === "reordered" ? [b, a] : [a, b];
-		if (delivery === "batched") input.down(order.map((value) => ["DATA", value]));
-		else for (const value of order) input.down([["DATA", value]]);
+		if (delivery === "batched")
+			batch(() => {
+				for (const value of order) asState(input).set(value);
+			});
+		else for (const value of order) input.set(value);
 		expect(observed.values.map((value) => value.occurrenceId)).toEqual(
 			order.map((value) => value.occurrenceId),
 		);
@@ -977,7 +975,9 @@ describe("AgenticMemory D789 real keyed exact-use lifecycle", () => {
 			expect(value.occurrenceDigest).toBe(order[index]?.occurrenceDigest);
 			expect(value.value).toBe(observed.values[index]?.value.allowedRecords);
 		}
-		input.down(order.map((value) => ["DATA", value]));
+		batch(() => {
+			for (const value of order) asState(input).set(value);
+		});
 		expect(observed.values).toHaveLength(2);
 		expect(allowed.values).toHaveLength(2);
 		expectTypeOf(gate).toMatchTypeOf<AgenticMemoryRecordUseGateBundle<string>>();
@@ -1011,12 +1011,12 @@ describe("AgenticMemory D789 real keyed exact-use lifecycle", () => {
 				},
 			};
 		};
-		input.down([
-			["DATA", make("deny", "denied")],
-			["DATA", make("missing", "missing")],
-			["DATA", make("duplicate", "duplicate")],
-			["DATA", allow],
-		]);
+		batch(() => {
+			input.set(make("deny", "denied"));
+			input.set(make("missing", "missing"));
+			input.set(make("duplicate", "duplicate"));
+			input.set(allow);
+		});
 		expect(observed.values.map((value) => value.value.allowedRecords.length)).toEqual([0, 0, 0, 1]);
 		expect(observed.values.map((value) => value.value.status.state)).toEqual([
 			"ready",
@@ -1046,7 +1046,7 @@ describe("AgenticMemory D789 real keyed exact-use lifecycle", () => {
 			}
 		});
 		const a = useOccurrence("a", 2);
-		input.down([["DATA", a]]);
+		input.set(a);
 		const bad =
 			fault === "digest"
 				? { ...a, occurrenceDigest: `sha256:${"f".repeat(64)}` }
@@ -1060,10 +1060,10 @@ describe("AgenticMemory D789 real keyed exact-use lifecycle", () => {
 		rejectsIn(
 			g,
 			() =>
-				input.down([
-					["DATA", useOccurrence("b")],
-					["DATA", bad],
-				]),
+				batch(() => {
+					input.set(useOccurrence("b"));
+					input.set(bad);
+				}),
 			/solution occurrence/u,
 		);
 		expect(messages.filter((message) => message[0] === "DATA")).toHaveLength(1);
@@ -1086,9 +1086,9 @@ describe("AgenticMemory D789 real keyed exact-use lifecycle", () => {
 			);
 		const allowed = collect(gate.allowedRecords);
 		expect(allowed.values).toEqual([]);
-		input.down([["DATA", useOccurrence("a")]]);
+		input.set(useOccurrence("a"));
 		expect(allowed.values).toHaveLength(1);
-		input.down([["ERROR", new Error("upstream failed")]]);
+		input.error(new Error("upstream failed"));
 		expect(terminals.sort()).toEqual(
 			["snapshot", "allowedRecords", "exclusions", "status", "issues", "audit", "cursor"].sort(),
 		);
@@ -1103,14 +1103,14 @@ describe("AgenticMemory D789 real keyed exact-use lifecycle", () => {
 		const gate = agenticMemoryRecordUseGateBundle(g, { occurrences: input, maxOccurrences: 1 });
 		const a = useOccurrence("a");
 		const first = collect(gate.snapshot);
-		input.down([
-			["DATA", a],
-			["DATA", a],
-		]);
+		batch(() => {
+			input.set(a);
+			input.set(a);
+		});
 		expect(first.values).toHaveLength(1);
 		first.unsubscribe();
 		const second = collect(gate.snapshot);
-		input.down([["DATA", a]]);
+		input.set(a);
 		expect(second.values).toHaveLength(1);
 		second.unsubscribe();
 	});

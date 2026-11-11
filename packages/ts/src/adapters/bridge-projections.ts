@@ -6,9 +6,10 @@
  * state is surfaced through graph-visible attempts/status/errors nodes.
  */
 
+import { batch } from "../batch/batch.js";
 import { depBatch } from "../ctx/types.js";
 import type { Graph } from "../graph/graph.js";
-import type { Node } from "../node/node.js";
+import type { Node, StateNode } from "../node/node.js";
 import { errorPayload, type Wave } from "../protocol/messages.js";
 import type {
 	WireBridgeAck,
@@ -271,18 +272,30 @@ export function projectAttempts<TOutbound, TInbound>(
 }
 
 export function guardedInboundNode<TInbound>(
-	node: Node<WireBridgeEnvelope<TInbound> | WireBridgeInvalidIngress>,
+	node: StateNode<WireBridgeEnvelope<TInbound> | WireBridgeInvalidIngress>,
 	sessionId: string,
-): Node<WireBridgeEnvelope<TInbound>> {
+): StateNode<WireBridgeEnvelope<TInbound>> {
+	// The held bridge (phase 6) guards its inbound host inputs: each write goes through the guard,
+	// and what the guard gives back is written with the state's own inputs.
+	const write = (target: typeof node, msgs: Wave): void => {
+		const guarded = guardInboundWave(msgs, sessionId);
+		batch(() => {
+			for (const m of guarded) {
+				if (m[0] === "DATA") target.set(m[1] as WireBridgeEnvelope<TInbound>);
+				else if (m[0] === "ERROR") target.error(m[1]);
+				else if (m[0] === "COMPLETE") target.complete();
+				else if (m[0] === "INVALIDATE") target.invalidate();
+			}
+		});
+	};
 	return new Proxy(node, {
 		get(target, property) {
-			if (property === "down") {
-				return (msgs: Wave) => target.down(guardInboundWave(msgs, sessionId));
-			}
+			if (property === "set") return (v: unknown) => write(target, [["DATA", v]]);
+			if (property === "error") return (e: unknown) => write(target, [["ERROR", e]]);
 			const value = Reflect.get(target, property, target);
 			return typeof value === "function" ? value.bind(target) : value;
 		},
-	}) as Node<WireBridgeEnvelope<TInbound>>;
+	}) as unknown as StateNode<WireBridgeEnvelope<TInbound>>;
 }
 
 export function guardInboundWave(msgs: Wave, sessionId: string): Wave {

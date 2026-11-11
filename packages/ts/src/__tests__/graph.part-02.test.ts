@@ -16,6 +16,7 @@ import {
 	restoreGraph,
 	strictJsonCodec,
 } from "../index.js";
+import { asState } from "./helpers/as-state.js";
 import { rewireOwnedNode } from "./helpers/owned-rewire.js";
 
 function collect(n: { subscribe(s: (m: Message) => void): () => void }) {
@@ -28,7 +29,7 @@ function collect(n: { subscribe(s: (m: Message) => void): () => void }) {
 	return msgs;
 }
 function demand(request: Node<true>): void {
-	request.down([["DATA", true]]);
+	asState(request).set(true);
 }
 const _types = (msgs: Message[]) => msgs.map((m) => m[0]);
 const TEST_JSON_DECODER = new TextDecoder();
@@ -493,8 +494,8 @@ describe("Graph.checkpoint — public data shape (R-snapshot / D83 / D90)", () =
 		const g = graph();
 		const done = g.state(1, { name: "done" });
 		const failed = g.state(2, { name: "failed" });
-		done.down([["COMPLETE"]]);
-		failed.down([["ERROR", "boom"]]);
+		done.complete();
+		failed.error("boom");
 
 		const byId = Object.fromEntries(g.checkpoint().nodes.map((n) => [n.id, n]));
 		expect(byId.done.terminal).toEqual({ kind: "COMPLETE" });
@@ -529,7 +530,7 @@ describe("Graph.checkpoint — public data shape (R-snapshot / D83 / D90)", () =
 
 		const badTerminal = graph();
 		const failed = badTerminal.state(1, { name: "failed" });
-		failed.down([["ERROR", new Error("not-json")]]);
+		failed.error(new Error("not-json"));
 		expect(() => badTerminal.checkpoint()).toThrow(/strict JSON compatible/);
 	});
 

@@ -74,22 +74,19 @@ describe("remote dispatcher helpers over wireBridge facts (D147)", () => {
 			},
 		]);
 
-		bridge.inbound.down([
-			[
-				"DATA",
-				wireBridgeEnvelope({
-					sessionId: "session-a",
-					type: "data",
-					seq: 1,
-					cursor: 1,
-					payload: {
-						kind: "data",
-						value: { kind: "result", operation: "upper", requestId: "req-1", payload: "HELLO" },
-					},
-					requestId: "req-1",
-				}),
-			],
-		]);
+		bridge.inbound.set(
+			wireBridgeEnvelope({
+				sessionId: "session-a",
+				type: "data",
+				seq: 1,
+				cursor: 1,
+				payload: {
+					kind: "data",
+					value: { kind: "result", operation: "upper", requestId: "req-1", payload: "HELLO" },
+				},
+				requestId: "req-1",
+			}),
+		);
 
 		expect(results).toContainEqual([
 			"DATA",
@@ -146,27 +143,24 @@ describe("remote dispatcher helpers over wireBridge facts (D147)", () => {
 			}
 		});
 
-		bridge.inbound.down([
-			[
-				"DATA",
-				wireBridgeEnvelope({
-					sessionId: "session-a",
-					type: "data",
-					seq: 1,
-					cursor: 0,
-					payload: {
-						kind: "data",
-						value: {
-							kind: "result",
-							operation: "upper",
-							requestId: "req-1",
-							payload: "STALE",
-						},
+		bridge.inbound.set(
+			wireBridgeEnvelope({
+				sessionId: "session-a",
+				type: "data",
+				seq: 1,
+				cursor: 0,
+				payload: {
+					kind: "data",
+					value: {
+						kind: "result",
+						operation: "upper",
+						requestId: "req-1",
+						payload: "STALE",
 					},
-					requestId: "req-1",
-				}),
-			],
-		]);
+				},
+				requestId: "req-1",
+			}),
+		);
 		remote.call("upper", "req-1", "hello");
 
 		expect(results).not.toContainEqual(["DATA", expect.anything()]);
@@ -189,27 +183,24 @@ describe("remote dispatcher helpers over wireBridge facts (D147)", () => {
 			}),
 		]);
 
-		bridge.inbound.down([
-			[
-				"DATA",
-				wireBridgeEnvelope({
-					sessionId: "session-a",
-					type: "data",
-					seq: 2,
-					cursor: 1,
-					payload: {
-						kind: "data",
-						value: {
-							kind: "result",
-							operation: "upper",
-							requestId: "req-1",
-							payload: "HELLO",
-						},
+		bridge.inbound.set(
+			wireBridgeEnvelope({
+				sessionId: "session-a",
+				type: "data",
+				seq: 2,
+				cursor: 1,
+				payload: {
+					kind: "data",
+					value: {
+						kind: "result",
+						operation: "upper",
+						requestId: "req-1",
+						payload: "HELLO",
 					},
-					requestId: "req-1",
-				}),
-			],
-		]);
+				},
+				requestId: "req-1",
+			}),
+		);
 
 		expect(results).toContainEqual([
 			"DATA",
@@ -249,27 +240,24 @@ describe("remote dispatcher helpers over wireBridge facts (D147)", () => {
 		});
 
 		batch(() => {
-			bridge.inbound.down([
-				[
-					"DATA",
-					wireBridgeEnvelope({
-						sessionId: "session-a",
-						type: "data",
-						seq: 1,
-						cursor: 0,
-						payload: {
-							kind: "data",
-							value: {
-								kind: "result",
-								operation: "upper",
-								requestId: "req-1",
-								payload: "STALE",
-							},
+			bridge.inbound.set(
+				wireBridgeEnvelope({
+					sessionId: "session-a",
+					type: "data",
+					seq: 1,
+					cursor: 0,
+					payload: {
+						kind: "data",
+						value: {
+							kind: "result",
+							operation: "upper",
+							requestId: "req-1",
+							payload: "STALE",
 						},
-						requestId: "req-1",
-					}),
-				],
-			]);
+					},
+					requestId: "req-1",
+				}),
+			);
 			remote.call("upper", "req-1", "hello");
 		});
 
@@ -295,27 +283,24 @@ describe("remote dispatcher helpers over wireBridge facts (D147)", () => {
 			}),
 		]);
 
-		bridge.inbound.down([
-			[
-				"DATA",
-				wireBridgeEnvelope({
-					sessionId: "session-a",
-					type: "data",
-					seq: 2,
-					cursor: 1,
-					payload: {
-						kind: "data",
-						value: {
-							kind: "result",
-							operation: "upper",
-							requestId: "req-1",
-							payload: "HELLO",
-						},
+		bridge.inbound.set(
+			wireBridgeEnvelope({
+				sessionId: "session-a",
+				type: "data",
+				seq: 2,
+				cursor: 1,
+				payload: {
+					kind: "data",
+					value: {
+						kind: "result",
+						operation: "upper",
+						requestId: "req-1",
+						payload: "HELLO",
 					},
-					requestId: "req-1",
-				}),
-			],
-		]);
+				},
+				requestId: "req-1",
+			}),
+		);
 
 		expect(results).toContainEqual([
 			"DATA",
@@ -362,26 +347,23 @@ describe("remote dispatcher helpers over wireBridge facts (D147)", () => {
 		});
 
 		remote.call("upper", "req-1", "hello");
-		bridge.inbound.down([
-			[
-				"DATA",
-				wireBridgeEnvelope({
-					sessionId: "session-a",
-					type: "data",
-					seq: 1,
-					cursor: 1,
-					payload: {
-						kind: "data",
-						value: {
-							kind: "result",
-							operation: "lower",
-							requestId: "req-1",
-							payload: "wrong",
-						},
+		bridge.inbound.set(
+			wireBridgeEnvelope({
+				sessionId: "session-a",
+				type: "data",
+				seq: 1,
+				cursor: 1,
+				payload: {
+					kind: "data",
+					value: {
+						kind: "result",
+						operation: "lower",
+						requestId: "req-1",
+						payload: "wrong",
 					},
-				}),
-			],
-		]);
+				},
+			}),
+		);
 
 		expect(results).not.toContainEqual(["DATA", expect.anything()]);
 		expect(errors).toContainEqual([
@@ -403,26 +385,23 @@ describe("remote dispatcher helpers over wireBridge facts (D147)", () => {
 			}),
 		]);
 
-		bridge.inbound.down([
-			[
-				"DATA",
-				wireBridgeEnvelope({
-					sessionId: "session-a",
-					type: "data",
-					seq: 2,
-					cursor: 1,
-					payload: {
-						kind: "data",
-						value: {
-							kind: "status",
-							operation: "upper",
-							requestId: "req-1",
-							status: "working",
-						},
+		bridge.inbound.set(
+			wireBridgeEnvelope({
+				sessionId: "session-a",
+				type: "data",
+				seq: 2,
+				cursor: 1,
+				payload: {
+					kind: "data",
+					value: {
+						kind: "status",
+						operation: "upper",
+						requestId: "req-1",
+						status: "working",
 					},
-				}),
-			],
-		]);
+				},
+			}),
+		);
 
 		expect(responses).toContainEqual([
 			"DATA",
@@ -441,26 +420,23 @@ describe("remote dispatcher helpers over wireBridge facts (D147)", () => {
 			},
 		]);
 
-		bridge.inbound.down([
-			[
-				"DATA",
-				wireBridgeEnvelope({
-					sessionId: "session-a",
-					type: "data",
-					seq: 3,
-					cursor: 1,
-					payload: {
-						kind: "data",
-						value: {
-							kind: "result",
-							operation: "upper",
-							requestId: "req-1",
-							payload: "HELLO",
-						},
+		bridge.inbound.set(
+			wireBridgeEnvelope({
+				sessionId: "session-a",
+				type: "data",
+				seq: 3,
+				cursor: 1,
+				payload: {
+					kind: "data",
+					value: {
+						kind: "result",
+						operation: "upper",
+						requestId: "req-1",
+						payload: "HELLO",
 					},
-				}),
-			],
-		]);
+				},
+			}),
+		);
 
 		expect(results).toContainEqual([
 			"DATA",
@@ -500,52 +476,46 @@ describe("remote dispatcher helpers over wireBridge facts (D147)", () => {
 			},
 		]);
 
-		bridge.inbound.down([
-			[
-				"DATA",
-				wireBridgeEnvelope({
-					sessionId: "session-a",
-					type: "data",
-					seq: 1,
-					cursor: 1,
-					payload: {
-						kind: "data",
-						value: {
-							kind: "result",
-							operation: "upper",
-							requestId: "req-1",
-							payload: "FIRST",
-						},
+		bridge.inbound.set(
+			wireBridgeEnvelope({
+				sessionId: "session-a",
+				type: "data",
+				seq: 1,
+				cursor: 1,
+				payload: {
+					kind: "data",
+					value: {
+						kind: "result",
+						operation: "upper",
+						requestId: "req-1",
+						payload: "FIRST",
 					},
-				}),
-			],
-		]);
+				},
+			}),
+		);
 
 		expect(results).toContainEqual([
 			"DATA",
 			{ operation: "upper", requestId: "req-1", payload: "FIRST" },
 		]);
 
-		bridge.inbound.down([
-			[
-				"DATA",
-				wireBridgeEnvelope({
-					sessionId: "session-a",
-					type: "data",
-					seq: 2,
-					cursor: 2,
-					payload: {
-						kind: "data",
-						value: {
-							kind: "result",
-							operation: "upper",
-							requestId: "req-1",
-							payload: "SECOND",
-						},
+		bridge.inbound.set(
+			wireBridgeEnvelope({
+				sessionId: "session-a",
+				type: "data",
+				seq: 2,
+				cursor: 2,
+				payload: {
+					kind: "data",
+					value: {
+						kind: "result",
+						operation: "upper",
+						requestId: "req-1",
+						payload: "SECOND",
 					},
-				}),
-			],
-		]);
+				},
+			}),
+		);
 
 		expect(results).not.toContainEqual([
 			"DATA",
@@ -576,20 +546,17 @@ describe("remote dispatcher helpers over wireBridge facts (D147)", () => {
 		remote.call("upper", "req-1", "first");
 		remote.call("upper", "req-1", "second");
 
-		bridge.inbound.down([
-			[
-				"DATA",
-				wireBridgeEnvelope({
-					sessionId: "session-a",
-					type: "nack",
-					seq: 1,
-					cursor: 2,
-					ackForSeq: 2,
-					payload: { kind: "error", error: { message: "duplicate rejected remotely" } },
-					requestId: "req-1",
-				}),
-			],
-		]);
+		bridge.inbound.set(
+			wireBridgeEnvelope({
+				sessionId: "session-a",
+				type: "nack",
+				seq: 1,
+				cursor: 2,
+				ackForSeq: 2,
+				payload: { kind: "error", error: { message: "duplicate rejected remotely" } },
+				requestId: "req-1",
+			}),
+		);
 
 		expect(errors).toContainEqual([
 			"DATA",
@@ -600,27 +567,24 @@ describe("remote dispatcher helpers over wireBridge facts (D147)", () => {
 			},
 		]);
 
-		bridge.inbound.down([
-			[
-				"DATA",
-				wireBridgeEnvelope({
-					sessionId: "session-a",
-					type: "data",
-					seq: 2,
-					cursor: 2,
-					payload: {
-						kind: "data",
-						value: {
-							kind: "result",
-							operation: "upper",
-							requestId: "req-1",
-							payload: "FIRST",
-						},
+		bridge.inbound.set(
+			wireBridgeEnvelope({
+				sessionId: "session-a",
+				type: "data",
+				seq: 2,
+				cursor: 2,
+				payload: {
+					kind: "data",
+					value: {
+						kind: "result",
+						operation: "upper",
+						requestId: "req-1",
+						payload: "FIRST",
 					},
-					requestId: "req-1",
-				}),
-			],
-		]);
+				},
+				requestId: "req-1",
+			}),
+		);
 
 		expect(results).toContainEqual([
 			"DATA",
@@ -665,22 +629,19 @@ describe("remote dispatcher helpers over wireBridge facts (D147)", () => {
 			}
 		});
 
-		bridge.inbound.down([
-			[
-				"DATA",
-				wireBridgeEnvelope({
-					sessionId: "session-a",
-					type: "data",
-					seq: 1,
-					cursor: 0,
-					payload: {
-						kind: "data",
-						value: { operation: "upper", requestId: "req-1", payload: "hello" },
-					},
-					requestId: "req-1",
-				}),
-			],
-		]);
+		bridge.inbound.set(
+			wireBridgeEnvelope({
+				sessionId: "session-a",
+				type: "data",
+				seq: 1,
+				cursor: 0,
+				payload: {
+					kind: "data",
+					value: { operation: "upper", requestId: "req-1", payload: "hello" },
+				},
+				requestId: "req-1",
+			}),
+		);
 
 		expect(requests).toContainEqual([
 			"DATA",
@@ -743,22 +704,19 @@ describe("remote dispatcher helpers over wireBridge facts (D147)", () => {
 			from: "responder/responseCommands",
 			to: "bridge/command",
 		});
-		bridge.inbound.down([
-			[
-				"DATA",
-				wireBridgeEnvelope({
-					sessionId: "session-a",
-					type: "data",
-					seq: 1,
-					cursor: 0,
-					payload: {
-						kind: "data",
-						value: { operation: "upper", requestId: "req-1", payload: "hello" },
-					},
-					requestId: "req-1",
-				}),
-			],
-		]);
+		bridge.inbound.set(
+			wireBridgeEnvelope({
+				sessionId: "session-a",
+				type: "data",
+				seq: 1,
+				cursor: 0,
+				payload: {
+					kind: "data",
+					value: { operation: "upper", requestId: "req-1", payload: "hello" },
+				},
+				requestId: "req-1",
+			}),
+		);
 		expect(outbound.filter((msg) => Array.isArray(msg) && msg[0] === "DATA")).toEqual([]);
 	});
 
@@ -785,22 +743,19 @@ describe("remote dispatcher helpers over wireBridge facts (D147)", () => {
 			from: "responder/responseCommands",
 			to: "bridge/command",
 		});
-		bridge.inbound.down([
-			[
-				"DATA",
-				wireBridgeEnvelope({
-					sessionId: "session-a",
-					type: "data",
-					seq: 1,
-					cursor: 0,
-					payload: {
-						kind: "data",
-						value: { operation: "upper", requestId: "req-1", payload: "hello" },
-					},
-					requestId: "req-1",
-				}),
-			],
-		]);
+		bridge.inbound.set(
+			wireBridgeEnvelope({
+				sessionId: "session-a",
+				type: "data",
+				seq: 1,
+				cursor: 0,
+				payload: {
+					kind: "data",
+					value: { operation: "upper", requestId: "req-1", payload: "hello" },
+				},
+				requestId: "req-1",
+			}),
+		);
 		expect(outbound.filter((msg) => Array.isArray(msg) && msg[0] === "DATA")).toHaveLength(1);
 
 		unsub();
@@ -837,21 +792,18 @@ describe("remote dispatcher helpers over wireBridge facts (D147)", () => {
 			}
 		});
 
-		bridge.inbound.down([
-			[
-				"DATA",
-				wireBridgeEnvelope({
-					sessionId: "wrong-session",
-					type: "data",
-					seq: 1,
-					cursor: 0,
-					payload: {
-						kind: "data",
-						value: { operation: "upper", requestId: "req-1", payload: "hello" },
-					},
-				}),
-			],
-		]);
+		bridge.inbound.set(
+			wireBridgeEnvelope({
+				sessionId: "wrong-session",
+				type: "data",
+				seq: 1,
+				cursor: 0,
+				payload: {
+					kind: "data",
+					value: { operation: "upper", requestId: "req-1", payload: "hello" },
+				},
+			}),
+		);
 
 		expect(handled).toEqual([]);
 		expect(outbound).not.toContainEqual(["DATA", expect.anything()]);
@@ -890,21 +842,18 @@ describe("remote dispatcher helpers over wireBridge facts (D147)", () => {
 		});
 
 		remote.call("upper", "req-1", "hello");
-		bridge.inbound.down([
-			[
-				"DATA",
-				wireBridgeEnvelope({
-					sessionId: "session-a",
-					type: "data",
-					seq: 1,
-					cursor: 1,
-					payload: {
-						kind: "data",
-						value: { kind: "result", operation: "upper", requestId: "req-1" },
-					},
-				}),
-			],
-		]);
+		bridge.inbound.set(
+			wireBridgeEnvelope({
+				sessionId: "session-a",
+				type: "data",
+				seq: 1,
+				cursor: 1,
+				payload: {
+					kind: "data",
+					value: { kind: "result", operation: "upper", requestId: "req-1" },
+				},
+			}),
+		);
 
 		expect(results).not.toContainEqual(["DATA", expect.anything()]);
 		expect(errors).toContainEqual([
@@ -955,21 +904,18 @@ describe("remote dispatcher helpers over wireBridge facts (D147)", () => {
 			}
 		});
 
-		bridge.inbound.down([
-			[
-				"DATA",
-				wireBridgeEnvelope({
-					sessionId: "session-a",
-					type: "data",
-					seq: 1,
-					cursor: 0,
-					payload: {
-						kind: "data",
-						value: { kind: "result", operation: "upper", requestId: "req-unknown" },
-					},
-				}),
-			],
-		]);
+		bridge.inbound.set(
+			wireBridgeEnvelope({
+				sessionId: "session-a",
+				type: "data",
+				seq: 1,
+				cursor: 0,
+				payload: {
+					kind: "data",
+					value: { kind: "result", operation: "upper", requestId: "req-unknown" },
+				},
+			}),
+		);
 
 		expect(errors).not.toContainEqual([
 			"DATA",
@@ -989,26 +935,23 @@ describe("remote dispatcher helpers over wireBridge facts (D147)", () => {
 		]);
 
 		remote.call("upper", "req-unknown", "hello");
-		bridge.inbound.down([
-			[
-				"DATA",
-				wireBridgeEnvelope({
-					sessionId: "session-a",
-					type: "data",
-					seq: 2,
-					cursor: 1,
-					payload: {
-						kind: "data",
-						value: {
-							kind: "result",
-							operation: "upper",
-							requestId: "req-unknown",
-							payload: "HELLO",
-						},
+		bridge.inbound.set(
+			wireBridgeEnvelope({
+				sessionId: "session-a",
+				type: "data",
+				seq: 2,
+				cursor: 1,
+				payload: {
+					kind: "data",
+					value: {
+						kind: "result",
+						operation: "upper",
+						requestId: "req-unknown",
+						payload: "HELLO",
 					},
-				}),
-			],
-		]);
+				},
+			}),
+		);
 
 		expect(results).toContainEqual([
 			"DATA",
@@ -1039,18 +982,15 @@ describe("remote dispatcher helpers over wireBridge facts (D147)", () => {
 			}
 		});
 
-		bridge.inbound.down([
-			[
-				"DATA",
-				wireBridgeEnvelope({
-					sessionId: "session-a",
-					type: "data",
-					seq: 1,
-					cursor: 0,
-					payload: { kind: "data", value: { operation: "upper" } },
-				}),
-			],
-		]);
+		bridge.inbound.set(
+			wireBridgeEnvelope({
+				sessionId: "session-a",
+				type: "data",
+				seq: 1,
+				cursor: 0,
+				payload: { kind: "data", value: { operation: "upper" } },
+			}),
+		);
 
 		expect(handled).toEqual([]);
 		expect(errors).toContainEqual([
@@ -1086,21 +1026,18 @@ describe("remote dispatcher helpers over wireBridge facts (D147)", () => {
 			}
 		});
 
-		bridge.inbound.down([
-			[
-				"DATA",
-				wireBridgeEnvelope({
-					sessionId: "session-a",
-					type: "data",
-					seq: 1,
-					cursor: 0,
-					payload: {
-						kind: "data",
-						value: { operation: "upper", requestId: "req-1", payload: "hello" },
-					},
-				}),
-			],
-		]);
+		bridge.inbound.set(
+			wireBridgeEnvelope({
+				sessionId: "session-a",
+				type: "data",
+				seq: 1,
+				cursor: 0,
+				payload: {
+					kind: "data",
+					value: { operation: "upper", requestId: "req-1", payload: "hello" },
+				},
+			}),
+		);
 
 		expect(errors).toContainEqual([
 			"DATA",

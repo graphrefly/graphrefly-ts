@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { batch } from "../batch/batch.js";
 import { graph, type Message, type Node } from "../index.js";
 import {
 	type AdmissionHandoffCandidate,
@@ -95,11 +96,11 @@ describe("admissionHandoff pattern (graphrefly-ts:D147)", () => {
 		rejected.length = 0;
 
 		if (order === "candidate-first") {
-			candidates.down([["DATA", candidate()]]);
-			decisions.down([["DATA", decision("rejected")]]);
+			candidates.set(candidate());
+			decisions.set(decision("rejected"));
 		} else {
-			decisions.down([["DATA", decision("rejected")]]);
-			candidates.down([["DATA", candidate()]]);
+			decisions.set(decision("rejected"));
+			candidates.set(candidate());
 		}
 
 		expect(accepted).toEqual([]);
@@ -123,8 +124,8 @@ describe("admissionHandoff pattern (graphrefly-ts:D147)", () => {
 		const accepted = collect(handoff.accepted);
 		accepted.length = 0;
 
-		if (side === "candidate-only") candidates.down([["DATA", candidate()]]);
-		else decisions.down([["DATA", decision("admitted")]]);
+		if (side === "candidate-only") candidates.set(candidate());
+		else decisions.set(decision("admitted"));
 
 		expect(accepted).toEqual([]);
 	});
@@ -138,11 +139,11 @@ describe("admissionHandoff pattern (graphrefly-ts:D147)", () => {
 		accepted.length = 0;
 
 		if (order === "candidate-first") {
-			candidates.down([["DATA", candidate()]]);
-			decisions.down([["DATA", decision("admitted")]]);
+			candidates.set(candidate());
+			decisions.set(decision("admitted"));
 		} else {
-			decisions.down([["DATA", decision("admitted")]]);
-			candidates.down([["DATA", candidate()]]);
+			decisions.set(decision("admitted"));
+			candidates.set(candidate());
 		}
 
 		expect(accepted.map((message) => message[0])).toEqual(["PENDING", "DATA"]);
@@ -164,13 +165,13 @@ describe("admissionHandoff pattern (graphrefly-ts:D147)", () => {
 		accepted.length = 0;
 		statuses.length = 0;
 
-		candidates.down([["DATA", candidate()]]);
-		decisions.down([["DATA", decision("admitted")]]);
+		candidates.set(candidate());
+		decisions.set(decision("admitted"));
 		expect(accepted.map((message) => message[0])).toEqual(["PENDING", "DATA"]);
 		accepted.length = 0;
 
-		candidates.down([["DATA", candidate()]]);
-		decisions.down([["DATA", decision("admitted")]]);
+		candidates.set(candidate());
+		decisions.set(decision("admitted"));
 
 		expect(accepted).toEqual([]);
 		expect(
@@ -185,14 +186,14 @@ describe("admissionHandoff pattern (graphrefly-ts:D147)", () => {
 		const accepted = collect(handoff.accepted);
 		accepted.length = 0;
 
-		candidates.down([
-			["DATA", candidate("one", "fp-one")],
-			["DATA", candidate("two", "fp-two")],
-		]);
-		decisions.down([
-			["DATA", decision("admitted", "one", "fp-one")],
-			["DATA", decision("admitted", "two", "fp-two")],
-		]);
+		batch(() => {
+			candidates.set(candidate("one", "fp-one"));
+			candidates.set(candidate("two", "fp-two"));
+		});
+		batch(() => {
+			decisions.set(decision("admitted", "one", "fp-one"));
+			decisions.set(decision("admitted", "two", "fp-two"));
+		});
 
 		// R-wave: the decision node's two arrays reach the handoff as one delivery, so it runs once
 		// and sends both admissions in one array.
@@ -211,8 +212,8 @@ describe("admissionHandoff pattern (graphrefly-ts:D147)", () => {
 		accepted.length = 0;
 		issues.length = 0;
 
-		candidates.down([["DATA", candidate()]]);
-		decisions.down([["DATA", decision("admitted", "work-item-1", "wrong")]]);
+		candidates.set(candidate());
+		decisions.set(decision("admitted", "work-item-1", "wrong"));
 		expect(accepted).toEqual([]);
 		expect(
 			issues
@@ -220,14 +221,10 @@ describe("admissionHandoff pattern (graphrefly-ts:D147)", () => {
 				.map((message) => (message[1] as { code: string }).code),
 		).toContain("candidate-fingerprint-mismatch");
 
-		decisions.down([
-			["DATA", decision("admitted", "work-item-1", "candidate-fingerprint-1", "decision-good")],
-		]);
+		decisions.set(decision("admitted", "work-item-1", "candidate-fingerprint-1", "decision-good"));
 		expect(accepted.map((message) => message[0])).toEqual(["PENDING", "DATA"]);
 		accepted.length = 0;
-		decisions.down([
-			["DATA", decision("rejected", "work-item-1", "candidate-fingerprint-1", "other")],
-		]);
+		decisions.set(decision("rejected", "work-item-1", "candidate-fingerprint-1", "other"));
 
 		expect(accepted).toEqual([]);
 		expect(
@@ -246,8 +243,8 @@ describe("admissionHandoff pattern (graphrefly-ts:D147)", () => {
 		issues.length = 0;
 		cursors.length = 0;
 
-		candidates.down([["DATA", candidate("one", "fp-one")]]);
-		candidates.down([["DATA", candidate("two", "fp-two")]]);
+		candidates.set(candidate("one", "fp-one"));
+		candidates.set(candidate("two", "fp-two"));
 
 		expect(accepted).toEqual([]);
 		expect(
@@ -317,8 +314,8 @@ describe("admissionHandoff pattern (graphrefly-ts:D147)", () => {
 		handoff.release();
 		handoff.release();
 
-		candidates.down([["DATA", candidate()]]);
-		decisions.down([["DATA", decision("admitted")]]);
+		candidates.set(candidate());
+		decisions.set(decision("admitted"));
 
 		expect(handoff.accepted.cache).toBeUndefined();
 	});

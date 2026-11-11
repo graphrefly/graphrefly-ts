@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { batch } from "../batch/batch.js";
 import type { DataIssue } from "../data/index.js";
 import { graph } from "../graph/graph.js";
 import { compoundTupleKey } from "../identity.js";
@@ -20,6 +21,7 @@ import {
 	workQueueScheduledReadinessProjector,
 } from "../orchestration/work-queue.js";
 import type { WorkQueueCommand, WorkQueueRecord } from "../work-queue/index.js";
+import { asState } from "./helpers/as-state.js";
 
 function workQueueScheduleId(
 	queueId: string,
@@ -43,18 +45,15 @@ describe("workQueueScheduledReadinessProjector (B94/D424/D432/D433)", () => {
 	it("lowers work-scheduled notBeforeMs to shared readyAtMs without shared notBeforeMs", () => {
 		const harness = createHarness();
 
-		harness.records.down([
-			[
-				"DATA",
-				workScheduled({
-					recordSeq: 7,
-					commandId: "schedule-command",
-					scheduleId: "user-schedule",
-					notBeforeMs: 1_000,
-					deadlineMs: 1_500,
-				}),
-			],
-		]);
+		harness.records.set(
+			workScheduled({
+				recordSeq: 7,
+				commandId: "schedule-command",
+				scheduleId: "user-schedule",
+				notBeforeMs: 1_000,
+				deadlineMs: 1_500,
+			}),
+		);
 
 		expect(harness.seen.schedules).toEqual([
 			expect.objectContaining({
@@ -79,25 +78,23 @@ describe("workQueueScheduledReadinessProjector (B94/D424/D432/D433)", () => {
 	it("lowers delayed work-admitted and retry-scheduled records to shared readyAtMs", () => {
 		const harness = createHarness();
 
-		harness.records.down([
-			[
-				"DATA",
+		batch(() => {
+			harness.records.set(
 				workAdmitted({
 					recordSeq: 1,
 					notBeforeMs: 250,
 					deadlineMs: 300,
 				}),
-			],
-			[
-				"DATA",
+			);
+			harness.records.set(
 				retryScheduled({
 					recordSeq: 2,
 					commandId: "fail-1",
 					retryAtMs: 500,
 					delayMs: 100,
 				}),
-			],
-		]);
+			);
+		});
 
 		expect(harness.seen.schedules).toEqual([
 			expect.objectContaining({
@@ -122,8 +119,8 @@ describe("workQueueScheduledReadinessProjector (B94/D424/D432/D433)", () => {
 		const harness = createHarness();
 		const record = workScheduled({ recordSeq: 9, notBeforeMs: 900 });
 
-		harness.records.down([["DATA", record]]);
-		harness.records.down([["DATA", record]]);
+		harness.records.set(record);
+		harness.records.set(record);
 
 		expect(harness.seen.schedules).toHaveLength(1);
 		expect(harness.seen.status.filter((status) => status.state === "translated")).toHaveLength(1);
@@ -134,26 +131,20 @@ describe("workQueueScheduledReadinessProjector (B94/D424/D432/D433)", () => {
 	it("emits a visible issue when a scheduleId replays with conflicting material", () => {
 		const harness = createHarness();
 
-		harness.records.down([
-			[
-				"DATA",
-				workScheduled({
-					recordSeq: 1,
-					scheduleId: "same-schedule",
-					notBeforeMs: 100,
-				}),
-			],
-		]);
-		harness.records.down([
-			[
-				"DATA",
-				workScheduled({
-					recordSeq: 2,
-					scheduleId: "same-schedule",
-					notBeforeMs: 200,
-				}),
-			],
-		]);
+		harness.records.set(
+			workScheduled({
+				recordSeq: 1,
+				scheduleId: "same-schedule",
+				notBeforeMs: 100,
+			}),
+		);
+		harness.records.set(
+			workScheduled({
+				recordSeq: 2,
+				scheduleId: "same-schedule",
+				notBeforeMs: 200,
+			}),
+		);
 
 		expect(harness.seen.schedules).toHaveLength(1);
 		expect(harness.seen.schedules[0]).toEqual(
@@ -185,24 +176,18 @@ describe("workQueueScheduledReadinessProjector (B94/D424/D432/D433)", () => {
 	it("emits a visible issue when the same workQueue record replays with conflicting material", () => {
 		const harness = createHarness();
 
-		harness.records.down([
-			[
-				"DATA",
-				workScheduled({
-					recordSeq: 5,
-					notBeforeMs: 100,
-				}),
-			],
-		]);
-		harness.records.down([
-			[
-				"DATA",
-				workScheduled({
-					recordSeq: 5,
-					notBeforeMs: 200,
-				}),
-			],
-		]);
+		harness.records.set(
+			workScheduled({
+				recordSeq: 5,
+				notBeforeMs: 100,
+			}),
+		);
+		harness.records.set(
+			workScheduled({
+				recordSeq: 5,
+				notBeforeMs: 200,
+			}),
+		);
 
 		expect(harness.seen.schedules).toHaveLength(1);
 		expect(harness.seen.schedules[0]).toEqual(
@@ -221,18 +206,13 @@ describe("workQueueScheduledReadinessProjector (B94/D424/D432/D433)", () => {
 	it("fails closed on malformed delayed records instead of throwing", () => {
 		const harness = createHarness();
 
-		harness.records.down([
-			[
-				"DATA",
-				{
-					kind: "work-scheduled",
-					queueId: "q",
-					recordSeq: 13,
-					notBeforeMs: 100,
-					recordedAtMs: 0,
-				} as unknown as WorkQueueRecord,
-			],
-		]);
+		harness.records.set({
+			kind: "work-scheduled",
+			queueId: "q",
+			recordSeq: 13,
+			notBeforeMs: 100,
+			recordedAtMs: 0,
+		} as unknown as WorkQueueRecord);
 
 		expect(harness.seen.schedules).toEqual([]);
 		expect(harness.seen.issues).toEqual([
@@ -251,25 +231,23 @@ describe("workQueueScheduledReadinessProjector (B94/D424/D432/D433)", () => {
 	it("translates lease expiration eligibility without materializing lease-expired lifecycle records", () => {
 		const harness = createHarness();
 
-		harness.records.down([
-			[
-				"DATA",
+		batch(() => {
+			harness.records.set(
 				workClaimed({
 					recordSeq: 3,
 					leaseId: "lease-1",
 					leaseExpiresAtMs: 1_200,
 				}),
-			],
-			[
-				"DATA",
+			);
+			harness.records.set(
 				leaseRenewed({
 					recordSeq: 4,
 					leaseId: "lease-1",
 					leaseExpiresAtMs: 1_600,
 					previousLeaseExpiresAtMs: 1_200,
 				}),
-			],
-		]);
+			);
+		});
 
 		expect(harness.seen.schedules).toEqual([
 			expect.objectContaining({
@@ -297,17 +275,14 @@ describe("workQueueScheduledReadinessProjector (B94/D424/D432/D433)", () => {
 	it("keeps shared ready and overdue as visibility only, not workQueue lifecycle mutation", () => {
 		const harness = createHarness({ includeSharedReadiness: true });
 
-		harness.records.down([
-			[
-				"DATA",
-				workScheduled({
-					recordSeq: 11,
-					notBeforeMs: 1_000,
-					deadlineMs: 900,
-				}),
-			],
-		]);
-		harness.clocks?.down([["DATA", clock(1_000)]]);
+		harness.records.set(
+			workScheduled({
+				recordSeq: 11,
+				notBeforeMs: 1_000,
+				deadlineMs: 900,
+			}),
+		);
+		asState(harness.clocks).set(clock(1_000));
 
 		expect(harness.seen.ready).toEqual([
 			expect.objectContaining({
@@ -344,19 +319,16 @@ describe("workQueueScheduledReadinessProjector (B94/D424/D432/D433)", () => {
 		const privateRef = `secret-token-${"s".repeat(1_000)}`;
 		const extraRefs = Array.from({ length: 20 }, (_, index) => `source-${index}`);
 
-		harness.records.down([
-			[
-				"DATA",
-				workScheduled({
-					recordSeq: 12,
-					notBeforeMs: 300,
-					commandId: privateRef,
-					sourceRefs: ["visible-source", privateRef, ...extraRefs],
-					policyRefs: [privateRef],
-					payload: { apiKey: "SECRET", rawResponseBody: raw },
-				} as WorkQueueRecord<{ readonly apiKey: string; readonly rawResponseBody: string }>),
-			],
-		]);
+		harness.records.set(
+			workScheduled({
+				recordSeq: 12,
+				notBeforeMs: 300,
+				commandId: privateRef,
+				sourceRefs: ["visible-source", privateRef, ...extraRefs],
+				policyRefs: [privateRef],
+				payload: { apiKey: "SECRET", rawResponseBody: raw },
+			} as WorkQueueRecord<{ readonly apiKey: string; readonly rawResponseBody: string }>),
+		);
 
 		const serialized = JSON.stringify(harness.seen.schedules[0]);
 		expect(serialized).not.toContain("SECRET");
@@ -389,11 +361,11 @@ describe("workQueueScheduledReadinessProjector (B94/D424/D432/D433)", () => {
 	it("ignores terminal/canceled/dead-lettered records instead of emitting shared lifecycle facts", () => {
 		const harness = createHarness();
 
-		harness.records.down([
-			["DATA", terminalRecord("work-canceled", 20)],
-			["DATA", terminalRecord("work-completed", 21)],
-			["DATA", terminalRecord("work-dead-lettered", 22)],
-		]);
+		batch(() => {
+			harness.records.set(terminalRecord("work-canceled", 20));
+			harness.records.set(terminalRecord("work-completed", 21));
+			harness.records.set(terminalRecord("work-dead-lettered", 22));
+		});
 
 		expect(harness.seen.schedules).toEqual([]);
 		expect(harness.seen.status).toEqual([]);
@@ -405,12 +377,14 @@ describe("workQueueReadinessHandoffProjector (B94/D433)", () => {
 	it("turns scheduled and retry readiness into claim-eligible candidates without claiming work", () => {
 		const harness = createHandoffHarness();
 
-		harness.records.down([
-			["DATA", workScheduled({ recordSeq: 1, notBeforeMs: 100 })],
-			["DATA", retryScheduled({ workId: "w2", recordSeq: 2, commandId: "fail-1", retryAtMs: 200 })],
-		]);
-		harness.ready.down([["DATA", ready(workQueueScheduleId("q", "w1", "schedule", "1"), 100)]]);
-		harness.ready.down([["DATA", ready(workQueueScheduleId("q", "w2", "retry", "fail-1"), 200)]]);
+		batch(() => {
+			harness.records.set(workScheduled({ recordSeq: 1, notBeforeMs: 100 }));
+			harness.records.set(
+				retryScheduled({ workId: "w2", recordSeq: 2, commandId: "fail-1", retryAtMs: 200 }),
+			);
+		});
+		harness.ready.set(ready(workQueueScheduleId("q", "w1", "schedule", "1"), 100));
+		harness.ready.set(ready(workQueueScheduleId("q", "w2", "retry", "fail-1"), 200));
 
 		expect(harness.seen.candidates).toEqual([
 			expect.objectContaining({
@@ -435,16 +409,15 @@ describe("workQueueReadinessHandoffProjector (B94/D433)", () => {
 	it("keeps current work state isolated by queueId and workId", () => {
 		const harness = createHandoffHarness();
 
-		harness.records.down([
-			[
-				"DATA",
+		batch(() => {
+			harness.records.set(
 				workScheduled({ queueId: "q1", workId: "same-work", recordSeq: 1, notBeforeMs: 100 }),
-			],
-			["DATA", terminalRecord("work-completed", 2, { queueId: "q2", workId: "same-work" })],
-		]);
-		harness.ready.down([
-			["DATA", ready(workQueueScheduleId("q1", "same-work", "schedule", "1"), 100)],
-		]);
+			);
+			harness.records.set(
+				terminalRecord("work-completed", 2, { queueId: "q2", workId: "same-work" }),
+			);
+		});
+		harness.ready.set(ready(workQueueScheduleId("q1", "same-work", "schedule", "1"), 100));
 
 		expect(harness.seen.candidates).toEqual([
 			expect.objectContaining({
@@ -468,11 +441,11 @@ describe("workQueueReadinessHandoffProjector (B94/D433)", () => {
 	it("ignores stale readiness whose origin record was superseded by a newer record", () => {
 		const harness = createHandoffHarness();
 
-		harness.records.down([
-			["DATA", workScheduled({ recordSeq: 1, notBeforeMs: 100 })],
-			["DATA", workScheduled({ recordSeq: 2, notBeforeMs: 200 })],
-		]);
-		harness.ready.down([["DATA", ready(workQueueScheduleId("q", "w1", "schedule", "1"), 100)]]);
+		batch(() => {
+			harness.records.set(workScheduled({ recordSeq: 1, notBeforeMs: 100 }));
+			harness.records.set(workScheduled({ recordSeq: 2, notBeforeMs: 200 }));
+		});
+		harness.ready.set(ready(workQueueScheduleId("q", "w1", "schedule", "1"), 100));
 
 		expect(harness.seen.candidates).toEqual([]);
 		expect(harness.seen.handoffStatus).toEqual(
@@ -492,11 +465,11 @@ describe("workQueueReadinessHandoffProjector (B94/D433)", () => {
 	it("ignores stale lower-sequence records instead of reopening terminal work", () => {
 		const harness = createHandoffHarness();
 
-		harness.records.down([
-			["DATA", terminalRecord("work-completed", 10)],
-			["DATA", workScheduled({ recordSeq: 1, notBeforeMs: 100 })],
-		]);
-		harness.ready.down([["DATA", ready(workQueueScheduleId("q", "w1", "schedule", "1"), 100)]]);
+		batch(() => {
+			harness.records.set(terminalRecord("work-completed", 10));
+			harness.records.set(workScheduled({ recordSeq: 1, notBeforeMs: 100 }));
+		});
+		harness.ready.set(ready(workQueueScheduleId("q", "w1", "schedule", "1"), 100));
 
 		expect(harness.seen.candidates).toEqual([]);
 		expect(harness.seen.handoffStatus).toEqual(
@@ -514,19 +487,16 @@ describe("workQueueReadinessHandoffProjector (B94/D433)", () => {
 	it("lowers only lease-expiration candidates into expire-leases commands", () => {
 		const harness = createHandoffHarness({ includeLeaseCommands: true });
 
-		harness.records.down([
-			[
-				"DATA",
-				workClaimed({
-					recordSeq: 3,
-					leaseId: "lease-1",
-					attempt: 1,
-					workerId: "worker-1",
-					leaseExpiresAtMs: 300,
-				}),
-			],
-		]);
-		harness.ready.down([["DATA", ready(workQueueLeaseScheduleId("q", "w1", "lease-1", "3"), 300)]]);
+		harness.records.set(
+			workClaimed({
+				recordSeq: 3,
+				leaseId: "lease-1",
+				attempt: 1,
+				workerId: "worker-1",
+				leaseExpiresAtMs: 300,
+			}),
+		);
+		harness.ready.set(ready(workQueueLeaseScheduleId("q", "w1", "lease-1", "3"), 300));
 
 		expect(harness.seen.candidates).toEqual([
 			expect.objectContaining({
@@ -553,18 +523,16 @@ describe("workQueueReadinessHandoffProjector (B94/D433)", () => {
 	it("ignores superseded lease readiness after a renewal extends the active lease", () => {
 		const harness = createHandoffHarness({ includeLeaseCommands: true });
 
-		harness.records.down([
-			[
-				"DATA",
+		batch(() => {
+			harness.records.set(
 				workClaimed({
 					recordSeq: 3,
 					leaseId: "lease-1",
 					attempt: 1,
 					leaseExpiresAtMs: 300,
 				}),
-			],
-			[
-				"DATA",
+			);
+			harness.records.set(
 				leaseRenewed({
 					recordSeq: 4,
 					leaseId: "lease-1",
@@ -572,9 +540,9 @@ describe("workQueueReadinessHandoffProjector (B94/D433)", () => {
 					previousLeaseExpiresAtMs: 300,
 					leaseExpiresAtMs: 600,
 				}),
-			],
-		]);
-		harness.ready.down([["DATA", ready(workQueueLeaseScheduleId("q", "w1", "lease-1", "3"), 300)]]);
+			);
+		});
+		harness.ready.set(ready(workQueueLeaseScheduleId("q", "w1", "lease-1", "3"), 300));
 
 		expect(harness.seen.candidates).toEqual([]);
 		expect(harness.seen.commands).toEqual([]);
@@ -592,14 +560,12 @@ describe("workQueueReadinessHandoffProjector (B94/D433)", () => {
 	it("ignores terminal work and treats overdue as visibility-only status", () => {
 		const harness = createHandoffHarness({ includeLeaseCommands: true });
 
-		harness.records.down([
-			["DATA", workScheduled({ recordSeq: 6, notBeforeMs: 100 })],
-			["DATA", terminalRecord("work-completed", 7)],
-		]);
-		harness.ready.down([["DATA", ready(workQueueScheduleId("q", "w1", "schedule", "6"), 100)]]);
-		harness.overdue.down([
-			["DATA", overdue(workQueueScheduleId("q", "w1", "schedule", "6"), 100, 90)],
-		]);
+		batch(() => {
+			harness.records.set(workScheduled({ recordSeq: 6, notBeforeMs: 100 }));
+			harness.records.set(terminalRecord("work-completed", 7));
+		});
+		harness.ready.set(ready(workQueueScheduleId("q", "w1", "schedule", "6"), 100));
+		harness.overdue.set(overdue(workQueueScheduleId("q", "w1", "schedule", "6"), 100, 90));
 
 		expect(harness.seen.candidates).toEqual([]);
 		expect(harness.seen.commands).toEqual([]);
@@ -623,7 +589,7 @@ describe("workQueueReadinessHandoffProjector (B94/D433)", () => {
 	it("handles out-of-order ready before origin records deterministically", () => {
 		const harness = createHandoffHarness();
 
-		harness.ready.down([["DATA", ready(workQueueScheduleId("q", "w1", "schedule", "8"), 800)]]);
+		harness.ready.set(ready(workQueueScheduleId("q", "w1", "schedule", "8"), 800));
 		expect(harness.seen.candidates).toEqual([]);
 		expect(harness.seen.handoffStatus).toEqual([
 			expect.objectContaining({
@@ -632,7 +598,7 @@ describe("workQueueReadinessHandoffProjector (B94/D433)", () => {
 			}),
 		]);
 
-		harness.records.down([["DATA", workScheduled({ recordSeq: 8, notBeforeMs: 800 })]]);
+		harness.records.set(workScheduled({ recordSeq: 8, notBeforeMs: 800 }));
 
 		expect(harness.seen.candidates).toEqual([
 			expect.objectContaining({
@@ -645,13 +611,9 @@ describe("workQueueReadinessHandoffProjector (B94/D433)", () => {
 	it("re-emits overdue status with origin coordinates after late origin material", () => {
 		const harness = createHandoffHarness();
 
-		harness.overdue.down([
-			["DATA", overdue(workQueueScheduleId("q", "w1", "schedule", "9"), 100, 90)],
-		]);
-		harness.records.down([["DATA", workScheduled({ recordSeq: 9, notBeforeMs: 100 })]]);
-		harness.overdue.down([
-			["DATA", overdue(workQueueScheduleId("q", "w1", "schedule", "9"), 100, 90)],
-		]);
+		harness.overdue.set(overdue(workQueueScheduleId("q", "w1", "schedule", "9"), 100, 90));
+		harness.records.set(workScheduled({ recordSeq: 9, notBeforeMs: 100 }));
+		harness.overdue.set(overdue(workQueueScheduleId("q", "w1", "schedule", "9"), 100, 90));
 
 		expect(harness.seen.handoffStatus[0]).toEqual(
 			expect.objectContaining({

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { batch } from "../batch/batch.js";
 import type { Ctx, Message } from "../index.js";
 import { depLatest, node } from "../index.js";
 
@@ -21,7 +22,7 @@ describe("terminal (R-terminal, R-deps-terminal)", () => {
 		);
 		const { msgs } = collect(d);
 		msgs.length = 0;
-		a.down([["COMPLETE"]]);
+		a.complete();
 		// R-wave: a terminal array carries the kernel's PENDING like a value array.
 		expect(types(msgs)).toEqual(["PENDING", "COMPLETE"]);
 		expect(d.status.output).toBe("completed");
@@ -35,9 +36,9 @@ describe("terminal (R-terminal, R-deps-terminal)", () => {
 		);
 		const { msgs } = collect(d);
 		msgs.length = 0;
-		a.down([["COMPLETE"]]);
+		a.complete();
 		expect(types(msgs)).not.toContain("COMPLETE"); // only one dep complete
-		b.down([["COMPLETE"]]);
+		b.complete();
 		expect(types(msgs)).toContain("COMPLETE"); // now all complete
 		expect(d.status.output).toBe("completed");
 	});
@@ -48,7 +49,7 @@ describe("terminal (R-terminal, R-deps-terminal)", () => {
 		const { msgs } = collect(d);
 		msgs.length = 0;
 		const err = new Error("boom");
-		a.down([["ERROR", err]]);
+		a.error(err);
 		expect(msgs).toContainEqual(["ERROR", err]);
 		expect(d.status.output).toBe("errored");
 	});
@@ -56,15 +57,15 @@ describe("terminal (R-terminal, R-deps-terminal)", () => {
 	it("ERROR with undefined or boolean payload is rejected (R-data-payload)", () => {
 		const s = node<number>([], null, { initial: 1 });
 		collect(s);
-		expect(() => s.down([["ERROR", undefined]])).toThrow(/non-SENTINEL/);
-		expect(() => s.down([["ERROR", false]])).toThrow(/non-boolean/);
-		expect(() => s.down([["ERROR", true]])).toThrow(/non-boolean/);
+		expect(() => s.error(undefined)).toThrow(/non-SENTINEL/);
+		expect(() => s.error(false)).toThrow(/non-boolean/);
+		expect(() => s.error(true)).toThrow(/non-boolean/);
 	});
 
 	it("an ended node can be subscribed; its START snapshot carries its terminal (R-terminals)", () => {
 		const s = node<number>([], null, { initial: 1 });
 		collect(s);
-		s.down([["COMPLETE"]]);
+		s.complete();
 		const late: unknown[] = [];
 		s.subscribe((msgs) => late.push(msgs));
 		expect(late).toEqual([[["START"], ["DATA", 1], ["COMPLETE"]]]);
@@ -74,21 +75,21 @@ describe("terminal (R-terminal, R-deps-terminal)", () => {
 	it("host input to an ended node is refused and changes nothing (R-terminals)", () => {
 		const s = node<number>([], null, { initial: 1 });
 		const { msgs } = collect(s);
-		s.down([["COMPLETE"]]);
+		s.complete();
 		expect(s.status.output).toBe("completed");
 		msgs.length = 0;
 
-		expect(() => s.down([["DATA", 42]])).toThrow(/ended/);
+		expect(() => s.set(42)).toThrow(/ended/);
 		expect(msgs).toEqual([]);
 		expect(s.cache).toBe(1);
 		expect(s.status.output).toBe("completed");
 
 		const e = node<number>([], null, { initial: 7 });
 		const ce = collect(e);
-		e.down([["ERROR", new Error("boom")]]);
+		e.error(new Error("boom"));
 		ce.msgs.length = 0;
-		expect(() => e.down([["DATA", 99]])).toThrow(/ended/);
-		expect(() => e.down([["INVALIDATE"]])).toThrow(/ended/);
+		expect(() => e.set(99)).toThrow(/ended/);
+		expect(() => e.invalidate()).toThrow(/ended/);
 		expect(ce.msgs).toEqual([]);
 		expect(e.cache).toBe(7);
 		expect(e.status.output).toBe("errored");
@@ -115,14 +116,14 @@ describe("INVALIDATE (R-invalidation)", () => {
 		expect(d.cache).toBe(10);
 		msgs.length = 0;
 
-		a.down([["INVALIDATE"]]);
+		a.invalidate();
 		expect(flushed).toBe(1);
 		expect(d.cache).toBeUndefined();
 		expect(types(msgs)).toContain("INVALIDATE");
 
 		// second INVALIDATE: cache already reset -> no-op (no second flush/cascade)
 		msgs.length = 0;
-		a.down([["INVALIDATE"]]);
+		a.invalidate();
 		expect(flushed).toBe(1);
 		expect(types(msgs)).not.toContain("INVALIDATE");
 	});
@@ -131,7 +132,7 @@ describe("INVALIDATE (R-invalidation)", () => {
 		const s = node<number>([], null); // no cache
 		const { msgs } = collect(s);
 		msgs.length = 0;
-		s.down([["INVALIDATE"]]);
+		s.invalidate();
 		expect(msgs).toEqual([]);
 	});
 });
@@ -141,7 +142,10 @@ describe("same-wave merge (R-same-wave-merge)", () => {
 		const s = node<number>([], null, { initial: 1 });
 		const { msgs } = collect(s);
 		msgs.length = 0;
-		s.down([["DATA", 9], ["INVALIDATE"]]);
+		batch(() => {
+			s.set(9);
+			s.invalidate();
+		});
 		expect(types(msgs)).toEqual(["PENDING", "INVALIDATE"]);
 		expect(s.cache).toBeUndefined();
 	});
@@ -150,7 +154,10 @@ describe("same-wave merge (R-same-wave-merge)", () => {
 		const s = node<number>([], null, { initial: 1 });
 		const { msgs } = collect(s);
 		msgs.length = 0;
-		s.down([["INVALIDATE"], ["INVALIDATE"]]);
+		batch(() => {
+			s.invalidate();
+			s.invalidate();
+		});
 		expect(types(msgs)).toEqual(["PENDING", "INVALIDATE"]);
 	});
 });

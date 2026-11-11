@@ -13,7 +13,7 @@ describe("C-6: a function's write to its own upstream is a later request, never 
 		const e = node<number>([d], (ctx: Ctx) => {
 			const v = depLatest(ctx, 0) as number;
 			runs.push(v);
-			if (v < 3) s.down([["DATA", v]]);
+			if (v < 3) s.set(v);
 		});
 		expect(() => e.subscribe(() => {})).not.toThrow();
 		expect(runs).toEqual([1, 2, 3]);

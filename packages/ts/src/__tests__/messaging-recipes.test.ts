@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { batch } from "../batch/batch.js";
 import type { CqrsStatus } from "../cqrs/index.js";
 import { cqrsMessagingRecipe } from "../cqrs/messaging.js";
 import { graph } from "../graph/graph.js";
@@ -20,26 +21,21 @@ describe("messaging recipes (D349-D351/D353)", () => {
 		const commands = collectData(recipe.commands);
 		const acks = collectData<MessageBusCommand>(recipe.ackCommands);
 
-		deliveries.down([["DATA", page("sub-1", [message("cmd-1", 7)])]]);
+		deliveries.set(page("sub-1", [message("cmd-1", 7)]));
 
 		expect(commands.at(-1)).toEqual(
 			expect.objectContaining({ id: "cmd-1", type: "start", payload: { ok: true } }),
 		);
 		expect(acks).toEqual([]);
 
-		status.down([
-			[
-				"DATA",
-				{
-					state: "accepted",
-					commandId: "cmd-1",
-					commandType: "start",
-					eventCount: 1,
-					effectCount: 0,
-					cursor: { eventSeq: 1, effectSeq: 0, commandCount: 1, errorCount: 0, auditSeq: 1 },
-				} satisfies ProcessStatus,
-			],
-		]);
+		status.set({
+			state: "accepted",
+			commandId: "cmd-1",
+			commandType: "start",
+			eventCount: 1,
+			effectCount: 0,
+			cursor: { eventSeq: 1, effectSeq: 0, commandCount: 1, errorCount: 0, auditSeq: 1 },
+		} satisfies ProcessStatus);
 
 		expect(acks.at(-1)).toEqual(
 			expect.objectContaining({
@@ -58,22 +54,17 @@ describe("messaging recipes (D349-D351/D353)", () => {
 		const recipe = cqrsMessagingRecipe(g, { deliveries, status });
 		const acks = collectData<MessageBusCommand>(recipe.ackCommands);
 
-		deliveries.down([["DATA", page("sub-2", [message("cmd-2", 7)])]]);
+		deliveries.set(page("sub-2", [message("cmd-2", 7)]));
 		expect(acks).toEqual([]);
 
-		status.down([
-			[
-				"DATA",
-				{
-					state: "rejected",
-					commandId: "cmd-2",
-					commandType: "start",
-					eventCount: 0,
-					errorCode: "unknown-command",
-					cursor: { eventSeq: 0, commandCount: 1, errorCount: 1, auditSeq: 1 },
-				} satisfies CqrsStatus,
-			],
-		]);
+		status.set({
+			state: "rejected",
+			commandId: "cmd-2",
+			commandType: "start",
+			eventCount: 0,
+			errorCode: "unknown-command",
+			cursor: { eventSeq: 0, commandCount: 1, errorCount: 1, auditSeq: 1 },
+		} satisfies CqrsStatus);
 
 		expect(acks.at(-1)).toEqual(
 			expect.objectContaining({
@@ -92,11 +83,11 @@ describe("messaging recipes (D349-D351/D353)", () => {
 		const recipe = cqrsMessagingRecipe(g, { deliveries, status });
 		const acks = collectData<MessageBusCommand>(recipe.ackCommands);
 
-		deliveries.down([["DATA", page("sub-dup", [message("cmd-dup", 7), message("cmd-dup", 8)])]]);
-		status.down([
-			["DATA", cqrsStatus("cmd-dup", "accepted")],
-			["DATA", cqrsStatus("cmd-dup", "rejected")],
-		]);
+		deliveries.set(page("sub-dup", [message("cmd-dup", 7), message("cmd-dup", 8)]));
+		batch(() => {
+			status.set(cqrsStatus("cmd-dup", "accepted"));
+			status.set(cqrsStatus("cmd-dup", "rejected"));
+		});
 
 		expect(acks.map((ack) => ack.seq)).toEqual([7, 8]);
 		expect(acks.every((ack) => ack.subscriptionId === "sub-dup")).toBe(true);
@@ -117,11 +108,11 @@ describe("messaging recipes (D349-D351/D353)", () => {
 		const commands = collectData(recipe.commands);
 		const acks = collectData<MessageBusCommand>(recipe.ackCommands);
 
-		deliveries.down([["DATA", page("sub-policy", [message("payload-cmd", 9)])]]);
-		status.down([["DATA", cqrsStatus("payload-cmd", "accepted")]]);
+		deliveries.set(page("sub-policy", [message("payload-cmd", 9)]));
+		status.set(cqrsStatus("payload-cmd", "accepted"));
 		expect(acks).toEqual([]);
 
-		status.down([["DATA", cqrsStatus("mapped-cmd", "accepted")]]);
+		status.set(cqrsStatus("mapped-cmd", "accepted"));
 
 		expect(commands.at(-1)).toEqual(
 			expect.objectContaining({
@@ -165,35 +156,25 @@ describe("messaging recipes (D349-D351/D353)", () => {
 		});
 		const acks = collectData<MessageBusCommand>(recipe.ackCommands);
 
-		deliveries.down([["DATA", page("sub-process-policy", [message("payload-process", 10)])]]);
-		status.down([
-			[
-				"DATA",
-				{
-					state: "accepted",
-					commandId: "payload-process",
-					commandType: "mapped",
-					eventCount: 1,
-					effectCount: 0,
-					cursor: { eventSeq: 1, effectSeq: 0, commandCount: 1, errorCount: 0, auditSeq: 1 },
-				} satisfies ProcessStatus,
-			],
-		]);
+		deliveries.set(page("sub-process-policy", [message("payload-process", 10)]));
+		status.set({
+			state: "accepted",
+			commandId: "payload-process",
+			commandType: "mapped",
+			eventCount: 1,
+			effectCount: 0,
+			cursor: { eventSeq: 1, effectSeq: 0, commandCount: 1, errorCount: 0, auditSeq: 1 },
+		} satisfies ProcessStatus);
 		expect(acks).toEqual([]);
 
-		status.down([
-			[
-				"DATA",
-				{
-					state: "accepted",
-					commandId: "mapped-process",
-					commandType: "mapped",
-					eventCount: 1,
-					effectCount: 0,
-					cursor: { eventSeq: 1, effectSeq: 0, commandCount: 1, errorCount: 0, auditSeq: 1 },
-				} satisfies ProcessStatus,
-			],
-		]);
+		status.set({
+			state: "accepted",
+			commandId: "mapped-process",
+			commandType: "mapped",
+			eventCount: 1,
+			effectCount: 0,
+			cursor: { eventSeq: 1, effectSeq: 0, commandCount: 1, errorCount: 0, auditSeq: 1 },
+		} satisfies ProcessStatus);
 
 		expect(acks.at(-1)).toEqual(
 			expect.objectContaining({

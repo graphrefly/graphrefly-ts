@@ -71,10 +71,13 @@ describe("C-17 — absorbed-error dep counts as terminal for auto-COMPLETE (B42 
 		const c = g.node<number>([], null);
 		const d = g.node([b, c], fwd, { error: "manual" }); // absorbs C's error, stays live
 		collect(d);
-		c.down([["ERROR", new Error("boom")]]); // absorbed; B still live → not yet all-terminal
+		c.error(new Error("boom")); // absorbed; B still live → not yet all-terminal
 		expect(d.status.output).not.toBe("completed");
 		expect(d.status.output).not.toBe("errored"); // errorWhenDepsError:false → no auto-ERROR
-		b.down([["DATA", 1], ["COMPLETE"]]); // B terminal → ALL deps terminal (C errored) → COMPLETE
+		batch(() => {
+			b.set(1);
+			b.complete();
+		}); // B terminal → ALL deps terminal (C errored) → COMPLETE
 		expect(d.status.output).toBe("completed");
 	});
 
@@ -84,9 +87,12 @@ describe("C-17 — absorbed-error dep counts as terminal for auto-COMPLETE (B42 
 		const c = g.node<number>([], null);
 		const d = g.node([b, c], fwd, { error: "manual" });
 		collect(d);
-		b.down([["DATA", 1], ["COMPLETE"]]); // B terminal; C still live → not yet all-terminal
+		batch(() => {
+			b.set(1);
+			b.complete();
+		}); // B terminal; C still live → not yet all-terminal
 		expect(d.status.output).not.toBe("completed");
-		c.down([["ERROR", new Error("boom")]]); // C absorbed-error LANDS LAST → all terminal → COMPLETE
+		c.error(new Error("boom")); // C absorbed-error LANDS LAST → all terminal → COMPLETE
 		expect(d.status.output).toBe("completed"); // the ERROR-absorbed arm mirrors the COMPLETE arm (B42)
 	});
 
@@ -96,7 +102,7 @@ describe("C-17 — absorbed-error dep counts as terminal for auto-COMPLETE (B42 
 		const c = g.node<number>([], null);
 		const d = g.node([b, c], fwd); // defaults: errorWhenDepsError:true
 		collect(d);
-		c.down([["ERROR", new Error("boom")]]); // auto-cascade → ERROR before any complete-check
+		c.error(new Error("boom")); // auto-cascade → ERROR before any complete-check
 		expect(d.status.output).toBe("errored");
 	});
 });

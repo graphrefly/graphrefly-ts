@@ -27,8 +27,8 @@ describe("batch (R-batch-coalesce / D12)", () => {
 
 		fires = 0;
 		batch(() => {
-			a.down([["DATA", 10]]);
-			b.down([["DATA", 20]]);
+			a.set(10);
+			b.set(20);
 		});
 		expect(fires).toBe(1); // one recompute, not two
 		expect(d.cache).toBe(30);
@@ -39,7 +39,7 @@ describe("batch (R-batch-coalesce / D12)", () => {
 		const { msgs } = collect(a);
 		msgs.length = 0;
 		batch(() => {
-			a.down([["DATA", 9]]);
+			a.set(9);
 			// inside the batch nothing is delivered and nothing changes
 			expect(types(msgs)).toEqual([]);
 			expect(a.cache).toBe(1); // not yet committed
@@ -54,7 +54,7 @@ describe("batch (R-batch-coalesce / D12)", () => {
 		msgs.length = 0;
 		expect(() =>
 			batch(() => {
-				a.down([["DATA", 99]]);
+				a.set(99);
 				throw new Error("abort");
 			}),
 		).toThrow("abort");
@@ -66,7 +66,7 @@ describe("batch (R-batch-coalesce / D12)", () => {
 		const a = node<number>([], null, { initial: 1 });
 		collect(a);
 		batch((bctx) => {
-			a.down([["DATA", 50]]);
+			a.set(50);
 			bctx.rollback();
 		});
 		expect(a.cache).toBe(1);
@@ -90,14 +90,14 @@ describe("dynamicNode (R-dynamic-node / D35; D49 — no equals-absorption)", () 
 		// change the UNREAD dep b -> fn fires, re-emits the (unchanged) value 100. D49 removed
 		// equals-absorption: an occurrence is always DATA, never collapsed to RESOLVED. Pair with
 		// distinctUntilChanged if unread-dep silence is required (dedup is opt-in).
-		b.down([["DATA", 999]]);
+		b.set(999);
 		expect(router.cache).toBe(100);
 		expect(types(msgs)).toEqual(["PENDING", "DATA"]);
 		expect(msgs).toContainEqual(["DATA", 100]);
 
 		// change the READ dep a -> recompute with the new value
 		msgs.length = 0;
-		a.down([["DATA", 111]]);
+		a.set(111);
 		expect(router.cache).toBe(111);
 		expect(msgs).toContainEqual(["DATA", 111]);
 	});

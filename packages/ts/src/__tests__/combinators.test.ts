@@ -81,7 +81,7 @@ describe("Slice 2 — multi-source combinators (CSP-2.7 / D45)", () => {
 			}
 		});
 
-		secondary.down([["COMPLETE"]]);
+		secondary.complete();
 		primary.set(2);
 		expect(data(completeMsgs)).toEqual([
 			[1, "a"],
@@ -100,7 +100,7 @@ describe("Slice 2 — multi-source combinators (CSP-2.7 / D45)", () => {
 			}
 		});
 		const err = new Error("secondary boom");
-		secondary2.down([["ERROR", err]]);
+		secondary2.error(err);
 		expect(errorMsgs.at(-1)).toEqual(["ERROR", err]);
 		expect(paired2.status.output).toBe("errored");
 	});
@@ -119,7 +119,7 @@ describe("Slice 2 — multi-source combinators (CSP-2.7 / D45)", () => {
 
 		secondary.set("b");
 		expect(paired.status.output).not.toBe("completed");
-		primary.down([["COMPLETE"]]);
+		primary.complete();
 
 		expect(data(msgs)).toEqual([[1, "a"]]);
 		expect(msgs.at(-1)?.[0]).toBe("COMPLETE");
@@ -202,13 +202,13 @@ describe("Slice 2 — multi-source combinators (CSP-2.7 / D45)", () => {
 				msgs.push(m);
 			}
 		});
-		a.down([["COMPLETE"]]); // 1 terminal
-		b.down([["COMPLETE"]]); // 2 terminal — OLD code: 1+2=3>=n → premature COMPLETE
+		a.complete(); // 1 terminal
+		b.complete(); // 2 terminal — OLD code: 1+2=3>=n → premature COMPLETE
 		expect(r.status.output).not.toBe("completed"); // c still live → race open
-		c.down([["DATA", 99]]); // c wins
-		c.down([["DATA", 100]]);
+		c.set(99); // c wins
+		c.set(100);
 		expect(data(msgs)).toEqual([99, 100]);
-		c.down([["COMPLETE"]]); // winner terminal → COMPLETE
+		c.complete(); // winner terminal → COMPLETE
 		expect(r.status.output).toBe("completed");
 	});
 
@@ -224,10 +224,10 @@ describe("Slice 2 — multi-source combinators (CSP-2.7 / D45)", () => {
 				msgs.push(m);
 			}
 		});
-		a.down([["COMPLETE"]]);
-		b.down([["COMPLETE"]]);
+		a.complete();
+		b.complete();
 		expect(r.status.output).not.toBe("completed");
-		c.down([["COMPLETE"]]); // all terminal, no winner → COMPLETE
+		c.complete(); // all terminal, no winner → COMPLETE
 		expect(data(msgs)).toEqual([]);
 		expect(r.status.output).toBe("completed");
 	});
@@ -296,11 +296,11 @@ describe("Slice 2 — notifier-driven (D46 first-cut)", () => {
 		});
 
 		src.set(2);
-		src.down([["COMPLETE"]]);
-		notify.down([["DATA", true]]);
+		src.complete();
+		notify.set(true);
 		expect(data(msgs)).toEqual([]); // source COMPLETE clears the held value; no flush.
 
-		notify.down([["COMPLETE"]]);
+		notify.complete();
 		expect(msgs.at(-1)?.[0]).toBe("COMPLETE");
 		expect(sampled.status.output).toBe("completed");
 	});
@@ -317,7 +317,7 @@ describe("Slice 2 — notifier-driven (D46 first-cut)", () => {
 			}
 		});
 		const sourceErr = new Error("source boom");
-		src.down([["ERROR", sourceErr]]);
+		src.error(sourceErr);
 		expect(sourceMsgs.at(-1)).toEqual(["ERROR", sourceErr]);
 		expect(sampled.status.output).toBe("errored");
 
@@ -332,7 +332,7 @@ describe("Slice 2 — notifier-driven (D46 first-cut)", () => {
 			}
 		});
 		const notifierErr = new Error("notifier boom");
-		notify2.down([["ERROR", notifierErr]]);
+		notify2.error(notifierErr);
 		expect(notifierMsgs.at(-1)).toEqual(["ERROR", notifierErr]);
 		expect(sampled2.status.output).toBe("errored");
 	});
@@ -349,7 +349,7 @@ describe("Slice 2 — notifier-driven (D46 first-cut)", () => {
 			}
 		});
 		src.set(2);
-		stop.down([["DATA", true]]); // notifier fires → stop
+		stop.set(true); // notifier fires → stop
 		src.set(3); // terminated, ignored
 		expect(data(msgs)).toEqual([1, 2]);
 		expect(tu.status.output).toBe("completed");
@@ -367,12 +367,12 @@ describe("Slice 2 — notifier-driven (D46 first-cut)", () => {
 			}
 		});
 
-		stop.down([["COMPLETE"]]);
+		stop.complete();
 		src.set(2);
 		expect(data(msgs)).toEqual([1, 2]);
 		expect(tu.status.output).not.toBe("completed");
 
-		src.down([["COMPLETE"]]);
+		src.complete();
 		expect(msgs.at(-1)?.[0]).toBe("COMPLETE");
 		expect(tu.status.output).toBe("completed");
 	});

@@ -6,6 +6,7 @@
  */
 
 import { describe, expect, it } from "vitest";
+import { batch } from "../batch/batch.js";
 import type { Message, Node } from "../index.js";
 import {
 	type DescribeSnapshot,
@@ -178,10 +179,10 @@ describe("stratifyBranch (D56)", () => {
 		);
 		const { msgs } = collect(branch);
 
-		source.down([
-			["DATA", 1],
-			["DATA", 2],
-		]);
+		batch(() => {
+			source.set(1);
+			source.set(2);
+		});
 
 		expect(data(msgs)).toEqual([]);
 	});
@@ -197,9 +198,9 @@ describe("stratifyBranch (D56)", () => {
 		);
 		const { msgs } = collect(branch);
 
-		source.down([["DATA", 2]]);
-		rules.down([["COMPLETE"]]);
-		source.down([["DATA", 4]]);
+		source.set(2);
+		rules.complete();
+		source.set(4);
 
 		expect(data(msgs)).toEqual([2, 4]);
 		expect(msgs.some((m) => m[0] === "COMPLETE")).toBe(false);
@@ -216,7 +217,10 @@ describe("stratifyBranch (D56)", () => {
 		);
 		const { msgs } = collect(branch);
 
-		source.down([["DATA", 7], ["COMPLETE"]]);
+		batch(() => {
+			source.set(7);
+			source.complete();
+		});
 
 		expect(data(msgs)).toEqual([7]);
 		expect(msgs.at(-1)?.[0]).toBe("COMPLETE");
@@ -233,8 +237,8 @@ describe("stratifyBranch (D56)", () => {
 		);
 		const { msgs } = collect(branch);
 
-		rules.down([["COMPLETE"]]);
-		source.down([["ERROR", "boom"]]);
+		rules.complete();
+		source.error("boom");
 
 		expect(msgs.at(-1)).toEqual(["ERROR", "boom"]);
 	});
@@ -262,7 +266,7 @@ describe("stratifyBranch (D56)", () => {
 		const o = collect(ones);
 		const t = collect(twos);
 
-		for (const n of [0, 1, 2, 3, 4, 5, 6, 7, 8]) source.down([["DATA", n]]);
+		for (const n of [0, 1, 2, 3, 4, 5, 6, 7, 8]) source.set(n);
 
 		expect(data(z.msgs)).toEqual([0, 3, 6]);
 		expect(data(o.msgs)).toEqual([1, 4, 7]);

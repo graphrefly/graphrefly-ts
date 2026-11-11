@@ -275,18 +275,15 @@ describe("wire bridge envelopes (D134)", () => {
 		});
 
 		bridge.send({ task: "compile" }, { requestId: "req-1" });
-		bridge.inbound.down([
-			[
-				"DATA",
-				wireBridgeEnvelope({
-					sessionId: "session-a",
-					type: "ack",
-					seq: 1,
-					cursor: 1,
-					ackForSeq: 1,
-				}),
-			],
-		]);
+		bridge.inbound.set(
+			wireBridgeEnvelope({
+				sessionId: "session-a",
+				type: "ack",
+				seq: 1,
+				cursor: 1,
+				ackForSeq: 1,
+			}),
+		);
 
 		expect(outbound).toContainEqual([
 			"DATA",
@@ -459,11 +456,11 @@ describe("wire bridge envelopes (D134)", () => {
 		});
 
 		bridge.send("payload");
-		bridge.command.down([["DATA", { kind: "ack-timeout", seq: 1, attempt: 2 }]]);
+		bridge.command.set({ kind: "ack-timeout", seq: 1, attempt: 2 });
 		expect(outbound.filter((msg) => msg[0] === "DATA")).toHaveLength(1);
 		expect(events).not.toContainEqual(["DATA", { kind: "timeout", seq: 1, attempt: 2 }]);
 
-		bridge.command.down([["DATA", { kind: "ack-timeout", seq: 1, attempt: 1 }]]);
+		bridge.command.set({ kind: "ack-timeout", seq: 1, attempt: 1 });
 
 		expect(events).toContainEqual(["DATA", { kind: "timeout", seq: 1, attempt: 1 }]);
 		expect(events).toContainEqual([
@@ -523,18 +520,15 @@ describe("wire bridge envelopes (D134)", () => {
 		});
 
 		bridge.send("payload");
-		bridge.inbound.down([
-			[
-				"DATA",
-				wireBridgeEnvelope({
-					sessionId: "session-a",
-					type: "ack",
-					seq: 1,
-					ackForSeq: 1,
-				}),
-			],
-		]);
-		bridge.command.down([["DATA", { kind: "ack-timeout", seq: 1, attempt: 1 }]]);
+		bridge.inbound.set(
+			wireBridgeEnvelope({
+				sessionId: "session-a",
+				type: "ack",
+				seq: 1,
+				ackForSeq: 1,
+			}),
+		);
+		bridge.command.set({ kind: "ack-timeout", seq: 1, attempt: 1 });
 
 		expect(outbound.filter((msg) => msg[0] === "DATA")).toHaveLength(1);
 		expect(events).not.toContainEqual(["DATA", { kind: "timeout", seq: 1, attempt: 1 }]);
@@ -550,7 +544,7 @@ describe("wire bridge envelopes (D134)", () => {
 			}
 		});
 
-		bridge.command.down([["DATA", { kind: "ack-timeout", seq: 1, attempt: 0 } as never]]);
+		bridge.command.set({ kind: "ack-timeout", seq: 1, attempt: 0 } as never);
 
 		expect(errors).toContainEqual([
 			"DATA",
@@ -587,7 +581,7 @@ describe("wire bridge envelopes (D134)", () => {
 		});
 
 		bridge.send("payload");
-		bridge.command.down([["DATA", { kind: "ack-timeout", seq: 1, attempt: 1 }]]);
+		bridge.command.set({ kind: "ack-timeout", seq: 1, attempt: 1 });
 
 		expect(events).toContainEqual(["DATA", { kind: "timeout", seq: 1, attempt: 1 }]);
 		expect(errors).toContainEqual(["DATA", "session-a: ack timeout for seq 1"]);
@@ -633,12 +627,12 @@ describe("wire bridge envelopes (D134)", () => {
 			}
 		});
 
-		clock.down([["DATA", 1000]]);
+		clock.set(1000);
 		bridge.send("payload");
-		clock.down([["DATA", 1004]]);
+		clock.set(1004);
 		expect(commands.filter((msg) => msg[0] === "DATA")).toEqual([]);
 
-		clock.down([["DATA", 1005]]);
+		clock.set(1005);
 
 		expect(commands).toContainEqual([
 			"DATA",
@@ -654,20 +648,16 @@ describe("wire bridge envelopes (D134)", () => {
 				nowMs: 1005,
 			}),
 		]);
-		bridge.command.down([
-			["DATA", { kind: "ack-timeout", seq: 1, attempt: 1, observedAtMs: 1005 }],
-		]);
+		bridge.command.set({ kind: "ack-timeout", seq: 1, attempt: 1, observedAtMs: 1005 });
 		expect(outbound.filter((msg) => msg[0] === "DATA")).toHaveLength(1);
-		clock.down([["DATA", 1014]]);
+		clock.set(1014);
 		expect(commands.filter((msg) => msg[0] === "DATA")).toHaveLength(1);
-		clock.down([["DATA", 1015]]);
+		clock.set(1015);
 		expect(commands).toContainEqual([
 			"DATA",
 			{ kind: "ack-timeout", seq: 1, attempt: 1, observedAtMs: 1015 },
 		]);
-		bridge.command.down([
-			["DATA", { kind: "ack-timeout", seq: 1, attempt: 1, observedAtMs: 1015 }],
-		]);
+		bridge.command.set({ kind: "ack-timeout", seq: 1, attempt: 1, observedAtMs: 1015 });
 		expect(outbound.filter((msg) => msg[0] === "DATA")).toHaveLength(2);
 		const snap = g.describe();
 		expect(snap.edges).toContainEqual({ from: "clock", to: "ackDriver/events" });
@@ -701,21 +691,18 @@ describe("wire bridge envelopes (D134)", () => {
 			}
 		});
 
-		clock.down([["DATA", 1000]]);
+		clock.set(1000);
 		bridge.send("payload");
 		batch(() => {
-			clock.down([["DATA", 1005]]);
-			bridge.inbound.down([
-				[
-					"DATA",
-					wireBridgeEnvelope({
-						sessionId: "session-a",
-						type: "ack",
-						seq: 1,
-						ackForSeq: 1,
-					}),
-				],
-			]);
+			clock.set(1005);
+			bridge.inbound.set(
+				wireBridgeEnvelope({
+					sessionId: "session-a",
+					type: "ack",
+					seq: 1,
+					ackForSeq: 1,
+				}),
+			);
 		});
 
 		// The clock tick and the ack commit as one wave (R-request-order), so the ack driver runs
@@ -724,9 +711,7 @@ describe("wire bridge envelopes (D134)", () => {
 			"DATA",
 			{ kind: "ack-timeout", seq: 1, attempt: 1, observedAtMs: 1005 },
 		]);
-		bridge.command.down([
-			["DATA", { kind: "ack-timeout", seq: 1, attempt: 1, observedAtMs: 1005 }],
-		]);
+		bridge.command.set({ kind: "ack-timeout", seq: 1, attempt: 1, observedAtMs: 1005 });
 		expect(outbound.filter((msg) => msg[0] === "DATA")).toHaveLength(1);
 	});
 
@@ -752,11 +737,11 @@ describe("wire bridge envelopes (D134)", () => {
 			}
 		});
 
-		clock.down([["DATA", 1000]]);
+		clock.set(1000);
 		bridge.send("payload");
 		unsubscribe();
 		driver.release();
-		clock.down([["DATA", 1005]]);
+		clock.set(1005);
 
 		expect(commands.filter((msg) => msg[0] === "DATA")).toEqual([]);
 		expect(g.describe().edges).not.toContainEqual({ from: "clock", to: "ackDriver/events" });
@@ -795,17 +780,14 @@ describe("wire bridge envelopes (D134)", () => {
 				lastSeq: 2,
 			},
 		]);
-		bridge.inbound.down([
-			[
-				"DATA",
-				wireBridgeEnvelope({
-					sessionId: "session-a",
-					type: "ack",
-					seq: 1,
-					ackForSeq: 2,
-				}),
-			],
-		]);
+		bridge.inbound.set(
+			wireBridgeEnvelope({
+				sessionId: "session-a",
+				type: "ack",
+				seq: 1,
+				ackForSeq: 2,
+			}),
+		);
 		expect(status.at(-1)).toEqual([
 			"DATA",
 			{
@@ -845,28 +827,22 @@ describe("wire bridge envelopes (D134)", () => {
 			}
 		});
 
-		bridge.inbound.down([
-			[
-				"DATA",
-				wireBridgeEnvelope({
-					sessionId: "session-b",
-					type: "data",
-					seq: 1,
-					payload: { kind: "data", value: "wrong-session" },
-				}),
-			],
-		]);
-		bridge.inbound.down([
-			[
-				"DATA",
-				wireBridgeEnvelope({
-					sessionId: "session-a",
-					type: "data",
-					seq: 1,
-					payload: { kind: "data", value: "right-session" },
-				}),
-			],
-		]);
+		bridge.inbound.set(
+			wireBridgeEnvelope({
+				sessionId: "session-b",
+				type: "data",
+				seq: 1,
+				payload: { kind: "data", value: "wrong-session" },
+			}),
+		);
+		bridge.inbound.set(
+			wireBridgeEnvelope({
+				sessionId: "session-a",
+				type: "data",
+				seq: 1,
+				payload: { kind: "data", value: "right-session" },
+			}),
+		);
 
 		expect(errors).toContainEqual([
 			"DATA",
@@ -905,34 +881,26 @@ describe("wire bridge envelopes (D134)", () => {
 			}
 		});
 
-		bridge.inbound.down([
-			[
-				"DATA",
-				{
-					sessionId: "session-a",
-					type: "data",
-					payload: { kind: "data", value: "bad" },
-					metadata: {
-						seq: Number.NaN,
-						cursor: 0,
-						idempotencyKey: "bad",
-						attempt: 1,
-						maxAttempts: 1,
-					},
-				} as never,
-			],
-		]);
-		bridge.inbound.down([
-			[
-				"DATA",
-				wireBridgeEnvelope({
-					sessionId: "session-a",
-					type: "data",
-					seq: 1,
-					payload: { kind: "data", value: "good" },
-				}),
-			],
-		]);
+		bridge.inbound.set({
+			sessionId: "session-a",
+			type: "data",
+			payload: { kind: "data", value: "bad" },
+			metadata: {
+				seq: Number.NaN,
+				cursor: 0,
+				idempotencyKey: "bad",
+				attempt: 1,
+				maxAttempts: 1,
+			},
+		} as never);
+		bridge.inbound.set(
+			wireBridgeEnvelope({
+				sessionId: "session-a",
+				type: "data",
+				seq: 1,
+				payload: { kind: "data", value: "good" },
+			}),
+		);
 
 		expect(errors).toContainEqual([
 			"DATA",
@@ -957,18 +925,15 @@ describe("wire bridge envelopes (D134)", () => {
 			}
 		});
 
-		bridge.inbound.down([["ERROR", "remote protocol error"]]);
-		bridge.inbound.down([
-			[
-				"DATA",
-				wireBridgeEnvelope({
-					sessionId: "session-a",
-					type: "data",
-					seq: 1,
-					payload: { kind: "data", value: "still-live" },
-				}),
-			],
-		]);
+		bridge.inbound.error("remote protocol error");
+		bridge.inbound.set(
+			wireBridgeEnvelope({
+				sessionId: "session-a",
+				type: "data",
+				seq: 1,
+				payload: { kind: "data", value: "still-live" },
+			}),
+		);
 
 		expect(errors).toContainEqual([
 			"DATA",
@@ -1001,28 +966,22 @@ describe("wire bridge envelopes (D134)", () => {
 			}
 		});
 
-		bridge.inbound.down([
-			[
-				"DATA",
-				wireBridgeEnvelope({
-					sessionId: "session-a",
-					type: "error",
-					seq: 2,
-					payload: { kind: "error", error: "remote failed" },
-				}),
-			],
-		]);
-		bridge.inbound.down([
-			[
-				"DATA",
-				wireBridgeEnvelope({
-					sessionId: "session-a",
-					type: "error",
-					seq: 1,
-					payload: { kind: "error", error: "remote failed" },
-				}),
-			],
-		]);
+		bridge.inbound.set(
+			wireBridgeEnvelope({
+				sessionId: "session-a",
+				type: "error",
+				seq: 2,
+				payload: { kind: "error", error: "remote failed" },
+			}),
+		);
+		bridge.inbound.set(
+			wireBridgeEnvelope({
+				sessionId: "session-a",
+				type: "error",
+				seq: 1,
+				payload: { kind: "error", error: "remote failed" },
+			}),
+		);
 
 		expect(events).toContainEqual(["DATA", { kind: "out-of-order", seq: 2, expected: 1 }]);
 		expect(errors).toContainEqual(["DATA", "bridge: inbound seq 2 arrived before expected seq 1"]);
@@ -1062,33 +1021,25 @@ describe("wire bridge envelopes (D134)", () => {
 		});
 
 		bridge.send("payload");
-		bridge.inbound.down([
-			[
-				"DATA",
-				{
-					sessionId: "session-a",
-					type: "ack",
-					metadata: {
-						seq: 1,
-						cursor: 0,
-						idempotencyKey: "bad-ack",
-						attempt: 1,
-						maxAttempts: 1,
-					},
-				} as never,
-			],
-		]);
-		bridge.inbound.down([
-			[
-				"DATA",
-				wireBridgeEnvelope({
-					sessionId: "session-a",
-					type: "ack",
-					seq: 1,
-					ackForSeq: 1,
-				}),
-			],
-		]);
+		bridge.inbound.set({
+			sessionId: "session-a",
+			type: "ack",
+			metadata: {
+				seq: 1,
+				cursor: 0,
+				idempotencyKey: "bad-ack",
+				attempt: 1,
+				maxAttempts: 1,
+			},
+		} as never);
+		bridge.inbound.set(
+			wireBridgeEnvelope({
+				sessionId: "session-a",
+				type: "ack",
+				seq: 1,
+				ackForSeq: 1,
+			}),
+		);
 
 		expect(errors).toContainEqual(["DATA", "wireBridge: inbound ack envelope requires ackForSeq"]);
 		expect(cursor).toContainEqual(["DATA", 1]);
@@ -1124,42 +1075,33 @@ describe("wire bridge envelopes (D134)", () => {
 
 		bridge.send("first", { idempotencyKey: "same-key" });
 		bridge.send("second", { idempotencyKey: "same-key" });
-		bridge.inbound.down([
-			[
-				"DATA",
-				wireBridgeEnvelope({
-					sessionId: "session-a",
-					type: "data",
-					seq: 1,
-					payload: { kind: "data", value: "remote-one" },
-					idempotencyKey: "same-key",
-				}),
-			],
-		]);
-		bridge.inbound.down([
-			[
-				"DATA",
-				wireBridgeEnvelope({
-					sessionId: "session-a",
-					type: "data",
-					seq: 2,
-					payload: { kind: "data", value: "remote-two" },
-					idempotencyKey: "same-key",
-				}),
-			],
-		]);
-		bridge.inbound.down([
-			[
-				"DATA",
-				wireBridgeEnvelope({
-					sessionId: "session-a",
-					type: "ack",
-					seq: 3,
-					ackForSeq: 2,
-					idempotencyKey: "different-correlation-key",
-				}),
-			],
-		]);
+		bridge.inbound.set(
+			wireBridgeEnvelope({
+				sessionId: "session-a",
+				type: "data",
+				seq: 1,
+				payload: { kind: "data", value: "remote-one" },
+				idempotencyKey: "same-key",
+			}),
+		);
+		bridge.inbound.set(
+			wireBridgeEnvelope({
+				sessionId: "session-a",
+				type: "data",
+				seq: 2,
+				payload: { kind: "data", value: "remote-two" },
+				idempotencyKey: "same-key",
+			}),
+		);
+		bridge.inbound.set(
+			wireBridgeEnvelope({
+				sessionId: "session-a",
+				type: "ack",
+				seq: 3,
+				ackForSeq: 2,
+				idempotencyKey: "different-correlation-key",
+			}),
+		);
 
 		expect(
 			events.filter(
@@ -1207,30 +1149,24 @@ describe("wire bridge envelopes (D134)", () => {
 			}
 		});
 
-		bridge.inbound.down([
-			[
-				"DATA",
-				wireBridgeEnvelope({
-					sessionId: "session-a",
-					type: "data",
-					seq: 1,
-					cursor: 3,
-					payload: { kind: "data", value: "one" },
-				}),
-			],
-		]);
-		bridge.inbound.down([
-			[
-				"DATA",
-				wireBridgeEnvelope({
-					sessionId: "session-a",
-					type: "data",
-					seq: 2,
-					cursor: 2,
-					payload: { kind: "data", value: "two" },
-				}),
-			],
-		]);
+		bridge.inbound.set(
+			wireBridgeEnvelope({
+				sessionId: "session-a",
+				type: "data",
+				seq: 1,
+				cursor: 3,
+				payload: { kind: "data", value: "one" },
+			}),
+		);
+		bridge.inbound.set(
+			wireBridgeEnvelope({
+				sessionId: "session-a",
+				type: "data",
+				seq: 2,
+				cursor: 2,
+				payload: { kind: "data", value: "two" },
+			}),
+		);
 
 		expect(errors).toContainEqual(["DATA", "session-a: inbound cursor 2 regressed below 3"]);
 		expect(cursor.filter((msg) => msg[0] === "DATA")).toEqual([["DATA", 1]]);
@@ -1252,17 +1188,14 @@ describe("wire bridge envelopes (D134)", () => {
 			}
 		});
 
-		bridge.inbound.down([
-			[
-				"DATA",
-				wireBridgeEnvelope({
-					sessionId: "session-a",
-					type: "error",
-					seq: 1,
-					payload: { kind: "error", error: "remote failed" },
-				}),
-			],
-		]);
+		bridge.inbound.set(
+			wireBridgeEnvelope({
+				sessionId: "session-a",
+				type: "error",
+				seq: 1,
+				payload: { kind: "error", error: "remote failed" },
+			}),
+		);
 
 		expect(errors).toContainEqual(["DATA", "remote failed"]);
 		expect(status.at(-1)).toEqual([
@@ -1299,9 +1232,9 @@ describe("wire bridge envelopes (D134)", () => {
 			}
 		});
 
-		bridge.command.down([["DATA", { kind: "wat" } as never]]);
-		bridge.command.down([["DATA", { kind: "ack", ackForSeq: 0 } as never]]);
-		bridge.command.down([["DATA", { kind: "send", payload: "ok", idempotencyKey: "" } as never]]);
+		bridge.command.set({ kind: "wat" } as never);
+		bridge.command.set({ kind: "ack", ackForSeq: 0 } as never);
+		bridge.command.set({ kind: "send", payload: "ok", idempotencyKey: "" } as never);
 		bridge.send("after-invalid");
 
 		expect(errors).toContainEqual(["DATA", "wireBridge: command kind is not recognized"]);
@@ -1357,8 +1290,8 @@ describe("wire bridge envelopes (D134)", () => {
 			}
 		});
 		batch(() => {
-			sourceA.down([["DATA", bytes(1)]]);
-			sourceB.down([["DATA", bytes(2)]]);
+			sourceA.set(bytes(1));
+			sourceB.set(bytes(2));
 		});
 		expect(
 			dataValues(outbound).map(
@@ -1397,30 +1330,33 @@ describe("wire bridge envelopes (D134)", () => {
 				seq,
 				payload: { kind: "data", value: { kind: "wire_edge", frame } },
 			});
-		bridge.inbound.down([
-			["DATA", edgeEnvelope(1, { kind: "pending", edgeId: "a", causeId: "c1" })],
-			["DATA", edgeEnvelope(2, { kind: "data", edgeId: "a", causeId: "c1", value: bytes(10) })],
-			[
-				"DATA",
+		batch(() => {
+			bridge.inbound.set(edgeEnvelope(1, { kind: "pending", edgeId: "a", causeId: "c1" }));
+			bridge.inbound.set(
+				edgeEnvelope(2, { kind: "data", edgeId: "a", causeId: "c1", value: bytes(10) }),
+			);
+			bridge.inbound.set(
 				wireBridgeEnvelope({
 					sessionId: "session-a",
 					type: "close",
 					seq: 3,
 					payload: { kind: "close" },
 				}),
-			],
-		]);
+			);
+		});
 		expect(dataValues(inbound)).toEqual([]);
-		bridge.inbound.down([
-			["DATA", edgeEnvelope(4, { kind: "pending", edgeId: "a", causeId: "c2" })],
-			["DATA", edgeEnvelope(5, { kind: "pending", edgeId: "b", causeId: "c2" })],
-			["DATA", edgeEnvelope(6, { kind: "data", edgeId: "a", causeId: "c2", value: bytes(10) })],
-			["DATA", edgeEnvelope(7, { kind: "data", edgeId: "b", causeId: "c2", value: bytes(20) })],
-		]);
+		batch(() => {
+			bridge.inbound.set(edgeEnvelope(4, { kind: "pending", edgeId: "a", causeId: "c2" }));
+			bridge.inbound.set(edgeEnvelope(5, { kind: "pending", edgeId: "b", causeId: "c2" }));
+			bridge.inbound.set(
+				edgeEnvelope(6, { kind: "data", edgeId: "a", causeId: "c2", value: bytes(10) }),
+			);
+			bridge.inbound.set(
+				edgeEnvelope(7, { kind: "data", edgeId: "b", causeId: "c2", value: bytes(20) }),
+			);
+		});
 		expect(dataValues(inbound)).toEqual([bytes(10)]);
-		bridge.inbound.down([
-			["DATA", edgeEnvelope(8, { kind: "pending", edgeId: "z", causeId: "bad" })],
-		]);
+		bridge.inbound.set(edgeEnvelope(8, { kind: "pending", edgeId: "z", causeId: "bad" }));
 		expect(dataValues(issues)).toContainEqual(
 			expect.objectContaining({ code: "wire-edge-group-unknown-edge" }),
 		);
@@ -1491,12 +1427,16 @@ describe("wire bridge envelopes (D134)", () => {
 				seq,
 				payload: { kind: "data", value: { kind: "wire_edge", frame } },
 			});
-		bridge.inbound.down([
-			["DATA", envelope(1, { kind: "pending", edgeId: "a", causeId: "c1" })],
-			["DATA", envelope(2, { kind: "pending", edgeId: "b", causeId: "c1" })],
-			["DATA", envelope(3, { kind: "data", edgeId: "a", causeId: "c1", value: bytes(10) })],
-			["DATA", envelope(4, { kind: "data", edgeId: "b", causeId: "c1", value: bytes(20) })],
-		]);
+		batch(() => {
+			bridge.inbound.set(envelope(1, { kind: "pending", edgeId: "a", causeId: "c1" }));
+			bridge.inbound.set(envelope(2, { kind: "pending", edgeId: "b", causeId: "c1" }));
+			bridge.inbound.set(
+				envelope(3, { kind: "data", edgeId: "a", causeId: "c1", value: bytes(10) }),
+			);
+			bridge.inbound.set(
+				envelope(4, { kind: "data", edgeId: "b", causeId: "c1", value: bytes(20) }),
+			);
+		});
 
 		expect(inboundA.cache).toEqual(bytes(10));
 		expect(() => group.release()).toThrow(/live subscribers/);
@@ -1541,10 +1481,10 @@ describe("wire bridge envelopes (D134)", () => {
 			}
 		});
 
-		sourceA.down([["DATA", bytes(1)]]);
+		sourceA.set(bytes(1));
 		expect(frames(outbound)).toEqual([]);
 
-		sourceB.down([["DATA", bytes(2)]]);
+		sourceB.set(bytes(2));
 		expect(frames(outbound)).toEqual([
 			{ kind: "pending", edgeId: "a", causeId: wireCauseId("freshGroup", 1) },
 			{ kind: "pending", edgeId: "b", causeId: wireCauseId("freshGroup", 1) },
@@ -1554,8 +1494,8 @@ describe("wire bridge envelopes (D134)", () => {
 
 		outbound.length = 0;
 		batch(() => {
-			sourceA.down([["DATA", bytes(1)]]);
-			sourceB.down([["DATA", bytes(2)]]);
+			sourceA.set(bytes(1));
+			sourceB.set(bytes(2));
 		});
 		expect(frames(outbound)).toEqual([
 			{ kind: "pending", edgeId: "a", causeId: wireCauseId("freshGroup", 2) },
@@ -1566,9 +1506,9 @@ describe("wire bridge envelopes (D134)", () => {
 
 		outbound.length = 0;
 		batch(() => {
-			sourceA.down([["INVALIDATE"]]);
-			sourceA.down([["DATA", bytes(5)]]);
-			sourceB.down([["DATA", bytes(6)]]);
+			sourceA.invalidate();
+			sourceA.set(bytes(5));
+			sourceB.set(bytes(6));
 		});
 		expect(frames(outbound)).toEqual([
 			{ kind: "pending", edgeId: "a", causeId: wireCauseId("freshGroup", 3) },
@@ -1579,8 +1519,11 @@ describe("wire bridge envelopes (D134)", () => {
 
 		outbound.length = 0;
 		batch(() => {
-			sourceA.down([["DATA", bytes(3)], ["INVALIDATE"]]);
-			sourceB.down([["DATA", bytes(4)]]);
+			batch(() => {
+				sourceA.set(bytes(3));
+				sourceA.invalidate();
+			});
+			sourceB.set(bytes(4));
 		});
 		expect(frames(outbound)).toEqual([]);
 	});
@@ -1615,8 +1558,8 @@ describe("wire bridge envelopes (D134)", () => {
 			}
 		});
 		batch(() => {
-			sourceA.down([["DATA", bytes(1)]]);
-			sourceB.down([["DATA", bytes(2)]]);
+			sourceA.set(bytes(1));
+			sourceB.set(bytes(2));
 		});
 		expect(frameCauseIds(first)).toContain(wireCauseId("replayFreshGroup", 1));
 
@@ -1685,27 +1628,31 @@ describe("wire bridge envelopes (D134)", () => {
 				payload: { kind: "data", value: { kind: "wire_edge", frame } },
 			});
 
-		bridge.inbound.down([
-			["DATA", envelope(1, { kind: "pending", edgeId: "a", causeId: "c1" })],
-			["DATA", envelope(2, { kind: "data", edgeId: "a", causeId: "c1", value: bytes(10) })],
-		]);
+		batch(() => {
+			bridge.inbound.set(envelope(1, { kind: "pending", edgeId: "a", causeId: "c1" }));
+			bridge.inbound.set(
+				envelope(2, { kind: "data", edgeId: "a", causeId: "c1", value: bytes(10) }),
+			);
+		});
 		expect(inboundMessages).toEqual([["START"]]);
 		expect(joinMessages).toEqual([["START"]]);
 		expect(dataValues(status).at(-1)).toEqual(
 			expect.objectContaining({ state: "collecting", pending: 1, data: 1, released: 0 }),
 		);
 
-		bridge.inbound.down([
-			["DATA", envelope(3, { kind: "pending", edgeId: "b", causeId: "c1" })],
-			["DATA", envelope(4, { kind: "data", edgeId: "b", causeId: "c1", value: bytes(20) })],
-		]);
+		batch(() => {
+			bridge.inbound.set(envelope(3, { kind: "pending", edgeId: "b", causeId: "c1" }));
+			bridge.inbound.set(
+				envelope(4, { kind: "data", edgeId: "b", causeId: "c1", value: bytes(20) }),
+			);
+		});
 		expect(dataValues(inboundMessages)).toEqual([bytes(10)]);
 		expect(dataValues(joinMessages)).toEqual([[bytes(10), bytes(20)]]);
 		expect(dataValues(status).at(-1)).toEqual(
 			expect.objectContaining({ state: "released", pending: 2, data: 2, released: 2 }),
 		);
 
-		bridge.inbound.down([["DATA", envelope(5, { kind: "pending", edgeId: "a", causeId: "c1" })]]);
+		bridge.inbound.set(envelope(5, { kind: "pending", edgeId: "a", causeId: "c1" }));
 		expect(dataValues(issues)).toContainEqual(
 			expect.objectContaining({ code: "wire-edge-group-duplicate-pending", causeId: "c1" }),
 		);
@@ -1746,12 +1693,16 @@ describe("wire bridge envelopes (D134)", () => {
 				payload: { kind: "data", value: { kind: "wire_edge", frame } },
 			});
 
-		bridge.inbound.down([
-			["DATA", envelope(1, { kind: "pending", edgeId: "a", causeId: "c1" })],
-			["DATA", envelope(2, { kind: "pending", edgeId: "b", causeId: "c1" })],
-			["DATA", envelope(3, { kind: "data", edgeId: "a", causeId: "c1", value: bytes(10) })],
-			["DATA", envelope(4, { kind: "data", edgeId: "b", causeId: "c1", value: bytes(20) })],
-		]);
+		batch(() => {
+			bridge.inbound.set(envelope(1, { kind: "pending", edgeId: "a", causeId: "c1" }));
+			bridge.inbound.set(envelope(2, { kind: "pending", edgeId: "b", causeId: "c1" }));
+			bridge.inbound.set(
+				envelope(3, { kind: "data", edgeId: "a", causeId: "c1", value: bytes(10) }),
+			);
+			bridge.inbound.set(
+				envelope(4, { kind: "data", edgeId: "b", causeId: "c1", value: bytes(20) }),
+			);
+		});
 
 		expect(inboundA.cache).toEqual(bytes(10));
 		expect(inboundB.cache).toEqual(bytes(20));
@@ -1760,7 +1711,7 @@ describe("wire bridge envelopes (D134)", () => {
 		);
 		expect(dataValues(issues)).toEqual([]);
 
-		bridge.inbound.down([["DATA", envelope(5, { kind: "pending", edgeId: "a", causeId: "c1" })]]);
+		bridge.inbound.set(envelope(5, { kind: "pending", edgeId: "a", causeId: "c1" }));
 		expect(dataValues(issues)).toContainEqual(
 			expect.objectContaining({ code: "wire-edge-group-duplicate-pending", causeId: "c1" }),
 		);
@@ -1802,21 +1753,20 @@ describe("wire bridge envelopes (D134)", () => {
 					seq,
 					payload: { kind: "data", value: { kind: "wire_edge", frame } },
 				});
-			bridge.inbound.down(
-				frames.map((frame, index) =>
-					frame.kind === "close"
-						? [
-								"DATA",
-								wireBridgeEnvelope({
+			batch(() => {
+				frames.forEach((frame, index) => {
+					bridge.inbound.set(
+						frame.kind === "close"
+							? wireBridgeEnvelope({
 									sessionId: "session-a",
 									type: "close",
 									seq: index + 1,
 									payload: { kind: "close" },
-								}),
-							]
-						: ["DATA", envelope(index + 1, frame)],
-				),
-			);
+								})
+							: envelope(index + 1, frame),
+					);
+				});
+			});
 			return { inbound, issues, status, group };
 		};
 		const cases: [string, string, Record<string, unknown>[]][] = [
@@ -1907,14 +1857,14 @@ describe("wire bridge envelopes (D134)", () => {
 				},
 			});
 		const release = (causeId: string, value: Uint8Array) => {
-			bridge.inbound.down([
-				["DATA", envelope(causeId, "pending")],
-				["DATA", envelope(causeId, "data", value)],
-			]);
+			batch(() => {
+				bridge.inbound.set(envelope(causeId, "pending"));
+				bridge.inbound.set(envelope(causeId, "data", value));
+			});
 		};
 
 		release("c1", bytes(1));
-		bridge.inbound.down([["DATA", envelope("c1", "pending")]]);
+		bridge.inbound.set(envelope("c1", "pending"));
 		expect(dataValues(issues)).toContainEqual(
 			expect.objectContaining({
 				code: "wire-edge-group-duplicate-pending",
@@ -1965,12 +1915,16 @@ describe("wire bridge envelopes (D134)", () => {
 				seq,
 				payload: { kind: "data", value: { kind: "wire_edge", frame } },
 			});
-		bridge.inbound.down([
-			["DATA", envelope(1, { kind: "pending", edgeId: "a", causeId: "c1" })],
-			["DATA", envelope(2, { kind: "pending", edgeId: "b", causeId: "c1" })],
-			["DATA", envelope(3, { kind: "data", edgeId: "a", causeId: "c1", value: bytes(1) })],
-			["DATA", envelope(4, { kind: "data", edgeId: "b", causeId: "c1", value: bytes(2) })],
-		]);
+		batch(() => {
+			bridge.inbound.set(envelope(1, { kind: "pending", edgeId: "a", causeId: "c1" }));
+			bridge.inbound.set(envelope(2, { kind: "pending", edgeId: "b", causeId: "c1" }));
+			bridge.inbound.set(
+				envelope(3, { kind: "data", edgeId: "a", causeId: "c1", value: bytes(1) }),
+			);
+			bridge.inbound.set(
+				envelope(4, { kind: "data", edgeId: "b", causeId: "c1", value: bytes(2) }),
+			);
+		});
 		expect(dataValues(inbound)).toEqual([bytes(1)]);
 		expect(dataValues(issues)).toEqual([]);
 		expect(status.at(-1)).toEqual([

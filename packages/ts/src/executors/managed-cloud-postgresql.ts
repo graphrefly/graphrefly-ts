@@ -2,7 +2,7 @@
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
 import { canonicalTupleKey, parseCanonicalTupleKey } from "../identity.js";
-import type { Node } from "../node/node.js";
+import type { Node, StateNode } from "../node/node.js";
 import type {
 	AgentRuntimeAuditRecord,
 	ExecutorOutcome,
@@ -1260,7 +1260,8 @@ export function managedCloudPostgresqlRuntime(
 	let disposed = false;
 	const pending = new Set<Promise<unknown>>();
 	const unsubscribes: Array<() => void> = [];
-	const emit = <T>(node: Node<T>, value: T) => node.down([["DATA", value]]);
+	const emit = <T>(node: StateNode<T>, value: NoInfer<T>) =>
+		node.set(value as Exclude<T, (...args: never[]) => unknown>);
 	const issue = (code: string, message: string) =>
 		emit(issues, { code, message, severity: "error" } as DataIssue);
 	const emitLifecycle = (raw: ManagedCloudPostgresqlLifecycleFact) => {

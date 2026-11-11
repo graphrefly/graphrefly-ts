@@ -506,10 +506,10 @@ describe("local-container PostgreSQL runtime (D604)", () => {
 		});
 		const outcomes = collect(runtime.outcomes);
 		const cleanup = collect<{ state: string }>(runtime.cleanup);
-		inputs.down([["DATA", input()]]);
-		manifests.down([["DATA", manifest()]]);
-		postures.down([["DATA", readiness()]]);
-		admitted.down([["DATA", run()]]);
+		inputs.set(input());
+		manifests.set(manifest());
+		postures.set(readiness());
+		admitted.set(run());
 		await settle();
 		expect(calls).toEqual(["prepare", "create", "start", "wait", "remove", "cleanup"]);
 		expect(outcomes).toHaveLength(1);
@@ -548,10 +548,10 @@ describe("local-container PostgreSQL runtime (D604)", () => {
 		});
 		const outcomes = collect<{ kind: string; error?: { code: string } }>(runtime.outcomes);
 		const movement = collect<{ artifactRefs?: readonly unknown[] }>(runtime.movement);
-		inputs.down([["DATA", input()]]);
-		manifests.down([["DATA", manifest()]]);
-		postures.down([["DATA", readiness()]]);
-		admitted.down([["DATA", run()]]);
+		inputs.set(input());
+		manifests.set(manifest());
+		postures.set(readiness());
+		admitted.set(run());
 		await settle();
 		expect(outcomes).toEqual([
 			expect.objectContaining({
@@ -615,10 +615,10 @@ describe("local-container PostgreSQL runtime (D604)", () => {
 				now: () => 10,
 			});
 			const issues = collect<{ code: string }>(runtime.issues);
-			inputs.down([["DATA", input()]]);
-			manifests.down([["DATA", manifest()]]);
-			postures.down([["DATA", readiness(patch)]]);
-			admitted.down([["DATA", run()]]);
+			inputs.set(input());
+			manifests.set(manifest());
+			postures.set(readiness(patch));
+			admitted.set(run());
 			await settle();
 			expect(prepared).toBe(0);
 			expect(issues.at(-1)?.code).toBe("local-container-admission-blocked");
@@ -644,17 +644,14 @@ describe("local-container PostgreSQL runtime (D604)", () => {
 			now: () => 10,
 		});
 		const issues = collect<{ code: string }>(runtime.issues);
-		inputs.down([["DATA", input()]]);
-		manifests.down([["DATA", manifest()]]);
-		postures.down([
-			[
-				"DATA",
-				localContainerPostgresqlDockerEngineApiV0PreflightReadiness(
-					dockerPreflight({ detectedBackend: "podman" }),
-				),
-			],
-		]);
-		admitted.down([["DATA", run()]]);
+		inputs.set(input());
+		manifests.set(manifest());
+		postures.set(
+			localContainerPostgresqlDockerEngineApiV0PreflightReadiness(
+				dockerPreflight({ detectedBackend: "podman" }),
+			),
+		);
+		admitted.set(run());
 		await settle();
 		expect(prepared).toBe(0);
 		expect(issues.at(-1)?.code).toBe("local-container-admission-blocked");
@@ -679,21 +676,16 @@ describe("local-container PostgreSQL runtime (D604)", () => {
 			now: () => 10,
 		});
 		const issues = collect<{ code: string }>(runtime.issues);
-		inputs.down([["DATA", input()]]);
-		manifests.down([["DATA", manifest()]]);
-		postures.down([["DATA", readiness()]]);
-		admitted.down([
-			[
-				"DATA",
-				{
-					...run(),
-					metadata: {
-						...run().metadata,
-						executionEnvironmentId: "docker-socket-var-run",
-					},
-				},
-			],
-		]);
+		inputs.set(input());
+		manifests.set(manifest());
+		postures.set(readiness());
+		admitted.set({
+			...run(),
+			metadata: {
+				...run().metadata,
+				executionEnvironmentId: "docker-socket-var-run",
+			},
+		});
 		await settle();
 		expect(prepared).toBe(0);
 		expect(issues.at(-1)?.code).toBe("local-container-admission-blocked");
@@ -718,12 +710,10 @@ describe("local-container PostgreSQL runtime (D604)", () => {
 			now: () => 10,
 		});
 		const issues = collect<{ code: string }>(runtime.issues);
-		inputs.down([["DATA", input()]]);
-		manifests.down([["DATA", manifest()]]);
-		postures.down([
-			["DATA", readiness({ backendCertificationRevision: "docker-certification:other:v0" })],
-		]);
-		admitted.down([["DATA", run()]]);
+		inputs.set(input());
+		manifests.set(manifest());
+		postures.set(readiness({ backendCertificationRevision: "docker-certification:other:v0" }));
+		admitted.set(run());
 		await settle();
 		expect(prepared).toBe(0);
 		expect(issues.at(-1)?.code).toBe("local-container-admission-blocked");
@@ -769,10 +759,10 @@ describe("local-container PostgreSQL runtime (D604)", () => {
 		const admissions = collect<{ state: string }>(runtime.cancellationAdmissions);
 		const acks = collect(runtime.cancellationAcknowledgements);
 		const outcomes = collect(runtime.outcomes);
-		inputs.down([["DATA", input()]]);
-		manifests.down([["DATA", manifest()]]);
-		postures.down([["DATA", readiness()]]);
-		admitted.down([["DATA", run()]]);
+		inputs.set(input());
+		manifests.set(manifest());
+		postures.set(readiness());
+		admitted.set(run());
 		await settle();
 		const base = {
 			kind: "local-container-postgresql-cancellation-requested" as const,
@@ -783,39 +773,29 @@ describe("local-container PostgreSQL runtime (D604)", () => {
 			manifestFingerprint: "fingerprint:pg:1",
 			sessionEpoch: "epoch:1",
 		};
-		cancels.down([["DATA", { ...base, sessionEpoch: "epoch:stale" }]]);
+		cancels.set({ ...base, sessionEpoch: "epoch:stale" });
 		await settle();
 		expect(proposals).toHaveLength(0);
-		cancels.down([["DATA", base]]);
+		cancels.set(base);
 		await settle();
-		decisions.down([
-			[
-				"DATA",
-				{
-					kind: "local-container-postgresql-cancellation-decision",
-					decisionId: "decision:1",
-					proposalId: proposals[0]!.proposalId,
-					outcome: "admit",
-				},
-			],
-		]);
+		decisions.set({
+			kind: "local-container-postgresql-cancellation-decision",
+			decisionId: "decision:1",
+			proposalId: proposals[0]!.proposalId,
+			outcome: "admit",
+		});
 		await settle();
 		expect(acks).toHaveLength(1);
 		expect(outcomes).toHaveLength(0);
 		expect(calls).toContain("stop");
-		cancels.down([["DATA", { ...base, cancellationId: "cancel:2" }]]);
+		cancels.set({ ...base, cancellationId: "cancel:2" });
 		await settle();
-		decisions.down([
-			[
-				"DATA",
-				{
-					kind: "local-container-postgresql-cancellation-decision",
-					decisionId: "decision:2",
-					proposalId: proposals[1]!.proposalId,
-					outcome: "admit",
-				},
-			],
-		]);
+		decisions.set({
+			kind: "local-container-postgresql-cancellation-decision",
+			decisionId: "decision:2",
+			proposalId: proposals[1]!.proposalId,
+			outcome: "admit",
+		});
 		await settle();
 		expect(admissions.map((entry) => entry.state)).toEqual(["admitted", "blocked"]);
 		expect(acks).toHaveLength(1);
@@ -842,11 +822,11 @@ describe("local-container PostgreSQL runtime (D604)", () => {
 			now: () => 10,
 		});
 		const issues = collect<{ code: string }>(runtime.issues);
-		inputs.down([["DATA", input()]]);
-		manifests.down([["DATA", manifest()]]);
-		manifests.down([["DATA", { ...manifest(), imageDigest: `sha256:${"b".repeat(64)}` }]]);
-		postures.down([["DATA", readiness()]]);
-		admitted.down([["DATA", { ...run(), providerId: "other-provider" }]]);
+		inputs.set(input());
+		manifests.set(manifest());
+		manifests.set({ ...manifest(), imageDigest: `sha256:${"b".repeat(64)}` });
+		postures.set(readiness());
+		admitted.set({ ...run(), providerId: "other-provider" });
 		await settle();
 		expect(prepared).toBe(0);
 		expect(issues.map((issue) => issue.code)).toEqual(
@@ -855,10 +835,10 @@ describe("local-container PostgreSQL runtime (D604)", () => {
 				"local-container-input-mismatch",
 			]),
 		);
-		admitted.down([["DATA", run()]]);
+		admitted.set(run());
 		await settle();
 		expect(prepared).toBe(1);
-		admitted.down([["DATA", { ...run(), runId: "run:2" }]]);
+		admitted.set({ ...run(), runId: "run:2" });
 		await settle();
 		expect(prepared).toBe(1);
 		expect(issues.at(-1)?.code).toBe("local-container-session-reused");
@@ -890,10 +870,10 @@ describe("local-container PostgreSQL runtime (D604)", () => {
 		const outcomes = collect<{ kind: string }>(runtime.outcomes);
 		const cleanup = collect<{ state: string }>(runtime.cleanup);
 		const issues = collect<{ code: string; message: string }>(runtime.issues);
-		inputs.down([["DATA", input()]]);
-		manifests.down([["DATA", manifest()]]);
-		postures.down([["DATA", readiness()]]);
-		admitted.down([["DATA", run()]]);
+		inputs.set(input());
+		manifests.set(manifest());
+		postures.set(readiness());
+		admitted.set(run());
 		await settle();
 		expect(outcomes).toEqual([expect.objectContaining({ kind: "result" })]);
 		expect(cleanup).toEqual([expect.objectContaining({ state: "failed" })]);
@@ -942,10 +922,10 @@ describe("local-container PostgreSQL runtime (D604)", () => {
 		});
 		const outcomes = collect<{ kind: string; reason?: string }>(runtime.outcomes);
 		const statuses = collect<{ status: string }>(runtime.runStatus);
-		inputs.down([["DATA", input()]]);
-		manifests.down([["DATA", manifest()]]);
-		postures.down([["DATA", readiness()]]);
-		admitted.down([["DATA", run()]]);
+		inputs.set(input());
+		manifests.set(manifest());
+		postures.set(readiness());
+		admitted.set(run());
 		await settle();
 		await runtime.dispose();
 		expect(calls).toEqual(["stop", "kill", "remove", "cleanup"]);

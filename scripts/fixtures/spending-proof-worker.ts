@@ -144,7 +144,7 @@ try {
 					}),
 				};
 			}
-			if (setup) batch(() => setup.sources[step.lane].down([["DATA", value as never]]));
+			if (setup) batch(() => setup.sources[step.lane].set(value as never));
 			else plain!.feed(step.lane, value);
 		} else if (step.kind === "drain") {
 			await drain();

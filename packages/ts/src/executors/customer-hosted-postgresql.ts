@@ -1,7 +1,7 @@
 /** Concrete customer-hosted outbound PostgreSQL endpoint binding (D606). */
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
-import type { Node } from "../node/node.js";
+import type { Node, StateNode } from "../node/node.js";
 import type {
 	AgentRuntimeAuditRecord,
 	ExecutorOutcome,
@@ -759,7 +759,8 @@ export function customerHostedPostgresqlRuntime(
 	const inputs = new Map<string, ToolProviderAdapterInput>();
 	let enrollmentTail: Promise<void> = Promise.resolve();
 	const unsubs: (() => void)[] = [];
-	const emit = <T>(n: Node<T>, v: T) => n.down([["DATA", v]]);
+	const emit = <T>(n: StateNode<T>, v: NoInfer<T>) =>
+		n.set(v as Exclude<T, (...args: never[]) => unknown>);
 	const issue = (code: string, message: string) =>
 		emit(issues, { code, message, severity: "error" } as DataIssue);
 	const emitLife = (f: CustomerHostedPostgresqlLifecycleFact) => {

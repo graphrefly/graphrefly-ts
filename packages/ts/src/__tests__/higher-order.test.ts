@@ -6,6 +6,7 @@
  */
 
 import { describe, expect, it } from "vitest";
+import { batch } from "../batch/batch.js";
 import type { Ctx, Message } from "../index.js";
 import {
 	concatMap,
@@ -83,7 +84,7 @@ describe("mergeMap (D47 / R-rewire-deferred)", () => {
 
 		expect(dispatcher.registerCount).toBe(1); // the mergeMap operator body itself
 		const { msgs } = collect(op);
-		s.down([["DATA", 1]]);
+		s.set(1);
 
 		expect(dispatcher.registerCount).toBeGreaterThan(1); // the fromAny/fromIter inner
 		expect(data(msgs)).toEqual([1, 2]);
@@ -109,7 +110,7 @@ describe("mergeMap (D47 / R-rewire-deferred)", () => {
 		);
 
 		collect(op);
-		s.down([["DATA", 1]]);
+		s.set(1);
 		const inner = op.deps[1];
 
 		expect(trapNode).not.toBeNull();
@@ -130,8 +131,8 @@ describe("mergeMap (D47 / R-rewire-deferred)", () => {
 		);
 		const { msgs } = collect(op);
 
-		s.down([["DATA", 1]]); // → inner a added
-		s.down([["DATA", 2]]); // → inner b added (a stays live — merge)
+		s.set(1); // → inner a added
+		s.set(2); // → inner b added (a stays live — merge)
 		expect(a.isActivated()).toBe(true);
 		expect(b.isActivated()).toBe(true);
 
@@ -165,7 +166,12 @@ describe("mergeMap (D47 / R-rewire-deferred)", () => {
 		);
 		const { msgs } = collect(op);
 
-		s.down([["DATA", 1], ["DATA", 2], ["DATA", 3], ["COMPLETE"]]);
+		batch(() => {
+			s.set(1);
+			s.set(2);
+			s.set(3);
+			s.complete();
+		});
 		expect(inners).toHaveLength(2);
 		expect(inners[0].isActivated()).toBe(true);
 		expect(inners[1].isActivated()).toBe(true);
@@ -201,7 +207,11 @@ describe("mergeMap (D47 / R-rewire-deferred)", () => {
 		);
 		collect(op);
 
-		s.down([["DATA", 1], ["DATA", 2], ["COMPLETE"]]);
+		batch(() => {
+			s.set(1);
+			s.set(2);
+			s.complete();
+		});
 		expect(inner.isActivated()).toBe(true);
 		expect(op.status.output).not.toBe("completed");
 
@@ -226,9 +236,9 @@ describe("mergeMap (D47 / R-rewire-deferred)", () => {
 		);
 		collect(op);
 
-		s.down([["DATA", 1]]); // add x
-		s.down([["DATA", 2]]); // re-project x → already live → skipped (no double-track)
-		s.down([["DATA", 3]]); // add a DISTINCT inner y
+		s.set(1); // add x
+		s.set(2); // re-project x → already live → skipped (no double-track)
+		s.set(3); // add a DISTINCT inner y
 		x.complete(); // remove x → deps=[S,y]
 		y.complete(); // remove y — only correct if inners stayed aligned (else x's stale slot is hit)
 		expect(x.isDeactivated()).toBe(true);
@@ -244,7 +254,7 @@ describe("mergeMap (D47 / R-rewire-deferred)", () => {
 			[s],
 		);
 		const { msgs } = collect(op);
-		s.down([["DATA", 1]]);
+		s.set(1);
 		a.next(7);
 		expect(data(msgs)).toEqual([7]);
 	});
@@ -259,8 +269,8 @@ describe("mergeMap (D47 / R-rewire-deferred)", () => {
 		);
 		const { msgs } = collect(op);
 
-		s.down([["DATA", 1]]); // add inner a
-		s.down([["COMPLETE"]]); // source done, but inner a still live → NOT complete yet
+		s.set(1); // add inner a
+		s.complete(); // source done, but inner a still live → NOT complete yet
 		expect(op.status.output).not.toBe("completed");
 
 		a.next(9);
@@ -279,7 +289,7 @@ describe("mergeMap (D47 / R-rewire-deferred)", () => {
 			[s],
 		);
 		collect(op);
-		s.down([["DATA", 1]]);
+		s.set(1);
 		expect(op.status.output).toBe("errored");
 	});
 
@@ -294,11 +304,11 @@ describe("mergeMap (D47 / R-rewire-deferred)", () => {
 		);
 		const { msgs } = collect(op);
 
-		s.down([["DATA", 1]]);
-		s.down([["DATA", 2]]);
+		s.set(1);
+		s.set(2);
 		a.next(10);
 		const err = new Error("source boom");
-		s.down([["ERROR", err]]);
+		s.error(err);
 
 		expect(op.status.output).toBe("errored");
 		expect(msgs.at(-1)).toEqual(["ERROR", err]);
@@ -313,7 +323,7 @@ describe("mergeMap (D47 / R-rewire-deferred)", () => {
 		const afterError = msgs.length;
 		a.next(11);
 		b.next(20);
-		expect(() => s.down([["DATA", 3]])).toThrow(/ended/); // host input to an ended node (R-terminals)
+		expect(() => s.set(3)).toThrow(/ended/); // host input to an ended node (R-terminals)
 		expect(msgs).toHaveLength(afterError);
 	});
 
@@ -328,8 +338,8 @@ describe("mergeMap (D47 / R-rewire-deferred)", () => {
 		);
 		const { msgs } = collect(op);
 
-		s.down([["DATA", 1]]);
-		s.down([["DATA", 2]]);
+		s.set(1);
+		s.set(2);
 		b.next(20);
 		const err = new Error("inner boom");
 		a.error(err);
@@ -344,7 +354,7 @@ describe("mergeMap (D47 / R-rewire-deferred)", () => {
 
 		const afterError = msgs.length;
 		b.next(21);
-		s.down([["DATA", 3]]);
+		s.set(3);
 		expect(msgs).toHaveLength(afterError);
 		expect(msgs.some((m) => m[0] === "COMPLETE")).toBe(false);
 	});
@@ -360,7 +370,7 @@ describe("mergeMap (D47 / R-rewire-deferred)", () => {
 		const { msgs } = collect(op);
 		const err = new Error("inner boom");
 
-		s.down([["DATA", 1]]);
+		s.set(1);
 		a.emit([
 			["DATA", 10],
 			["ERROR", err],
@@ -385,9 +395,9 @@ describe("mergeMap (D47 / R-rewire-deferred)", () => {
 		);
 		const { msgs } = collect(op);
 
-		s.down([["DATA", 1]]);
+		s.set(1);
 		a.next(10);
-		s.down([["DATA", 2]]);
+		s.set(2);
 
 		expect(op.status.output).toBe("errored");
 		expect(msgs.at(-1)?.[0]).toBe("ERROR");
@@ -398,7 +408,7 @@ describe("mergeMap (D47 / R-rewire-deferred)", () => {
 
 		const afterError = msgs.length;
 		a.next(11);
-		s.down([["DATA", 3]]);
+		s.set(3);
 		expect(msgs).toHaveLength(afterError);
 	});
 });
@@ -415,11 +425,11 @@ describe("switchMap (D47)", () => {
 		);
 		const { msgs } = collect(op);
 
-		s.down([["DATA", 1]]); // → inner a
+		s.set(1); // → inner a
 		a.next(10);
 		expect(data(msgs)).toEqual([10]);
 
-		s.down([["DATA", 2]]); // switch → inner b; a is CANCELLED (source torn down)
+		s.set(2); // switch → inner b; a is CANCELLED (source torn down)
 		expect(a.isDeactivated()).toBe(true);
 		expect(b.isActivated()).toBe(true);
 
@@ -438,11 +448,11 @@ describe("switchMap (D47)", () => {
 		);
 		const { msgs } = collect(op);
 
-		s.down([["DATA", 1]]);
+		s.set(1);
 		expect(inner.isActivated()).toBe(true);
 		expect(op.deps).toEqual([s, inner.node]);
 
-		s.down([["DATA", 2]]);
+		s.set(2);
 		expect(inner.isDeactivated()).toBe(false);
 		expect(op.deps).toEqual([s, inner.node]);
 
@@ -463,8 +473,8 @@ describe("concatMap (D47)", () => {
 		);
 		const { msgs } = collect(op);
 
-		s.down([["DATA", 1]]); // activate inner a
-		s.down([["DATA", 2]]); // QUEUED — a is still active (b not yet activated)
+		s.set(1); // activate inner a
+		s.set(2); // QUEUED — a is still active (b not yet activated)
 		expect(a.isActivated()).toBe(true);
 		expect(b.isActivated()).toBe(false);
 
@@ -486,10 +496,10 @@ describe("concatMap (D47)", () => {
 		);
 		const { msgs } = collect(op);
 
-		s.down([["DATA", 1]]);
-		s.down([["DATA", 2]]); // queued behind a
+		s.set(1);
+		s.set(2); // queued behind a
 		const err = new Error("source boom");
-		s.down([["ERROR", err]]);
+		s.error(err);
 
 		expect(op.status.output).toBe("errored");
 		expect(msgs.at(-1)).toEqual(["ERROR", err]);
@@ -514,14 +524,14 @@ describe("exhaustMap (D47)", () => {
 		const op = g.initNode(exhaustMap(project), [s]);
 		const { msgs } = collect(op);
 
-		s.down([["DATA", 1]]); // activate inner a
-		s.down([["DATA", 2]]); // DROPPED — a is active
+		s.set(1); // activate inner a
+		s.set(2); // DROPPED — a is active
 		expect(a.isActivated()).toBe(true);
 		expect(b.isActivated()).toBe(false); // value 2 never projected
 
 		a.next(10);
 		a.complete(); // a done → exhaust free again
-		s.down([["DATA", 3]]); // now accepted → inner c
+		s.set(3); // now accepted → inner c
 		expect(c.isActivated()).toBe(true);
 		c.next(30);
 		expect(data(msgs)).toEqual([10, 30]); // the value-2 inner never contributed
@@ -629,7 +639,7 @@ describe("higher-order — describe (D39 / D51): real factory name + LIVE inner 
 		collect(sw);
 		expect(g.describe().edges).toEqual([{ from: "src", to: "sw" }]); // before: construction only
 
-		s.down([["DATA", 1]]); // switchMap wires inner `a` as a live dep (deferred rewire drains)
+		s.set(1); // switchMap wires inner `a` as a live dep (deferred rewire drains)
 		const snap = g.describe();
 		// sw's live deps now include the inner; the inner is auto-discovered as a REAL snapshot node.
 		const innerEdge = snap.edges.find((e) => e.to === "sw" && e.from !== "src");
@@ -671,7 +681,7 @@ describe("higher-order — describe (D39 / D51): real factory name + LIVE inner 
 			{ name: "sw" },
 		);
 		collect(sw);
-		s.down([["DATA", 1]]);
+		s.set(1);
 		innerLeaf.next(41);
 		const snap = g.describe();
 		const swNode = snap.nodes.find((n) => n.id === "sw");

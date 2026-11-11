@@ -1,5 +1,6 @@
 /** No-I/O mechanism probe, not a qualified causal authority or host implementation. */
 import { expect, it } from "vitest";
+import { batch } from "../batch/batch.js";
 import { depBatch } from "../ctx/types.js";
 import {
 	ColdConstructionError,
@@ -88,10 +89,10 @@ it("delivers a bounded receipt frame through a quiet node in an acyclic cold gra
 		startConstruction(graph, owner);
 		expect(owner.phase).toBe("started");
 		expect(received).toEqual([]);
-		input.down([
-			["DATA", 1],
-			["DATA", 2],
-		]);
+		batch(() => {
+			input.set(1);
+			input.set(2);
+		});
 		expect(received).toEqual([[1, 2]]);
 	} finally {
 		for (const root of owner.roots) root.unsubscribe?.();

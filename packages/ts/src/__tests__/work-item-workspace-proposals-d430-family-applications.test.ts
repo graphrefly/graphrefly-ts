@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { batch } from "../batch/batch.js";
 import { graph } from "../graph/graph.js";
 import {
 	decideWorkspaceProposalAdmission,
@@ -499,46 +500,26 @@ describe("Workspace proposal family application helpers (D430)", () => {
 		const link = linkProjectorHarness();
 		const domain = domainActionProjectorHarness();
 
-		required.contexts.down([
-			[
-				"DATA",
-				{
-					kind: "workspace-proposal-required-input-response-application-context",
-					applicationId: "application-required-missing",
-					proposalId: "proposal-required-missing",
-				},
-			],
-		]);
-		spawn.contexts.down([
-			[
-				"DATA",
-				{
-					kind: "workspace-proposal-work-item-spawn-application-context",
-					applicationId: "application-spawn-missing",
-					proposalId: "proposal-spawn-missing",
-				},
-			],
-		]);
-		link.contexts.down([
-			[
-				"DATA",
-				{
-					kind: "workspace-proposal-work-item-link-application-context",
-					applicationId: "application-link-missing",
-					proposalId: "proposal-link-missing",
-				},
-			],
-		]);
-		domain.contexts.down([
-			[
-				"DATA",
-				{
-					kind: "workspace-proposal-domain-action-application-context",
-					applicationId: "application-domain-missing-durable",
-					proposalId: "proposal-domain-missing",
-				},
-			],
-		]);
+		required.contexts.set({
+			kind: "workspace-proposal-required-input-response-application-context",
+			applicationId: "application-required-missing",
+			proposalId: "proposal-required-missing",
+		});
+		spawn.contexts.set({
+			kind: "workspace-proposal-work-item-spawn-application-context",
+			applicationId: "application-spawn-missing",
+			proposalId: "proposal-spawn-missing",
+		});
+		link.contexts.set({
+			kind: "workspace-proposal-work-item-link-application-context",
+			applicationId: "application-link-missing",
+			proposalId: "proposal-link-missing",
+		});
+		domain.contexts.set({
+			kind: "workspace-proposal-domain-action-application-context",
+			applicationId: "application-domain-missing-durable",
+			proposalId: "proposal-domain-missing",
+		});
 
 		for (const harness of [required, spawn, link, domain]) {
 			expect(harness.status).toEqual([]);
@@ -589,8 +570,8 @@ describe("Workspace proposal family application helpers (D430)", () => {
 			value: "answer",
 		} satisfies RequiredInputResponseProposed<string>);
 
-		harness.contexts.down([["DATA", context]]);
-		harness.contexts.down([["DATA", context]]);
+		harness.contexts.set(context);
+		harness.contexts.set(context);
 
 		expect(harness.issues.map((entry) => entry.code)).toEqual([
 			"missing-workspace-proposal-recorded",
@@ -606,9 +587,9 @@ describe("Workspace proposal family application helpers (D430)", () => {
 		]);
 		expect(harness.repairRequests).toEqual([]);
 
-		harness.gates.down([["DATA", requiredInputGate()]]);
-		harness.records.down([["DATA", record]]);
-		harness.decisions.down([["DATA", admittedDecision(record)]]);
+		harness.gates.set(requiredInputGate());
+		harness.records.set(record);
+		harness.decisions.set(admittedDecision(record));
 
 		expect(harness.diagnostics.map((entry) => entry.code)).toContain(
 			"missing-workspace-proposal-recorded",
@@ -640,19 +621,14 @@ describe("Workspace proposal family application helpers (D430)", () => {
 		} satisfies WorkItemSpawnProposed);
 		const decision = admittedDecision(record);
 
-		harness.records.down([["DATA", record]]);
-		harness.decisions.down([["DATA", decision]]);
-		harness.contexts.down([
-			[
-				"DATA",
-				{
-					kind: "workspace-proposal-work-item-spawn-application-context",
-					applicationId: "application-spawn-wrong-decision",
-					proposalId: record.proposalId,
-					decisionId: "decision-missing",
-				},
-			],
-		]);
+		harness.records.set(record);
+		harness.decisions.set(decision);
+		harness.contexts.set({
+			kind: "workspace-proposal-work-item-spawn-application-context",
+			applicationId: "application-spawn-wrong-decision",
+			proposalId: record.proposalId,
+			decisionId: "decision-missing",
+		});
 
 		expect(harness.familyTruth).toEqual([]);
 		expect(harness.status).toEqual([]);
@@ -664,7 +640,7 @@ describe("Workspace proposal family application helpers (D430)", () => {
 			"workspace-proposal-admission-decision:decision-missing",
 		);
 
-		harness.decisions.down([["DATA", admittedDecisionWithId(record, "decision-missing")]]);
+		harness.decisions.set(admittedDecisionWithId(record, "decision-missing"));
 
 		expect(harness.familyTruth).toHaveLength(1);
 		expect(harness.status.at(-1)).toMatchObject({
@@ -703,20 +679,15 @@ describe("Workspace proposal family application helpers (D430)", () => {
 			value: "answer",
 		} satisfies RequiredInputResponseProposed<string>);
 		const decision = admittedDecision(record);
-		records.down([["DATA", record]]);
-		decisions.down([["DATA", decision]]);
-		contexts.down([
-			[
-				"DATA",
-				{
-					kind: "workspace-proposal-required-input-response-application-context",
-					applicationId: "application-graph-required",
-					proposalId: record.proposalId,
-				},
-			],
-		]);
-		gates.down([["DATA", requiredInputGate()]]);
-		decisions.down([["DATA", decision]]);
+		records.set(record);
+		decisions.set(decision);
+		contexts.set({
+			kind: "workspace-proposal-required-input-response-application-context",
+			applicationId: "application-graph-required",
+			proposalId: record.proposalId,
+		});
+		gates.set(requiredInputGate());
+		decisions.set(decision);
 
 		expect(applied).toHaveLength(1);
 		expect(status.at(-1)).toMatchObject({
@@ -729,17 +700,12 @@ describe("Workspace proposal family application helpers (D430)", () => {
 			],
 		});
 
-		contexts.down([
-			[
-				"DATA",
-				{
-					kind: "workspace-proposal-required-input-response-application-context",
-					applicationId: "application-graph-required",
-					proposalId: record.proposalId,
-					sourceRefs: [{ kind: "manual-review", id: "changed-provenance" }],
-				},
-			],
-		]);
+		contexts.set({
+			kind: "workspace-proposal-required-input-response-application-context",
+			applicationId: "application-graph-required",
+			proposalId: record.proposalId,
+			sourceRefs: [{ kind: "manual-review", id: "changed-provenance" }],
+		});
 
 		expect(applied).toHaveLength(1);
 		expect(status.at(-1)).toMatchObject({
@@ -778,29 +744,19 @@ describe("Workspace proposal family application helpers (D430)", () => {
 			value: "answer",
 		} satisfies RequiredInputResponseProposed<string>);
 
-		records.down([["DATA", record]]);
-		decisions.down([["DATA", admittedDecision(record)]]);
-		gates.down([["DATA", requiredInputGate()]]);
-		contexts.down([
-			[
-				"DATA",
-				{
-					kind: "workspace-proposal-required-input-response-application-context",
-					applicationId: "application-graph-required-a",
-					proposalId: record.proposalId,
-				},
-			],
-		]);
-		contexts.down([
-			[
-				"DATA",
-				{
-					kind: "workspace-proposal-required-input-response-application-context",
-					applicationId: "application-graph-required-b",
-					proposalId: record.proposalId,
-				},
-			],
-		]);
+		records.set(record);
+		decisions.set(admittedDecision(record));
+		gates.set(requiredInputGate());
+		contexts.set({
+			kind: "workspace-proposal-required-input-response-application-context",
+			applicationId: "application-graph-required-a",
+			proposalId: record.proposalId,
+		});
+		contexts.set({
+			kind: "workspace-proposal-required-input-response-application-context",
+			applicationId: "application-graph-required-b",
+			proposalId: record.proposalId,
+		});
 
 		expect(applied.map((entry) => entry.applicationId)).toEqual([
 			"application-graph-required-a",
@@ -851,31 +807,21 @@ describe("Workspace proposal family application helpers (D430)", () => {
 			"proposal-2",
 		);
 
-		gates.down([["DATA", requiredInputGate()]]);
-		records.down([["DATA", first]]);
-		decisions.down([["DATA", admittedDecision(first)]]);
-		contexts.down([
-			[
-				"DATA",
-				{
-					kind: "workspace-proposal-required-input-response-application-context",
-					applicationId: "application-reused",
-					proposalId: first.proposalId,
-				},
-			],
-		]);
-		records.down([["DATA", second]]);
-		decisions.down([["DATA", admittedDecision(second)]]);
-		contexts.down([
-			[
-				"DATA",
-				{
-					kind: "workspace-proposal-required-input-response-application-context",
-					applicationId: "application-reused",
-					proposalId: second.proposalId,
-				},
-			],
-		]);
+		gates.set(requiredInputGate());
+		records.set(first);
+		decisions.set(admittedDecision(first));
+		contexts.set({
+			kind: "workspace-proposal-required-input-response-application-context",
+			applicationId: "application-reused",
+			proposalId: first.proposalId,
+		});
+		records.set(second);
+		decisions.set(admittedDecision(second));
+		contexts.set({
+			kind: "workspace-proposal-required-input-response-application-context",
+			applicationId: "application-reused",
+			proposalId: second.proposalId,
+		});
 
 		expect(applied).toHaveLength(1);
 		expect(status.at(-1)).toMatchObject({
@@ -911,18 +857,13 @@ describe("Workspace proposal family application helpers (D430)", () => {
 			proposalId: "proposal-1",
 		});
 
-		records.down([["DATA", record]]);
-		decisions.down([["DATA", admittedDecision(record)]]);
-		contexts.down([
-			[
-				"DATA",
-				{
-					kind: "workspace-proposal-required-input-response-application-context",
-					applicationId: "application-malformed-required",
-					proposalId: record.proposalId,
-				},
-			],
-		]);
+		records.set(record);
+		decisions.set(admittedDecision(record));
+		contexts.set({
+			kind: "workspace-proposal-required-input-response-application-context",
+			applicationId: "application-malformed-required",
+			proposalId: record.proposalId,
+		});
 
 		expect(status.at(-1)).toMatchObject({
 			applicationId: "application-malformed-required",
@@ -965,32 +906,22 @@ describe("Workspace proposal family application helpers (D430)", () => {
 		);
 		const secondDecision = admittedDecision(second);
 
-		workItems.down([["DATA", workItem("wi-1")]]);
-		workItems.down([["DATA", workItem("wi-2")]]);
-		records.down([["DATA", first]]);
-		decisions.down([["DATA", admittedDecision(first)]]);
-		contexts.down([
-			[
-				"DATA",
-				{
-					kind: "workspace-proposal-work-item-link-application-context",
-					applicationId: "application-link-1",
-					proposalId: first.proposalId,
-				},
-			],
-		]);
-		records.down([["DATA", second]]);
-		decisions.down([["DATA", secondDecision]]);
-		contexts.down([
-			[
-				"DATA",
-				{
-					kind: "workspace-proposal-work-item-link-application-context",
-					applicationId: "application-link-2",
-					proposalId: second.proposalId,
-				},
-			],
-		]);
+		workItems.set(workItem("wi-1"));
+		workItems.set(workItem("wi-2"));
+		records.set(first);
+		decisions.set(admittedDecision(first));
+		contexts.set({
+			kind: "workspace-proposal-work-item-link-application-context",
+			applicationId: "application-link-1",
+			proposalId: first.proposalId,
+		});
+		records.set(second);
+		decisions.set(secondDecision);
+		contexts.set({
+			kind: "workspace-proposal-work-item-link-application-context",
+			applicationId: "application-link-2",
+			proposalId: second.proposalId,
+		});
 
 		expect(linked).toHaveLength(1);
 		expect(status.at(-1)).toMatchObject({
@@ -1009,16 +940,11 @@ describe("Workspace proposal family application helpers (D430)", () => {
 		const diagnosticView = collectData(diagnostics.diagnostics);
 		const repairRequests = collectData(repair.requests);
 
-		contexts.down([
-			[
-				"DATA",
-				{
-					kind: "workspace-proposal-work-item-link-application-context",
-					applicationId: "application-link-2",
-					proposalId: second.proposalId,
-				},
-			],
-		]);
+		contexts.set({
+			kind: "workspace-proposal-work-item-link-application-context",
+			applicationId: "application-link-2",
+			proposalId: second.proposalId,
+		});
 
 		expect(linked).toHaveLength(1);
 		expect(diagnosticView.map((entry) => entry.code)).toContain("idempotency-conflict");
@@ -1058,18 +984,13 @@ describe("Workspace proposal family application helpers (D430)", () => {
 			payload: { patch: { summary: "Updated" } },
 		});
 
-		records.down([["DATA", record]]);
-		decisions.down([["DATA", admittedDecision(record)]]);
-		contexts.down([
-			[
-				"DATA",
-				{
-					kind: "workspace-proposal-domain-action-application-context",
-					applicationId: "application-domain-missing",
-					proposalId: record.proposalId,
-				},
-			],
-		]);
+		records.set(record);
+		decisions.set(admittedDecision(record));
+		contexts.set({
+			kind: "workspace-proposal-domain-action-application-context",
+			applicationId: "application-domain-missing",
+			proposalId: record.proposalId,
+		});
 
 		expect(status.at(-1)).toMatchObject({
 			state: "repair-needed",
@@ -1126,20 +1047,15 @@ describe("Workspace proposal family application helpers (D430)", () => {
 			metadata: { applicationIdempotencyKey: record.idempotencyKey },
 		});
 
-		records.down([["DATA", record]]);
-		decisions.down([["DATA", decision]]);
-		contexts.down([
-			[
-				"DATA",
-				{
-					kind: "workspace-proposal-domain-action-application-context",
-					applicationId,
-					proposalId: record.proposalId,
-					emittedFactIds: ["patch-event-1", "patch-event-2"],
-				},
-			],
-		]);
-		domainFacts.down([["DATA", fact("patch-event-1")]]);
+		records.set(record);
+		decisions.set(decision);
+		contexts.set({
+			kind: "workspace-proposal-domain-action-application-context",
+			applicationId,
+			proposalId: record.proposalId,
+			emittedFactIds: ["patch-event-1", "patch-event-2"],
+		});
+		domainFacts.set(fact("patch-event-1"));
 
 		expect(status.at(-1)).toMatchObject({
 			applicationId,
@@ -1148,7 +1064,7 @@ describe("Workspace proposal family application helpers (D430)", () => {
 			emittedFactRefs: [],
 		});
 
-		domainFacts.down([["DATA", fact("patch-event-2")]]);
+		domainFacts.set(fact("patch-event-2"));
 
 		expect(status.at(-1)).toMatchObject({
 			applicationId,
@@ -1581,8 +1497,8 @@ describe("Workspace proposal family application helpers (D430)", () => {
 			],
 		} satisfies typeof pending;
 
-		statuses.down([["DATA", repairNeeded]]);
-		statuses.down([["DATA", repairNeeded]]);
+		statuses.set(repairNeeded);
+		statuses.set(repairNeeded);
 
 		expect(diagnosticView).toHaveLength(1);
 		expect(diagnosticView[0]).toMatchObject({
@@ -1608,7 +1524,7 @@ describe("Workspace proposal family application helpers (D430)", () => {
 			],
 		} satisfies typeof repairNeeded;
 
-		statuses.down([["DATA", updatedRepairNeeded]]);
+		statuses.set(updatedRepairNeeded);
 
 		expect(diagnosticView).toHaveLength(2);
 		expect(diagnosticView.at(-1)?.issues[0]?.message).toBe(
@@ -2108,11 +2024,11 @@ describe("Workspace proposal family application helpers (D430)", () => {
 		const decisions = collectData(bundle.decisions);
 		const issues = collectData(bundle.issues);
 
-		requests.down([["DATA", request]]);
-		statuses.down([["DATA", openStatus]]);
-		inputs.down([["DATA", recordingInput]]);
-		inputs.down([["DATA", duplicate]]);
-		inputs.down([["DATA", conflict]]);
+		requests.set(request);
+		statuses.set(openStatus);
+		inputs.set(recordingInput);
+		inputs.set(duplicate);
+		inputs.set(conflict);
 
 		expect(results.map((entry) => entry.status)).toEqual(["recorded", "blocked"]);
 		expect(decisions).toHaveLength(1);
@@ -2654,9 +2570,9 @@ describe("Workspace proposal family application helpers (D430)", () => {
 		const readyRequests = collectData<WorkspaceProposalReadyRequest>(bundle.readyRequests);
 		const issues = collectData<WorkspaceProposalRecordedIssue>(bundle.issues);
 
-		previews.down([["DATA", preview]]);
-		inputs.down([["DATA", input]]);
-		inputs.down([["DATA", structuredClone(input)]]);
+		previews.set(preview);
+		inputs.set(input);
+		inputs.set(structuredClone(input));
 
 		expect(results).toHaveLength(1);
 		expect(results[0]).toMatchObject({ status: "prepared", preparationId: input.preparationId });
@@ -2667,16 +2583,11 @@ describe("Workspace proposal family application helpers (D430)", () => {
 			draftRefs: input.draftRefs,
 		});
 		expect(Object.isFrozen(readyRequests[0])).toBe(true);
-		inputs.down([
-			[
-				"DATA",
-				{
-					...input,
-					draftRefs: undefined,
-					finalDraftSourceRefs: undefined,
-				},
-			],
-		]);
+		inputs.set({
+			...input,
+			draftRefs: undefined,
+			finalDraftSourceRefs: undefined,
+		});
 		expect(results).toHaveLength(2);
 		expect(results.at(-1)).toMatchObject({
 			status: "blocked",
@@ -2799,28 +2710,23 @@ describe("Workspace proposal family application helpers (D430)", () => {
 		const readyRequests = collectData<WorkspaceProposalReadyRequest>(bundle.readyRequests);
 		const issues = collectData<WorkspaceProposalRecordedIssue>(bundle.issues);
 
-		previews.down([["DATA", preview]]);
-		inputs.down([["DATA", input]]);
+		previews.set(preview);
+		inputs.set(input);
 		expect(results).toHaveLength(1);
 		expect(results[0]?.readyRequest).toBeDefined();
 		expect(readyRequests).toHaveLength(1);
 
 		expect(() =>
-			releases.down([
-				[
-					"DATA",
-					{
-						kind: "workspace-proposal-projection-release",
-						releaseId: "projection-release:d472-successor-preparation-bad",
-						targetKind: "repair-successor-preparation",
-						targetId: input.preparationId,
-						preparationId: input.preparationId,
-						sourceRefs: [{ kind: "provider", id: "runtime-private" }],
-					} as never,
-				],
-			]),
+			releases.set({
+				kind: "workspace-proposal-projection-release",
+				releaseId: "projection-release:d472-successor-preparation-bad",
+				targetKind: "repair-successor-preparation",
+				targetId: input.preparationId,
+				preparationId: input.preparationId,
+				sourceRefs: [{ kind: "provider", id: "runtime-private" }],
+			} as never),
 		).not.toThrow();
-		inputs.down([["DATA", structuredClone(input)]]);
+		inputs.set(structuredClone(input));
 		expect(results).toHaveLength(1);
 		expect(readyRequests).toHaveLength(1);
 
@@ -2831,40 +2737,34 @@ describe("Workspace proposal family application helpers (D430)", () => {
 			{ idempotencyKey: "other-idempotency" },
 			{ proposalFamily: "required-input-response" as const },
 		]) {
-			releases.down([
-				[
-					"DATA",
-					projectionRelease(
-						`projection-release:d472-successor-preparation-coordinate-mismatch:${
-							Object.keys(mismatch)[0]
-						}`,
-						"repair-successor-preparation",
-						input.preparationId,
-						{
-							preparationId: input.preparationId,
-							previewId: preview.previewId,
-							...mismatch,
-						},
-					),
-				],
-			]);
-			inputs.down([["DATA", structuredClone(input)]]);
+			releases.set(
+				projectionRelease(
+					`projection-release:d472-successor-preparation-coordinate-mismatch:${
+						Object.keys(mismatch)[0]
+					}`,
+					"repair-successor-preparation",
+					input.preparationId,
+					{
+						preparationId: input.preparationId,
+						previewId: preview.previewId,
+						...mismatch,
+					},
+				),
+			);
+			inputs.set(structuredClone(input));
 			expect(results).toHaveLength(1);
 			expect(readyRequests).toHaveLength(1);
 		}
 
-		releases.down([
-			[
-				"DATA",
-				projectionRelease(
-					"projection-release:d472-successor-preparation",
-					"repair-successor-preparation",
-					input.preparationId,
-					{ preparationId: input.preparationId, previewId: preview.previewId },
-				),
-			],
-		]);
-		inputs.down([["DATA", structuredClone(input)]]);
+		releases.set(
+			projectionRelease(
+				"projection-release:d472-successor-preparation",
+				"repair-successor-preparation",
+				input.preparationId,
+				{ preparationId: input.preparationId, previewId: preview.previewId },
+			),
+		);
+		inputs.set(structuredClone(input));
 		expect(results).toHaveLength(2);
 		expect(results.at(-1)).toMatchObject({
 			status: "prepared",
@@ -2874,17 +2774,12 @@ describe("Workspace proposal family application helpers (D430)", () => {
 		expect(results.at(-1)).not.toHaveProperty("readyRequest");
 		expect(readyRequests).toHaveLength(1);
 
-		previews.down([["DATA", structuredClone(preview)]]);
-		inputs.down([
-			[
-				"DATA",
-				{
-					...input,
-					successorProposalId: "successor-proposal:d472-different",
-					draft: { title: "different request after release" },
-				},
-			],
-		]);
+		previews.set(structuredClone(preview));
+		inputs.set({
+			...input,
+			successorProposalId: "successor-proposal:d472-different",
+			draft: { title: "different request after release" },
+		});
 
 		expect(results.at(-1)).toMatchObject({
 			status: "blocked",
@@ -2945,42 +2840,34 @@ describe("Workspace proposal family application helpers (D430)", () => {
 			bundle.previews,
 		);
 
-		requests.down([["DATA", fixture.request]]);
-		statuses.down([["DATA", status]]);
-		descriptors.down([["DATA", descriptor]]);
-		intents.down([["DATA", intent]]);
+		requests.set(fixture.request);
+		statuses.set(status);
+		descriptors.set(descriptor);
+		intents.set(intent);
 		expect(previews).toHaveLength(1);
 		const previewId = previews[0]?.previewId;
 		if (previewId === undefined) throw new Error("expected D472 preview id");
 
-		releases.down([
-			[
-				"DATA",
-				projectionRelease(
-					"projection-release:d472-preview",
-					"repair-successor-preview",
-					previewId,
-					{
-						previewId,
-						intentId: intent.intentId,
-						descriptorId: descriptor.descriptorId,
-						repairRequestId: fixture.request.repairRequestId,
-						actionKind: intent.actionKind,
-						applicationId: fixture.request.applicationId,
-						proposalId: fixture.request.proposalId,
-						decisionId: fixture.request.decisionId,
-						idempotencyKey: fixture.request.idempotencyKey,
-						proposalFamily: fixture.request.proposalFamily,
-					},
-				),
-			],
-		]);
-		requests.down([["DATA", structuredClone(fixture.request)]]);
-		statuses.down([["DATA", structuredClone(status)]]);
-		descriptors.down([["DATA", structuredClone(descriptor)]]);
+		releases.set(
+			projectionRelease("projection-release:d472-preview", "repair-successor-preview", previewId, {
+				previewId,
+				intentId: intent.intentId,
+				descriptorId: descriptor.descriptorId,
+				repairRequestId: fixture.request.repairRequestId,
+				actionKind: intent.actionKind,
+				applicationId: fixture.request.applicationId,
+				proposalId: fixture.request.proposalId,
+				decisionId: fixture.request.decisionId,
+				idempotencyKey: fixture.request.idempotencyKey,
+				proposalFamily: fixture.request.proposalFamily,
+			}),
+		);
+		requests.set(structuredClone(fixture.request));
+		statuses.set(structuredClone(status));
+		descriptors.set(structuredClone(descriptor));
 		expect(previews).toHaveLength(1);
 
-		intents.down([["DATA", structuredClone(intent)]]);
+		intents.set(structuredClone(intent));
 		expect(previews).toHaveLength(2);
 	});
 
@@ -3182,9 +3069,9 @@ describe("Workspace proposal family application helpers (D430)", () => {
 		const advisories = collectData<WorkspaceProposalRepairActionDisplayPolicyAdvisory>(
 			projector.advisories,
 		);
-		requests.down([["DATA", fixture.request]]);
-		descriptors.down([["DATA", descriptor]]);
-		descriptors.down([["DATA", structuredClone(descriptor)]]);
+		requests.set(fixture.request);
+		descriptors.set(descriptor);
+		descriptors.set(structuredClone(descriptor));
 		expect(advisories).toHaveLength(1);
 		expect(advisories[0]).toMatchObject({
 			authority: "display-only-advisory",
@@ -3213,8 +3100,8 @@ describe("Workspace proposal family application helpers (D430)", () => {
 		const invalidAdvisories = collectData<WorkspaceProposalRepairActionDisplayPolicyAdvisory>(
 			invalidProjector.advisories,
 		);
-		invalidRequests.down([["DATA", fixture.request]]);
-		invalidDescriptors.down([["DATA", descriptor]]);
+		invalidRequests.set(fixture.request);
+		invalidDescriptors.set(descriptor);
 		expect(invalidAdvisories).toEqual([]);
 
 		const proofy = validateWorkspaceProposalRepairActionDisplayPolicyAdvisory(
@@ -3475,12 +3362,12 @@ describe("Workspace proposal family application helpers (D430)", () => {
 			previews.previews,
 		);
 
-		requests.down([["DATA", fixture.request]]);
-		statuses.down([["DATA", status]]);
-		descriptors.down([["DATA", descriptor]]);
-		intents.down([["DATA", intentA]]);
-		intents.down([["DATA", structuredClone(intentA)]]);
-		intents.down([["DATA", intentB]]);
+		requests.set(fixture.request);
+		statuses.set(status);
+		descriptors.set(descriptor);
+		intents.set(intentA);
+		intents.set(structuredClone(intentA));
+		intents.set(intentB);
 
 		expect(results.map((entry) => entry.intentId)).toEqual([intentA.intentId, intentB.intentId]);
 		expect(previewData.map((entry) => entry.intentId)).toEqual([
@@ -3489,7 +3376,7 @@ describe("Workspace proposal family application helpers (D430)", () => {
 		]);
 		expect(previewData.every((entry) => entry.status === "proposal-context-ready")).toBe(true);
 
-		intents.down([["DATA", conflictingIntentA]]);
+		intents.set(conflictingIntentA);
 
 		expect(results.at(-1)).toMatchObject({
 			intentId: intentA.intentId,
@@ -3507,7 +3394,7 @@ describe("Workspace proposal family application helpers (D430)", () => {
 			unknown
 		>;
 		cyclicIntent.self = cyclicIntent;
-		expect(() => intents.down([["DATA", cyclicIntent]])).not.toThrow();
+		expect(() => intents.set(cyclicIntent)).not.toThrow();
 		expect(results.at(-1)).toMatchObject({
 			intentId: "repair-action-intent:cyclic",
 			status: "blocked",
@@ -3702,11 +3589,9 @@ describe("Workspace proposal family application helpers (D430)", () => {
 		const applicationResults = collectData(applicationProjector.statuses);
 		const fixture = repairReviewFixture();
 
-		applicationRequests.down([["DATA", fixture.request]]);
-		applicationStatuses.down([["DATA", fixture.appliedStatus]]);
-		applicationStatuses.down([
-			["DATA", { ...fixture.appliedStatus, proposalId: "other-proposal" }],
-		]);
+		applicationRequests.set(fixture.request);
+		applicationStatuses.set(fixture.appliedStatus);
+		applicationStatuses.set({ ...fixture.appliedStatus, proposalId: "other-proposal" });
 
 		expect(applicationResults.map((status) => status.state)).toEqual(["open", "resolved"]);
 		expect(applicationResults.at(-1)).toMatchObject({
@@ -3727,9 +3612,9 @@ describe("Workspace proposal family application helpers (D430)", () => {
 		});
 		const outcomeResults = collectData(outcomeProjector.statuses);
 
-		outcomeRequests.down([["DATA", fixture.request]]);
-		outcomeStatuses.down([["DATA", fixture.outcomeStatus]]);
-		outcomeStatuses.down([["DATA", { ...fixture.outcomeStatus, proposalId: "other-proposal" }]]);
+		outcomeRequests.set(fixture.request);
+		outcomeStatuses.set(fixture.outcomeStatus);
+		outcomeStatuses.set({ ...fixture.outcomeStatus, proposalId: "other-proposal" });
 
 		expect(outcomeResults.map((status) => status.state)).toEqual(["open", "resolved"]);
 		expect(outcomeResults.at(-1)).toMatchObject({
@@ -3762,13 +3647,13 @@ describe("Workspace proposal family application helpers (D430)", () => {
 			reason: "looked-at-by-human",
 		} satisfies WorkspaceProposalRepairReviewDecision;
 
-		requests.down([["DATA", fixture.request]]);
-		requests.down([["DATA", fixture.request]]);
-		decisions.down([["DATA", acknowledged]]);
-		decisions.down([["DATA", acknowledged]]);
-		decisions.down([["DATA", acknowledgedWithReason]]);
-		durableStatuses.down([["DATA", fixture.outcomeStatus]]);
-		durableStatuses.down([["DATA", fixture.outcomeStatus]]);
+		requests.set(fixture.request);
+		requests.set(fixture.request);
+		decisions.set(acknowledged);
+		decisions.set(acknowledged);
+		decisions.set(acknowledgedWithReason);
+		durableStatuses.set(fixture.outcomeStatus);
+		durableStatuses.set(fixture.outcomeStatus);
 
 		expect(statuses.map((status) => status.state)).toEqual([
 			"open",
@@ -3964,13 +3849,13 @@ describe("Workspace proposal family application helpers (D430)", () => {
 		});
 		const readModels = collectData(projector.readModels);
 
-		if (repairStatus !== undefined) repairStatuses.down([["DATA", repairStatus]]);
-		outcomeIndex.down([["DATA", fixture.outcomeIndex[0]]]);
-		outcomeStatuses.down([["DATA", fixture.outcomeStatus]]);
+		if (repairStatus !== undefined) repairStatuses.set(repairStatus);
+		outcomeIndex.set(fixture.outcomeIndex[0]);
+		outcomeStatuses.set(fixture.outcomeStatus);
 		if (fixture.outcome !== undefined) {
-			outcomes.down([["DATA", fixture.outcome]]);
-			outcomeStatuses.down([["DATA", { ...fixture.outcomeStatus, proposalId: "other-proposal" }]]);
-			outcomes.down([["DATA", { ...fixture.outcome, proposalId: "other-proposal" }]]);
+			outcomes.set(fixture.outcome);
+			outcomeStatuses.set({ ...fixture.outcomeStatus, proposalId: "other-proposal" });
+			outcomes.set({ ...fixture.outcome, proposalId: "other-proposal" });
 		}
 
 		expect(readModels.at(-1)).toMatchObject({
@@ -4568,21 +4453,16 @@ describe("Workspace proposal family application helpers (D430)", () => {
 		const results = collectData<WorkspaceProposalFamilyOutcomeDetailSupplyResult>(
 			projector.results,
 		);
-		requests.down([["DATA", request]]);
-		outcomes.down([["DATA", fixture.outcome]]);
-		outcomes.down([["DATA", structuredClone(fixture.outcome)]]);
+		requests.set(request);
+		outcomes.set(fixture.outcome);
+		outcomes.set(structuredClone(fixture.outcome));
 		expect(() =>
-			outcomes.down([
-				[
-					"DATA",
-					{
-						kind: "workspace-proposal-work-item-link-outcome-recorded",
-						sourceRefs: [sourceRef],
-					} as never,
-				],
-			]),
+			outcomes.set({
+				kind: "workspace-proposal-work-item-link-outcome-recorded",
+				sourceRefs: [sourceRef],
+			} as never),
 		).not.toThrow();
-		requests.down([["DATA", structuredClone(request)]]);
+		requests.set(structuredClone(request));
 
 		expect(results).toHaveLength(2);
 		expect(results[0]?.displayDiagnostics.map((entry) => entry.code)).toEqual([
@@ -4621,18 +4501,12 @@ describe("Workspace proposal family application helpers (D430)", () => {
 		const index = projectWorkspaceProposalFamilyOutcomeIndex([fixture.outcome, secondOutcome])[0];
 		if (index === undefined) throw new Error("expected graph D448 outcome index");
 
-		outcomeIndex.down([["DATA", index]]);
-		outcomes.down([["DATA", fixture.outcome]]);
-		outcomes.down([["DATA", secondOutcome]]);
-		queries.down([
-			["DATA", readModelQuery("query-page-a", coordinates, { page: { offset: -1, limit: 999 } })],
-		]);
-		queries.down([
-			["DATA", readModelQuery("query-page-a", coordinates, { page: { offset: 0, limit: 100 } })],
-		]);
-		queries.down([
-			["DATA", readModelQuery("query-page-b", coordinates, { page: { offset: 1, limit: 1 } })],
-		]);
+		outcomeIndex.set(index);
+		outcomes.set(fixture.outcome);
+		outcomes.set(secondOutcome);
+		queries.set(readModelQuery("query-page-a", coordinates, { page: { offset: -1, limit: 999 } }));
+		queries.set(readModelQuery("query-page-a", coordinates, { page: { offset: 0, limit: 100 } }));
+		queries.set(readModelQuery("query-page-b", coordinates, { page: { offset: 1, limit: 1 } }));
 
 		expect(readModels.map((entry) => entry.queryId)).toEqual(["query-page-a", "query-page-b"]);
 		expect(readModels[0]?.page).toMatchObject({ offset: 0, limit: 100 });
@@ -4647,9 +4521,9 @@ describe("Workspace proposal family application helpers (D430)", () => {
 			...readModelQuery("query-same-view-b", coordinates, { page: { offset: 1, limit: 1 } }),
 			viewId: "shared-current-view",
 		};
-		queries.down([["DATA", sameViewA]]);
-		queries.down([["DATA", sameViewB]]);
-		queries.down([["DATA", sameViewA]]);
+		queries.set(sameViewA);
+		queries.set(sameViewB);
+		queries.set(sameViewA);
 
 		expect(readModels.slice(2).map((entry) => entry.queryId)).toEqual([
 			"query-same-view-a",
@@ -4872,10 +4746,10 @@ describe("Workspace proposal family application helpers (D430)", () => {
 			preparationProjector.readyRequests,
 		);
 
-		requests.down([["DATA", fixture.request]]);
-		statuses.down([["DATA", status]]);
-		descriptors.down([["DATA", descriptor]]);
-		intents.down([["DATA", intent]]);
+		requests.set(fixture.request);
+		statuses.set(status);
+		descriptors.set(descriptor);
+		intents.set(intent);
 		expect(validations).toHaveLength(1);
 		expect(previews).toHaveLength(1);
 		const preview = previews[0];
@@ -4907,14 +4781,13 @@ describe("Workspace proposal family application helpers (D430)", () => {
 			draft: { title: "prepared request bulk d476" },
 			finalDraftSourceRefs: [{ kind: "workspace-final-draft", id: "draft:d476" }],
 		};
-		preparationInputs.down([["DATA", input]]);
+		preparationInputs.set(input);
 		expect(preparations).toHaveLength(1);
 		expect(preparations[0]).toMatchObject({ status: "prepared" });
 		expect(readyRequests).toHaveLength(1);
 
-		releases.down([
-			[
-				"DATA",
+		batch(() => {
+			releases.set(
 				projectionRelease(
 					"projection-release:d476-preparation",
 					"repair-successor-preparation",
@@ -4933,9 +4806,8 @@ describe("Workspace proposal family application helpers (D430)", () => {
 						proposalFamily: fixture.request.proposalFamily,
 					},
 				),
-			],
-			[
-				"DATA",
+			);
+			releases.set(
 				projectionRelease(
 					"projection-release:d476-preview",
 					"repair-successor-preview",
@@ -4953,9 +4825,8 @@ describe("Workspace proposal family application helpers (D430)", () => {
 						proposalFamily: fixture.request.proposalFamily,
 					},
 				),
-			],
-			[
-				"DATA",
+			);
+			releases.set(
 				projectionRelease(
 					"projection-release:d476-intent",
 					"repair-action-intent",
@@ -4972,8 +4843,8 @@ describe("Workspace proposal family application helpers (D430)", () => {
 						proposalFamily: fixture.request.proposalFamily,
 					},
 				),
-			],
-		]);
+			);
+		});
 		expect(releaseFacts.map((entry) => entry.targetKind)).toEqual([
 			"repair-successor-preparation",
 			"repair-successor-preview",
@@ -4981,31 +4852,26 @@ describe("Workspace proposal family application helpers (D430)", () => {
 		]);
 		expect(readyRequests).toHaveLength(1);
 
-		requests.down([["DATA", structuredClone(fixture.request)]]);
-		statuses.down([["DATA", structuredClone(status)]]);
-		descriptors.down([["DATA", structuredClone(descriptor)]]);
+		requests.set(structuredClone(fixture.request));
+		statuses.set(structuredClone(status));
+		descriptors.set(structuredClone(descriptor));
 		expect(previews).toHaveLength(1);
 		expect(validations).toHaveLength(1);
 
-		intents.down([["DATA", structuredClone(intent)]]);
+		intents.set(structuredClone(intent));
 		expect(validations).toHaveLength(2);
 		expect(previews).toHaveLength(2);
-		preparationInputs.down([["DATA", structuredClone(input)]]);
+		preparationInputs.set(structuredClone(input));
 		expect(preparations).toHaveLength(2);
 		expect(preparations.at(-1)).toMatchObject({ status: "prepared", issues: [] });
 		expect(preparations.at(-1)).not.toHaveProperty("readyRequest");
 		expect(readyRequests).toHaveLength(1);
 
-		preparationInputs.down([
-			[
-				"DATA",
-				{
-					...input,
-					successorProposalId: "successor-proposal:d476-different",
-					draft: { title: "different after release" },
-				},
-			],
-		]);
+		preparationInputs.set({
+			...input,
+			successorProposalId: "successor-proposal:d476-different",
+			draft: { title: "different after release" },
+		});
 		expect(preparations.at(-1)).toMatchObject({
 			status: "blocked",
 			issues: expect.arrayContaining([
@@ -5078,19 +4944,14 @@ describe("Workspace proposal family application helpers (D430)", () => {
 			bundle.diagnostics,
 		);
 
-		releases.down([["DATA", release]]);
+		releases.set(release);
 		expect(diagnostics).toHaveLength(0);
 
-		releases.down([
-			[
-				"DATA",
-				{
-					...release,
-					releaseId: "projection-release:d473-blocked",
-					storageOwner: "runtime-private-secret",
-				},
-			],
-		]);
+		releases.set({
+			...release,
+			releaseId: "projection-release:d473-blocked",
+			storageOwner: "runtime-private-secret",
+		});
 		expect(diagnostics).toHaveLength(1);
 		expect(diagnostics[0]).toMatchObject({
 			kind: "workspace-proposal-projection-release-diagnostic",
@@ -5104,20 +4965,15 @@ describe("Workspace proposal family application helpers (D430)", () => {
 		});
 		expect(JSON.stringify(diagnostics)).not.toContain("runtime-private-secret");
 
-		releases.down([
-			[
-				"DATA",
-				{
-					...release,
-					releaseId: "projection-release:d473-unsafe-audit",
-					audit: {
-						auditId: "audit:d473-unsafe",
-						sourceRefs: [{ kind: "workspace-projection-release", id: "audit-source:d473" }],
-						metadata: { storageOwner: "hidden-cache-owner" },
-					},
-				},
-			],
-		]);
+		releases.set({
+			...release,
+			releaseId: "projection-release:d473-unsafe-audit",
+			audit: {
+				auditId: "audit:d473-unsafe",
+				sourceRefs: [{ kind: "workspace-projection-release", id: "audit-source:d473" }],
+				metadata: { storageOwner: "hidden-cache-owner" },
+			},
+		});
 		expect(diagnostics).toHaveLength(2);
 		expect(diagnostics[1]).toMatchObject({
 			releaseId: "projection-release:d473-unsafe-audit",
@@ -5129,16 +4985,11 @@ describe("Workspace proposal family application helpers (D430)", () => {
 		expect(diagnostics[1]?.audit?.metadata).toBeUndefined();
 		expect(JSON.stringify(diagnostics)).not.toContain("hidden-cache-owner");
 
-		releases.down([
-			[
-				"DATA",
-				{
-					...release,
-					releaseId: "projection-release:d473-blocked",
-					storageOwner: "runtime-private-secret",
-				},
-			],
-		]);
+		releases.set({
+			...release,
+			releaseId: "projection-release:d473-blocked",
+			storageOwner: "runtime-private-secret",
+		});
 		expect(diagnostics).toHaveLength(3);
 	});
 
@@ -5249,46 +5100,38 @@ describe("Workspace proposal family application helpers (D430)", () => {
 		const readModels = collectData(projector.readModels);
 		const query = readModelQuery("query-d472-release", coordinates, { page: { limit: 1 } });
 
-		repairStatuses.down([["DATA", repairStatus]]);
-		outcomeIndex.down([["DATA", fixture.outcomeIndex[0]!]]);
-		outcomeStatuses.down([["DATA", fixture.outcomeStatus]]);
-		outcomes.down([["DATA", fixture.outcome]]);
-		queries.down([["DATA", query]]);
-		queries.down([["DATA", structuredClone(query)]]);
+		repairStatuses.set(repairStatus);
+		outcomeIndex.set(fixture.outcomeIndex[0]!);
+		outcomeStatuses.set(fixture.outcomeStatus);
+		outcomes.set(fixture.outcome);
+		queries.set(query);
+		queries.set(structuredClone(query));
 		expect(readModels).toHaveLength(1);
 
 		expect(() =>
-			releases.down([
-				[
-					"DATA",
-					{
-						kind: "workspace-proposal-projection-release",
-						releaseId: "projection-release:d472-read-model-bad",
-						targetKind: "family-read-model-query",
-						targetId: query.viewId,
-						sourceRefs: [{ kind: "provider", id: "runtime-private" }],
-					} as never,
-				],
-			]),
+			releases.set({
+				kind: "workspace-proposal-projection-release",
+				releaseId: "projection-release:d472-read-model-bad",
+				targetKind: "family-read-model-query",
+				targetId: query.viewId,
+				sourceRefs: [{ kind: "provider", id: "runtime-private" }],
+			} as never),
 		).not.toThrow();
-		queries.down([["DATA", structuredClone(query)]]);
+		queries.set(structuredClone(query));
 		expect(readModels).toHaveLength(1);
-		releases.down([
-			[
-				"DATA",
-				projectionRelease(
-					"projection-release:d472-read-model-unknown-target",
-					"family-read-model-query",
-					"view:unknown",
-					{
-						queryId: "query:unknown",
-						viewId: "view:unknown",
-						...coordinates,
-					},
-				),
-			],
-		]);
-		queries.down([["DATA", structuredClone(query)]]);
+		releases.set(
+			projectionRelease(
+				"projection-release:d472-read-model-unknown-target",
+				"family-read-model-query",
+				"view:unknown",
+				{
+					queryId: "query:unknown",
+					viewId: "view:unknown",
+					...coordinates,
+				},
+			),
+		);
+		queries.set(structuredClone(query));
 		expect(readModels).toHaveLength(1);
 
 		for (const mismatch of [
@@ -5298,41 +5141,35 @@ describe("Workspace proposal family application helpers (D430)", () => {
 			{ idempotencyKey: "other-idempotency" },
 			{ proposalFamily: "work-item-spawn" as const },
 		]) {
-			releases.down([
-				[
-					"DATA",
-					projectionRelease(
-						`projection-release:d472-read-model-coordinate-mismatch:${Object.keys(mismatch)[0]}`,
-						"family-read-model-query",
-						query.viewId,
-						{
-							queryId: query.queryId,
-							viewId: query.viewId,
-							...mismatch,
-						},
-					),
-				],
-			]);
-			queries.down([["DATA", structuredClone(query)]]);
-			expect(readModels).toHaveLength(1);
-		}
-
-		releases.down([
-			[
-				"DATA",
+			releases.set(
 				projectionRelease(
-					"projection-release:d472-read-model",
+					`projection-release:d472-read-model-coordinate-mismatch:${Object.keys(mismatch)[0]}`,
 					"family-read-model-query",
 					query.viewId,
 					{
 						queryId: query.queryId,
 						viewId: query.viewId,
+						...mismatch,
 					},
 				),
-			],
-		]);
+			);
+			queries.set(structuredClone(query));
+			expect(readModels).toHaveLength(1);
+		}
+
+		releases.set(
+			projectionRelease(
+				"projection-release:d472-read-model",
+				"family-read-model-query",
+				query.viewId,
+				{
+					queryId: query.queryId,
+					viewId: query.viewId,
+				},
+			),
+		);
 		expect(readModels).toHaveLength(1);
-		queries.down([["DATA", structuredClone(query)]]);
+		queries.set(structuredClone(query));
 
 		expect(readModels).toHaveLength(2);
 		expect(readModels.map((entry) => entry.queryId)).toEqual([
@@ -5347,12 +5184,9 @@ describe("Workspace proposal family application helpers (D430)", () => {
 				}),
 			],
 		});
-		queries.down([
-			[
-				"DATA",
-				readModelQuery("query-d472-release", coordinates, { page: { offset: 1, limit: 1 } }),
-			],
-		]);
+		queries.set(
+			readModelQuery("query-d472-release", coordinates, { page: { offset: 1, limit: 1 } }),
+		);
 		expect(readModels).toHaveLength(3);
 		expect(readModels.at(-1)).toMatchObject({
 			queryId: "query-d472-release",
@@ -5409,32 +5243,29 @@ describe("Workspace proposal family application helpers (D430)", () => {
 			projector.results,
 		);
 
-		requests.down([["DATA", request]]);
-		outcomes.down([["DATA", fixture.outcome]]);
-		outcomes.down([["DATA", secondOutcome]]);
-		requests.down([["DATA", structuredClone(request)]]);
+		requests.set(request);
+		outcomes.set(fixture.outcome);
+		outcomes.set(secondOutcome);
+		requests.set(structuredClone(request));
 		expect(results).toHaveLength(2);
 		expect(results.at(-1)).toMatchObject({
 			currentViewId: "view:d472-supply",
 			suppliedOutcomeFacts: [expect.objectContaining({ outcomeId: ref.outcomeId })],
 			page: { offset: 0, limit: 1 },
 		});
-		releases.down([
-			[
-				"DATA",
-				projectionRelease(
-					"projection-release:d472-supply-unknown-target",
-					"outcome-detail-supply-request",
-					"view:unknown",
-					{
-						supplyRequestId: "supply:unknown",
-						viewId: "view:unknown",
-						...coordinates,
-					},
-				),
-			],
-		]);
-		requests.down([["DATA", structuredClone(request)]]);
+		releases.set(
+			projectionRelease(
+				"projection-release:d472-supply-unknown-target",
+				"outcome-detail-supply-request",
+				"view:unknown",
+				{
+					supplyRequestId: "supply:unknown",
+					viewId: "view:unknown",
+					...coordinates,
+				},
+			),
+		);
+		requests.set(structuredClone(request));
 		expect(results).toHaveLength(2);
 
 		for (const mismatch of [
@@ -5444,37 +5275,31 @@ describe("Workspace proposal family application helpers (D430)", () => {
 			{ idempotencyKey: "other-idempotency" },
 			{ proposalFamily: "work-item-spawn" as const },
 		]) {
-			releases.down([
-				[
-					"DATA",
-					projectionRelease(
-						`projection-release:d472-supply-coordinate-mismatch:${Object.keys(mismatch)[0]}`,
-						"outcome-detail-supply-request",
-						request.viewId,
-						{
-							supplyRequestId: request.supplyRequestId,
-							viewId: request.viewId,
-							...mismatch,
-						},
-					),
-				],
-			]);
-			requests.down([["DATA", structuredClone(request)]]);
+			releases.set(
+				projectionRelease(
+					`projection-release:d472-supply-coordinate-mismatch:${Object.keys(mismatch)[0]}`,
+					"outcome-detail-supply-request",
+					request.viewId,
+					{
+						supplyRequestId: request.supplyRequestId,
+						viewId: request.viewId,
+						...mismatch,
+					},
+				),
+			);
+			requests.set(structuredClone(request));
 			expect(results).toHaveLength(2);
 		}
 
-		releases.down([
-			[
-				"DATA",
-				projectionRelease(
-					"projection-release:d472-supply",
-					"outcome-detail-supply-request",
-					request.viewId,
-					{ supplyRequestId: request.supplyRequestId, viewId: request.viewId },
-				),
-			],
-		]);
-		requests.down([["DATA", secondPageRequest]]);
+		releases.set(
+			projectionRelease(
+				"projection-release:d472-supply",
+				"outcome-detail-supply-request",
+				request.viewId,
+				{ supplyRequestId: request.supplyRequestId, viewId: request.viewId },
+			),
+		);
+		requests.set(secondPageRequest);
 
 		expect(results).toHaveLength(3);
 		expect(results.at(-1)).toMatchObject({
@@ -5485,7 +5310,7 @@ describe("Workspace proposal family application helpers (D430)", () => {
 		expect(results.at(-1)?.suppliedOutcomeFacts).not.toEqual(
 			expect.arrayContaining([expect.objectContaining({ outcomeId: fixture.outcome.outcomeId })]),
 		);
-		requests.down([["DATA", { ...secondPageRequest, page: { offset: 0, limit: 2 } }]]);
+		requests.set({ ...secondPageRequest, page: { offset: 0, limit: 2 } });
 		expect(results).toHaveLength(4);
 		expect(results.at(-1)).toMatchObject({
 			suppliedOutcomeFacts: [
@@ -5561,17 +5386,16 @@ describe("Workspace proposal family application helpers (D430)", () => {
 			previewProjector.previews,
 		);
 
-		requests.down([["DATA", fixture.request]]);
-		statuses.down([["DATA", status]]);
-		descriptors.down([["DATA", descriptor]]);
-		intents.down([["DATA", intent]]);
+		requests.set(fixture.request);
+		statuses.set(status);
+		descriptors.set(descriptor);
+		intents.set(intent);
 		expect(advisories).toHaveLength(1);
 		expect(validations).toHaveLength(1);
 		expect(previews).toHaveLength(1);
 
-		releases.down([
-			[
-				"DATA",
+		batch(() => {
+			releases.set(
 				projectionRelease(
 					"projection-release:d472-advisory",
 					"repair-action-advisory",
@@ -5582,9 +5406,8 @@ describe("Workspace proposal family application helpers (D430)", () => {
 						actionKind: descriptor.actionKind,
 					},
 				),
-			],
-			[
-				"DATA",
+			);
+			releases.set(
 				projectionRelease(
 					"projection-release:d472-intent",
 					"repair-action-intent",
@@ -5593,19 +5416,18 @@ describe("Workspace proposal family application helpers (D430)", () => {
 						intentId: intent.intentId,
 					},
 				),
-			],
-			[
-				"DATA",
+			);
+			releases.set(
 				projectionRelease(
 					"projection-release:d472-preview",
 					"repair-successor-preview",
 					previews[0]!.previewId,
 					{ intentId: intent.intentId, previewId: previews[0]!.previewId },
 				),
-			],
-		]);
-		descriptors.down([["DATA", structuredClone(descriptor)]]);
-		intents.down([["DATA", structuredClone(intent)]]);
+			);
+		});
+		descriptors.set(structuredClone(descriptor));
+		intents.set(structuredClone(intent));
 
 		expect(advisories).toHaveLength(2);
 		expect(validations).toHaveLength(2);
@@ -5815,9 +5637,9 @@ describe("Workspace proposal family application helpers (D430)", () => {
 		})[0];
 		if (resolved === undefined) throw new Error("expected D449 resolved status");
 
-		requests.down([["DATA", fixture.request]]);
-		statuses.down([["DATA", resolved]]);
-		statuses.down([["DATA", { ...resolved, proposalId: "other-proposal" }]]);
+		requests.set(fixture.request);
+		statuses.set(resolved);
+		statuses.set({ ...resolved, proposalId: "other-proposal" });
 
 		expect(descriptors).toHaveLength(10);
 		expect(descriptors.slice(0, 5).every((descriptor) => descriptor.repairState === "open")).toBe(

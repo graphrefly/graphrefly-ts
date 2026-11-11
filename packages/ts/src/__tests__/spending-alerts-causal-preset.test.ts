@@ -177,7 +177,7 @@ describe("D164 finite passive input and business edges", () => {
 		try {
 			r.send("pack", evaluationPack([e]));
 			r.send("verification", f.verification);
-			r.sources.verification.down([["INVALIDATE"]]);
+			r.sources.verification.invalidate();
 			// A different receipt must not resurrect the invalidated receipt from private history.
 			r.send("verification", policyFacts(evaluationFixture(0, "tea")).verification);
 			r.send("current", f.current);

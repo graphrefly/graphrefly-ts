@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
+import { batch } from "../batch/batch.js";
 import { graph } from "../graph/graph.js";
 import { compoundTupleKey } from "../identity.js";
 import { messageBus } from "../messaging/index.js";
 import { workQueue } from "../work-queue/index.js";
+import { asState } from "./helpers/as-state.js";
 
 const defaultWorkId = compoundTupleKey("work-queue-work", ["q", "work", "1"]);
 const defaultLeaseId = (seq: string) => compoundTupleKey("work-queue-lease", [defaultWorkId, seq]);
@@ -469,7 +471,7 @@ describe("workQueue messageBus-backed lifecycle (D299-D324/D325)", () => {
 		});
 		const work = queue.work(defaultWorkId);
 		work.snapshot.subscribe(() => {}); // R-lifetime: an inactive projection does not run
-		work.snapshotRequest.down([["DATA", {}]]);
+		asState(work.snapshotRequest).set({});
 
 		expect(work.snapshot.cache).toEqual(expect.objectContaining({ state: "completed" }));
 		expect(work.snapshot.cache?.activeLease).toBeUndefined();
@@ -493,11 +495,11 @@ describe("workQueue messageBus-backed lifecycle (D299-D324/D325)", () => {
 		const dead = queue.deadLetter();
 
 		available.available.subscribe(() => {}); // R-lifetime: an inactive projection does not run
-		available.availableRequest.down([["DATA", { nowMs: 0 }]]);
+		asState(available.availableRequest).set({ nowMs: 0 });
 		work.snapshot.subscribe(() => {}); // R-lifetime: an inactive projection does not run
-		work.snapshotRequest.down([["DATA", {}]]);
+		asState(work.snapshotRequest).set({});
 		dead.snapshot.subscribe(() => {}); // R-lifetime: an inactive projection does not run
-		dead.snapshotRequest.down([["DATA", {}]]);
+		asState(dead.snapshotRequest).set({});
 
 		expect(available.available.cache).toEqual(
 			expect.objectContaining({ items: [], asOfRecordSeq: 2 }),
@@ -509,7 +511,7 @@ describe("workQueue messageBus-backed lifecycle (D299-D324/D325)", () => {
 
 		queue.cancel({ workId: defaultWorkId, commandId: "cancel-1", reason: "user" });
 		expect(work.snapshot.cache?.state).toBe("scheduled");
-		work.snapshotRequest.down([["DATA", {}]]);
+		asState(work.snapshotRequest).set({});
 		expect(work.snapshot.cache?.state).toBe("canceled");
 	});
 
@@ -540,11 +542,11 @@ describe("workQueue messageBus-backed lifecycle (D299-D324/D325)", () => {
 		queue.claim({ workerId: "early", commandId: "claim-early" });
 		const available = queue.available();
 		available.available.subscribe(() => {}); // R-lifetime: an inactive projection does not run
-		available.availableRequest.down([["DATA", {}]]);
+		asState(available.availableRequest).set({});
 		expect(issues).toContainEqual(["DATA", expect.objectContaining({ code: "not-ready" })]);
 		expect(available.available.cache?.items).toEqual([]);
 
-		available.availableRequest.down([["DATA", { nowMs: 10 }]]);
+		asState(available.availableRequest).set({ nowMs: 10 });
 		expect(available.available.cache?.items.map((item) => item.workId)).toEqual([defaultWorkId]);
 		queue.claim({ workerId: "on-time", commandId: "claim-on-time", nowMs: 10 });
 
@@ -577,10 +579,11 @@ describe("workQueue messageBus-backed lifecycle (D299-D324/D325)", () => {
 			}
 		});
 
-		queue.commands.down([
-			["DATA", { kind: "bogus", commandId: "bad-1" } as never],
-			["DATA", { kind: "cancel", commandId: "bad-2", queueId: "other", workId: "x" } as never],
-		]);
+		batch(() => {
+			const target = asState(queue.commands);
+			target.set({ kind: "bogus", commandId: "bad-1" } as never);
+			target.set({ kind: "cancel", commandId: "bad-2", queueId: "other", workId: "x" } as never);
+		});
 
 		expect(issues).toContainEqual([
 			"DATA",
@@ -608,11 +611,9 @@ describe("workQueue messageBus-backed lifecycle (D299-D324/D325)", () => {
 		const available = queue.available();
 
 		available.available.subscribe(() => {}); // R-lifetime: an inactive projection does not run
-		available.availableRequest.down([["DATA", { limit: 1 }]]);
+		asState(available.availableRequest).set({ limit: 1 });
 		const nextAfterAdmissionSeq = available.available.cache?.nextAfterAdmissionSeq;
-		available.availableRequest.down([
-			["DATA", { limit: 1, afterAdmissionSeq: nextAfterAdmissionSeq }],
-		]);
+		asState(available.availableRequest).set({ limit: 1, afterAdmissionSeq: nextAfterAdmissionSeq });
 
 		expect(available.available.cache?.items.map((item) => item.workId)).toEqual(["a"]);
 	});

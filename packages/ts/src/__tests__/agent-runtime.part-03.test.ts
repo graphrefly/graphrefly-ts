@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { batch } from "../batch/batch.js";
 import type { DataIssue } from "../data/index.js";
 import type { ToolProviderAdapterRuntimeStatus } from "../executors/tool-provider-runtime.js";
 import { attachToolProviderAdapterRuntime } from "../executors/tool-provider-runtime.js";
@@ -305,7 +306,7 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 3", () => {
 			}
 		});
 
-		inputs.down([["DATA", ready]]);
+		inputs.set(ready);
 
 		const outcome = outcomes.at(-1);
 		expect(outcome).toMatchObject({
@@ -572,9 +573,9 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 3", () => {
 			}
 		});
 
-		inputs.down([["DATA", ready]]);
-		inputs.down([["DATA", ready]]);
-		inputs.down([["DATA", updated]]);
+		inputs.set(ready);
+		inputs.set(ready);
+		inputs.set(updated);
 
 		expect(calls.map((input) => input.sourceRefs?.at(-1)?.id)).toEqual([
 			ready.sourceRefs?.at(-1)?.id,
@@ -652,19 +653,18 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 3", () => {
 			reason: longReason,
 		} satisfies ToolProviderAdapterRunRequested;
 
-		inputs.down([["DATA", ready]]);
-		runRequests.down([
-			["DATA", firstRunRequest],
-			[
-				"DATA",
+		inputs.set(ready);
+		batch(() => {
+			runRequests.set(firstRunRequest);
+			runRequests.set(
 				requestToolProviderAdapterRun(ready, {
 					runId: "run-shared",
 					attempt: 2,
 					reason: "retry",
 					retryOfOutcomeId: "run-1:outcome",
 				}),
-			],
-		]);
+			);
+		});
 		const rawFirstRequest = emittedRequests[0];
 		expect(rawFirstRequest).toBeDefined();
 
@@ -739,27 +739,22 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 3", () => {
 			}
 		});
 
-		runRequests.down([
-			[
-				"DATA",
+		runRequests.set({
+			kind: "tool-provider-adapter-run-requested",
+			runId: "invalid-run",
+			adapterInputId: "invalid-input",
+			requestId: "invalid-request",
+			attempt: 1,
+			reason: `${"invalid-reason-".repeat(20)}RAW_INVALID_REASON_SHOULD_NOT_PROJECT`,
+			sourceRefs: [
 				{
-					kind: "tool-provider-adapter-run-requested",
-					runId: "invalid-run",
-					adapterInputId: "invalid-input",
-					requestId: "invalid-request",
-					attempt: 1,
-					reason: `${"invalid-reason-".repeat(20)}RAW_INVALID_REASON_SHOULD_NOT_PROJECT`,
-					sourceRefs: [
-						{
-							kind: "provider-raw",
-							id: "raw-source",
-							metadata: { stdout: "RAW_INVALID_SOURCE_REF_SHOULD_NOT_PROJECT" },
-						},
-					],
-					metadata: { rawResponse: "RAW_INVALID_METADATA_SHOULD_NOT_PROJECT" },
-				} as unknown as ToolProviderAdapterRunRequested,
+					kind: "provider-raw",
+					id: "raw-source",
+					metadata: { stdout: "RAW_INVALID_SOURCE_REF_SHOULD_NOT_PROJECT" },
+				},
 			],
-		]);
+			metadata: { rawResponse: "RAW_INVALID_METADATA_SHOULD_NOT_PROJECT" },
+		} as unknown as ToolProviderAdapterRunRequested);
 
 		expect(runStatus).toEqual(
 			expect.arrayContaining([
@@ -858,15 +853,14 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 3", () => {
 			}
 		});
 
-		inputs.down([["DATA", ready]]);
-		runRequests.down([
-			["DATA", requestToolProviderAdapterRun(ready, { runId: "run-a", attempt: 1 })],
-			[
-				"DATA",
+		inputs.set(ready);
+		batch(() => {
+			runRequests.set(requestToolProviderAdapterRun(ready, { runId: "run-a", attempt: 1 }));
+			runRequests.set(
 				requestToolProviderAdapterRun(ready, { runId: "run-a", attempt: 2, reason: "retry" }),
-			],
-			["DATA", requestToolProviderAdapterRun(ready, { runId: "run-replay", attempt: 1 })],
-		]);
+			);
+			runRequests.set(requestToolProviderAdapterRun(ready, { runId: "run-replay", attempt: 1 }));
+		});
 
 		expect(attempts).toEqual([1, 2]);
 		expect(runtimeStatus).toEqual(

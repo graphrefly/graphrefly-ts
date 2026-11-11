@@ -10,7 +10,7 @@ import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
 import { canonicalTupleKey } from "../identity.js";
 import { attachableInput } from "../node/attachable-input.js";
-import type { Node } from "../node/node.js";
+import type { Node, StateNode } from "../node/node.js";
 import { oneArrayPerRun } from "../node/one-array-per-run.js";
 import {
 	attachMessageBusCommandSource,
@@ -129,11 +129,25 @@ export function messageBus<TTopic extends string>(
 		for (let i = 0; i < depCount(ctx); i++) {
 			for (const command of depBatch(ctx, i) ?? []) ctx.down([["DATA", command]]);
 		}
+		// Only the publish input (dep 0) ends the bus; an attached source ending leaves it open.
+		const ended = ctx.terminal[0];
+		if (ended === true) ctx.down([["COMPLETE"]]);
+		else if (ended !== false && ended !== undefined) ctx.down([["ERROR", ended]]);
+	});
+	// The bus's host input: publishes are written here and forwarded by the command node, which also
+	// rewires itself to attached command sources (graphrefly-ts:D175, no host write to a computed node).
+	const publish = graph.node<MessageBusCommand>([], null, {
+		name: `${name}/publish`,
+		factory: "messageBusPublish",
+		complete: "manual",
+		error: "manual",
 	});
 	const commandSources = attachableInput();
-	const commands = graph.node<MessageBusCommand>([], commandBody, {
+	const commands = graph.node<MessageBusCommand>([publish], commandBody, {
 		name: `${name}/commands`,
 		factory: "messageBusCommands",
+		// A forwarder: it runs on whichever input has commands, without waiting for the others.
+		partial: true,
 		complete: "manual",
 		error: "manual",
 		setup: commandSources.setup,
@@ -154,6 +168,7 @@ export function messageBus<TTopic extends string>(
 		deadLetterSeq: 0,
 		commandBody,
 		commandSources,
+		publish,
 	};
 	const runtime = graph.node<RuntimeEvent>(
 		[commands],
@@ -224,14 +239,14 @@ export function messageBus<TTopic extends string>(
 		status,
 		issues,
 		ensureTopic(topic, commandOpts = {}) {
-			return publishCommand(commands, {
+			return publishCommand(publish, {
 				kind: "ensure-topic",
 				topic,
 				...(commandOpts.commandId === undefined ? {} : { commandId: commandOpts.commandId }),
 			});
 		},
 		closeTopic(topic, commandOpts = {}) {
-			return publishCommand(commands, {
+			return publishCommand(publish, {
 				kind: "close-topic",
 				topic,
 				...(commandOpts.commandId === undefined ? {} : { commandId: commandOpts.commandId }),
@@ -242,7 +257,7 @@ export function messageBus<TTopic extends string>(
 			payload: T,
 			publishOpts: { key?: string; commandId?: string; idempotencyKey?: string } = {},
 		) {
-			return publishCommand(commands, {
+			return publishCommand(publish, {
 				kind: "publish",
 				topic,
 				payload,
@@ -399,7 +414,7 @@ export function messageBus<TTopic extends string>(
 				status,
 				issues,
 				ack(seq, commandOpts = {}) {
-					return publishCommand(commands, {
+					return publishCommand(publish, {
 						kind: "ack",
 						topic: sub.topic,
 						subscriptionId: sub.subscriptionId,
@@ -408,7 +423,7 @@ export function messageBus<TTopic extends string>(
 					});
 				},
 				seek(nextSeq, commandOpts = {}) {
-					return publishCommand(commands, {
+					return publishCommand(publish, {
 						kind: "seek",
 						topic: sub.topic,
 						subscriptionId: sub.subscriptionId,
@@ -417,7 +432,7 @@ export function messageBus<TTopic extends string>(
 					});
 				},
 				close(commandOpts = {}) {
-					return publishCommand(commands, {
+					return publishCommand(publish, {
 						kind: "close-subscription",
 						topic: sub.topic,
 						subscriptionId: sub.subscriptionId,
@@ -502,7 +517,7 @@ export function toTopic<T, TTopic extends string>(
  * A projection's request state (graphrefly-ts:D172): the projection declares it as a dependency
  * and serves one page per live write, with the written params.
  */
-function projectionRequest<P>(graph: Graph, projectionName: string, factory: string): Node<P> {
+function projectionRequest<P>(graph: Graph, projectionName: string, factory: string): StateNode<P> {
 	return graph.node<P>([], null, {
 		name: `${projectionName}/request`,
 		factory,

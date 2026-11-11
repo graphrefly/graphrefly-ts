@@ -20,7 +20,7 @@ import {
 	retryPolicy,
 	shouldRetry,
 } from "../graph/resilience.js";
-import type { Node } from "../node/node.js";
+import type { Node, StateNode } from "../node/node.js";
 import { oneArrayPerRun } from "../node/one-array-per-run.js";
 import { errorPayload } from "../protocol/messages.js";
 import { runCancel } from "./environment-outbound.js";
@@ -531,7 +531,7 @@ function webSocketSessionEventNode(
 
 function webSocketSessionNodes(
 	graph: Graph,
-	command: Node<WebSocketSessionCommand>,
+	command: StateNode<WebSocketSessionCommand>,
 	events: Node<WebSocketSessionEvent>,
 	name: string,
 	policy: RetryPolicy,
@@ -688,21 +688,16 @@ function webSocketSessionNodes(
 		status,
 		errors,
 		attempts,
-		start: () => command.down([["DATA", { kind: "start" }]]),
+		start: () => command.set({ kind: "start" }),
 		send: (message) =>
-			command.down([
-				[
-					"DATA",
-					{
-						kind: "send",
-						message:
-							typeof message === "string" || message instanceof Uint8Array
-								? { data: message }
-								: message,
-					},
-				],
-			]),
-		close: (code, reason) => command.down([["DATA", { kind: "close", code, reason }]]),
+			command.set({
+				kind: "send",
+				message:
+					typeof message === "string" || message instanceof Uint8Array
+						? { data: message }
+						: message,
+			}),
+		close: (code, reason) => command.set({ kind: "close", code, reason }),
 	};
 }
 

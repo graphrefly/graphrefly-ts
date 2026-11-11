@@ -800,20 +800,20 @@ describe("D606 customer-hosted PostgreSQL", () => {
 				if (m[0] === "DATA") outcomes.push(m[1]);
 			}
 		});
-		inputs.down([["DATA", input]]);
-		approvedRuns.down([["DATA", approved]]);
+		inputs.set(input);
+		approvedRuns.set(approved);
 		await tick();
 		expect(admitted).toBeUndefined();
-		releases.down([["DATA", release]]);
-		enrollments.down([["DATA", enrollment]]);
-		postures.down([["DATA", readiness]]);
-		approvedRuns.down([["DATA", approved]]);
+		releases.set(release);
+		enrollments.set(enrollment);
+		postures.set(readiness);
+		approvedRuns.set(approved);
 		await tick();
 		expect(admitted).toBeUndefined();
 		expect(verifyEnrollment).not.toHaveBeenCalled();
 		acceptEnrollment = true;
-		enrollments.down([["DATA", enrollment]]);
-		approvedRuns.down([["DATA", approved]]);
+		enrollments.set(enrollment);
+		approvedRuns.set(approved);
 		await tick();
 		onMessage?.({
 			kind: "claim",
@@ -874,7 +874,7 @@ describe("D606 customer-hosted PostgreSQL", () => {
 					resolveSecond = resolve;
 				}),
 		);
-		approvedRuns.down([["DATA", { ...approved, runId: "run-2" }]]);
+		approvedRuns.set({ ...approved, runId: "run-2" });
 		await tick();
 		onMessage?.({
 			kind: "claim",
@@ -890,7 +890,7 @@ describe("D606 customer-hosted PostgreSQL", () => {
 		});
 		await tick();
 		expect(execute).toHaveBeenCalledTimes(2);
-		enrollments.down([["DATA", { ...enrollment, state: "revoked" }]]);
+		enrollments.set({ ...enrollment, state: "revoked" });
 		await tick();
 		expect(driver.stop).toHaveBeenCalled();
 		resolveSecond?.({ outcome: "canceled", outcomeRefs: [], issueRefs: [] });

@@ -1,6 +1,6 @@
 import { type Ctx, depLiveBatch } from "../ctx/types.js";
 import { compoundTupleKey } from "../identity.js";
-import type { Node } from "../node/node.js";
+import type { Node, StateNode } from "../node/node.js";
 import type { QueueEvent, RuntimeState, WorkQueueRecordDraft, WorkState } from "./runtime-types.js";
 import type {
 	WorkQueueCommand,
@@ -215,10 +215,10 @@ export function isFiniteNumber(value: unknown): value is number {
 }
 
 export function publishQueueCommand<T>(
-	node: Node<WorkQueueCommand<T>>,
+	node: StateNode<WorkQueueCommand<T>>,
 	command: WorkQueueCommand<T>,
 ): WorkQueueCommand<T> {
-	node.down([["DATA", command]]);
+	node.set(command);
 	return command;
 }
 

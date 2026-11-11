@@ -300,22 +300,17 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 7", () => {
 		if (profile === undefined) throw new Error("expected profile");
 		const request = toolRequest("adapter-proj-req", "adapter-proj-op", "file.read", "read");
 
-		requestFacts.down([["DATA", request]]);
-		catalogs.down([["DATA", catalog]]);
-		routes.down([
-			[
-				"DATA",
-				{
-					kind: "executor-route",
-					routeId: "adapter-proj-route",
-					requestId: "adapter-proj-req",
-					operationId: "adapter-proj-op",
-					executorId: profile.executorId,
-					profileId: profile.profileId,
-					inputKind: "tool-call",
-				},
-			],
-		]);
+		requestFacts.set(request);
+		catalogs.set(catalog);
+		routes.set({
+			kind: "executor-route",
+			routeId: "adapter-proj-route",
+			requestId: "adapter-proj-req",
+			operationId: "adapter-proj-op",
+			executorId: profile.executorId,
+			profileId: profile.profileId,
+			inputKind: "tool-call",
+		});
 
 		expect(inputs).toEqual(
 			expect.arrayContaining([
@@ -371,22 +366,17 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 7", () => {
 			"file.read",
 			"read",
 		);
-		requestFacts.down([["DATA", missingPolicyRequest]]);
-		catalogs.down([["DATA", bareCatalog]]);
-		routes.down([
-			[
-				"DATA",
-				{
-					kind: "executor-route",
-					routeId: "adapter-issue-route",
-					requestId: "adapter-issue-req",
-					operationId: "adapter-issue-op",
-					executorId: "adapter-bare-exec",
-					profileId: "adapter-bare-profile",
-					inputKind: "tool-call",
-				},
-			],
-		]);
+		requestFacts.set(missingPolicyRequest);
+		catalogs.set(bareCatalog);
+		routes.set({
+			kind: "executor-route",
+			routeId: "adapter-issue-route",
+			requestId: "adapter-issue-req",
+			operationId: "adapter-issue-op",
+			executorId: "adapter-bare-exec",
+			profileId: "adapter-bare-profile",
+			inputKind: "tool-call",
+		});
 
 		expect(inputs).toEqual(
 			expect.arrayContaining([
@@ -747,27 +737,22 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 7", () => {
 		if (profile === undefined) throw new Error("expected profile");
 		const request = toolRequest("adapter-revision-req", "adapter-revision-op", "file.read", "read");
 
-		requestFacts.down([["DATA", request]]);
-		catalogs.down([["DATA", catalogV1]]);
-		routes.down([
-			[
-				"DATA",
-				{
-					kind: "executor-route",
-					routeId: "adapter-revision-route",
-					requestId: request.requestId,
-					operationId: request.operationId,
-					executorId: profile.executorId,
-					profileId: profile.profileId,
-					inputKind: "tool-call",
-				},
-			],
-		]);
+		requestFacts.set(request);
+		catalogs.set(catalogV1);
+		routes.set({
+			kind: "executor-route",
+			routeId: "adapter-revision-route",
+			requestId: request.requestId,
+			operationId: request.operationId,
+			executorId: profile.executorId,
+			profileId: profile.profileId,
+			inputKind: "tool-call",
+		});
 		const catalogV2 = localBuiltinToolProviderCatalog({
 			providerId: "adapter-revision",
 			policyOverrides: { timeout: { timeoutMs: 2000 } },
 		});
-		catalogs.down([["DATA", catalogV2]]);
+		catalogs.set(catalogV2);
 
 		expect(
 			inputs

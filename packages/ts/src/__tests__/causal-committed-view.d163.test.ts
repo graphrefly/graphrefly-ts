@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { batch } from "../batch/batch.js";
 import {
 	constructionOf,
 	prepareConstruction,
@@ -21,6 +22,7 @@ import type {
 	RuntimeState,
 } from "../solutions/causal-occurrence/contracts.js";
 import { causalOccurrenceDigest } from "../solutions/causal-occurrence/identity.js";
+import { asState } from "./helpers/as-state.js";
 
 const binding: CausalBinding = Object.freeze({
 	contract: "contract-v2",
@@ -107,7 +109,9 @@ function fixture(maxOccurrences = 8, viewFirst = false) {
 	scope.transferToGraph(owner);
 	startConstruction(graph, owner);
 	function send(lane: keyof typeof sources, ...values: unknown[]) {
-		sources[lane].down(values.map((v) => ["DATA", v]));
+		batch(() => {
+			for (const v of values) asState(sources[lane]).set(v);
+		});
 	}
 	function release(f = facts()) {
 		send("occurrences", f.occurrence);
@@ -356,9 +360,10 @@ describe("D163 committed effects through ordinary DATA", () => {
 		const out = collect(f.built.committedEffects);
 		const before = out.values.at(-1);
 		f.send("effectAdmissions", a.admission);
-		// The INVALIDATE reaches the projection as input from the authority (R-invalidation); under
-		// its manual policy the projection clears its dedup slot and invalidates itself.
-		f.graph.find("causal/authority")!.down([["INVALIDATE"]]);
+		// An invalidated input invalidates the authority (auto policy), and the INVALIDATE reaches the
+		// projection as input (R-invalidation); under its manual policy the projection clears its
+		// dedup slot and invalidates itself.
+		f.sources.effectAdmissions.invalidate();
 		f.send("effectOutcomes", { ...a.outcome, admissionRef: { kind: "admission", id: "wrong" } });
 		expect(out.values).toHaveLength(2);
 		expect(out.values.at(-1)).toBe(before);

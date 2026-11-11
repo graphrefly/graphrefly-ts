@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { batch } from "../batch/batch.js";
 import type { DataIssue } from "../data/index.js";
 import { graph } from "../graph/graph.js";
 import {
@@ -293,34 +294,26 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 9", () => {
 			}
 		});
 
-		effectRuns.down([["DATA", effectRun({ effectRunId: "run-1", goal: { kind: "test" } })]]);
-		requestFacts.down([
-			["DATA", issued("request-1", "op-1", "executor", "llm-call")],
-			[
-				"DATA",
-				{
-					kind: "status",
-					requestId: "request-1",
-					operationId: "op-1",
-					effectRunId: "run-1",
-					status: "completed",
-				},
-			],
-		]);
-		decisions.down([
-			[
-				"DATA",
-				{
-					kind: "final",
-					decisionId: "decision-final",
-					effectRunId: "run-1",
-					agentRunId: "agent-1",
-					source: { requestId: "request-1", operationId: "op-1", outcomeId: "outcome-1" },
-					output: { kind: "done", value: true },
-				},
-			],
-		]);
-		effectRuns.down([["DATA", effectRun({ effectRunId: "run-2", goal: { kind: "unrelated" } })]]);
+		effectRuns.set(effectRun({ effectRunId: "run-1", goal: { kind: "test" } }));
+		batch(() => {
+			requestFacts.set(issued("request-1", "op-1", "executor", "llm-call"));
+			requestFacts.set({
+				kind: "status",
+				requestId: "request-1",
+				operationId: "op-1",
+				effectRunId: "run-1",
+				status: "completed",
+			});
+		});
+		decisions.set({
+			kind: "final",
+			decisionId: "decision-final",
+			effectRunId: "run-1",
+			agentRunId: "agent-1",
+			source: { requestId: "request-1", operationId: "op-1", outcomeId: "outcome-1" },
+			output: { kind: "done", value: true },
+		});
+		effectRuns.set(effectRun({ effectRunId: "run-2", goal: { kind: "unrelated" } }));
 
 		expect(results).toHaveLength(1);
 		expect(issues).not.toContainEqual(
@@ -353,17 +346,15 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 9", () => {
 			attempt: 1,
 		};
 
-		outcomes.down([
-			[
-				"DATA",
+		batch(() => {
+			outcomes.set(
 				fakeExecutorResult({
 					...base,
 					outcomeId: "prose",
 					result: { kind: "text", value: "please ask a human to look at this" },
 				}),
-			],
-			[
-				"DATA",
+			);
+			outcomes.set(
 				fakeExecutorResult({
 					...base,
 					outcomeId: "malformed",
@@ -372,8 +363,8 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 9", () => {
 						value: { kind: "agent-decision", decision: { kind: "final" } },
 					},
 				}),
-			],
-		]);
+			);
+		});
 
 		expect(decisions).toEqual([]);
 		expect(issues).toHaveLength(2);
@@ -414,41 +405,38 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 9", () => {
 				msg[0] === "DATA" && results.push(msg[1]);
 			}
 		});
-		effectRuns.down([["DATA", effectRun({ effectRunId: "run-1", goal: { kind: "test" } })]]);
-		requestFacts.down([["DATA", issued("request-1", "op-1", "executor", "llm-call")]]);
-		outcomes.down([
-			[
-				"DATA",
-				fakeExecutorResult({
-					outcomeId: "bad-next",
-					requestId: "request-1",
-					operationId: "op-1",
-					routeId: "route-1",
-					executorId: "exec-1",
-					profileId: "profile-1",
-					attempt: 1,
-					result: {
+		effectRuns.set(effectRun({ effectRunId: "run-1", goal: { kind: "test" } }));
+		requestFacts.set(issued("request-1", "op-1", "executor", "llm-call"));
+		outcomes.set(
+			fakeExecutorResult({
+				outcomeId: "bad-next",
+				requestId: "request-1",
+				operationId: "op-1",
+				routeId: "route-1",
+				executorId: "exec-1",
+				profileId: "profile-1",
+				attempt: 1,
+				result: {
+					kind: "agent-decision",
+					value: {
 						kind: "agent-decision",
-						value: {
-							kind: "agent-decision",
-							schemaRef: "graphrefly.agent-decision.v0",
-							decision: {
-								kind: "continue",
-								decisionId: "decision-1",
-								effectRunId: "run-1",
-								agentRunId: "agent-1",
-								source: {
-									requestId: "request-1",
-									operationId: "op-1",
-									outcomeId: "bad-next",
-								},
-								next: [null],
+						schemaRef: "graphrefly.agent-decision.v0",
+						decision: {
+							kind: "continue",
+							decisionId: "decision-1",
+							effectRunId: "run-1",
+							agentRunId: "agent-1",
+							source: {
+								requestId: "request-1",
+								operationId: "op-1",
+								outcomeId: "bad-next",
 							},
+							next: [null],
 						},
 					},
-				}),
-			],
-		]);
+				},
+			}),
+		);
 
 		expect(decisions).toEqual([]);
 		expect(issues.at(-1)).toMatchObject({ code: "malformed-agent-decision" });
@@ -474,48 +462,45 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 9", () => {
 				msg[0] === "DATA" && issues.push(msg[1]);
 			}
 		});
-		requestFacts.down([["DATA", issued("request-1", "op-1", "executor", "llm-call")]]);
+		requestFacts.set(issued("request-1", "op-1", "executor", "llm-call"));
 
-		outcomes.down([
-			[
-				"DATA",
-				fakeExecutorResult({
-					outcomeId: "bad-proposal",
-					requestId: "request-1",
-					operationId: "op-1",
-					routeId: "route-1",
-					executorId: "exec-1",
-					profileId: "profile-1",
-					attempt: 1,
-					result: {
+		outcomes.set(
+			fakeExecutorResult({
+				outcomeId: "bad-proposal",
+				requestId: "request-1",
+				operationId: "op-1",
+				routeId: "route-1",
+				executorId: "exec-1",
+				profileId: "profile-1",
+				attempt: 1,
+				result: {
+					kind: "agent-decision",
+					value: {
 						kind: "agent-decision",
-						value: {
-							kind: "agent-decision",
-							schemaRef: "graphrefly.agent-decision.v0",
-							decision: {
-								kind: "continue",
-								decisionId: "decision-continue",
-								effectRunId: "run-1",
-								agentRunId: "agent-1",
-								source: {
-									requestId: "request-1",
-									operationId: "op-1",
-									outcomeId: "bad-proposal",
-								},
-								next: [
-									{
-										kind: "proposal",
-										proposalId: "proposal-1",
-										effectRunId: "other-run",
-										requestKind: "executor",
-									},
-								],
+						schemaRef: "graphrefly.agent-decision.v0",
+						decision: {
+							kind: "continue",
+							decisionId: "decision-continue",
+							effectRunId: "run-1",
+							agentRunId: "agent-1",
+							source: {
+								requestId: "request-1",
+								operationId: "op-1",
+								outcomeId: "bad-proposal",
 							},
+							next: [
+								{
+									kind: "proposal",
+									proposalId: "proposal-1",
+									effectRunId: "other-run",
+									requestKind: "executor",
+								},
+							],
 						},
 					},
-				}),
-			],
-		]);
+				},
+			}),
+		);
 
 		expect(decisions).toEqual([]);
 		expect(issues.at(-1)).toMatchObject({ code: "malformed-agent-decision" });
@@ -532,31 +517,23 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 9", () => {
 			}
 		});
 
-		requestFacts.down([
-			["DATA", issued("request-1", "op-1", "executor", "llm-call")],
-			[
-				"DATA",
-				{
-					kind: "status",
-					requestId: "request-1",
-					operationId: "op-1",
-					effectRunId: "run-1",
-					status: "awaiting-provider",
-				},
-			],
-		]);
-		requestFacts.down([
-			[
-				"DATA",
-				{
-					kind: "status",
-					requestId: "request-1",
-					operationId: "op-1",
-					effectRunId: "run-1",
-					status: "completed",
-				},
-			],
-		]);
+		batch(() => {
+			requestFacts.set(issued("request-1", "op-1", "executor", "llm-call"));
+			requestFacts.set({
+				kind: "status",
+				requestId: "request-1",
+				operationId: "op-1",
+				effectRunId: "run-1",
+				status: "awaiting-provider",
+			});
+		});
+		requestFacts.set({
+			kind: "status",
+			requestId: "request-1",
+			operationId: "op-1",
+			effectRunId: "run-1",
+			status: "completed",
+		});
 
 		const latest = views.at(-1) as {
 			requestsById: Map<string, AgentRequestIssued>;
@@ -595,54 +572,48 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 9", () => {
 			}
 		});
 
-		requestFacts.down([
-			["DATA", issued("request-raw-issue", "op-raw-issue", "executor", "tool-call")],
-			[
-				"DATA",
-				{
-					kind: "status",
-					requestId: "request-raw-issue",
-					operationId: "op-raw-issue",
-					effectRunId: "run-1",
-					status: "failed",
-					sourceRefs: [
-						{
-							kind: "provider-raw",
-							id: "status-ref",
-							metadata: { stdout: "RAW_LEDGER_STATUS_REF_SHOULD_NOT_PROJECT" },
-						},
-					],
-					issues: [
-						{
-							kind: "issue",
-							code: "raw-status-issue",
-							source: "runtime-status",
-							message: "raw status issue",
-							correlationId: "corr-status-issue",
-							path: ["status", 0],
-							retryable: true,
-							details: { rawResponse: "RAW_LEDGER_STATUS_ISSUE_SHOULD_NOT_PROJECT" },
-							metadata: { summary: "safe status issue metadata" },
-						},
-					],
-					metadata: { apiKey: "RAW_LEDGER_STATUS_METADATA_SHOULD_NOT_PROJECT" },
-				} satisfies AgentRequestStatusChanged,
-			],
-			[
-				"DATA",
-				{
-					kind: "rejected",
-					proposalId: "proposal-raw-issue",
-					effectRunId: "run-1",
-					issue: {
-						kind: "issue",
-						code: "raw-rejected-issue",
-						message: "raw rejected issue",
-						details: { stderr: "RAW_LEDGER_REJECTED_ISSUE_SHOULD_NOT_PROJECT" },
+		batch(() => {
+			requestFacts.set(issued("request-raw-issue", "op-raw-issue", "executor", "tool-call"));
+			requestFacts.set({
+				kind: "status",
+				requestId: "request-raw-issue",
+				operationId: "op-raw-issue",
+				effectRunId: "run-1",
+				status: "failed",
+				sourceRefs: [
+					{
+						kind: "provider-raw",
+						id: "status-ref",
+						metadata: { stdout: "RAW_LEDGER_STATUS_REF_SHOULD_NOT_PROJECT" },
 					},
+				],
+				issues: [
+					{
+						kind: "issue",
+						code: "raw-status-issue",
+						source: "runtime-status",
+						message: "raw status issue",
+						correlationId: "corr-status-issue",
+						path: ["status", 0],
+						retryable: true,
+						details: { rawResponse: "RAW_LEDGER_STATUS_ISSUE_SHOULD_NOT_PROJECT" },
+						metadata: { summary: "safe status issue metadata" },
+					},
+				],
+				metadata: { apiKey: "RAW_LEDGER_STATUS_METADATA_SHOULD_NOT_PROJECT" },
+			} satisfies AgentRequestStatusChanged);
+			requestFacts.set({
+				kind: "rejected",
+				proposalId: "proposal-raw-issue",
+				effectRunId: "run-1",
+				issue: {
+					kind: "issue",
+					code: "raw-rejected-issue",
+					message: "raw rejected issue",
+					details: { stderr: "RAW_LEDGER_REJECTED_ISSUE_SHOULD_NOT_PROJECT" },
 				},
-			],
-		]);
+			});
+		});
 
 		const latest = views.at(-1);
 		expect(latest?.issues).toEqual(
@@ -731,7 +702,7 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 9", () => {
 				msg[0] === "DATA" && audit.push(msg[1]);
 			}
 		});
-		workItems.down([["DATA", workItemSeed("wi-1")]]);
+		workItems.set(workItemSeed("wi-1"));
 
 		const terminalResults: EffectRunResult[] = [
 			{
@@ -779,17 +750,14 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 9", () => {
 			},
 		];
 		for (const result of terminalResults) {
-			effectRuns.down([
-				[
-					"DATA",
-					effectRun({
-						effectRunId: result.effectRunId,
-						subjectRefs: [{ kind: "work-item", id: "wi-1" }],
-						goal: { kind: "verify" },
-					}),
-				],
-			]);
-			results.down([["DATA", result]]);
+			effectRuns.set(
+				effectRun({
+					effectRunId: result.effectRunId,
+					subjectRefs: [{ kind: "work-item", id: "wi-1" }],
+					goal: { kind: "verify" },
+				}),
+			);
+			results.set(result);
 		}
 
 		expect(evidence.map((fact) => fact.status)).toEqual([
@@ -833,35 +801,27 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 9", () => {
 			}
 		});
 		mapper.issues.subscribe(() => {});
-		workItems.down([["DATA", workItemSeed("wi-1")]]);
+		workItems.set(workItemSeed("wi-1"));
 		for (const runId of ["run-oversized", "run-mutable"]) {
-			effectRuns.down([
-				[
-					"DATA",
-					effectRun({
-						effectRunId: runId,
-						subjectRefs: [{ kind: "work-item", id: "wi-1" }],
-						goal: { kind: "verify" },
-					}),
-				],
-			]);
+			effectRuns.set(
+				effectRun({
+					effectRunId: runId,
+					subjectRefs: [{ kind: "work-item", id: "wi-1" }],
+					goal: { kind: "verify" },
+				}),
+			);
 		}
 
-		results.down([
-			[
-				"DATA",
-				{
-					kind: "effect-run-result",
-					resultId: "run-oversized:result",
-					status: "completed",
-					effectRunId: "run-oversized",
-					output: {
-						kind: "tool-output",
-						value: { content: "large-content-".repeat(80) },
-					},
-				},
-			],
-		]);
+		results.set({
+			kind: "effect-run-result",
+			resultId: "run-oversized:result",
+			status: "completed",
+			effectRunId: "run-oversized",
+			output: {
+				kind: "tool-output",
+				value: { content: "large-content-".repeat(80) },
+			},
+		});
 
 		const auditRefs = ["audit-1"];
 		const issueRefs = ["issue-ref-1"];
@@ -873,20 +833,15 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 9", () => {
 			refs: issueRefs,
 			path: issuePath,
 		};
-		results.down([
-			[
-				"DATA",
-				{
-					kind: "effect-run-result",
-					resultId: "run-mutable:result",
-					status: "failed",
-					effectRunId: "run-mutable",
-					auditRefs,
-					error: issue,
-					issues: [issue],
-				},
-			],
-		]);
+		results.set({
+			kind: "effect-run-result",
+			resultId: "run-mutable:result",
+			status: "failed",
+			effectRunId: "run-mutable",
+			auditRefs,
+			error: issue,
+			issues: [issue],
+		});
 		auditRefs.push("audit-mutated");
 		issueRefs.push("issue-ref-mutated");
 		issuePath.push("mutated");
@@ -939,77 +894,59 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 9", () => {
 				msg[0] === "DATA" && issues.push(msg[1]);
 			}
 		});
-		workItems.down([["DATA", workItemSeed("wi-1")]]);
-		effectRuns.down([
-			[
-				"DATA",
-				effectRun({
-					effectRunId: "run-1",
-					subjectRefs: [{ kind: "work-item", id: "wi-1" }],
-					goal: { kind: "verify" },
-				}),
-			],
-		]);
+		workItems.set(workItemSeed("wi-1"));
+		effectRuns.set(
+			effectRun({
+				effectRunId: "run-1",
+				subjectRefs: [{ kind: "work-item", id: "wi-1" }],
+				goal: { kind: "verify" },
+			}),
+		);
 
-		results.down([
-			[
-				"DATA",
-				{
-					kind: "effect-run-result",
-					resultId: "wrong-work-item",
-					status: "completed",
-					effectRunId: "run-1",
-					subjectRefs: [{ kind: "work-item", id: "wi-2" }],
-					output: { kind: "ok" },
-				},
-			],
-			[
-				"DATA",
-				{
-					kind: "effect-run-result",
-					resultId: "wrong-effect-run-ref",
-					status: "completed",
-					effectRunId: "run-1",
-					sourceRefs: [{ kind: "effect-run", id: "other-run" }],
-					output: { kind: "ok" },
-				},
-			],
-			[
-				"DATA",
-				{
-					kind: "effect-run-result",
-					resultId: "unknown-run",
-					status: "completed",
-					effectRunId: "missing-run",
-					output: { kind: "ok" },
-				},
-			],
-			[
-				"DATA",
-				{
-					kind: "effect-run-result",
-					resultId: "wrong-work-item-source-ref",
-					status: "completed",
-					effectRunId: "run-1",
-					sourceRefs: [{ kind: "work-item", id: "wi-2" }],
-					output: { kind: "ok" },
-				},
-			],
-			[
-				"DATA",
-				{
-					kind: "effect-run-result",
-					resultId: "ambiguous-work-item-subjects",
-					status: "completed",
-					effectRunId: "run-1",
-					subjectRefs: [
-						{ kind: "work-item", id: "wi-1" },
-						{ kind: "work-item", id: "wi-2" },
-					],
-					output: { kind: "ok" },
-				},
-			],
-		]);
+		batch(() => {
+			results.set({
+				kind: "effect-run-result",
+				resultId: "wrong-work-item",
+				status: "completed",
+				effectRunId: "run-1",
+				subjectRefs: [{ kind: "work-item", id: "wi-2" }],
+				output: { kind: "ok" },
+			});
+			results.set({
+				kind: "effect-run-result",
+				resultId: "wrong-effect-run-ref",
+				status: "completed",
+				effectRunId: "run-1",
+				sourceRefs: [{ kind: "effect-run", id: "other-run" }],
+				output: { kind: "ok" },
+			});
+			results.set({
+				kind: "effect-run-result",
+				resultId: "unknown-run",
+				status: "completed",
+				effectRunId: "missing-run",
+				output: { kind: "ok" },
+			});
+			results.set({
+				kind: "effect-run-result",
+				resultId: "wrong-work-item-source-ref",
+				status: "completed",
+				effectRunId: "run-1",
+				sourceRefs: [{ kind: "work-item", id: "wi-2" }],
+				output: { kind: "ok" },
+			});
+			results.set({
+				kind: "effect-run-result",
+				resultId: "ambiguous-work-item-subjects",
+				status: "completed",
+				effectRunId: "run-1",
+				subjectRefs: [
+					{ kind: "work-item", id: "wi-1" },
+					{ kind: "work-item", id: "wi-2" },
+				],
+				output: { kind: "ok" },
+			});
+		});
 
 		expect(evidence).toEqual([]);
 		expect(issues.map((issue) => (issue as { code: string }).code)).toEqual([
@@ -1043,29 +980,21 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 9", () => {
 				msg[0] === "DATA" && issues.push(msg[1]);
 			}
 		});
-		workItems.down([["DATA", workItemSeed("wi-other")]]);
-		effectRuns.down([
-			[
-				"DATA",
-				effectRun({
-					effectRunId: "run-1",
-					subjectRefs: [{ kind: "work-item", id: "wi-missing" }],
-					goal: { kind: "verify" },
-				}),
-			],
-		]);
-		results.down([
-			[
-				"DATA",
-				{
-					kind: "effect-run-result",
-					resultId: "run-1:result",
-					status: "completed",
-					effectRunId: "run-1",
-					output: { kind: "ok" },
-				},
-			],
-		]);
+		workItems.set(workItemSeed("wi-other"));
+		effectRuns.set(
+			effectRun({
+				effectRunId: "run-1",
+				subjectRefs: [{ kind: "work-item", id: "wi-missing" }],
+				goal: { kind: "verify" },
+			}),
+		);
+		results.set({
+			kind: "effect-run-result",
+			resultId: "run-1:result",
+			status: "completed",
+			effectRunId: "run-1",
+			output: { kind: "ok" },
+		});
 
 		expect(evidence).toEqual([]);
 		expect(issues.at(-1)).toMatchObject({ code: "unknown-work-item-evidence-target" });

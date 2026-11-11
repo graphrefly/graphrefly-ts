@@ -23,9 +23,11 @@ import {
 	isNodeActiveForRelease,
 	isNodeRuntimeQuiescentForRelease,
 	isNodeRuntimeReleased,
+	makeNode,
 	Node,
 	type NodeOptions,
 	releaseRuntimeOfNode,
+	StateNode,
 	setNodeOwner,
 	setNodeTopologyDepsChangedObserver,
 	subscriberCountOfNode,
@@ -140,47 +142,6 @@ export function assertGraphLocalNode(owner: Graph, n: Node<unknown>, label: stri
 		throw new Error(
 			`${label} belongs to a different graph; cross-graph deps require a wire bridge`,
 		);
-	}
-}
-
-/**
- * A state node (L4-Q1): a manual source whose `.set(v)` is `node.down([[DATA, v]])` sugar.
- * Extends the substrate Node so it is usable as a dep AND carries the graph-layer `.set`.
- *
- * @example
- * ```ts
- * import { graph } from "@graphrefly/ts/graph";
- *
- * const count = graph().state(0);
- * count.set(1);
- * ```
- * @category graph
- */
-export class StateNode<T> extends Node<T> {
-	/**
-	 * Host input (R-request-order): write a value; one write is one wave (in a batch, one array).
-	 * Given a function, computes the value from the current one when the write runs in request
-	 * order, and a function that returns its argument (Object.is) writes nothing. To write a
-	 * function as a value, wrap it: `set(() => fn)`.
-	 */
-	set(v: T | ((prev: T | undefined) => T)): void {
-		if (typeof v === "function") this._writeFn(v as (prev: T | undefined) => T);
-		else this.down([["DATA", v]]);
-	}
-
-	/** Host input (R-invalidation): drop the retained value; effective only while one is held. */
-	invalidate(): void {
-		this.down([["INVALIDATE"]]);
-	}
-
-	/** Host input (R-terminals): end this state with COMPLETE. */
-	complete(): void {
-		this.down([["COMPLETE"]]);
-	}
-
-	/** Host input (R-terminals): end this state with ERROR carrying `error`. */
-	error(error: unknown): void {
-		this.down([["ERROR", error]]);
 	}
 }
 
@@ -431,17 +392,20 @@ export class Graph {
 	// ── 8 verbs (core: node/state/batch + sugar: producer/derived/effect/mount) ──
 
 	/** ctx-level power surface: a raw `(ctx)=>void` fn (or a passthrough/state when null). */
+	node<T = unknown>(deps?: readonly [], fn?: null, opts?: SugarOpts<T>): StateNode<T>;
+	node<T = unknown>(
+		deps?: readonly Node<unknown>[],
+		fn?: NodeFn | null,
+		opts?: SugarOpts<T>,
+	): Node<T>;
 	node<T = unknown>(
 		deps: readonly Node<unknown>[] = [],
 		fn: NodeFn | null = null,
 		opts: SugarOpts<T> = {},
 	): Node<T> {
 		this._assertDepsLocal(deps, `dep of '${opts.name ?? "node"}'`);
-		return this._createRegistered(
-			opts.factory ?? "node",
-			deps,
-			opts,
-			(nodeOpts) => new Node<T>(deps as Node<unknown>[], fn, nodeOpts),
+		return this._createRegistered(opts.factory ?? "node", deps, opts, (nodeOpts) =>
+			makeNode<T>(deps as Node<unknown>[], fn, nodeOpts),
 		);
 	}
 
@@ -1224,7 +1188,7 @@ class GraphRegistration implements GraphLifecycleRegistrar {
 			opts.factory ?? "node",
 			deps,
 			opts,
-			(nodeOpts) => new Node<T>([...deps], fn, nodeOpts),
+			(nodeOpts) => makeNode<T>([...deps], fn, nodeOpts),
 			acquired.name,
 			acquired,
 		);
@@ -1249,7 +1213,7 @@ class GraphRegistration implements GraphLifecycleRegistrar {
 			factory,
 			deps,
 			opts,
-			(nodeOpts) => new Node<T>([...deps], fn, nodeOpts),
+			(nodeOpts) => makeNode<T>([...deps], fn, nodeOpts),
 			id,
 		);
 	}
@@ -1263,3 +1227,5 @@ function emitRegisteredDepsChanged(
 	if (graph !== undefined)
 		(graph as unknown as GraphRuntimeHost)._emitTopologyDepsChanged(node, prev, deps);
 }
+
+export { StateNode };

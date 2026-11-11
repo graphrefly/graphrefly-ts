@@ -2,7 +2,7 @@
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
 import { compoundTupleKey } from "../identity.js";
-import type { Node } from "../node/node.js";
+import type { Node, StateNode } from "../node/node.js";
 import {
 	type AgentOutputEnvelope,
 	type AgentRuntimeAuditRecord,
@@ -591,7 +591,8 @@ export function managedUntrustedJsComputeRuntime(
 		(record.cleanupDeadlineAtMs ??= Date.now() + record.manifest.cleanupTimeoutMs);
 	const remainingCleanupTime = (record: Active) =>
 		Math.max(1, ensureCleanupDeadline(record) - Date.now());
-	const emit = <T>(node: Node<T>, value: T) => node.down([["DATA", value]]);
+	const emit = <T>(node: StateNode<T>, value: NoInfer<T>) =>
+		node.set(value as Exclude<T, (...args: never[]) => unknown>);
 	const issue = (code: string, message: string, refs?: readonly string[]) =>
 		emit(issues, {
 			kind: "issue",

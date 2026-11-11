@@ -3,8 +3,9 @@
  * set up topology for tests of describe, incoming topology and restore. The package has no
  * graph-level rewire (R-request-order): nodes rewire themselves through ctx.rewire.
  */
-import type { NodeFn } from "../../ctx/types.js";
-import type { Node } from "../../node/node.js";
+import { depBatch, type NodeFn } from "../../ctx/types.js";
+import type { Graph } from "../../graph/graph.js";
+import type { Node, StateNode } from "../../node/node.js";
 import { nodeRuntimeHost } from "../../node/node-runtime-host.js";
 
 export function rewireOwnedNode(node: Node<unknown>, deps: Node<unknown>[], fn?: NodeFn): void {
@@ -22,4 +23,38 @@ export function removeOwnedNodeDep(node: Node<unknown>, dep: Node<unknown>, fn?:
 		node.deps.filter((d) => d !== dep),
 		fn,
 	);
+}
+
+/**
+ * Test-only: give a computed node an extra state input whose values it sends as its own and whose
+ * ERROR ends it, the way a test once wrote the node from outside. The node's function still runs
+ * for its own inputs; in a wave of only the extra input their batches are empty. With `only`, the
+ * extra input replaces the node's inputs and function, for a node whose own inputs never get a
+ * value in the test (its first run would wait for them).
+ */
+export function injectOwnedNodeInput<T>(
+	graph: Graph,
+	node: Node<T>,
+	opts: { only?: boolean } = {},
+): StateNode<T> {
+	const host = nodeRuntimeHost(node as Node<unknown>);
+	const original = opts.only ? null : host._slot.fn;
+	const kept = opts.only ? [] : [...node.deps];
+	const index = kept.length;
+	const input = graph.node<T>([], null, { name: `test/inject/${node.name ?? "node"}` });
+	host._rewire(
+		[...kept, input as Node<unknown>],
+		(ctx) => {
+			const ended = ctx.terminal[index];
+			if (ended !== undefined && ended !== false && ended !== true) {
+				ctx.down([["ERROR", ended]]);
+				return;
+			}
+			const values = depBatch(ctx, index) ?? [];
+			if (values.length > 0) ctx.down(values.map((value) => ["DATA", value] as const));
+			if (original !== null) original(ctx);
+		},
+		{ declare: true },
+	);
+	return input;
 }

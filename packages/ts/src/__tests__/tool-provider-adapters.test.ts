@@ -2,6 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { batch } from "../batch/batch.js";
 import { toolProviderExecutionRecipe } from "../executors/tool-provider.js";
 import {
 	type HttpToolProviderDriver,
@@ -97,8 +98,8 @@ describe("tool-provider concrete adapters (D283/D359-D362)", () => {
 		const outcomes = collectData(recipe.outcomes);
 		const views = collectData(recipe.outcomeViews.views);
 
-		routes.down([["DATA", route("request-1", profile)]]);
-		requestFacts.down([["DATA", request("request-1", "date.now")]]);
+		routes.set(route("request-1", profile));
+		requestFacts.set(request("request-1", "date.now"));
 
 		expect(outcomes).toEqual([
 			expect.objectContaining({
@@ -217,16 +218,13 @@ describe("tool-provider concrete adapters (D283/D359-D362)", () => {
 		const outcomes = collectData(recipe.outcomes);
 
 		expect(JSON.stringify(pack.catalogs)).not.toContain("execPath");
-		routes.down([["DATA", route("process-request", profile)]]);
-		requestFacts.down([
-			[
-				"DATA",
-				request("process-request", "process.execFile", {
-					command: "node",
-					args: ["-e", "console.log('adapter')"],
-				}),
-			],
-		]);
+		routes.set(route("process-request", profile));
+		requestFacts.set(
+			request("process-request", "process.execFile", {
+				command: "node",
+				args: ["-e", "console.log('adapter')"],
+			}),
+		);
 
 		expect(outcomes).toEqual([
 			expect.objectContaining({
@@ -385,14 +383,11 @@ describe("tool-provider concrete adapters (D283/D359-D362)", () => {
 		const outcomes = collectData(runtime.outcomes);
 		const statuses = collectData(runtime.runStatus);
 
-		inputs.down([
-			[
-				"DATA",
-				readyInput("http-test", "http.fetch", {
-					url: "https://api.example.test/data",
-				}),
-			],
-		]);
+		inputs.set(
+			readyInput("http-test", "http.fetch", {
+				url: "https://api.example.test/data",
+			}),
+		);
 
 		return Promise.resolve().then(() => {
 			expect(statuses).toEqual([
@@ -441,26 +436,22 @@ describe("tool-provider concrete adapters (D283/D359-D362)", () => {
 		});
 		const outcomes = collectData(runtime.outcomes);
 
-		inputs.down([
-			[
-				"DATA",
+		batch(() => {
+			inputs.set(
 				readyInput("http-test", "http.fetch", {
 					url: "https://api.example.test/data",
 				}),
-			],
-			[
-				"DATA",
-				{
-					...readyInput("http-test", "http.fetch", {
-						url: "https://evil.example.test/data",
-					}),
-					adapterInputId: "http-test:evil:input",
-					requestId: "http-test:evil:request",
-					operationId: "http-test:evil:op",
-					routeId: "http-test:evil:route",
-				},
-			],
-		]);
+			);
+			inputs.set({
+				...readyInput("http-test", "http.fetch", {
+					url: "https://evil.example.test/data",
+				}),
+				adapterInputId: "http-test:evil:input",
+				requestId: "http-test:evil:request",
+				operationId: "http-test:evil:op",
+				routeId: "http-test:evil:route",
+			});
+		});
 
 		return Promise.resolve().then(() => {
 			expect(outcomes).toEqual([
@@ -522,33 +513,28 @@ describe("tool-provider concrete adapters (D283/D359-D362)", () => {
 			"require",
 		);
 
-		inputs.down([["DATA", input]]);
+		inputs.set(input);
 
 		return Promise.resolve()
 			.then(() => {
 				expect(calls).toEqual([]);
-				candidateRuns.down([
-					["DATA", requestToolProviderAdapterRun(input, { runId: "candidate-http-approval" })],
-				]);
+				candidateRuns.set(
+					requestToolProviderAdapterRun(input, { runId: "candidate-http-approval" }),
+				);
 				return Promise.resolve();
 			})
 			.then(() => {
 				expect(calls).toEqual([]);
-				decisions.down([
-					[
-						"DATA",
-						{
-							kind: "tool-provider-run-admission-decision",
-							decisionId: "http-approval-decision",
-							proposalId: compoundTupleKey("tool-provider-run-admission-proposal", [
-								"candidate-http-approval",
-							]),
-							admissionId: "http-approval-admission",
-							outcome: "admit",
-							approvedRunId: "approved-http-run",
-						},
-					],
-				]);
+				decisions.set({
+					kind: "tool-provider-run-admission-decision",
+					decisionId: "http-approval-decision",
+					proposalId: compoundTupleKey("tool-provider-run-admission-proposal", [
+						"candidate-http-approval",
+					]),
+					admissionId: "http-approval-admission",
+					outcome: "admit",
+					approvedRunId: "approved-http-run",
+				});
 				return Promise.resolve();
 			})
 			.then(() => {
@@ -580,14 +566,11 @@ describe("tool-provider concrete adapters (D283/D359-D362)", () => {
 			allowedOrigins: ["https://api.example.test"],
 		});
 
-		inputs.down([
-			[
-				"DATA",
-				readyInput("http-test", "http.fetch", {
-					url: "https://api.example.test/redirect",
-				}),
-			],
-		]);
+		inputs.set(
+			readyInput("http-test", "http.fetch", {
+				url: "https://api.example.test/redirect",
+			}),
+		);
 
 		return Promise.resolve()
 			.then(() => Promise.resolve())
@@ -624,14 +607,11 @@ describe("tool-provider concrete adapters (D283/D359-D362)", () => {
 		});
 		const outcomes = collectData(runtime.outcomes);
 
-		inputs.down([
-			[
-				"DATA",
-				readyInput("http-test", "http.fetch", {
-					url: "https://api.example.test/ref",
-				}),
-			],
-		]);
+		inputs.set(
+			readyInput("http-test", "http.fetch", {
+				url: "https://api.example.test/ref",
+			}),
+		);
 
 		return Promise.resolve().then(() => {
 			const value = outcomes[0]?.kind === "result" ? outcomes[0].result.value : undefined;

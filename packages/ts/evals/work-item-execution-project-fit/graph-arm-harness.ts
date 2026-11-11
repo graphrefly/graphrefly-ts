@@ -1,5 +1,5 @@
 import { type Graph, graph } from "../../src/graph/graph.js";
-import type { Node } from "../../src/node/node.js";
+import type { Node, StateNode } from "../../src/node/node.js";
 import type {
 	AgentRequestFact,
 	AgentRequestIssued,
@@ -20,10 +20,10 @@ import type { D686Arm, D686PathObservation, D686Scenario } from "./contracts.js"
 type D686Input = Record<string, unknown>;
 
 export interface D686GraphArmSources {
-	readonly workItems: Node<WorkItemProjection<D686Input>>;
-	readonly workItemSeeds: Node<WorkItemSeed>;
-	readonly proposals: Node<WorkItemEffectPlanProposed<D686Input>>;
-	readonly admittedResults: Node<EffectRunResult>;
+	readonly workItems: StateNode<WorkItemProjection<D686Input>>;
+	readonly workItemSeeds: StateNode<WorkItemSeed>;
+	readonly proposals: StateNode<WorkItemEffectPlanProposed<D686Input>>;
+	readonly admittedResults: StateNode<EffectRunResult>;
 }
 
 export interface D686GraphArmBundle {
@@ -118,37 +118,30 @@ export function runD686GraphArm(
 		executionInputRevision: 1,
 		lastEventId: `event-${scenario.scenarioId}`,
 	};
-	sources.workItemSeeds.down([
-		["DATA", { kind: "work-item", workItemId, summary: projection.summary }],
-	]);
-	sources.workItems.down([["DATA", projection]]);
-	sources.proposals.down([
-		[
-			"DATA",
-			{
-				kind: "work-item-effect-plan-proposed",
-				planId: `plan-${scenario.scenarioId}`,
-				workItemId,
-				executionInputRevision: 1,
-				joinPolicy: "all-required",
-				members: scenario.members.map((member) => ({
-					memberId: member.memberId,
-					effectKind: "d686-offline-effect",
-					required: member.required,
-					dependsOnMemberIds: member.dependsOnMemberIds,
-					goal: {
-						kind: "d686-offline-effect",
-						input: {
-							inputId: `${scenario.scenarioId}:${member.memberId}`,
-							inputKind: "d686-offline-effect",
-							dataMode: "inline",
-							value: { memberId: member.memberId },
-						},
-					},
-				})),
-			} satisfies WorkItemEffectPlanProposed<D686Input>,
-		],
-	]);
+	sources.workItemSeeds.set({ kind: "work-item", workItemId, summary: projection.summary });
+	sources.workItems.set(projection);
+	sources.proposals.set({
+		kind: "work-item-effect-plan-proposed",
+		planId: `plan-${scenario.scenarioId}`,
+		workItemId,
+		executionInputRevision: 1,
+		joinPolicy: "all-required",
+		members: scenario.members.map((member) => ({
+			memberId: member.memberId,
+			effectKind: "d686-offline-effect",
+			required: member.required,
+			dependsOnMemberIds: member.dependsOnMemberIds,
+			goal: {
+				kind: "d686-offline-effect",
+				input: {
+					inputId: `${scenario.scenarioId}:${member.memberId}`,
+					inputKind: "d686-offline-effect",
+					dataMode: "inline",
+					value: { memberId: member.memberId },
+				},
+			},
+		})),
+	} satisfies WorkItemEffectPlanProposed<D686Input>);
 
 	const terminal = new Map<string, EffectRunResult["status"]>();
 	const admissionTrace: {
@@ -206,7 +199,7 @@ export function runD686GraphArm(
 		terminalEffectRuns.set(candidate.effectRunId, candidate.resultId);
 		const memberId = memberByEffectRun.get(candidate.effectRunId)!;
 		terminal.set(memberId, candidate.status);
-		sources.admittedResults.down([["DATA", candidate]]);
+		sources.admittedResults.set(candidate);
 		return true;
 	};
 	// D686_COORDINATOR:manual-graphrefly:provenance-and-fault-governance:END

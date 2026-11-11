@@ -64,22 +64,17 @@ export function remoteCall<TRequest = unknown, TResponse = unknown>(
 		timeouts,
 		call(operation, requestId, payload, callOpts) {
 			const request = remoteCallRequest(operation, requestId, payload);
-			bridge.command.down([
-				[
-					"DATA",
-					{
-						kind: "send",
-						payload: request,
-						idempotencyKey: callOpts?.idempotencyKey,
-						requestId,
-					},
-				],
-			]);
+			bridge.command.set({
+				kind: "send",
+				payload: request,
+				idempotencyKey: callOpts?.idempotencyKey,
+				requestId,
+			});
 			return request;
 		},
 		timeout(requestId, operation, error) {
 			const timeout = remoteCallTimeout(requestId, operation, error);
-			timeouts.down([["DATA", timeout]]);
+			timeouts.set(timeout);
 			return timeout;
 		},
 	};

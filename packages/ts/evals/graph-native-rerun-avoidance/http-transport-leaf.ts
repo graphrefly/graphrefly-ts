@@ -148,49 +148,39 @@ export function createRootEvalHttpTransportLeaf<T>(
 			try {
 				// Only opaque admission coordinates enter Graph DATA. The marker is
 				// consumed by this private driver and is never sent over the network.
-				inputs.down([
-					[
-						"DATA",
-						{
-							kind: "tool-provider-adapter-input",
-							adapterInputId: executionId,
-							status: "ready",
-							requestId: executionId,
-							operationId: executionId,
-							providerId,
-							toolName: "http.fetch",
-							routeId: providerId,
-							executorId: name,
-							profileId: `${name}/profile`,
-							sourceRefs: [{ kind: "eval-admission", id: executionId }],
-							toolCall: {
-								kind: "tool-call",
-								toolName: "http.fetch",
-								arguments: {
-									url: options.endpoint,
-									method: "POST",
-									headers: { "x-eval-transport-id": executionId },
-								},
-							},
+				inputs.set({
+					kind: "tool-provider-adapter-input",
+					adapterInputId: executionId,
+					status: "ready",
+					requestId: executionId,
+					operationId: executionId,
+					providerId,
+					toolName: "http.fetch",
+					routeId: providerId,
+					executorId: name,
+					profileId: `${name}/profile`,
+					sourceRefs: [{ kind: "eval-admission", id: executionId }],
+					toolCall: {
+						kind: "tool-call",
+						toolName: "http.fetch",
+						arguments: {
+							url: options.endpoint,
+							method: "POST",
+							headers: { "x-eval-transport-id": executionId },
 						},
-					],
-				]);
-				requests.down([
-					[
-						"DATA",
-						{
-							kind: "tool-provider-adapter-run-requested",
-							runId: executionId,
-							adapterInputId: executionId,
-							requestId: executionId,
-							operationId: executionId,
-							providerId,
-							attempt: 1,
-							reason: "initial",
-							sourceRefs: [{ kind: "eval-admission", id: executionId }],
-						},
-					],
-				]);
+					},
+				});
+				requests.set({
+					kind: "tool-provider-adapter-run-requested",
+					runId: executionId,
+					adapterInputId: executionId,
+					requestId: executionId,
+					operationId: executionId,
+					providerId,
+					attempt: 1,
+					reason: "initial",
+					sourceRefs: [{ kind: "eval-admission", id: executionId }],
+				});
 			} catch (error) {
 				reject(error);
 			}

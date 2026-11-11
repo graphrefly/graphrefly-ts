@@ -408,7 +408,8 @@ export class Node<T = unknown> {
 	 * External emission toward sinks (state-node push, or async late-emit). One call = one wave.
 	 * PENDING and RESOLVED are the kernel's and are rejected (R-wave).
 	 */
-	down(msgs: Wave): void {
+	/** Host input to a state node (R-request-order); StateNode exposes it as its four inputs. */
+	protected _hostInput(msgs: Wave): void {
 		this._assertNotReleased("down");
 		validateNodeOutput(msgs);
 		// R-terminals: a host input to an ended node is refused.
@@ -671,11 +672,35 @@ export class Node<T = unknown> {
  * @category core
  */
 export function node<T = unknown>(
-	deps: Node<unknown>[] = [],
+	deps?: readonly [],
+	handleOrFn?: null,
+	opts?: NodeOptions<T>,
+): StateNode<T>;
+export function node<T = unknown>(
+	deps?: Node<unknown>[],
+	handleOrFn?: Handle | NodeFn | null,
+	opts?: NodeOptions<T>,
+): Node<T>;
+export function node<T = unknown>(
+	deps: readonly Node<unknown>[] = [],
 	handleOrFn: Handle | NodeFn | null = null,
 	opts: NodeOptions<T> = {},
 ): Node<T> {
-	return new Node<T>(deps, handleOrFn, opts);
+	return makeNode<T>([...deps], handleOrFn, opts);
+}
+
+/**
+ * Internal: a node with no dependencies and no function is a state node, the only node with host
+ * inputs (R-node, graphrefly-ts:D175).
+ */
+export function makeNode<T>(
+	deps: Node<unknown>[],
+	handleOrFn: Handle | NodeFn | null,
+	opts: NodeOptions<T>,
+): Node<T> {
+	return deps.length === 0 && handleOrFn === null
+		? new StateNode<T>(deps, null, opts)
+		: new Node<T>(deps, handleOrFn, opts);
 }
 
 /**
@@ -703,22 +728,42 @@ export function dynamicNode<T = unknown>(
 }
 
 /**
- * @internal A write a function makes to another node is a request that runs after the current
- * wave (R-request-order; graphrefly-ts:D172 request states). Until the general request queue
- * lands, this queues one `down` on the target's boundary queue; outside a wave it runs at once.
+ * A state node (R-node): a node with no dependencies and no function. Its host inputs are
+ * `set`, `invalidate`, `complete` and `error` (graphrefly-ts:D175); a plain Node has none.
+ *
+ * @example
+ * ```ts
+ * import { graph } from "@graphrefly/ts/graph";
+ *
+ * const count = graph().state(0);
+ * count.set(1);
+ * ```
+ * @category graph
  */
-export function requestDownAfterWave(target: Node<unknown>, msgs: Wave): void {
-	if (!isWaveActive()) {
-		target.down(msgs);
-		return;
+export class StateNode<T> extends Node<T> {
+	/**
+	 * Host input (R-request-order): write a value; one write is one wave (in a batch, one array).
+	 * Given a function, computes the value from the current one when the write runs in request
+	 * order, and a function that returns its argument (Object.is) writes nothing. To write a
+	 * function as a value, wrap it: `set(() => fn)`.
+	 */
+	set(v: T | ((prev: T | undefined) => T)): void {
+		if (typeof v === "function") this._writeFn(v as (prev: T | undefined) => T);
+		else this._hostInput([["DATA", v]]);
 	}
-	const host = nodeRuntimeHost(target);
-	const array: Wave = [...msgs];
-	deferRewire(
-		host._core,
-		() => {
-			if (!host._released) target.down(array);
-		},
-		{ batchToken: currentBoundaryBatchToken() },
-	);
+
+	/** Host input (R-invalidation): drop the retained value; effective only while one is held. */
+	invalidate(): void {
+		this._hostInput([["INVALIDATE"]]);
+	}
+
+	/** Host input (R-terminals): end this state with COMPLETE. */
+	complete(): void {
+		this._hostInput([["COMPLETE"]]);
+	}
+
+	/** Host input (R-terminals): end this state with ERROR carrying `error`. */
+	error(error: unknown): void {
+		this._hostInput([["ERROR", error]]);
+	}
 }

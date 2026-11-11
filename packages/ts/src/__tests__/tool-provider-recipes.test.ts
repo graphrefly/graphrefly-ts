@@ -49,8 +49,8 @@ describe("tool provider execution recipe (D283/D359-D362)", () => {
 			...collectData(recipe.issues.outcomeViews),
 		];
 
-		routes.down([["DATA", route()]]);
-		requestFacts.down([["DATA", request()]]);
+		routes.set(route());
+		requestFacts.set(request());
 
 		expect(inputs).toEqual([
 			expect.objectContaining({

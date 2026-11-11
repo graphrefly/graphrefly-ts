@@ -17,6 +17,7 @@ import { graph } from "../graph/graph.js";
 import { selectRetentionVictims } from "../graph/policies/collection.js";
 import { Dispatcher, type Message } from "../index.js";
 import type { Node } from "../node/node.js";
+import { asState } from "./helpers/as-state.js";
 
 const types = (m: Message[]) => m.map((x) => x[0]);
 const data = <T>(m: Message[]): T[] =>
@@ -42,7 +43,7 @@ class _CountingDispatcher extends Dispatcher {
 
 /** Request one snapshot: a live write to the collection's request state (graphrefly-ts:D172). */
 function demand(request: Node<true>): void {
-	request.down([["DATA", true]]);
+	asState(request).set(true);
 }
 
 describe("collectionCore two-port shape (D60) via reactiveList", () => {
@@ -690,7 +691,7 @@ describe("reactiveMap (D60 #3) — lazy TTL + LRU + delete-reason", () => {
 		m.setFrom(src as Node<readonly [string, number]>);
 		expect(g.describe().edges).toContainEqual({ from: "map.bind#0", to: "map.apply" });
 
-		expect(() => src.down([["DATA", 1 as unknown as readonly [string, number]]])).not.toThrow();
+		expect(() => src.set(1 as unknown as readonly [string, number])).not.toThrow();
 		expect(m.size).toBe(0);
 		expect(g.describe().edges).toContainEqual({ from: "src", to: "map.bind#0" });
 		// The apply node ended with the folder's ERROR; its closed lifetime is back on its declared

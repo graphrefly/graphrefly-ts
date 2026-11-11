@@ -48,7 +48,7 @@ describe("environment outbound adapters (D130/D132)", () => {
 			}
 		});
 
-		source.down([["DATA", "alpha"]]);
+		source.set("alpha");
 		expect(calls.map((call) => call.request)).toEqual([
 			{ method: "POST", url: "/events", body: "alpha" },
 		]);
@@ -95,7 +95,7 @@ describe("environment outbound adapters (D130/D132)", () => {
 			}
 		});
 
-		source.down([["DATA", "alpha"]]);
+		source.set("alpha");
 
 		expect(events).toContainEqual(["DATA", { kind: "attempt", value: "alpha", attempt: 1 }]);
 		expect(events).toContainEqual([
@@ -135,7 +135,7 @@ describe("environment outbound adapters (D130/D132)", () => {
 		});
 		const unsubscribe = bundle.events.subscribe(() => {});
 
-		source.down([["DATA", "alpha"]]);
+		source.set("alpha");
 		unsubscribe();
 
 		expect(canceled).toBe(0);

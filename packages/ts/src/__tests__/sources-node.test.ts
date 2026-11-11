@@ -180,7 +180,7 @@ describe("node-only process sources", () => {
 			}
 		});
 
-		source.down([["DATA", "adapter-out"]]);
+		source.set("adapter-out");
 		await waitFor(() =>
 			events.some(
 				(msg) =>

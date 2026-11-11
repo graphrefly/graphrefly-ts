@@ -1,6 +1,6 @@
 import { type Ctx, depLiveBatch } from "../ctx/types.js";
 import { canonicalTupleKey } from "../identity.js";
-import type { Node } from "../node/node.js";
+import type { Node, StateNode } from "../node/node.js";
 import type { MessageBusCommand } from "./types.js";
 
 /**
@@ -16,10 +16,10 @@ export function requestParams<T>(ctx: Ctx, depIndex: number): T | undefined {
 }
 
 export function publishCommand<T extends MessageBusCommand>(
-	commandNode: Node<MessageBusCommand>,
+	commandNode: StateNode<MessageBusCommand>,
 	command: T,
 ): T {
-	commandNode.down([["DATA", command]]);
+	commandNode.set(command);
 	return command;
 }
 

@@ -1,5 +1,5 @@
 import type { RetryPolicy } from "../graph/resilience.js";
-import type { Node } from "../node/node.js";
+import type { Node, StateNode } from "../node/node.js";
 import type {
 	CanonicalProtobufErrorCategory,
 	CanonicalWireBridgeDataBody,
@@ -154,9 +154,9 @@ export interface WireBridgeOptions {
 
 export interface WireBridgeBundle<TOutbound = unknown, TInbound = unknown> {
 	readonly sessionId: string;
-	readonly command: Node<WireBridgeCommand<TOutbound>>;
+	readonly command: StateNode<WireBridgeCommand<TOutbound>>;
 	readonly outbound: Node<WireBridgeEnvelope<TOutbound>>;
-	readonly inbound: Node<WireBridgeEnvelope<TInbound>>;
+	readonly inbound: StateNode<WireBridgeEnvelope<TInbound>>;
 	readonly events: Node<WireBridgeEvent<TOutbound, TInbound>>;
 	readonly acks: Node<WireBridgeAck>;
 	readonly nacks: Node<WireBridgeNack>;

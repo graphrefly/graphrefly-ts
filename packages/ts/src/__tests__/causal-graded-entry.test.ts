@@ -40,16 +40,15 @@ function teardown(graph: Graph, hosts: readonly Host[] = []) {
 function drive(run: ReturnType<typeof setup>, epoch = 1) {
 	const e = evaluationFixture(),
 		f = policyFacts(e);
-	run.sources.pack.down([["DATA", evaluationPack([e])]]);
+	run.sources.pack.set(evaluationPack([e]));
 	batch(() => {
-		run.sources.current.down([["DATA", f.current]]);
-		run.sources.verification.down([
-			["DATA", { ...f.verification, binding: { ...presetBinding, compositionEpoch: epoch } }],
-		]);
-		run.sources.local.down([["DATA", f.local]]);
-		run.sources.arrivals.down([
-			["DATA", { packRef: presetBinding.packRef, evaluationRefs: [e.evaluationRef] }],
-		]);
+		run.sources.current.set(f.current);
+		run.sources.verification.set({
+			...f.verification,
+			binding: { ...presetBinding, compositionEpoch: epoch },
+		});
+		run.sources.local.set(f.local);
+		run.sources.arrivals.set({ packRef: presetBinding.packRef, evaluationRefs: [e.evaluationRef] });
 	});
 }
 
@@ -280,14 +279,12 @@ it("one factory composes independent names, inputs, epochs and local overrides o
 		expect(calls).toHaveLength(0);
 		const e = evaluationFixture(),
 			f = policyFacts(e, binding);
-		secondSources.pack.down([["DATA", evaluationPack([e], binding)]]);
+		secondSources.pack.set(evaluationPack([e], binding));
 		batch(() => {
-			secondSources.current.down([["DATA", f.current]]);
-			secondSources.verification.down([["DATA", f.verification]]);
-			secondSources.local.down([["DATA", f.local]]);
-			secondSources.arrivals.down([
-				["DATA", { packRef: binding.packRef, evaluationRefs: [e.evaluationRef] }],
-			]);
+			secondSources.current.set(f.current);
+			secondSources.verification.set(f.verification);
+			secondSources.local.set(f.local);
+			secondSources.arrivals.set({ packRef: binding.packRef, evaluationRefs: [e.evaluationRef] });
 		});
 		await drain();
 		expect(calls).toHaveLength(1);

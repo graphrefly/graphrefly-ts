@@ -150,19 +150,14 @@ export function attachToolProviderAdapterRuntime<TArguments = unknown, TResult =
 						runtimeDiagnosticKey(rawKey),
 						maxPublicMetadataStringChars(opts.publicText),
 					).text;
-		runtimeStatus.down([
-			[
-				"DATA",
-				{
-					kind: "tool-provider-adapter-runtime-status",
-					...(occurredAtMs === undefined ? {} : { occurredAtMs }),
-					...statusFields,
-					...(key === undefined ? {} : { key }),
-					...(sourceRefs === undefined ? {} : { sourceRefs }),
-					...(metadata === undefined ? {} : { metadata }),
-				} satisfies ToolProviderAdapterRuntimeStatus,
-			],
-		]);
+		runtimeStatus.set({
+			kind: "tool-provider-adapter-runtime-status",
+			...(occurredAtMs === undefined ? {} : { occurredAtMs }),
+			...statusFields,
+			...(key === undefined ? {} : { key }),
+			...(sourceRefs === undefined ? {} : { sourceRefs }),
+			...(metadata === undefined ? {} : { metadata }),
+		} satisfies ToolProviderAdapterRuntimeStatus);
 	}
 
 	function publishRuntimeAudit(
@@ -176,21 +171,16 @@ export function attachToolProviderAdapterRuntime<TArguments = unknown, TResult =
 	): void {
 		auditSeq += 1;
 		const metadata = sanitizeProviderGraphVisibleRecord(auditOpts.metadata, opts.publicText);
-		audit.down([
-			[
-				"DATA",
-				{
-					id: compoundTupleKey("tool-provider-adapter-runtime-audit", [name, String(auditSeq)]),
-					kind,
-					...(auditOpts.subjectId === undefined ? {} : { subjectId: auditOpts.subjectId }),
-					...(auditOpts.sourceRefs === undefined
-						? {}
-						: { sourceRefs: sanitizeAdapterInputSourceRefs(auditOpts.sourceRefs) }),
-					...(auditOpts.issueCode === undefined ? {} : { issueCode: auditOpts.issueCode }),
-					...(metadata === undefined ? {} : { metadata }),
-				} satisfies AgentRuntimeAuditRecord,
-			],
-		]);
+		audit.set({
+			id: compoundTupleKey("tool-provider-adapter-runtime-audit", [name, String(auditSeq)]),
+			kind,
+			...(auditOpts.subjectId === undefined ? {} : { subjectId: auditOpts.subjectId }),
+			...(auditOpts.sourceRefs === undefined
+				? {}
+				: { sourceRefs: sanitizeAdapterInputSourceRefs(auditOpts.sourceRefs) }),
+			...(auditOpts.issueCode === undefined ? {} : { issueCode: auditOpts.issueCode }),
+			...(metadata === undefined ? {} : { metadata }),
+		} satisfies AgentRuntimeAuditRecord);
 	}
 
 	function trackRunIssue(issue: DataIssue, emittedKey?: string, dropKey?: () => void): void {
@@ -205,7 +195,7 @@ export function attachToolProviderAdapterRuntime<TArguments = unknown, TResult =
 	}
 
 	function publishIssue(issue: DataIssue, track = true): void {
-		issues.down([["DATA", sanitizeAdapterInputIssue(issue)]]);
+		issues.set(sanitizeAdapterInputIssue(issue));
 		if (track) trackRunIssue(issue);
 	}
 
@@ -235,7 +225,7 @@ export function attachToolProviderAdapterRuntime<TArguments = unknown, TResult =
 				opts.publicText,
 			),
 		} satisfies ToolProviderAdapterRunStatus;
-		runStatus.down([["DATA", statusFact]]);
+		runStatus.set(statusFact);
 		trackRunStatus(statusFact);
 	}
 
@@ -639,21 +629,16 @@ export function attachToolProviderAdapterRuntime<TArguments = unknown, TResult =
 			providerId: input.providerId,
 			toolName: input.toolName,
 		});
-		status.down([
-			[
-				"DATA",
-				{
-					kind: "status",
-					requestId: input.requestId,
-					operationId: input.operationId,
-					effectRunId: input.effectRunId,
-					status: nextStatus,
-					sourceRefs: defaultToolProviderAdapterEvidenceRefs(input),
-					...(statusIssues === undefined ? {} : { issues: statusIssues }),
-					...(metadata === undefined ? {} : { metadata }),
-				} satisfies AgentRequestStatusChanged,
-			],
-		]);
+		status.set({
+			kind: "status",
+			requestId: input.requestId,
+			operationId: input.operationId,
+			effectRunId: input.effectRunId,
+			status: nextStatus,
+			sourceRefs: defaultToolProviderAdapterEvidenceRefs(input),
+			...(statusIssues === undefined ? {} : { issues: statusIssues }),
+			...(metadata === undefined ? {} : { metadata }),
+		} satisfies AgentRequestStatusChanged);
 	}
 
 	function publishAudit(
@@ -669,19 +654,14 @@ export function attachToolProviderAdapterRuntime<TArguments = unknown, TResult =
 			toolName: input.toolName,
 			...metadata,
 		});
-		audit.down([
-			[
-				"DATA",
-				{
-					id: compoundTupleKey("tool-provider-adapter-runtime-audit", [name, String(auditSeq)]),
-					kind,
-					subjectId: input.requestId,
-					sourceRefs: defaultToolProviderAdapterEvidenceRefs(input),
-					...(issueCode === undefined ? {} : { issueCode }),
-					...(cleanMetadata === undefined ? {} : { metadata: cleanMetadata }),
-				} satisfies AgentRuntimeAuditRecord,
-			],
-		]);
+		audit.set({
+			id: compoundTupleKey("tool-provider-adapter-runtime-audit", [name, String(auditSeq)]),
+			kind,
+			subjectId: input.requestId,
+			sourceRefs: defaultToolProviderAdapterEvidenceRefs(input),
+			...(issueCode === undefined ? {} : { issueCode }),
+			...(cleanMetadata === undefined ? {} : { metadata: cleanMetadata }),
+		} satisfies AgentRuntimeAuditRecord);
 	}
 
 	function publishOutcome(
@@ -710,7 +690,7 @@ export function attachToolProviderAdapterRuntime<TArguments = unknown, TResult =
 			publishAudit(input, "tool-provider-adapter-runtime-invalid-input", undefined, issue.code);
 			return;
 		}
-		outcomes.down([["DATA", outcome]]);
+		outcomes.set(outcome);
 		const execution = executions.get(executionCoordinate(request));
 		if (execution !== undefined) {
 			executions.set(
@@ -982,7 +962,7 @@ export function attachToolProviderAdapterRuntime<TArguments = unknown, TResult =
 		for (const msg of incoming) {
 			if (msg[0] === "DATA") {
 				const statusFact = msg[1] as ToolProviderAdapterRunStatus;
-				runStatus.down([["DATA", statusFact]]);
+				runStatus.set(statusFact);
 			}
 		}
 	});
@@ -993,7 +973,7 @@ export function attachToolProviderAdapterRuntime<TArguments = unknown, TResult =
 	});
 	const unsubscribeRunProjectorAudit = runProjector.audit.subscribe((incoming) => {
 		for (const msg of incoming) {
-			if (msg[0] === "DATA") audit.down([["DATA", msg[1] as AgentRuntimeAuditRecord]]);
+			if (msg[0] === "DATA") audit.set(msg[1] as AgentRuntimeAuditRecord);
 		}
 	});
 	const unsubscribeRunRequests = runProjector.requests.subscribe((incoming) => {

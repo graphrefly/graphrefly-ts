@@ -193,7 +193,7 @@ describe("WorkItem authoring, verification, and scheduling surface (D333-D343) â
 		const workItems = collectData<WorkItemProjection>(bundle.workItems);
 		const issues = collectData(bundle.issues);
 
-		facts.down([["DATA", workItemCreatedFromDraft("wi-1", draft())]]);
+		facts.set(workItemCreatedFromDraft("wi-1", draft()));
 
 		expect(issues).toEqual([]);
 		expect(workItems.at(-1)).toMatchObject({
@@ -212,16 +212,13 @@ describe("WorkItem authoring, verification, and scheduling surface (D333-D343) â
 		const workItems = collectData(bundle.workItems);
 		const status = collectData(bundle.status);
 
-		facts.down([
-			[
-				"DATA",
-				workItemSpawnProposed("spawn-1", draft({ summary: "Proposed child" }), {
-					proposedWorkItemId: "wi-child",
-					parentWorkItemId: "wi-parent",
-					idempotencyKey: "spawn:wi-parent:wi-child",
-				}),
-			],
-		]);
+		facts.set(
+			workItemSpawnProposed("spawn-1", draft({ summary: "Proposed child" }), {
+				proposedWorkItemId: "wi-child",
+				parentWorkItemId: "wi-parent",
+				idempotencyKey: "spawn:wi-parent:wi-child",
+			}),
+		);
 
 		expect(workItems).toEqual([]);
 		expect(status.at(-1)).toMatchObject({
@@ -328,36 +325,23 @@ describe("WorkItem authoring, verification, and scheduling surface (D333-D343) â
 		const issues = collectData(bundle.issues);
 		const status = collectData(bundle.status);
 
-		facts.down([
-			[
-				"DATA",
-				{
-					kind: "work-item-created",
-					eventId: "bad-create",
-					workItemId: "bad",
-					draft: { summary: 7 },
-				} as unknown as WorkItemAuthoringInput,
-			],
-		]);
-		facts.down([
-			[
-				"DATA",
-				workItemSpawnProposed("bad-spawn", { summary: "" } as unknown as ReturnType<typeof draft>),
-			],
-		]);
-		facts.down([["DATA", workItemCreatedFromDraft("wi-1", draft())]]);
-		facts.down([["DATA", workItemCreatedFromDraft("wi-1", draft(), { eventId: "wi-1:again" })]]);
-		facts.down([
-			[
-				"DATA",
-				{
-					kind: "work-item-patched",
-					eventId: "wi-1:bad-patch",
-					workItemId: "wi-1",
-					patch: { workItemId: "evil" },
-				} as unknown as WorkItemAuthoringInput,
-			],
-		]);
+		facts.set({
+			kind: "work-item-created",
+			eventId: "bad-create",
+			workItemId: "bad",
+			draft: { summary: 7 },
+		} as unknown as WorkItemAuthoringInput);
+		facts.set(
+			workItemSpawnProposed("bad-spawn", { summary: "" } as unknown as ReturnType<typeof draft>),
+		);
+		facts.set(workItemCreatedFromDraft("wi-1", draft()));
+		facts.set(workItemCreatedFromDraft("wi-1", draft(), { eventId: "wi-1:again" }));
+		facts.set({
+			kind: "work-item-patched",
+			eventId: "wi-1:bad-patch",
+			workItemId: "wi-1",
+			patch: { workItemId: "evil" },
+		} as unknown as WorkItemAuthoringInput);
 
 		expect(workItems.at(-1)).toMatchObject({ workItemId: "wi-1", authoringRevision: 1 });
 		expect(issues.map((issue) => issue.code)).toEqual(
@@ -377,51 +361,31 @@ describe("WorkItem authoring, verification, and scheduling surface (D333-D343) â
 		});
 		const workItems = collectData<WorkItemProjection>(bundle.workItems);
 
-		facts.down([["DATA", workItemCreatedFromDraft("wi-1", draft())]]);
-		facts.down([
-			[
-				"DATA",
-				{
-					kind: "work-item-patched",
-					eventId: "wi-1:metadata",
-					workItemId: "wi-1",
-					patch: { metadata: { color: "blue" } },
-				},
-			],
-		]);
-		facts.down([
-			[
-				"DATA",
-				{
-					kind: "work-item-patched",
-					eventId: "wi-1:custom-field-other",
-					workItemId: "wi-1",
-					patch: { customFields: { other: true } },
-				},
-			],
-		]);
-		facts.down([
-			[
-				"DATA",
-				{
-					kind: "work-item-patched",
-					eventId: "wi-1:custom-field-risk",
-					workItemId: "wi-1",
-					patch: { customFields: { risk: "high" } },
-				},
-			],
-		]);
-		facts.down([
-			[
-				"DATA",
-				{
-					kind: "work-item-patched",
-					eventId: "wi-1:detail",
-					workItemId: "wi-1",
-					patch: { detail: "Updated execution detail" },
-				},
-			],
-		]);
+		facts.set(workItemCreatedFromDraft("wi-1", draft()));
+		facts.set({
+			kind: "work-item-patched",
+			eventId: "wi-1:metadata",
+			workItemId: "wi-1",
+			patch: { metadata: { color: "blue" } },
+		});
+		facts.set({
+			kind: "work-item-patched",
+			eventId: "wi-1:custom-field-other",
+			workItemId: "wi-1",
+			patch: { customFields: { other: true } },
+		});
+		facts.set({
+			kind: "work-item-patched",
+			eventId: "wi-1:custom-field-risk",
+			workItemId: "wi-1",
+			patch: { customFields: { risk: "high" } },
+		});
+		facts.set({
+			kind: "work-item-patched",
+			eventId: "wi-1:detail",
+			workItemId: "wi-1",
+			patch: { detail: "Updated execution detail" },
+		});
 
 		expect(workItems.map((item) => [item.authoringRevision, item.executionInputRevision])).toEqual([
 			[1, 1],
@@ -439,18 +403,13 @@ describe("WorkItem authoring, verification, and scheduling surface (D333-D343) â
 		const workItems = collectData<WorkItemProjection>(bundle.workItems);
 		const issues = collectData(bundle.issues);
 
-		facts.down([["DATA", workItemCreatedFromDraft("wi-1", draft())]]);
-		facts.down([
-			[
-				"DATA",
-				{
-					kind: "work-item-patched",
-					eventId: "wi-1:clear-detail",
-					workItemId: "wi-1",
-					patch: { detail: undefined },
-				},
-			],
-		]);
+		facts.set(workItemCreatedFromDraft("wi-1", draft()));
+		facts.set({
+			kind: "work-item-patched",
+			eventId: "wi-1:clear-detail",
+			workItemId: "wi-1",
+			patch: { detail: undefined },
+		});
 
 		expect(issues).toEqual([]);
 		expect(workItems.at(-1)).toMatchObject({
@@ -471,10 +430,8 @@ describe("WorkItem authoring, verification, and scheduling surface (D333-D343) â
 		});
 		const requests = collectData(lowerer.effectRequests);
 
-		facts.down([
-			["DATA", workItemCreatedFromDraft("wi-1", draft({ verificationPlan: undefined }))],
-		]);
-		facts.down([["DATA", verificationPlanChanged("wi-1", plan(), { eventId: "wi-1:plan-1" })]]);
+		facts.set(workItemCreatedFromDraft("wi-1", draft({ verificationPlan: undefined })));
+		facts.set(verificationPlanChanged("wi-1", plan(), { eventId: "wi-1:plan-1" }));
 
 		expect(requests.at(-1)).toMatchObject({
 			kind: "work-item-effect-requested",
@@ -497,21 +454,18 @@ describe("WorkItem authoring, verification, and scheduling surface (D333-D343) â
 		const bundle = workItemAuthoringProjector(g, { facts });
 		const workItems = collectData<WorkItemProjection>(bundle.workItems);
 
-		facts.down([["DATA", workItemCreatedFromDraft("wi-1", draft())]]);
-		facts.down([["DATA", verificationPlanChanged("wi-1", plan(), { eventId: "wi-1:plan-a" })]]);
-		facts.down([
-			[
-				"DATA",
-				verificationPlanChanged(
-					"wi-1",
-					{
-						planId: "plan-2",
-						steps: [{ stepId: "step-2", mode: "auto", verifiesCriteriaIds: ["ac-1"] }],
-					},
-					{ eventId: "wi-1:plan-b" },
-				),
-			],
-		]);
+		facts.set(workItemCreatedFromDraft("wi-1", draft()));
+		facts.set(verificationPlanChanged("wi-1", plan(), { eventId: "wi-1:plan-a" }));
+		facts.set(
+			verificationPlanChanged(
+				"wi-1",
+				{
+					planId: "plan-2",
+					steps: [{ stepId: "step-2", mode: "auto", verifiesCriteriaIds: ["ac-1"] }],
+				},
+				{ eventId: "wi-1:plan-b" },
+			),
+		);
 
 		expect(workItems.at(-1)).toMatchObject({
 			verificationPlan: expect.objectContaining({ planId: "plan-2" }),
@@ -534,32 +488,29 @@ describe("WorkItem authoring, verification, and scheduling surface (D333-D343) â
 		const contextRefs = [{ kind: "source-file", id: "src/work-item.ts" }];
 		const capacityHints = { lane: "ci", expectedMs: 2500 };
 
-		facts.down([
-			[
-				"DATA",
-				workItemCreatedFromDraft(
-					"wi-1",
-					draft({
-						verificationPlan: {
-							planId: "plan-rich",
-							steps: [
-								{
-									stepId: "step-rich",
-									mode: "auto",
-									effectKind: "verification",
-									verifiesCriteriaIds: ["ac-1"],
-									goal: { kind: "verification", summary: "Run rich verification" },
-									input: { target: "release" },
-									contextRefs,
-									requirements: ["node-20", "pnpm"],
-									capacityHints,
-								},
-							],
-						},
-					}),
-				),
-			],
-		]);
+		facts.set(
+			workItemCreatedFromDraft(
+				"wi-1",
+				draft({
+					verificationPlan: {
+						planId: "plan-rich",
+						steps: [
+							{
+								stepId: "step-rich",
+								mode: "auto",
+								effectKind: "verification",
+								verifiesCriteriaIds: ["ac-1"],
+								goal: { kind: "verification", summary: "Run rich verification" },
+								input: { target: "release" },
+								contextRefs,
+								requirements: ["node-20", "pnpm"],
+								capacityHints,
+							},
+						],
+					},
+				}),
+			),
+		);
 
 		expect(requests.at(-1)).toMatchObject({
 			goal: {
@@ -590,7 +541,7 @@ describe("WorkItem authoring, verification, and scheduling surface (D333-D343) â
 		const requests = collectData(lowerer.effectRequests);
 		const status = collectData(lowerer.status);
 
-		facts.down([["DATA", workItemCreatedFromDraft("wi-1", draft())]]);
+		facts.set(workItemCreatedFromDraft("wi-1", draft()));
 
 		expect(requests).toEqual([]);
 		expect(status.at(-1)).toMatchObject({
@@ -613,23 +564,18 @@ describe("WorkItem authoring, verification, and scheduling surface (D333-D343) â
 		const contextRefs = [{ kind: "artifact", id: "build-log" }];
 		const capacityHints = { lane: "review" };
 
-		facts.down([["DATA", workItemCreatedFromDraft("wi-1", draft())]]);
-		intents.down([
-			[
-				"DATA",
-				{
-					kind: "work-item-dispatch-intent",
-					intentId: "intent-current",
-					workItemId: "wi-1",
-					targetKind: "verification",
-					executionInputRevision: 1,
-					contextRefs,
-					requirements: ["human-readable-summary"],
-					capacityHints,
-					limits: { timeoutMs: 120000, maxSteps: 4 },
-				} satisfies WorkItemDispatchIntent,
-			],
-		]);
+		facts.set(workItemCreatedFromDraft("wi-1", draft()));
+		intents.set({
+			kind: "work-item-dispatch-intent",
+			intentId: "intent-current",
+			workItemId: "wi-1",
+			targetKind: "verification",
+			executionInputRevision: 1,
+			contextRefs,
+			requirements: ["human-readable-summary"],
+			capacityHints,
+			limits: { timeoutMs: 120000, maxSteps: 4 },
+		} satisfies WorkItemDispatchIntent);
 
 		expect(requests.at(-1)).toMatchObject({
 			limits: { timeoutMs: 120000, maxSteps: 4 },
@@ -654,20 +600,15 @@ describe("WorkItem authoring, verification, and scheduling surface (D333-D343) â
 		const issues = collectData(lowerer.issues);
 		const status = collectData(lowerer.status);
 
-		facts.down([["DATA", workItemCreatedFromDraft("wi-1", draft())]]);
+		facts.set(workItemCreatedFromDraft("wi-1", draft()));
 		const beforeIntentRequestCount = requests.length;
-		intents.down([
-			[
-				"DATA",
-				{
-					kind: "work-item-dispatch-intent",
-					intentId: "intent-executor",
-					workItemId: "wi-1",
-					targetKind: "executor",
-					executionInputRevision: 1,
-				} satisfies WorkItemDispatchIntent,
-			],
-		]);
+		intents.set({
+			kind: "work-item-dispatch-intent",
+			intentId: "intent-executor",
+			workItemId: "wi-1",
+			targetKind: "executor",
+			executionInputRevision: 1,
+		} satisfies WorkItemDispatchIntent);
 
 		expect(requests).toHaveLength(beforeIntentRequestCount);
 		expect(issues.at(-1)).toMatchObject({ code: "unsupported-effect-kind" });
@@ -688,31 +629,21 @@ describe("WorkItem authoring, verification, and scheduling surface (D333-D343) â
 		const issues = collectData(lowerer.issues);
 		const status = collectData(lowerer.status);
 
-		facts.down([["DATA", workItemCreatedFromDraft("wi-1", draft())]]);
-		facts.down([
-			[
-				"DATA",
-				{
-					kind: "work-item-patched",
-					eventId: "wi-1:detail",
-					workItemId: "wi-1",
-					patch: { detail: "Changed before execution" },
-				},
-			],
-		]);
+		facts.set(workItemCreatedFromDraft("wi-1", draft()));
+		facts.set({
+			kind: "work-item-patched",
+			eventId: "wi-1:detail",
+			workItemId: "wi-1",
+			patch: { detail: "Changed before execution" },
+		});
 		const beforeIntentRequestCount = requests.length;
-		intents.down([
-			[
-				"DATA",
-				{
-					kind: "work-item-dispatch-intent",
-					intentId: "intent-old",
-					workItemId: "wi-1",
-					targetKind: "verification",
-					executionInputRevision: 1,
-				} satisfies WorkItemDispatchIntent,
-			],
-		]);
+		intents.set({
+			kind: "work-item-dispatch-intent",
+			intentId: "intent-old",
+			workItemId: "wi-1",
+			targetKind: "verification",
+			executionInputRevision: 1,
+		} satisfies WorkItemDispatchIntent);
 
 		expect(requests).toHaveLength(beforeIntentRequestCount);
 		expect(issues.at(-1)).toMatchObject({ code: "stale-execution-input" });
@@ -733,8 +664,8 @@ describe("WorkItem authoring, verification, and scheduling surface (D333-D343) â
 		const results = collectData(mapper.results);
 		const proposals = collectData(mapper.proposals);
 
-		facts.down([["DATA", workItemCreatedFromDraft("wi-1", draft())]]);
-		evidence.down([["DATA", evidenceFact("ev-no-policy")]]);
+		facts.set(workItemCreatedFromDraft("wi-1", draft()));
+		evidence.set(evidenceFact("ev-no-policy"));
 		expect(results.at(-1)).toMatchObject({
 			kind: "verification-result-recorded",
 			status: "passed",
@@ -742,24 +673,16 @@ describe("WorkItem authoring, verification, and scheduling surface (D333-D343) â
 		});
 		expect(proposals).toEqual([]);
 
-		policies.down([
-			[
-				"DATA",
-				{
-					kind: "work-item-verification-mapping-policy",
-					policyId: "verify-policy",
-					actionProposals: [{ actionKind: "mark-verified", statuses: ["completed"] }],
-				} satisfies WorkItemVerificationMappingPolicy,
-			],
-		]);
-		evidence.down([
-			[
-				"DATA",
-				evidenceFact("ev-policy", {
-					sourceRefs: [{ kind: "work-item-verification-mapping-policy", id: "verify-policy" }],
-				}),
-			],
-		]);
+		policies.set({
+			kind: "work-item-verification-mapping-policy",
+			policyId: "verify-policy",
+			actionProposals: [{ actionKind: "mark-verified", statuses: ["completed"] }],
+		} satisfies WorkItemVerificationMappingPolicy);
+		evidence.set(
+			evidenceFact("ev-policy", {
+				sourceRefs: [{ kind: "work-item-verification-mapping-policy", id: "verify-policy" }],
+			}),
+		);
 
 		expect(proposals.at(-1)).toMatchObject({
 			kind: "work-item-domain-action-proposal",

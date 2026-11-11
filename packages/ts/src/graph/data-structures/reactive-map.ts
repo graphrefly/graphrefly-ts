@@ -33,7 +33,7 @@ import {
 } from "../../ctx/types.js";
 import { strictCanonicalJsonBytes } from "../../json/codec.js";
 import { attachableInput } from "../../node/attachable-input.js";
-import { Node } from "../../node/node.js";
+import { Node, StateNode } from "../../node/node.js";
 import { oneArrayPerRun } from "../../node/one-array-per-run.js";
 import { errorPayload } from "../../protocol/messages.js";
 import { registerBackendStateContributor } from "../checkpoint.js";
@@ -394,7 +394,7 @@ function createReactiveMap<K, V>(
 				meta: { kind: "collection_policy", collection: "reactiveMap", policy: label },
 			});
 		}
-		return new Node<number>([], null, {
+		return new StateNode<number>([], null, {
 			...base,
 			initial: value,
 			factory: `reactiveMap.${label}`,
@@ -418,17 +418,15 @@ function createReactiveMap<K, V>(
 		return constPolicyNode(label, validate(opt));
 	}
 
-	const intentOp: Operator<never, MapIntent<K, V>> = {
-		factory: "reactiveMap.intent",
-		body: () => {},
-	};
+	// The map's host input: its methods write intents here (graphrefly-ts:D175).
 	const intent = graph
-		? graph.initNode(intentOp, [], {
+		? graph.node<MapIntent<K, V>>([], null, {
+				factory: "reactiveMap.intent",
 				name: name ? `${name}.intent` : undefined,
 				meta: { kind: "collection_intent", collection: "reactiveMap" },
 				...(restorable ? { restore: { ref: "reactiveMap.intent" } } : {}),
 			})
-		: new Node<MapIntent<K, V>>([], null, {
+		: new StateNode<MapIntent<K, V>>([], null, {
 				...base,
 				factory: "reactiveMap.intent",
 				name: name ? `${name}.intent` : undefined,
@@ -621,7 +619,7 @@ function createReactiveMap<K, V>(
 				meta: { kind: "collection_request", collection: "reactiveMap" },
 				...(restorable ? { restore: { ref: "reactiveMap.request" } } : {}),
 			})
-		: new Node<true>([], null, {
+		: new StateNode<true>([], null, {
 				...base,
 				factory: "reactiveMap.request",
 				name: name ? `${name}.request` : undefined,
@@ -708,14 +706,12 @@ function createReactiveMap<K, V>(
 
 	function doSet(key: K, value: V, ttl?: number): void {
 		if (ttl !== undefined) validateTtl(ttl);
-		intent.down([
-			["DATA", ttl === undefined ? { kind: "set", key, value } : { kind: "set", key, value, ttl }],
-		]);
+		intent.set(ttl === undefined ? { kind: "set", key, value } : { kind: "set", key, value, ttl });
 	}
 
 	function read(key: K): Lookup<V> {
 		const r = backend.lookup(key);
-		if (!r.found && r.expired) intent.down([["DATA", { kind: "pruneKey", key }]]);
+		if (!r.found && r.expired) intent.set({ kind: "pruneKey", key });
 		return r;
 	}
 
@@ -765,7 +761,7 @@ function createReactiveMap<K, V>(
 			return read(key).found;
 		},
 		toMap(): ReadonlyMap<K, V> {
-			intent.down([["DATA", { kind: "pruneExpired" }]]);
+			intent.set({ kind: "pruneExpired" });
 			return backend.snapshot();
 		},
 		select,
@@ -777,18 +773,18 @@ function createReactiveMap<K, V>(
 			for (const [k, v] of entries) doSet(k, v, opts?.ttl);
 		},
 		delete(key: K): void {
-			intent.down([["DATA", { kind: "delete", key }]]);
+			intent.set({ kind: "delete", key });
 		},
 		deleteMany(keys: Iterable<K>): void {
 			for (const k of keys) {
-				intent.down([["DATA", { kind: "delete", key: k }]]);
+				intent.set({ kind: "delete", key: k });
 			}
 		},
 		clear(): void {
-			intent.down([["DATA", { kind: "clear" }]]);
+			intent.set({ kind: "clear" });
 		},
 		pruneExpired(): void {
-			intent.down([["DATA", { kind: "pruneExpired" }]]);
+			intent.set({ kind: "pruneExpired" });
 		},
 
 		setFrom(src: Node<readonly [K, V]>): () => void {

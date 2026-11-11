@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import ts from "typescript";
+import { batch } from "../../src/batch/batch.js";
 import { graph } from "../../src/graph/graph.js";
 import { strictJsonCodec } from "../../src/json/codec.js";
 import type {
@@ -306,7 +307,7 @@ function duplicateEffectRunSuppressionPassed(): boolean {
 			if (message[0] === "DATA") issueCodes.push((message[1] as { readonly code: string }).code);
 		}
 	});
-	workItems.down([["DATA", { kind: "work-item", workItemId: "d687-duplicate" }]]);
+	workItems.set({ kind: "work-item", workItemId: "d687-duplicate" });
 	const request = {
 		kind: "work-item-effect-requested" as const,
 		requestId: "d687-request-1",
@@ -315,10 +316,10 @@ function duplicateEffectRunSuppressionPassed(): boolean {
 		effectKind: "d687-duplicate-check",
 		goal: { kind: "d687-duplicate-check" },
 	};
-	requests.down([
-		["DATA", request],
-		["DATA", { ...request, requestId: "d687-request-2" }],
-	]);
+	batch(() => {
+		requests.set(request);
+		requests.set({ ...request, requestId: "d687-request-2" });
+	});
 	return runs.length === 1 && issueCodes.includes("duplicate-work-item-effect-run");
 }
 

@@ -22,6 +22,7 @@ import {
 	toolProviderRunAdmissionProjector,
 	toolProviderRunRetryProjector,
 } from "../orchestration/index.js";
+import { asState } from "./helpers/as-state.js";
 
 const retryRunId = (runId: string, attempt: number) =>
 	compoundTupleKey("tool-provider-run-retry", [runId, String(attempt)]);
@@ -40,9 +41,9 @@ describe("toolProviderRunRetryProjector (D422)", () => {
 		const input = readyInput("retry-immediate");
 		const outcome = retryableFailure(input, { attempt: 1, runId: "run-1" });
 
-		harness.inputs.down([["DATA", input]]);
-		harness.policies.down([["DATA", retryPolicyFact("retry-policy", 3)]]);
-		harness.outcomes.down([["DATA", outcome]]);
+		harness.inputs.set(input);
+		harness.policies.set(retryPolicyFact("retry-policy", 3));
+		harness.outcomes.set(outcome);
 
 		expect(harness.seen.proposals).toEqual([
 			expect.objectContaining({
@@ -85,9 +86,9 @@ describe("toolProviderRunRetryProjector (D422)", () => {
 		const input = readyInput("retry-exhausted");
 		const outcome = retryableFailure(input, { attempt: 2, runId: "run-2" });
 
-		harness.inputs.down([["DATA", input]]);
-		harness.policies.down([["DATA", retryPolicyFact("retry-policy", 2)]]);
-		harness.outcomes.down([["DATA", outcome]]);
+		harness.inputs.set(input);
+		harness.policies.set(retryPolicyFact("retry-policy", 2));
+		harness.outcomes.set(outcome);
 
 		expect(harness.seen.runRequests).toEqual([]);
 		expect(harness.seen.status).toEqual([
@@ -107,10 +108,10 @@ describe("toolProviderRunRetryProjector (D422)", () => {
 		const input = readyInput("retry-replay");
 		const outcome = retryableFailure(input, { attempt: 1, runId: "run-replay" });
 
-		harness.inputs.down([["DATA", input]]);
-		harness.policies.down([["DATA", retryPolicyFact("retry-policy", 3)]]);
-		harness.outcomes.down([["DATA", outcome]]);
-		harness.outcomes.down([["DATA", outcome]]);
+		harness.inputs.set(input);
+		harness.policies.set(retryPolicyFact("retry-policy", 3));
+		harness.outcomes.set(outcome);
+		harness.outcomes.set(outcome);
 
 		expect(harness.seen.proposals).toHaveLength(1);
 		expect(harness.seen.runRequests).toHaveLength(1);
@@ -129,10 +130,10 @@ describe("toolProviderRunRetryProjector (D422)", () => {
 		};
 		const outcome = retryableFailure(secondInput, { attempt: 1, runId: "run-exact-second" });
 
-		harness.inputs.down([["DATA", firstInput]]);
-		harness.inputs.down([["DATA", secondInput]]);
-		harness.policies.down([["DATA", retryPolicyFact("retry-policy", 3)]]);
-		harness.outcomes.down([["DATA", outcome]]);
+		harness.inputs.set(firstInput);
+		harness.inputs.set(secondInput);
+		harness.policies.set(retryPolicyFact("retry-policy", 3));
+		harness.outcomes.set(outcome);
 
 		expect(harness.seen.runRequests).toEqual([
 			expect.objectContaining({
@@ -159,10 +160,10 @@ describe("toolProviderRunRetryProjector (D422)", () => {
 		};
 		delete outcomeWithoutInputId.inputId;
 
-		harness.inputs.down([["DATA", firstInput]]);
-		harness.inputs.down([["DATA", secondInput]]);
-		harness.policies.down([["DATA", retryPolicyFact("retry-policy", 3)]]);
-		harness.outcomes.down([["DATA", outcomeWithoutInputId]]);
+		harness.inputs.set(firstInput);
+		harness.inputs.set(secondInput);
+		harness.policies.set(retryPolicyFact("retry-policy", 3));
+		harness.outcomes.set(outcomeWithoutInputId);
 
 		expect(harness.seen.runRequests).toEqual([]);
 		expect(harness.seen.issues).toEqual([
@@ -181,13 +182,13 @@ describe("toolProviderRunRetryProjector (D422)", () => {
 		const input = readyInput("retry-out-of-order");
 		const outcome = retryableFailure(input, { attempt: 1, runId: "run-out-of-order" });
 
-		harness.outcomes.down([["DATA", outcome]]);
+		harness.outcomes.set(outcome);
 		expect(harness.seen.runRequests).toEqual([]);
 
-		harness.inputs.down([["DATA", input]]);
+		harness.inputs.set(input);
 		expect(harness.seen.runRequests).toEqual([]);
 
-		harness.policies.down([["DATA", retryPolicyFact("retry-policy", 3)]]);
+		harness.policies.set(retryPolicyFact("retry-policy", 3));
 
 		expect(harness.seen.runRequests).toEqual([
 			expect.objectContaining({
@@ -203,12 +204,10 @@ describe("toolProviderRunRetryProjector (D422)", () => {
 		const input = readyInput("retry-delayed");
 		const outcome = retryableFailure(input, { attempt: 1, runId: "run-delayed" });
 
-		harness.inputs.down([["DATA", input]]);
-		harness.policies.down([
-			["DATA", retryPolicyFact("retry-policy", 3, { kind: "constant", delayMs: 50 })],
-		]);
-		harness.nowMs?.down([["DATA", 1_000]]);
-		harness.outcomes.down([["DATA", outcome]]);
+		harness.inputs.set(input);
+		harness.policies.set(retryPolicyFact("retry-policy", 3, { kind: "constant", delayMs: 50 }));
+		asState(harness.nowMs).set(1_000);
+		harness.outcomes.set(outcome);
 
 		expect(harness.seen.scheduled).toEqual([
 			expect.objectContaining({
@@ -230,10 +229,10 @@ describe("toolProviderRunRetryProjector (D422)", () => {
 		]);
 		expect(harness.seen.runRequests).toEqual([]);
 
-		harness.nowMs?.down([["DATA", 1_049]]);
+		asState(harness.nowMs).set(1_049);
 		expect(harness.seen.runRequests).toEqual([]);
 
-		harness.nowMs?.down([["DATA", 1_050]]);
+		asState(harness.nowMs).set(1_050);
 		expect(harness.seen.runRequests).toEqual([
 			expect.objectContaining({
 				runId: retryRunId("run-delayed", 2),
@@ -248,12 +247,10 @@ describe("toolProviderRunRetryProjector (D422)", () => {
 		const input = readyInput("retry-shared-ready");
 		const outcome = retryableFailure(input, { attempt: 1, runId: "run-shared-ready" });
 
-		harness.inputs.down([["DATA", input]]);
-		harness.policies.down([
-			["DATA", retryPolicyFact("retry-policy", 3, { kind: "constant", delayMs: 50 })],
-		]);
-		harness.nowMs?.down([["DATA", 1_000]]);
-		harness.outcomes.down([["DATA", outcome]]);
+		harness.inputs.set(input);
+		harness.policies.set(retryPolicyFact("retry-policy", 3, { kind: "constant", delayMs: 50 }));
+		asState(harness.nowMs).set(1_000);
+		harness.outcomes.set(outcome);
 
 		expect(harness.seen.runRequests).toEqual([]);
 		const schedule = harness.seen.readinessSchedules[0];
@@ -264,25 +261,20 @@ describe("toolProviderRunRetryProjector (D422)", () => {
 			}),
 		);
 
-		harness.nowMs?.down([["DATA", 1_050]]);
+		asState(harness.nowMs).set(1_050);
 		expect(harness.seen.runRequests).toEqual([]);
 
-		harness.readiness?.down([
-			[
-				"DATA",
-				{
-					kind: "scheduled-readiness-ready",
-					scheduleId: schedule?.scheduleId ?? "missing",
-					subjectRefs: schedule?.subjectRefs ?? [],
-					readyAtMs: schedule?.readyAtMs ?? 0,
-					nowMs: 1_050,
-					sourceRefs: [
-						{ kind: "scheduled-readiness", id: schedule?.scheduleId ?? "missing" },
-						...(schedule?.sourceRefs ?? []),
-					],
-				},
+		asState(harness.readiness).set({
+			kind: "scheduled-readiness-ready",
+			scheduleId: schedule?.scheduleId ?? "missing",
+			subjectRefs: schedule?.subjectRefs ?? [],
+			readyAtMs: schedule?.readyAtMs ?? 0,
+			nowMs: 1_050,
+			sourceRefs: [
+				{ kind: "scheduled-readiness", id: schedule?.scheduleId ?? "missing" },
+				...(schedule?.sourceRefs ?? []),
 			],
-		]);
+		});
 
 		expect(harness.seen.runRequests).toEqual([
 			expect.objectContaining({
@@ -302,30 +294,23 @@ describe("toolProviderRunRetryProjector (D422)", () => {
 		const input = readyInput("retry-readiness-mismatch");
 		const outcome = retryableFailure(input, { attempt: 1, runId: "run-readiness-mismatch" });
 
-		harness.inputs.down([["DATA", input]]);
-		harness.policies.down([
-			["DATA", retryPolicyFact("retry-policy", 3, { kind: "constant", delayMs: 50 })],
-		]);
-		harness.nowMs?.down([["DATA", 1_000]]);
-		harness.outcomes.down([["DATA", outcome]]);
+		harness.inputs.set(input);
+		harness.policies.set(retryPolicyFact("retry-policy", 3, { kind: "constant", delayMs: 50 }));
+		asState(harness.nowMs).set(1_000);
+		harness.outcomes.set(outcome);
 		const schedule = harness.seen.readinessSchedules[0];
 
-		harness.readiness?.down([
-			[
-				"DATA",
-				{
-					kind: "scheduled-readiness-ready",
-					scheduleId: schedule?.scheduleId ?? "missing",
-					subjectRefs: schedule?.subjectRefs ?? [],
-					readyAtMs: 1_049,
-					nowMs: 1_049,
-					sourceRefs: [
-						{ kind: "scheduled-readiness", id: schedule?.scheduleId ?? "missing" },
-						...(schedule?.sourceRefs ?? []),
-					],
-				},
+		asState(harness.readiness).set({
+			kind: "scheduled-readiness-ready",
+			scheduleId: schedule?.scheduleId ?? "missing",
+			subjectRefs: schedule?.subjectRefs ?? [],
+			readyAtMs: 1_049,
+			nowMs: 1_049,
+			sourceRefs: [
+				{ kind: "scheduled-readiness", id: schedule?.scheduleId ?? "missing" },
+				...(schedule?.sourceRefs ?? []),
 			],
-		]);
+		});
 
 		expect(harness.seen.runRequests).toEqual([]);
 		expect(harness.seen.issues).toEqual([
@@ -338,40 +323,28 @@ describe("toolProviderRunRetryProjector (D422)", () => {
 		const input = readyInput("retry-readiness-provenance");
 		const outcome = retryableFailure(input, { attempt: 1, runId: "run-readiness-provenance" });
 
-		harness.inputs.down([["DATA", input]]);
-		harness.policies.down([
-			["DATA", retryPolicyFact("retry-policy", 3, { kind: "constant", delayMs: 50 })],
-		]);
-		harness.nowMs?.down([["DATA", 1_000]]);
-		harness.outcomes.down([["DATA", outcome]]);
+		harness.inputs.set(input);
+		harness.policies.set(retryPolicyFact("retry-policy", 3, { kind: "constant", delayMs: 50 }));
+		asState(harness.nowMs).set(1_000);
+		harness.outcomes.set(outcome);
 		const schedule = harness.seen.readinessSchedules[0];
 
-		harness.readiness?.down([
-			[
-				"DATA",
-				{
-					kind: "scheduled-readiness-ready",
-					scheduleId: schedule?.scheduleId ?? "missing",
-					subjectRefs: schedule?.subjectRefs ?? [],
-					readyAtMs: schedule?.readyAtMs ?? 0,
-					nowMs: 1_050,
-					sourceRefs: { kind: "not-array", id: "bad" },
-				} as unknown as ScheduledReadinessReady,
-			],
-		]);
-		harness.readiness?.down([
-			[
-				"DATA",
-				{
-					kind: "scheduled-readiness-ready",
-					scheduleId: schedule?.scheduleId ?? "missing",
-					subjectRefs: schedule?.subjectRefs ?? [],
-					readyAtMs: schedule?.readyAtMs ?? 0,
-					nowMs: 1_050,
-					sourceRefs: [{ kind: "external-ready", id: "unprovenanced" }],
-				},
-			],
-		]);
+		asState(harness.readiness).set({
+			kind: "scheduled-readiness-ready",
+			scheduleId: schedule?.scheduleId ?? "missing",
+			subjectRefs: schedule?.subjectRefs ?? [],
+			readyAtMs: schedule?.readyAtMs ?? 0,
+			nowMs: 1_050,
+			sourceRefs: { kind: "not-array", id: "bad" },
+		} as unknown as ScheduledReadinessReady);
+		asState(harness.readiness).set({
+			kind: "scheduled-readiness-ready",
+			scheduleId: schedule?.scheduleId ?? "missing",
+			subjectRefs: schedule?.subjectRefs ?? [],
+			readyAtMs: schedule?.readyAtMs ?? 0,
+			nowMs: 1_050,
+			sourceRefs: [{ kind: "external-ready", id: "unprovenanced" }],
+		});
 
 		expect(harness.seen.runRequests).toEqual([]);
 		expect(harness.seen.issues).toEqual(
@@ -387,24 +360,22 @@ describe("toolProviderRunRetryProjector (D422)", () => {
 		const input = readyInput("retry-clock-late");
 		const outcome = retryableFailure(input, { attempt: 1, runId: "run-clock-late" });
 
-		harness.inputs.down([["DATA", input]]);
-		harness.policies.down([
-			["DATA", retryPolicyFact("retry-policy", 3, { kind: "constant", delayMs: 25 })],
-		]);
-		harness.outcomes.down([["DATA", outcome]]);
+		harness.inputs.set(input);
+		harness.policies.set(retryPolicyFact("retry-policy", 3, { kind: "constant", delayMs: 25 }));
+		harness.outcomes.set(outcome);
 
 		expect(harness.seen.proposals).toHaveLength(1);
 		expect(harness.seen.scheduled).toEqual([]);
 		expect(harness.seen.runRequests).toEqual([]);
 
-		harness.nowMs?.down([["DATA", 2_000]]);
+		asState(harness.nowMs).set(2_000);
 
 		expect(harness.seen.scheduled).toEqual([
 			expect.objectContaining({ outcomeId: outcome.outcomeId, retryAtMs: 2_025 }),
 		]);
 		expect(harness.seen.runRequests).toEqual([]);
 
-		harness.nowMs?.down([["DATA", 2_025]]);
+		asState(harness.nowMs).set(2_025);
 		expect(harness.seen.runRequests).toEqual([
 			expect.objectContaining({ runId: retryRunId("run-clock-late", 2), attempt: 2 }),
 		]);
@@ -451,25 +422,20 @@ describe("toolProviderRunRetryProjector (D422)", () => {
 		const input = withApproval(readyInput("retry-admission"), "require");
 		const outcome = retryableFailure(input, { attempt: 1, runId: "candidate-before-retry" });
 
-		inputs.down([["DATA", input]]);
-		policies.down([["DATA", retryPolicyFact("retry-policy", 3)]]);
-		outcomes.down([["DATA", outcome]]);
+		inputs.set(input);
+		policies.set(retryPolicyFact("retry-policy", 3));
+		outcomes.set(outcome);
 
 		expect(calls).toEqual([]);
 
-		decisions.down([
-			[
-				"DATA",
-				{
-					kind: "tool-provider-run-admission-decision",
-					decisionId: "retry-admission-decision",
-					proposalId: admissionProposalId(retryRunId("candidate-before-retry", 2)),
-					admissionId: "retry-admission",
-					outcome: "admit",
-					approvedRunId: "retry-approved-run",
-				},
-			],
-		]);
+		decisions.set({
+			kind: "tool-provider-run-admission-decision",
+			decisionId: "retry-admission-decision",
+			proposalId: admissionProposalId(retryRunId("candidate-before-retry", 2)),
+			admissionId: "retry-admission",
+			outcome: "admit",
+			approvedRunId: "retry-approved-run",
+		});
 
 		expect(calls).toEqual([2]);
 		runtime.dispose();
@@ -496,7 +462,7 @@ describe("toolProviderRunRetryProjector (D422)", () => {
 			],
 		});
 
-		inputs.down([["DATA", readyInput("runtime-no-retry")]]);
+		inputs.set(readyInput("runtime-no-retry"));
 
 		expect(calls).toEqual([1]);
 		runtime.dispose();
@@ -514,9 +480,9 @@ describe("toolProviderRunRetryProjector (D422)", () => {
 			metadata: { runId: "run-artifact", rawResponseBody: raw },
 		});
 
-		harness.inputs.down([["DATA", input]]);
-		harness.policies.down([["DATA", retryPolicyFact("retry-policy", 3)]]);
-		harness.outcomes.down([["DATA", outcome]]);
+		harness.inputs.set(input);
+		harness.policies.set(retryPolicyFact("retry-policy", 3));
+		harness.outcomes.set(outcome);
 
 		const serialized = JSON.stringify(harness.seen.runRequests[0]);
 		expect(harness.seen.runRequests[0]?.sourceRefs).toEqual(
@@ -550,9 +516,9 @@ describe("toolProviderRunRetryProjector (D422)", () => {
 			],
 		});
 
-		harness.inputs.down([["DATA", input]]);
-		harness.policies.down([["DATA", retryPolicyFact("retry-policy", 3)]]);
-		harness.outcomes.down([["DATA", outcome]]);
+		harness.inputs.set(input);
+		harness.policies.set(retryPolicyFact("retry-policy", 3));
+		harness.outcomes.set(outcome);
 
 		const serialized = JSON.stringify(harness.seen.runRequests[0]);
 		expect(serialized).not.toContain("SECRET-INPUT-REF");

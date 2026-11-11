@@ -56,31 +56,31 @@ describe("C-3: INVALIDATE through a diamond: one INVALIDATE out, private state k
 
 	it("auto: the function does not run for it; the value goes, the count stays", () => {
 		const f = diamond("auto");
-		f.s.down([["DATA", 1]]);
+		f.s.set(1);
 		expect(f.d.cache).toBe(1);
 		f.runs.length = 0;
 		f.sink.log.length = 0;
-		f.s.down([["INVALIDATE"]]);
+		f.s.invalidate();
 		expect(f.sink.log).toEqual([[["PENDING"], ["INVALIDATE"]]]);
 		expect(f.runs).toEqual([]);
 		expect(f.d.cache).toBeUndefined();
 		// An INVALIDATE at a node with no value is dropped and starts no wave.
-		f.s.down([["INVALIDATE"]]);
+		f.s.invalidate();
 		expect(f.sink.log).toHaveLength(1);
-		f.s.down([["DATA", 2]]);
+		f.s.set(2);
 		expect(f.d.cache).toBe(2); // the private count continued
 		expect(f.runs).toHaveLength(1);
 	});
 
 	it("manual: the function runs once with both inputs invalidated and sends the INVALIDATE", () => {
 		const f = diamond("manual");
-		f.s.down([["DATA", 1]]);
+		f.s.set(1);
 		f.runs.length = 0;
 		f.sink.log.length = 0;
-		f.s.down([["INVALIDATE"]]);
+		f.s.invalidate();
 		expect(f.runs).toEqual([{ invalidated: [true, true], waves: [[], []] }]);
 		expect(f.sink.log).toEqual([[["PENDING"], ["INVALIDATE"]]]);
-		f.s.down([["DATA", 5]]);
+		f.s.set(5);
 		expect(f.runs.at(-1)?.invalidated).toEqual([false, false]);
 		expect(f.d.cache).toBe(2);
 	});
@@ -109,8 +109,8 @@ describe("C-15: a dependency's terminal settles its pending mark", () => {
 	it("(a) B's COMPLETE without a value and C's value: D runs once on both", () => {
 		const f = topology();
 		batch(() => {
-			f.a.down([["COMPLETE"]]);
-			f.a2.down([["DATA", 7]]);
+			f.a.complete();
+			f.a2.set(7);
 		});
 		expect(f.b.status.output).toBe("completed");
 		expect(f.runs).toEqual([{ terminal: [true, false], waves: [[], [[7]]] }]);
@@ -119,7 +119,7 @@ describe("C-15: a dependency's terminal settles its pending mark", () => {
 	it("(b) B's terminal alone: D runs once and settles with the kernel's RESOLVED", () => {
 		const f = topology();
 		f.sink.log.length = 0;
-		f.a.down([["COMPLETE"]]);
+		f.a.complete();
 		expect(f.runs).toEqual([{ terminal: [true, false], waves: [[], []] }]);
 		expect(f.sink.log).toEqual([[["PENDING"], ["RESOLVED"]]]);
 		expect(f.d.status.cache).not.toBe("stale");
@@ -129,8 +129,8 @@ describe("C-15: a dependency's terminal settles its pending mark", () => {
 		const f = topology();
 		const e = new Error("e");
 		batch(() => {
-			f.a.down([["ERROR", e]]);
-			f.a2.down([["DATA", 3]]);
+			f.a.error(e);
+			f.a2.set(3);
 		});
 		expect(f.b.status.output).toBe("errored");
 		expect(f.runs).toEqual([{ terminal: [e, false], waves: [[], [[3]]] }]);
@@ -171,12 +171,15 @@ describe("C-17: an ended dependency counts toward auto COMPLETE, in any order", 
 	it("(a) C's ERROR first, then B's value and COMPLETE", () => {
 		const f = topology();
 		const e = new Error("e");
-		f.c.down([["ERROR", e]]);
+		f.c.error(e);
 		expect(f.runs).toEqual([{ terminal: [false, e], waves: [[], []] }]);
 		expect(f.d.status.output).not.toBe("errored");
 		expect(f.dctrl.status.output).toBe("errored");
 		expect(f.ctrlRuns()).toBe(0);
-		f.b.down([["DATA", 1], ["COMPLETE"]]);
+		batch(() => {
+			f.b.set(1);
+			f.b.complete();
+		});
 		// The function sees the wave's terminal whatever the policy; under auto it does not end D.
 		expect(f.runs.at(-1)).toEqual({ terminal: [true, false], waves: [[[1]], []] });
 		expect(f.d.status.output).toBe("completed");
@@ -186,9 +189,12 @@ describe("C-17: an ended dependency counts toward auto COMPLETE, in any order", 
 	it("(b) B's value and COMPLETE first, then C's ERROR", () => {
 		const f = topology();
 		const e = new Error("e");
-		f.b.down([["DATA", 1], ["COMPLETE"]]);
+		batch(() => {
+			f.b.set(1);
+			f.b.complete();
+		});
 		expect(f.d.status.output).not.toBe("completed");
-		f.c.down([["ERROR", e]]);
+		f.c.error(e);
 		expect(f.runs.at(-1)).toEqual({ terminal: [false, e], waves: [[], []] });
 		expect(f.d.status.output).toBe("completed");
 		expect(completes(f.ds.log)).toBe(1);
@@ -265,7 +271,10 @@ describe("C-36: input arrays and terminal admission in one invocation", () => {
 		);
 		d.subscribe(() => {});
 		seen.length = 0;
-		a.down([["DATA", 20], ["COMPLETE"]]);
+		batch(() => {
+			a.set(20);
+			a.complete();
+		});
 		expect(seen).toEqual([{ waves: [[[20]]], terminal: [true] }]);
 		expect(d.status.output).not.toBe("completed");
 	});
@@ -276,7 +285,10 @@ describe("C-36: input arrays and terminal admission in one invocation", () => {
 		const sink = arrays();
 		d.subscribe(sink.sink);
 		sink.log.length = 0;
-		a.down([["DATA", 5], ["COMPLETE"]]);
+		batch(() => {
+			a.set(5);
+			a.complete();
+		});
 		expect(sink.log).toEqual([
 			[["PENDING"], ["DATA", 10]],
 			[["PENDING"], ["COMPLETE"]],
@@ -294,11 +306,14 @@ describe("C-36: input arrays and terminal admission in one invocation", () => {
 		const ds = arrays();
 		a.subscribe(as.sink);
 		d.subscribe(ds.sink);
-		a.down([["DATA", 1]]);
+		a.set(1);
 		as.log.length = 0;
 		ds.log.length = 0;
 		runs = 0;
-		a.down([["DATA", 7], ["INVALIDATE"]]);
+		batch(() => {
+			a.set(7);
+			a.invalidate();
+		});
 		expect(as.log).toEqual([[["PENDING"], ["INVALIDATE"]]]);
 		expect(ds.log).toEqual([[["PENDING"], ["INVALIDATE"]]]);
 		expect(runs).toBe(0);
@@ -310,11 +325,11 @@ describe("C-36: input arrays and terminal admission in one invocation", () => {
 describe("C-40: an ended node can be subscribed and depended on", () => {
 	it("gives its snapshot with its terminal; the policies apply to it at a first run", () => {
 		const s = node<number>([], null);
-		s.down([["DATA", 1]]);
-		s.down([["COMPLETE"]]);
+		s.set(1);
+		s.complete();
 		const e = new Error("e");
 		const t = node<number>([], null);
-		t.down([["ERROR", e]]);
+		t.error(e);
 
 		const sink = arrays();
 		s.subscribe(sink.sink);
@@ -351,7 +366,7 @@ describe("C-40: an ended node can be subscribed and depended on", () => {
 		expect(mSeen).toEqual([[e]]);
 		expect(m.status.output).not.toBe("errored");
 
-		expect(() => s.down([["DATA", 2]])).toThrow(/ended/);
+		expect(() => s.set(2)).toThrow(/ended/);
 		expect(s.cache).toBe(1);
 	});
 });
@@ -374,7 +389,7 @@ describe("C-44: a wave of terminals or INVALIDATEs holds a fan-in", () => {
 		d.subscribe(() => {});
 		runs.length = 0;
 		bs.log.length = 0;
-		s.down([["COMPLETE"]]);
+		s.complete();
 		expect(bs.log).toEqual([[["PENDING"], ["COMPLETE"]]]);
 		expect(runs).toEqual([[true, true]]);
 	});
@@ -393,7 +408,7 @@ describe("C-44: a wave of terminals or INVALIDATEs holds a fan-in", () => {
 		);
 		d.subscribe(() => {});
 		runs.length = 0;
-		s.down([["INVALIDATE"]]);
+		s.invalidate();
 		expect(runs).toEqual([[true, true]]);
 	});
 
@@ -407,10 +422,10 @@ describe("C-44: a wave of terminals or INVALIDATEs holds a fan-in", () => {
 		const ds = arrays();
 		q.subscribe(qs.sink);
 		d.subscribe(ds.sink);
-		a.down([["DATA", 2]]);
+		a.set(2);
 		qs.log.length = 0;
 		ds.log.length = 0;
-		a.down([["INVALIDATE"]]);
+		a.invalidate();
 		expect(qs.log).toEqual([[["PENDING"], ["INVALIDATE"]]]);
 		expect(ds.log).toEqual([[["PENDING"], ["INVALIDATE"]]]);
 	});

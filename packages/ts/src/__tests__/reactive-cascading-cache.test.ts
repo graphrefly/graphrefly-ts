@@ -36,7 +36,7 @@ describe("reactiveCascadingCache (D104/D105/D107)", () => {
 
 		dataOf(cache.status);
 		dataOf(cache.value);
-		request.down([["DATA", "user:1"]]);
+		request.set("user:1");
 		await flush();
 
 		const snap = g.describe();
@@ -72,7 +72,7 @@ describe("reactiveCascadingCache (D104/D105/D107)", () => {
 		const values = dataOf(cache.value);
 		const events = dataOf(cache.events);
 
-		request.down([["DATA", "k"]]);
+		request.set("k");
 		await flush();
 
 		expect(values).toEqual([42]);
@@ -105,7 +105,7 @@ describe("reactiveCascadingCache (D104/D105/D107)", () => {
 		dataOf(cache.value);
 		const events = dataOf(cache.events);
 
-		request.down([["DATA", "k"]]);
+		request.set("k");
 		await flush();
 
 		expect(cache.value.cache).toBe(42);
@@ -146,7 +146,7 @@ describe("reactiveCascadingCache (D104/D105/D107)", () => {
 		dataOf(cache.value);
 		const events = dataOf(cache.events);
 
-		request.down([["DATA", "k"]]);
+		request.set("k");
 		await flush();
 
 		expect(cache.value.cache).toBe(7);
@@ -180,7 +180,7 @@ describe("reactiveCascadingCache (D104/D105/D107)", () => {
 		const values = dataOf(cache.value);
 		const events = dataOf(cache.events);
 
-		request.down([["DATA", "remote"]]);
+		request.set("remote");
 		await flush();
 
 		expect(values).toEqual([9]);
@@ -213,8 +213,8 @@ describe("reactiveCascadingCache (D104/D105/D107)", () => {
 		const values = dataOf(cache.value);
 		const events = dataOf(cache.events);
 
-		request.down([["DATA", "slow"]]);
-		request.down([["DATA", "fast"]]);
+		request.set("slow");
+		request.set("fast");
 		await flush();
 		resolvers.get("fast")?.(2);
 		await flush();
@@ -251,14 +251,14 @@ describe("reactiveCascadingCache (D104/D105/D107)", () => {
 		const values = dataOf(cache.value);
 		dataOf(cache.events);
 
-		request.down([["DATA", "k"]]);
+		request.set("k");
 		await flush();
 		resolvers[0]?.(9);
 		await flush();
 		expect(cache.value.cache).toBe(9);
 
-		request.down([["DATA", "k"]]);
-		invalidate.down([["DATA", "k"]]);
+		request.set("k");
+		invalidate.set("k");
 		await flush();
 		await flush();
 		expect(cache.value.cache).toBeUndefined();
@@ -297,11 +297,11 @@ describe("reactiveCascadingCache (D104/D105/D107)", () => {
 		dataOf(cache.status);
 		dataOf(cache.value);
 
-		request.down([["DATA", "k"]]);
+		request.set("k");
 		await flush();
 		expect(await hot.get("k")).toBeUndefined();
 
-		policy.down([["DATA", { promoteTo: [0] }]]);
+		policy.set({ promoteTo: [0] });
 		await flush();
 		expect(await hot.get("k")).toBe(3);
 	});
@@ -327,7 +327,7 @@ describe("reactiveCascadingCache (D104/D105/D107)", () => {
 			}
 		});
 
-		request.down([["DATA", "k"]]);
+		request.set("k");
 		await flush();
 		unsubscribe();
 		resolveLoad?.(99);

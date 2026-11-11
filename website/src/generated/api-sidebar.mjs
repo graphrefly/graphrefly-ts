@@ -50,10 +50,6 @@ export const apiSidebar = [
 			},
 			{
 				"label": "Node",
-				"link": "/api/node-class"
-			},
-			{
-				"label": "node()",
 				"link": "/api/node"
 			},
 			{
@@ -161,10 +157,6 @@ export const apiSidebar = [
 			{
 				"label": "domWebSocketDriver()",
 				"link": "/api/domwebsocketdriver"
-			},
-			{
-				"label": "StateNode",
-				"link": "/api/statenode"
 			},
 			{
 				"label": "Graph",

@@ -4,12 +4,13 @@ import {
 	buildSpendingPresetNodes,
 	spendingNodeNames,
 } from "../../examples/spending-alerts/causal-preset.js";
+import { batch } from "../../packages/ts/src/batch/batch.js";
 import {
 	prepareConstruction,
 	startConstruction,
 } from "../../packages/ts/src/graph/construction-scope.js";
 import { Graph } from "../../packages/ts/src/graph/graph.js";
-import type { Node } from "../../packages/ts/src/node/node.js";
+import type { Node, StateNode } from "../../packages/ts/src/node/node.js";
 import { checkpointStateOfNode } from "../../packages/ts/src/node/runtime-accessors.js";
 import { causalColdNodeNames } from "../../packages/ts/src/solutions/causal-occurrence/construction.js";
 import type { RuntimeState } from "../../packages/ts/src/solutions/causal-occurrence/contracts.js";
@@ -94,7 +95,7 @@ export function graphArm(arm: Exclude<Arm, "plain">, mode: Mode) {
 			name,
 			graph.node<any>([], null, { name }),
 		]),
-	) as Record<ReferenceLane, Node<any>>;
+	) as unknown as Record<ReferenceLane, StateNode<any>>;
 	const inputs: SpendingInputs = {
 		evaluations: { pack: sources.pack, arrivals: sources.arrivals, current: sources.current },
 		verification: { receipts: sources.verification },
@@ -186,7 +187,10 @@ export function graphArm(arm: Exclude<Arm, "plain">, mode: Mode) {
 		counts,
 		connect,
 		disconnect,
-		send: (step: InputStep) => sources[step.lane].down(step.values.map((v) => ["DATA", v])),
+		send: (step: InputStep) =>
+			batch(() => {
+				for (const v of step.values) sources[step.lane].set(v as never);
+			}),
 		state: () =>
 			checkpointStateOfNode(graph.find("spending/causal/authority")!).ctxState?.value as
 				| RuntimeState<unknown>

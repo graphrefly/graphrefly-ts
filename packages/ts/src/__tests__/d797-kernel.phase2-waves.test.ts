@@ -27,10 +27,10 @@ describe("C-12: occurrences stay DATA; RESOLVED only settles a node that sent no
 		const source = node<number>([], null);
 		const s = arrays();
 		source.subscribe(s.sink);
-		source.down([["DATA", 1]]);
-		source.down([["DATA", 1]]);
-		source.down([["DATA", 1]]);
-		source.down([["COMPLETE"]]);
+		source.set(1);
+		source.set(1);
+		source.set(1);
+		source.complete();
 		expect(s.log).toEqual([
 			[["START"]],
 			[["PENDING"], ["DATA", 1]],
@@ -48,7 +48,7 @@ describe("C-12: occurrences stay DATA; RESOLVED only settles a node that sent no
 		silent.subscribe(s.sink);
 		below.subscribe(() => {});
 		s.log.length = 0;
-		for (const v of [1, 2, 3]) source.down([["DATA", v]]);
+		for (const v of [1, 2, 3]) source.set(v);
 		expect(s.log).toEqual([
 			[["PENDING"], ["RESOLVED"]],
 			[["PENDING"], ["RESOLVED"]],
@@ -82,7 +82,7 @@ describe("C-16: a quiet node absorbs its input waves without leaving dependents 
 		s.log.length = 0;
 		eRuns = 0;
 
-		for (const v of [1, 2, 3]) a.down([["DATA", v]]);
+		for (const v of [1, 2, 3]) a.set(v);
 		expect(s.log).toEqual([]); // not even PENDING
 		expect(eRuns).toBe(0);
 		expect(e.status.cache).not.toBe("stale");
@@ -123,11 +123,21 @@ describe("C-23: ctx.waveData, ctx.terminal and the latest value are the function
 	it("gives each dependency its arrays, terminal and latest value", () => {
 		const captures: { waves: unknown[][][]; terminal: unknown[]; latest: unknown[] }[] = [];
 		const trigger = node<number>([], null, { initial: 0 });
-		// a sends nothing for an odd trigger, so the kernel settles it with RESOLVED.
+		// a sends nothing for an odd trigger, so the kernel settles it with RESOLVED; a planned run
+		// sends the plan's output instead.
+		let plan: ((ctx: Ctx) => void) | undefined;
 		const a = node<unknown>([trigger], (ctx) => {
 			const v = depLatest(ctx, 0) as number;
-			if (v % 2 === 0) ctx.down([["DATA", v]]);
+			if (plan !== undefined) {
+				const run = plan;
+				plan = undefined;
+				run(ctx);
+			} else if (v % 2 === 0) ctx.down([["DATA", v]]);
 		});
+		const sendFromA = (next: number, run: (ctx: Ctx) => void) => {
+			plan = run;
+			trigger.set(next);
+		};
 		const b = node<unknown>([], null);
 		const n = node<unknown>(
 			[a, b],
@@ -143,31 +153,31 @@ describe("C-23: ctx.waveData, ctx.terminal and the latest value are the function
 		n.subscribe(() => {});
 
 		// (a) write B only: A's entry has no arrays
-		b.down([["DATA", "b"]]);
+		b.set("b");
 		expect(captures.at(-1)?.waves).toEqual([[], [["b"]]]);
 		// (b) A sends RESOLVED alone: one empty array
-		trigger.down([["DATA", 1]]);
+		trigger.set(1);
 		expect(captures.at(-1)?.waves).toEqual([[[]], []]);
 		// (c) split at the last INVALIDATE: N sees [3]
-		a.down([["DATA", 1], ["DATA", 2], ["INVALIDATE"], ["DATA", 3]]);
+		sendFromA(2, (ctx) => ctx.down([["DATA", 1], ["DATA", 2], ["INVALIDATE"], ["DATA", 3]]));
 		expect(captures.at(-1)?.waves).toEqual([[[3]], []]);
 		expect(captures.at(-1)?.latest).toEqual([3, "b"]);
 		// (d) null and [] are ordinary payloads
-		a.down([["DATA", null]]);
+		sendFromA(3, (ctx) => ctx.down([["DATA", null]]));
 		expect(captures.at(-1)?.waves).toEqual([[[null]], []]);
-		a.down([["DATA", []]]);
+		sendFromA(4, (ctx) => ctx.down([["DATA", []]]));
 		expect(captures.at(-1)?.waves).toEqual([[[[]]], []]);
 		// (e) terminals are never among the arrays
 		const e = new Error("e");
 		batch(() => {
-			a.down([["COMPLETE"]]);
-			b.down([["ERROR", e]]);
+			sendFromA(5, (ctx) => ctx.down([["COMPLETE"]]));
+			b.error(e);
 		});
 		expect(captures.at(-1)?.terminal).toEqual([true, e]);
 		expect(captures.at(-1)?.waves.flat(2)).toEqual([]);
 		// (f) DATA SENTINEL is rejected
 		const c = node<unknown>([], null);
-		expect(() => c.down([["DATA", undefined]])).toThrow(/SENTINEL/);
+		expect(() => c.set(undefined)).toThrow(/SENTINEL/);
 	});
 });
 
@@ -254,10 +264,10 @@ describe("C-28: intact output arrays, kernel-only PENDING prefixes and written o
 		s.subscribe(log.sink);
 		log.log.length = 0;
 		batch(() => {
-			s.down([["DATA", 1]]);
-			expect(() => s.down([["RESOLVED"]])).toThrow(/kernel/);
-			s.down([["COMPLETE"]]);
-			expect(() => s.down([["DATA", 2]])).toThrow(/last/);
+			s.set(1);
+			// The host writes only values and terminals; it has no way to send RESOLVED (R-wave@2).
+			s.complete();
+			expect(() => s.set(2)).toThrow(/last/);
 			expect(log.log).toEqual([]);
 		});
 		expect(log.log).toEqual([[["PENDING"], ["DATA", 1], ["COMPLETE"]]]);
@@ -296,7 +306,7 @@ describe("C-41: the snapshot is the node's last array that carried DATA", () => 
 			if (out) ctx.down(out);
 		});
 		n.subscribe(() => {});
-		for (const v of [1, 2, 3]) a.down([["DATA", v]]);
+		for (const v of [1, 2, 3]) a.set(v);
 		const late = arrays();
 		n.subscribe(late.sink);
 		expect(late.log).toEqual([[["START"], ["DATA", 2], ["DATA", 3]]]);
@@ -308,7 +318,7 @@ describe("C-41: the snapshot is the node's last array that carried DATA", () => 
 		dependent.subscribe(() => {});
 		expect(firstRun).toEqual([[[2, 3]]]);
 
-		a.down([["DATA", 4]]);
+		a.set(4);
 		const afterInvalidate = arrays();
 		n.subscribe(afterInvalidate.sink);
 		expect(afterInvalidate.log).toEqual([[["START"]]]);
@@ -371,13 +381,13 @@ describe("C-44 (value and quiet-node clauses): the kernel adds only the settling
 		for (const s of [fs, qs, ds]) s.log.length = 0;
 		dSaw.length = 0;
 
-		a.down([["DATA", 3]]);
+		a.set(3);
 		expect(fs.log).toEqual([[["PENDING"], ["RESOLVED"]]]);
 		expect(dSaw).toEqual([[3, undefined]]);
 
 		dSaw.length = 0;
 		qs.log.length = 0;
-		a.down([["DATA", 2]]);
+		a.set(2);
 		// d ran in a's wave without waiting for q, then again in q's own later wave.
 		expect(dSaw).toEqual([
 			[2, undefined],
@@ -390,12 +400,12 @@ describe("C-44 (value and quiet-node clauses): the kernel adds only the settling
 		expect(dSaw).toEqual([[2, 21]]);
 
 		qs.log.length = 0;
-		a.down([["DATA", 5]]);
+		a.set(5);
 		expect(qs.log).toEqual([]); // q sent nothing, and no RESOLVED is added for it
 
 		qs.log.length = 0;
 		ds.log.length = 0;
-		a.down([["INVALIDATE"]]);
+		a.invalidate();
 		expect(qs.log).toEqual([[["PENDING"], ["INVALIDATE"]]]);
 		expect(ds.log).toEqual([[["PENDING"], ["INVALIDATE"]]]);
 	});

@@ -50,7 +50,7 @@ describe("C-26: the message set is closed: PULL, PAUSE, RESUME and TEARDOWN are 
 		expect(s.msgs.some((m) => m[0] === "DATA")).toBe(false);
 
 		// The node never runs again; control would be a write to a declared state dependency.
-		a.down([["DATA", 2]]);
+		a.set(2);
 		expect(runs).toBe(1);
 		expect(types(s.msgs).filter((t) => t === "ERROR")).toHaveLength(1);
 	});
@@ -164,7 +164,7 @@ describe("C-12 (c): RESOLVED is the kernel's alone", () => {
 			for (const message of incoming) ds.sink(message);
 		});
 		s.msgs.length = 0;
-		a.down([["DATA", 2]]);
+		a.set(2);
 		expect(n.status.output).toBe("errored");
 		expect(types(s.msgs)).not.toContain("RESOLVED");
 		expect(types(s.msgs).at(-1)).toBe("ERROR");
@@ -181,7 +181,7 @@ describe("C-12 (c): RESOLVED is the kernel's alone", () => {
 			for (const message of incoming) s.sink(message);
 		});
 		s.msgs.length = 0;
-		a.down([["DATA", 2]]);
+		a.set(2);
 		expect(types(s.msgs)).toEqual(["PENDING", "RESOLVED"]);
 	});
 });

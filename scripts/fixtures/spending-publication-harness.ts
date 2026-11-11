@@ -1,6 +1,7 @@
 /** Real cold assembly and finite offline inputs, shared wiring only (not verifier logic). */
 import assert from "node:assert/strict";
 import { buildSpendingPublication } from "../../examples/spending-alerts/causal-publication.js";
+import { batch } from "../../packages/ts/src/batch/batch.js";
 import type { NodeFn } from "../../packages/ts/src/ctx/types.js";
 import { Dispatcher } from "../../packages/ts/src/dispatcher/index.js";
 import {
@@ -9,6 +10,7 @@ import {
 } from "../../packages/ts/src/graph/construction-scope.js";
 import { Graph } from "../../packages/ts/src/graph/graph.js";
 import type { Node } from "../../packages/ts/src/node/node.js";
+import { nodeRuntimeHost } from "../../packages/ts/src/node/node-runtime-host.js";
 import { checkpointStateOfNode } from "../../packages/ts/src/node/runtime-accessors.js";
 import type { CausalBinding } from "../../packages/ts/src/solutions/causal-occurrence/capabilities.js";
 import {
@@ -120,13 +122,8 @@ export function publicationRun(
 	};
 	let currentMaterial: unknown;
 	// The finite input owner persists its current pack outside UI subscription lifecycle.
-	const material = graph.node(
-		[],
-		(ctx) => {
-			if (currentMaterial !== undefined) ctx.down([["DATA", currentMaterial]]);
-		},
-		{ name: "material" },
-	);
+	// The material frame is a state input; it keeps its last frame across deactivation.
+	const material = graph.node<unknown>([], null, { name: "material" });
 	const scope = prepareConstruction(graph, {
 		name: "run",
 		epoch: 1,
@@ -191,7 +188,11 @@ export function publicationRun(
 	if (options.capture) scope.node = original;
 	const owner = scope.seal(startup, built.causal.roots);
 	scope.transferToGraph(owner);
-	if (options.fault) built.causal.roots[0].down([["ERROR", new Error("owned startup fault")]]);
+	// Fault injection: end the owned root with ERROR from outside, through the internal output path.
+	if (options.fault)
+		nodeRuntimeHost(built.causal.roots[0] as Node<unknown>)._down([
+			["ERROR", new Error("owned startup fault")],
+		]);
 	startConstruction(graph, owner);
 	let latest: unknown,
 		ui: (() => void) | undefined,
@@ -222,14 +223,18 @@ export function publicationRun(
 		observeStop = undefined;
 	};
 	const send = (lane: keyof typeof sources, ...values: unknown[]) =>
-		sources[lane].down(values.map((v) => ["DATA", v]));
+		batch(() => {
+			for (const v of values) sources[lane].set(v as never);
+		});
 	const frames = (values: unknown[]) => {
 		currentMaterial = values.at(-1);
-		material.down(values.map((value) => ["DATA", value]));
+		batch(() => {
+			for (const value of values) material.set(value);
+		});
 	};
 	const frame = (value: unknown) => {
 		currentMaterial = value;
-		material.down([["DATA", value]]);
+		material.set(value);
 	};
 	const release = (f: HarnessFact) => {
 		send("occurrences", f.occurrence);

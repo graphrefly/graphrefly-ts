@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { batch } from "../batch/batch.js";
 import { depBatch } from "../ctx/types.js";
 import { graph } from "../graph/graph.js";
 import type { BoundaryCapabilityKind } from "../inspection/boundary.js";
@@ -90,18 +91,13 @@ function applyPatch(
 		readonly metadata?: Record<string, unknown>;
 	},
 ): void {
-	setup.proposals.down([
-		[
-			"DATA",
-			workItemDomainActionProposalIntake(proposalId, "wi-1", "patch", {
-				payload: opts.payload ?? { patch: opts.patch },
-				metadata: opts.metadata,
-			}),
-		],
-	]);
-	setup.decisions.down([
-		["DATA", admissionDecision(`${admissionId}:decision`, admissionId, proposalId)],
-	]);
+	setup.proposals.set(
+		workItemDomainActionProposalIntake(proposalId, "wi-1", "patch", {
+			payload: opts.payload ?? { patch: opts.patch },
+			metadata: opts.metadata,
+		}),
+	);
+	setup.decisions.set(admissionDecision(`${admissionId}:decision`, admissionId, proposalId));
 }
 
 function admissionDecision(
@@ -225,56 +221,37 @@ describe("WorkItem domain action admission and application (D239/D333-D343) — 
 		const issues = collectData(guard.issues);
 		const statusMessages = collectMessages(guard.status);
 
-		guardPolicies.down([
-			[
-				"DATA",
-				{
-					kind: "work-item-domain-action-capability-guard-policy",
-					policyId: "capability-ready",
-					actionKinds: ["patch"],
-					capabilityRefs: [capabilityRef("boundary-auth")],
-					admissionSubjectIds: ["boundary:boundary-auth"],
-				},
-			],
-		]);
-		proposalInputs.down([
-			[
-				"DATA",
-				workItemDomainActionProposalIntake("proposal-1", "wi-1", "patch", {
-					metadata: { capabilityGuardPolicyId: "capability-ready" },
-				}),
-			],
-		]);
-		capabilityAdmissions.down([
-			[
-				"DATA",
-				{
-					...capabilityAdmission("boundary-auth", "allowed"),
-					sourceRefs: { kind: "not-an-array", id: "bad" },
-				} as unknown as CapabilityAdmission,
-			],
-		]);
-		capabilityAdmissionStatus.down([
-			[
-				"DATA",
-				{
-					kind: "capability-admission-status",
-					statusId: "bad-status-issue",
-					state: "capability-admission-issue",
-					capabilityId: "boundary-auth",
-					issues: [{}],
-				} as unknown as CapabilityAdmissionStatus,
-			],
-			[
-				"DATA",
-				{
-					kind: "capability-admission-status",
-					statusId: "bad-status-kind-only",
-					state: "capability-admission-issue",
-					capabilityKind: "auth",
-				} as unknown as CapabilityAdmissionStatus,
-			],
-		]);
+		guardPolicies.set({
+			kind: "work-item-domain-action-capability-guard-policy",
+			policyId: "capability-ready",
+			actionKinds: ["patch"],
+			capabilityRefs: [capabilityRef("boundary-auth")],
+			admissionSubjectIds: ["boundary:boundary-auth"],
+		});
+		proposalInputs.set(
+			workItemDomainActionProposalIntake("proposal-1", "wi-1", "patch", {
+				metadata: { capabilityGuardPolicyId: "capability-ready" },
+			}),
+		);
+		capabilityAdmissions.set({
+			...capabilityAdmission("boundary-auth", "allowed"),
+			sourceRefs: { kind: "not-an-array", id: "bad" },
+		} as unknown as CapabilityAdmission);
+		batch(() => {
+			capabilityAdmissionStatus.set({
+				kind: "capability-admission-status",
+				statusId: "bad-status-issue",
+				state: "capability-admission-issue",
+				capabilityId: "boundary-auth",
+				issues: [{}],
+			} as unknown as CapabilityAdmissionStatus);
+			capabilityAdmissionStatus.set({
+				kind: "capability-admission-status",
+				statusId: "bad-status-kind-only",
+				state: "capability-admission-issue",
+				capabilityKind: "auth",
+			} as unknown as CapabilityAdmissionStatus);
+		});
 
 		expect(decisions).toEqual([]);
 		expect(issues.map((issue) => issue.code)).toEqual(
@@ -289,21 +266,16 @@ describe("WorkItem domain action admission and application (D239/D333-D343) — 
 	it("keeps admission alone from mutating WorkItem projections", () => {
 		const setup = setupActions();
 
-		setup.seed.down([["DATA", workItemCreatedFromDraft("wi-1", draft())]]);
-		setup.directAdmissions.down([
-			[
-				"DATA",
-				{
-					kind: "work-item-domain-action-admission",
-					admissionId: "admission-without-proposal",
-					proposalId: "missing-proposal",
-					workItemId: "wi-1",
-					actionKind: "patch",
-					state: "admitted",
-					decisionId: "decision-1",
-				} satisfies WorkItemDomainActionAdmission,
-			],
-		]);
+		setup.seed.set(workItemCreatedFromDraft("wi-1", draft()));
+		setup.directAdmissions.set({
+			kind: "work-item-domain-action-admission",
+			admissionId: "admission-without-proposal",
+			proposalId: "missing-proposal",
+			workItemId: "wi-1",
+			actionKind: "patch",
+			state: "admitted",
+			decisionId: "decision-1",
+		} satisfies WorkItemDomainActionAdmission);
 
 		expect(setup.appliedFacts).toEqual([]);
 		expect(setup.applicationIssues.at(-1)).toMatchObject({
@@ -332,34 +304,24 @@ describe("WorkItem domain action admission and application (D239/D333-D343) — 
 		const applicationIssues = collectData(application.issues);
 		const applicationStatus = collectData(application.status);
 
-		seed.down([["DATA", workItemCreatedFromDraft("wi-1", draft())]]);
-		seed.down([["DATA", workItemCreatedFromDraft("wi-2", draft({ summary: "Other" }))]]);
-		applyPolicies.down([
-			["DATA", workItemDomainActionApplyPolicy("apply-patch", { actionKinds: ["patch"] })],
-		]);
-		proposals.down([
-			[
-				"DATA",
-				workItemDomainActionProposal("proposal-mismatch", "wi-1", "patch", {
-					payload: { patch: { summary: "Must not hit wi-2" } },
-					metadata: { executionInputRevision: 1, applyPolicyId: "apply-patch" },
-				}),
-			],
-		]);
-		admissions.down([
-			[
-				"DATA",
-				{
-					kind: "work-item-domain-action-admission",
-					admissionId: "admission-mismatch",
-					proposalId: "proposal-mismatch",
-					workItemId: "wi-2",
-					actionKind: "patch",
-					state: "admitted",
-					decisionId: "decision-mismatch",
-				} satisfies WorkItemDomainActionAdmission,
-			],
-		]);
+		seed.set(workItemCreatedFromDraft("wi-1", draft()));
+		seed.set(workItemCreatedFromDraft("wi-2", draft({ summary: "Other" })));
+		applyPolicies.set(workItemDomainActionApplyPolicy("apply-patch", { actionKinds: ["patch"] }));
+		proposals.set(
+			workItemDomainActionProposal("proposal-mismatch", "wi-1", "patch", {
+				payload: { patch: { summary: "Must not hit wi-2" } },
+				metadata: { executionInputRevision: 1, applyPolicyId: "apply-patch" },
+			}),
+		);
+		admissions.set({
+			kind: "work-item-domain-action-admission",
+			admissionId: "admission-mismatch",
+			proposalId: "proposal-mismatch",
+			workItemId: "wi-2",
+			actionKind: "patch",
+			state: "admitted",
+			decisionId: "decision-mismatch",
+		} satisfies WorkItemDomainActionAdmission);
 
 		expect(appliedFacts).toEqual([]);
 		expect(applicationIssues.at(-1)).toMatchObject({
@@ -371,21 +333,18 @@ describe("WorkItem domain action admission and application (D239/D333-D343) — 
 
 	it("lowers admitted patch actions to WorkItemPatched and advances revisions only after re-entry", () => {
 		const setup = setupActions();
-		setup.seed.down([["DATA", workItemCreatedFromDraft("wi-1", draft())]]);
-		setup.applyPolicies.down([
-			["DATA", workItemDomainActionApplyPolicy("apply-patch", { actionKinds: ["patch"] })],
-		]);
+		setup.seed.set(workItemCreatedFromDraft("wi-1", draft()));
+		setup.applyPolicies.set(
+			workItemDomainActionApplyPolicy("apply-patch", { actionKinds: ["patch"] }),
+		);
 
-		setup.proposals.down([
-			[
-				"DATA",
-				workItemDomainActionProposalIntake("proposal-1", "wi-1", "patch", {
-					payload: { patch: { summary: "Patched summary" } },
-					metadata: { executionInputRevision: 1, applyPolicyId: "apply-patch" },
-				}),
-			],
-		]);
-		setup.decisions.down([["DATA", admissionDecision("decision-1", "admission-1", "proposal-1")]]);
+		setup.proposals.set(
+			workItemDomainActionProposalIntake("proposal-1", "wi-1", "patch", {
+				payload: { patch: { summary: "Patched summary" } },
+				metadata: { executionInputRevision: 1, applyPolicyId: "apply-patch" },
+			}),
+		);
+		setup.decisions.set(admissionDecision("decision-1", "admission-1", "proposal-1"));
 
 		expect(setup.appliedFacts.at(-1)).toMatchObject({
 			kind: "work-item-patched",
@@ -397,7 +356,7 @@ describe("WorkItem domain action admission and application (D239/D333-D343) — 
 			authoringRevision: 1,
 		});
 
-		setup.seed.down([["DATA", setup.appliedFacts.at(-1) as WorkItemAuthoringFact]]);
+		setup.seed.set(setup.appliedFacts.at(-1) as WorkItemAuthoringFact);
 
 		expect(setup.workItems.at(-1)).toMatchObject({
 			summary: "Patched summary",
@@ -408,44 +367,38 @@ describe("WorkItem domain action admission and application (D239/D333-D343) — 
 
 	it("splits acceptance criteria and verification plan out of generic patch actions", () => {
 		const setup = setupActions();
-		setup.seed.down([["DATA", workItemCreatedFromDraft("wi-1", draft())]]);
-		setup.applyPolicies.down([
-			["DATA", workItemDomainActionApplyPolicy("apply-patch", { actionKinds: ["patch"] })],
-		]);
+		setup.seed.set(workItemCreatedFromDraft("wi-1", draft()));
+		setup.applyPolicies.set(
+			workItemDomainActionApplyPolicy("apply-patch", { actionKinds: ["patch"] }),
+		);
 
-		setup.proposals.down([
-			[
-				"DATA",
-				workItemDomainActionProposalIntake("proposal-dedicated", "wi-1", "patch", {
-					payload: {
-						patch: {
-							summary: "Split patch",
-							acceptanceCriteria: [
-								{ criterionId: "ac-2", statement: "Dedicated AC fact", required: true },
+		setup.proposals.set(
+			workItemDomainActionProposalIntake("proposal-dedicated", "wi-1", "patch", {
+				payload: {
+					patch: {
+						summary: "Split patch",
+						acceptanceCriteria: [
+							{ criterionId: "ac-2", statement: "Dedicated AC fact", required: true },
+						],
+						verificationPlan: {
+							planId: "plan-2",
+							steps: [
+								{
+									stepId: "step-2",
+									mode: "auto",
+									effectKind: "verification",
+									verifiesCriteriaIds: ["ac-2"],
+								},
 							],
-							verificationPlan: {
-								planId: "plan-2",
-								steps: [
-									{
-										stepId: "step-2",
-										mode: "auto",
-										effectKind: "verification",
-										verifiesCriteriaIds: ["ac-2"],
-									},
-								],
-							},
 						},
 					},
-					metadata: { executionInputRevision: 1, applyPolicyId: "apply-patch" },
-				}),
-			],
-		]);
-		setup.decisions.down([
-			[
-				"DATA",
-				admissionDecision("decision-dedicated", "admission-dedicated", "proposal-dedicated"),
-			],
-		]);
+				},
+				metadata: { executionInputRevision: 1, applyPolicyId: "apply-patch" },
+			}),
+		);
+		setup.decisions.set(
+			admissionDecision("decision-dedicated", "admission-dedicated", "proposal-dedicated"),
+		);
 
 		expect(setup.appliedFacts.map((fact) => fact.kind)).toEqual([
 			"work-item-patched",
@@ -460,35 +413,29 @@ describe("WorkItem domain action admission and application (D239/D333-D343) — 
 
 	it("keeps inline patch fields when action payload also carries dedicated authoring facts", () => {
 		const setup = setupActions();
-		setup.seed.down([["DATA", workItemCreatedFromDraft("wi-1", draft())]]);
-		setup.applyPolicies.down([
-			["DATA", workItemDomainActionApplyPolicy("apply-patch", { actionKinds: ["patch"] })],
-		]);
+		setup.seed.set(workItemCreatedFromDraft("wi-1", draft()));
+		setup.applyPolicies.set(
+			workItemDomainActionApplyPolicy("apply-patch", { actionKinds: ["patch"] }),
+		);
 
-		setup.proposals.down([
-			[
-				"DATA",
-				workItemDomainActionProposalIntake("proposal-inline-dedicated", "wi-1", "patch", {
-					payload: {
-						summary: "Inline split patch",
-						acceptanceCriteria: [
-							{ criterionId: "ac-inline", statement: "Inline AC fact", required: true },
-						],
-					},
-					metadata: { executionInputRevision: 1, applyPolicyId: "apply-patch" },
-				}),
-			],
-		]);
-		setup.decisions.down([
-			[
-				"DATA",
-				admissionDecision(
-					"decision-inline-dedicated",
-					"admission-inline-dedicated",
-					"proposal-inline-dedicated",
-				),
-			],
-		]);
+		setup.proposals.set(
+			workItemDomainActionProposalIntake("proposal-inline-dedicated", "wi-1", "patch", {
+				payload: {
+					summary: "Inline split patch",
+					acceptanceCriteria: [
+						{ criterionId: "ac-inline", statement: "Inline AC fact", required: true },
+					],
+				},
+				metadata: { executionInputRevision: 1, applyPolicyId: "apply-patch" },
+			}),
+		);
+		setup.decisions.set(
+			admissionDecision(
+				"decision-inline-dedicated",
+				"admission-inline-dedicated",
+				"proposal-inline-dedicated",
+			),
+		);
 
 		expect(setup.appliedFacts.map((fact) => fact.kind)).toEqual([
 			"work-item-patched",
@@ -502,37 +449,28 @@ describe("WorkItem domain action admission and application (D239/D333-D343) — 
 
 	it("rejects dedicated authoring fields that are outside a patch allowlist", () => {
 		const setup = setupActions();
-		setup.seed.down([["DATA", workItemCreatedFromDraft("wi-1", draft())]]);
-		setup.applyPolicies.down([
-			[
-				"DATA",
-				workItemDomainActionApplyPolicy("apply-patch", {
-					actionKinds: ["patch"],
-					patch: { allowedFields: ["summary"] },
-				}),
-			],
-		]);
+		setup.seed.set(workItemCreatedFromDraft("wi-1", draft()));
+		setup.applyPolicies.set(
+			workItemDomainActionApplyPolicy("apply-patch", {
+				actionKinds: ["patch"],
+				patch: { allowedFields: ["summary"] },
+			}),
+		);
 
-		setup.proposals.down([
-			[
-				"DATA",
-				workItemDomainActionProposalIntake("proposal-ac-blocked", "wi-1", "patch", {
-					payload: {
-						summary: "Allowed alone",
-						acceptanceCriteria: [
-							{ criterionId: "ac-blocked", statement: "Should be blocked", required: true },
-						],
-					},
-					metadata: { executionInputRevision: 1, applyPolicyId: "apply-patch" },
-				}),
-			],
-		]);
-		setup.decisions.down([
-			[
-				"DATA",
-				admissionDecision("decision-ac-blocked", "admission-ac-blocked", "proposal-ac-blocked"),
-			],
-		]);
+		setup.proposals.set(
+			workItemDomainActionProposalIntake("proposal-ac-blocked", "wi-1", "patch", {
+				payload: {
+					summary: "Allowed alone",
+					acceptanceCriteria: [
+						{ criterionId: "ac-blocked", statement: "Should be blocked", required: true },
+					],
+				},
+				metadata: { executionInputRevision: 1, applyPolicyId: "apply-patch" },
+			}),
+		);
+		setup.decisions.set(
+			admissionDecision("decision-ac-blocked", "admission-ac-blocked", "proposal-ac-blocked"),
+		);
 
 		expect(setup.appliedFacts).toEqual([]);
 		expect(setup.applicationIssues.at(-1)).toMatchObject({ code: "policy-mismatch" });
@@ -541,35 +479,32 @@ describe("WorkItem domain action admission and application (D239/D333-D343) — 
 
 	it("preserves executionInputRevision for metadata-only patch unless policy marks it relevant", () => {
 		const setup = setupActions();
-		setup.seed.down([["DATA", workItemCreatedFromDraft("wi-1", draft())]]);
-		setup.applyPolicies.down([
-			["DATA", workItemDomainActionApplyPolicy("apply-patch", { actionKinds: ["patch"] })],
-		]);
+		setup.seed.set(workItemCreatedFromDraft("wi-1", draft()));
+		setup.applyPolicies.set(
+			workItemDomainActionApplyPolicy("apply-patch", { actionKinds: ["patch"] }),
+		);
 
 		applyPatch(setup, "proposal-meta", "admission-meta", {
 			patch: { metadata: { color: "blue" } },
 			metadata: { executionInputRevision: 1, applyPolicyId: "apply-patch" },
 		});
-		setup.seed.down([["DATA", setup.appliedFacts.at(-1) as WorkItemAuthoringFact]]);
+		setup.seed.set(setup.appliedFacts.at(-1) as WorkItemAuthoringFact);
 		expect(setup.workItems.at(-1)).toMatchObject({
 			authoringRevision: 2,
 			executionInputRevision: 1,
 		});
 
-		setup.applyPolicies.down([
-			[
-				"DATA",
-				workItemDomainActionApplyPolicy("apply-patch", {
-					actionKinds: ["patch"],
-					patch: { executionRelevantFields: ["metadata.color"] },
-				}),
-			],
-		]);
+		setup.applyPolicies.set(
+			workItemDomainActionApplyPolicy("apply-patch", {
+				actionKinds: ["patch"],
+				patch: { executionRelevantFields: ["metadata.color"] },
+			}),
+		);
 		applyPatch(setup, "proposal-relevant", "admission-relevant", {
 			patch: { metadata: { color: "red" } },
 			metadata: { executionInputRevision: 1, applyPolicyId: "apply-patch" },
 		});
-		setup.seed.down([["DATA", setup.appliedFacts.at(-1) as WorkItemAuthoringFact]]);
+		setup.seed.set(setup.appliedFacts.at(-1) as WorkItemAuthoringFact);
 
 		expect(setup.workItems.at(-1)).toMatchObject({
 			authoringRevision: 3,

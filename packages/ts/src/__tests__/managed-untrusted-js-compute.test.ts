@@ -26,6 +26,7 @@ import type {
 	ToolProviderAdapterInput,
 	ToolProviderAdapterRunRequested,
 } from "../orchestration/index.js";
+import { asState } from "./helpers/as-state.js";
 
 const digest = `sha256:${"b".repeat(64)}`;
 const ref = (kind: string, id: string): SourceRef => ({ kind, id });
@@ -174,22 +175,17 @@ function decideCancellation(
 	request: ManagedUntrustedJsComputeCancellationRequested = cancellation(),
 	outcome: ManagedUntrustedJsComputeCancellationDecision["outcome"] = "admit",
 ) {
-	requests.down([["DATA", request]]);
+	asState(requests).set(request);
 	const proposal = proposals.at(-1);
 	if (proposal === undefined) throw new Error("Cancellation proposal was not emitted.");
-	decisions.down([
-		[
-			"DATA",
-			{
-				...proposal,
-				kind: "managed-untrusted-js-compute-cancellation-decision",
-				decisionId: `decision:${request.cancellationId}`,
-				proposalId: proposal.proposalId,
-				outcome,
-				sourceRefs: [ref("authorization", `authorization:${request.cancellationId}`)],
-			},
-		],
-	]);
+	asState(decisions).set({
+		...proposal,
+		kind: "managed-untrusted-js-compute-cancellation-decision",
+		decisionId: `decision:${request.cancellationId}`,
+		proposalId: proposal.proposalId,
+		outcome,
+		sourceRefs: [ref("authorization", `authorization:${request.cancellationId}`)],
+	});
 }
 
 const collect = <T>(node: {
@@ -326,10 +322,10 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 		const cleanup = collect<ManagedUntrustedJsComputeCleanupStatus>(runtime.cleanup);
 		const outcomes = collect<ExecutorOutcome>(runtime.outcomes);
 		const movements = collect<ManagedUntrustedJsComputeMovementEvidence>(runtime.movement);
-		inputs.down([["DATA", input()]]);
-		manifests.down([["DATA", manifest()]]);
-		postures.down([["DATA", readiness()]]);
-		admitted.down([["DATA", run()]]);
+		inputs.set(input());
+		manifests.set(manifest());
+		postures.set(readiness());
+		admitted.set(run());
 		await settle();
 		expect(calls).toEqual(["create", "upload", "run", "destroy"]);
 		expect(lifecycle.map((fact) => fact.state)).toEqual([
@@ -401,10 +397,10 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 				"managedUntrustedJsCompute/outcomes",
 			]),
 		);
-		inputs.down([["DATA", input()]]);
-		manifests.down([["DATA", manifest()]]);
-		postures.down([["DATA", readiness()]]);
-		admitted.down([["DATA", run()]]);
+		inputs.set(input());
+		manifests.set(manifest());
+		postures.set(readiness());
+		admitted.set(run());
 		await settle();
 		await runtime.dispose();
 		await runtime.dispose();
@@ -496,10 +492,10 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 					if (message[0] === "DATA" && message[1].state === state) disposed = runtime.dispose();
 				}
 			});
-			inputs.down([["DATA", input()]]);
-			manifests.down([["DATA", manifest()]]);
-			postures.down([["DATA", readiness()]]);
-			admitted.down([["DATA", run()]]);
+			inputs.set(input());
+			manifests.set(manifest());
+			postures.set(readiness());
+			admitted.set(run());
 			await settle();
 			await disposed;
 			expect(events).toEqual(
@@ -581,10 +577,10 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 				now: () => 10,
 			});
 			const issues = collect<{ code: string }>(runtime.issues);
-			inputs.down([["DATA", input()]]);
-			manifests.down([["DATA", manifest()]]);
-			postures.down([["DATA", posture]]);
-			admitted.down([["DATA", request]]);
+			inputs.set(input());
+			manifests.set(manifest());
+			postures.set(posture);
+			admitted.set(request);
 			await settle();
 			expect(created).toBe(0);
 			expect(issues.length).toBeGreaterThan(0);
@@ -627,10 +623,10 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 		const outcomes = collect<ExecutorOutcome>(runtime.outcomes);
 		const cleanup = collect<ManagedUntrustedJsComputeCleanupStatus>(runtime.cleanup);
 		const issues = collect<{ code: string }>(runtime.issues);
-		inputs.down([["DATA", input()]]);
-		manifests.down([["DATA", manifest()]]);
-		postures.down([["DATA", readiness()]]);
-		admitted.down([["DATA", run()]]);
+		inputs.set(input());
+		manifests.set(manifest());
+		postures.set(readiness());
+		admitted.set(run());
 		await settle();
 		expect(outcomes).toEqual([expect.objectContaining({ kind: "result" })]);
 		expect(cleanup).toEqual([expect.objectContaining({ state: "unverifiable" })]);
@@ -694,10 +690,10 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 				now: () => 10,
 			});
 			const outcomes = collect<ExecutorOutcome>(runtime.outcomes);
-			inputs.down([["DATA", input()]]);
-			manifests.down([["DATA", manifest()]]);
-			postures.down([["DATA", readiness()]]);
-			admitted.down([["DATA", run()]]);
+			inputs.set(input());
+			manifests.set(manifest());
+			postures.set(readiness());
+			admitted.set(run());
 			await settle();
 			expect(outcomes).toHaveLength(1);
 			expect(JSON.stringify(outcomes)).not.toMatch(
@@ -746,12 +742,12 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 			now: () => 10,
 		});
 		const issues = collect<{ code: string }>(runtime.issues);
-		inputs.down([["DATA", input()]]);
-		manifests.down([["DATA", manifest()]]);
-		postures.down([["DATA", readiness()]]);
-		admitted.down([["DATA", run()]]);
+		inputs.set(input());
+		manifests.set(manifest());
+		postures.set(readiness());
+		admitted.set(run());
 		await settle();
-		admitted.down([["DATA", run()]]);
+		admitted.set(run());
 		await settle();
 		expect(created).toBe(1);
 		expect(issues).toEqual([
@@ -759,7 +755,7 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 		]);
 		release?.();
 		await settle();
-		admitted.down([["DATA", run()]]);
+		admitted.set(run());
 		await settle();
 		expect(created).toBe(1);
 		expect(issues).toEqual([
@@ -804,10 +800,10 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 		});
 		const outcomes = collect<ExecutorOutcome>(runtime.outcomes);
 		const cleanup = collect<ManagedUntrustedJsComputeCleanupStatus>(runtime.cleanup);
-		inputs.down([["DATA", input()]]);
-		manifests.down([["DATA", manifest({ executionTimeoutMs: 1 })]]);
-		postures.down([["DATA", readiness()]]);
-		admitted.down([["DATA", run()]]);
+		inputs.set(input());
+		manifests.set(manifest({ executionTimeoutMs: 1 }));
+		postures.set(readiness());
+		admitted.set(run());
 		await new Promise((resolve) => setTimeout(resolve, 10));
 		await settle();
 		expect(outcomes).toEqual([expect.objectContaining({ kind: "timeout" })]);
@@ -867,10 +863,10 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 			now: () => 10,
 		});
 		const cleanup = collect<ManagedUntrustedJsComputeCleanupStatus>(runtime.cleanup);
-		inputs.down([["DATA", input()]]);
-		manifests.down([["DATA", manifest({ executionTimeoutMs: 1 })]]);
-		postures.down([["DATA", readiness()]]);
-		admitted.down([["DATA", run()]]);
+		inputs.set(input());
+		manifests.set(manifest({ executionTimeoutMs: 1 }));
+		postures.set(readiness());
+		admitted.set(run());
 		await new Promise((resolve) => setTimeout(resolve, 10));
 		await settle();
 		expect(cleanup).toHaveLength(0);
@@ -925,10 +921,10 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 				now: () => 10,
 			});
 			const outcomes = collect<ExecutorOutcome>(runtime.outcomes);
-			inputs.down([["DATA", input()]]);
-			manifests.down([["DATA", manifest()]]);
-			postures.down([["DATA", readiness()]]);
-			admitted.down([["DATA", run()]]);
+			inputs.set(input());
+			manifests.set(manifest());
+			postures.set(readiness());
+			admitted.set(run());
 			await settle();
 			expect(outcomes).toEqual([expect.objectContaining({ kind: "failure" })]);
 			await runtime.dispose();
@@ -1019,29 +1015,22 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 		const outcomes = collect<ExecutorOutcome>(runtime.outcomes);
 		const issues = collect<{ code: string }>(runtime.issues);
 		const audit = collect<{ kind: string }>(runtime.audit);
-		inputs.down([["DATA", input()]]);
-		manifests.down([["DATA", manifest()]]);
-		postures.down([["DATA", readiness()]]);
-		admitted.down([["DATA", run()]]);
+		inputs.set(input());
+		manifests.set(manifest());
+		postures.set(readiness());
+		admitted.set(run());
 		await settle();
-		cancellations.down([["DATA", cancellation()]]);
+		cancellations.set(cancellation());
 		const firstProposal = proposals[0];
 		if (firstProposal === undefined) throw new Error("Cancellation proposal was not emitted.");
-		cancellations.down([
-			["DATA", cancellation({ cancellationId: "cancel:js-compute:while-pending" })],
-		]);
-		decisions.down([
-			[
-				"DATA",
-				{
-					...firstProposal,
-					kind: "managed-untrusted-js-compute-cancellation-decision",
-					decisionId: "decision:missing-evidence",
-					proposalId: firstProposal.proposalId,
-					outcome: "admit",
-				} as unknown as ManagedUntrustedJsComputeCancellationDecision,
-			],
-		]);
+		cancellations.set(cancellation({ cancellationId: "cancel:js-compute:while-pending" }));
+		decisions.set({
+			...firstProposal,
+			kind: "managed-untrusted-js-compute-cancellation-decision",
+			decisionId: "decision:missing-evidence",
+			proposalId: firstProposal.proposalId,
+			outcome: "admit",
+		} as unknown as ManagedUntrustedJsComputeCancellationDecision);
 		let outcomeGetterReads = 0;
 		const accessorDecision = {
 			...firstProposal,
@@ -1057,36 +1046,24 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 				return outcomeGetterReads === 1 ? "block" : "admit";
 			},
 		});
-		decisions.down([
-			["DATA", accessorDecision as unknown as ManagedUntrustedJsComputeCancellationDecision],
-		]);
-		decisions.down([
-			[
-				"DATA",
-				{
-					...firstProposal,
-					kind: "managed-untrusted-js-compute-cancellation-decision",
-					decisionId: "decision:stale-runtime",
-					proposalId: firstProposal.proposalId,
-					runId: "run:stale-runtime",
-					outcome: "admit",
-					sourceRefs: [ref("authorization", "authorization:stale-runtime")],
-				},
-			],
-		]);
-		decisions.down([
-			[
-				"DATA",
-				{
-					...firstProposal,
-					kind: "managed-untrusted-js-compute-cancellation-decision",
-					decisionId: "decision:cancel:js-compute:1",
-					proposalId: firstProposal.proposalId,
-					outcome: "block",
-					sourceRefs: [ref("authorization", "authorization:cancel:js-compute:1")],
-				},
-			],
-		]);
+		decisions.set(accessorDecision as unknown as ManagedUntrustedJsComputeCancellationDecision);
+		decisions.set({
+			...firstProposal,
+			kind: "managed-untrusted-js-compute-cancellation-decision",
+			decisionId: "decision:stale-runtime",
+			proposalId: firstProposal.proposalId,
+			runId: "run:stale-runtime",
+			outcome: "admit",
+			sourceRefs: [ref("authorization", "authorization:stale-runtime")],
+		});
+		decisions.set({
+			...firstProposal,
+			kind: "managed-untrusted-js-compute-cancellation-decision",
+			decisionId: "decision:cancel:js-compute:1",
+			proposalId: firstProposal.proposalId,
+			outcome: "block",
+			sourceRefs: [ref("authorization", "authorization:cancel:js-compute:1")],
+		});
 		await settle();
 		expect(outcomeGetterReads).toBe(0);
 		expect(proposals).toHaveLength(1);
@@ -1136,23 +1113,18 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 			]),
 		);
 		const secondCancellation = cancellation({ cancellationId: "cancel:js-compute:2" });
-		cancellations.down([["DATA", secondCancellation]]);
+		cancellations.set(secondCancellation);
 		const secondProposal = proposals.at(-1);
 		if (secondProposal === undefined)
 			throw new Error("Second cancellation proposal was not emitted.");
-		decisions.down([
-			[
-				"DATA",
-				{
-					...secondProposal,
-					kind: "managed-untrusted-js-compute-cancellation-decision",
-					decisionId: "decision:cancel:js-compute:1",
-					proposalId: secondProposal.proposalId,
-					outcome: "admit",
-					sourceRefs: [ref("authorization", "authorization:cancel:js-compute:2")],
-				},
-			],
-		]);
+		decisions.set({
+			...secondProposal,
+			kind: "managed-untrusted-js-compute-cancellation-decision",
+			decisionId: "decision:cancel:js-compute:1",
+			proposalId: secondProposal.proposalId,
+			outcome: "admit",
+			sourceRefs: [ref("authorization", "authorization:cancel:js-compute:2")],
+		});
 		await settle();
 		expect(issues).toContainEqual(
 			expect.objectContaining({
@@ -1162,42 +1134,32 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 		expect(admissions).toHaveLength(1);
 		expect(acknowledgements).toHaveLength(0);
 		expect(events).toHaveLength(0);
-		decisions.down([
-			[
-				"DATA",
-				{
-					...secondProposal,
-					kind: "managed-untrusted-js-compute-cancellation-decision",
-					decisionId: "decision:cancel:js-compute:2",
-					proposalId: secondProposal.proposalId,
-					outcome: "block",
-					sourceRefs: [ref("authorization", "authorization:cancel:js-compute:2")],
-				},
-			],
-		]);
+		decisions.set({
+			...secondProposal,
+			kind: "managed-untrusted-js-compute-cancellation-decision",
+			decisionId: "decision:cancel:js-compute:2",
+			proposalId: secondProposal.proposalId,
+			outcome: "block",
+			sourceRefs: [ref("authorization", "authorization:cancel:js-compute:2")],
+		});
 		await settle();
 		expect(admissions).toEqual([
 			expect.objectContaining({ state: "blocked" }),
 			expect.objectContaining({ state: "blocked" }),
 		]);
 		const maximumCancellationId = `c${"x".repeat(255)}`;
-		cancellations.down([["DATA", cancellation({ cancellationId: maximumCancellationId })]]);
+		cancellations.set(cancellation({ cancellationId: maximumCancellationId }));
 		const boundedProposal = proposals.at(-1);
 		if (boundedProposal === undefined) throw new Error("Bounded proposal was not emitted.");
 		expect(boundedProposal.proposalId.length).toBeLessThanOrEqual(8 * 1024);
-		decisions.down([
-			[
-				"DATA",
-				{
-					...boundedProposal,
-					kind: "managed-untrusted-js-compute-cancellation-decision",
-					decisionId: "decision:max-cancellation-id",
-					proposalId: boundedProposal.proposalId,
-					outcome: "block",
-					sourceRefs: [ref("authorization", "authorization:max-cancellation-id")],
-				},
-			],
-		]);
+		decisions.set({
+			...boundedProposal,
+			kind: "managed-untrusted-js-compute-cancellation-decision",
+			decisionId: "decision:max-cancellation-id",
+			proposalId: boundedProposal.proposalId,
+			outcome: "block",
+			sourceRefs: [ref("authorization", "authorization:max-cancellation-id")],
+		});
 		await settle();
 		expect(admissions).toHaveLength(3);
 		releaseRun?.();
@@ -1275,10 +1237,10 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 				}
 			});
 		});
-		inputs.down([["DATA", input()]]);
-		manifests.down([["DATA", manifest({ executionTimeoutMs: 100, cleanupTimeoutMs: 10 })]]);
-		postures.down([["DATA", readiness()]]);
-		admitted.down([["DATA", run()]]);
+		inputs.set(input());
+		manifests.set(manifest({ executionTimeoutMs: 100, cleanupTimeoutMs: 10 }));
+		postures.set(readiness());
+		admitted.set(run());
 		await settle();
 		decideCancellation(cancellations, decisions, proposals);
 		await settle();
@@ -1371,10 +1333,10 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 		const acknowledgements = collect(runtime.cancellations);
 		const outcomes = collect<ExecutorOutcome>(runtime.outcomes);
 		const cleanup = collect<ManagedUntrustedJsComputeCleanupStatus>(runtime.cleanup);
-		inputs.down([["DATA", input()]]);
-		manifests.down([["DATA", manifest({ cleanupTimeoutMs: 250 })]]);
-		postures.down([["DATA", readiness()]]);
-		admitted.down([["DATA", run()]]);
+		inputs.set(input());
+		manifests.set(manifest({ cleanupTimeoutMs: 250 }));
+		postures.set(readiness());
+		admitted.set(run());
 		await settle();
 		decideCancellation(cancellations, decisions, proposals);
 		await settle();
@@ -1435,10 +1397,10 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 		const admissions = collect(runtime.cancellationAdmissions);
 		const acknowledgements = collect(runtime.cancellations);
 		const outcomes = collect<ExecutorOutcome>(runtime.outcomes);
-		inputs.down([["DATA", input()]]);
-		manifests.down([["DATA", manifest({ executionTimeoutMs: 5, cleanupTimeoutMs: 250 })]]);
-		postures.down([["DATA", readiness()]]);
-		admitted.down([["DATA", run()]]);
+		inputs.set(input());
+		manifests.set(manifest({ executionTimeoutMs: 5, cleanupTimeoutMs: 250 }));
+		postures.set(readiness());
+		admitted.set(run());
 		await new Promise((resolve) => setTimeout(resolve, 10));
 		await settle();
 		expect(outcomes).toEqual([expect.objectContaining({ kind: "timeout" })]);
@@ -1487,10 +1449,10 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 			now: () => 10,
 		});
 		const proposals = collect(runtime.cancellationProposals);
-		inputs.down([["DATA", input()]]);
-		manifests.down([["DATA", manifest()]]);
-		postures.down([["DATA", readiness()]]);
-		admitted.down([["DATA", run()]]);
+		inputs.set(input());
+		manifests.set(manifest());
+		postures.set(readiness());
+		admitted.set(run());
 		await settle();
 		for (const patch of [
 			{ requestId: "request:other" },
@@ -1501,7 +1463,7 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 			{ manifestFingerprint: "fingerprint:other" },
 			{ epoch: "epoch:other" },
 		])
-			cancellations.down([["DATA", cancellation(patch)]]);
+			cancellations.set(cancellation(patch));
 		await settle();
 		expect(proposals).toHaveLength(0);
 		expect(events).toHaveLength(0);
@@ -1552,20 +1514,17 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 		const acknowledgements = collect(runtime.cancellations);
 		const cancellationProposals = collect(runtime.cancellationProposals);
 		const outcomes = collect<ExecutorOutcome>(runtime.outcomes);
-		inputs.down([["DATA", input()]]);
-		manifests.down([["DATA", manifest()]]);
-		postures.down([["DATA", readiness()]]);
-		admitted.down([["DATA", run()]]);
+		inputs.set(input());
+		manifests.set(manifest());
+		postures.set(readiness());
+		admitted.set(run());
 		await settle();
-		cancellations.down([
-			[
-				"DATA",
-				cancellation({
-					cancellationId: "cancel:js-compute:wrong-manifest",
-					manifestFingerprint: "fingerprint:other",
-				}),
-			],
-		]);
+		cancellations.set(
+			cancellation({
+				cancellationId: "cancel:js-compute:wrong-manifest",
+				manifestFingerprint: "fingerprint:other",
+			}),
+		);
 		await settle();
 		expect(cancellationProposals).toHaveLength(0);
 		expect(acknowledgements).toHaveLength(0);
@@ -1638,10 +1597,10 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 		const outcomes = collect<ExecutorOutcome>(runtime.outcomes);
 		const cleanups = collect<ManagedUntrustedJsComputeCleanupStatus>(runtime.cleanup);
 		const lifecycle = collect<ManagedUntrustedJsComputeLifecycleFact>(runtime.lifecycle);
-		inputs.down([["DATA", input()]]);
-		manifests.down([["DATA", manifest()]]);
-		postures.down([["DATA", readiness()]]);
-		admitted.down([["DATA", run()]]);
+		inputs.set(input());
+		manifests.set(manifest());
+		postures.set(readiness());
+		admitted.set(run());
 		await settle();
 		decideCancellation(
 			cancellations,
@@ -1718,10 +1677,10 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 			},
 			now: () => 10,
 		});
-		inputs.down([["DATA", input()]]);
-		manifests.down([["DATA", manifest()]]);
-		postures.down([["DATA", readiness()]]);
-		admitted.down([["DATA", run()]]);
+		inputs.set(input());
+		manifests.set(manifest());
+		postures.set(readiness());
+		admitted.set(run());
 		await settle();
 		const cancellationProposals = collect(runtime.cancellationProposals);
 		decideCancellation(
@@ -1788,10 +1747,10 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 				if (message[0] === "DATA") reentrantDispose = runtime.dispose();
 			}
 		});
-		inputs.down([["DATA", input()]]);
-		manifests.down([["DATA", manifest()]]);
-		postures.down([["DATA", readiness()]]);
-		admitted.down([["DATA", run()]]);
+		inputs.set(input());
+		manifests.set(manifest());
+		postures.set(readiness());
+		admitted.set(run());
 		await settle();
 		await reentrantDispose;
 		expect(events).toEqual(["destroy"]);
@@ -1848,10 +1807,10 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 			},
 			now: () => 10,
 		});
-		inputs.down([["DATA", input()]]);
-		manifests.down([["DATA", manifest()]]);
-		postures.down([["DATA", readiness()]]);
-		admitted.down([["DATA", run()]]);
+		inputs.set(input());
+		manifests.set(manifest());
+		postures.set(readiness());
+		admitted.set(run());
 		await settle();
 		const cleanups = collect<ManagedUntrustedJsComputeCleanupStatus>(runtime.cleanup);
 		let disposeSettled = false;
@@ -1914,10 +1873,10 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 			now: () => 10,
 		});
 		const cleanups = collect<ManagedUntrustedJsComputeCleanupStatus>(runtime.cleanup);
-		inputs.down([["DATA", input()]]);
-		manifests.down([["DATA", manifest()]]);
-		postures.down([["DATA", readiness()]]);
-		admitted.down([["DATA", run()]]);
+		inputs.set(input());
+		manifests.set(manifest());
+		postures.set(readiness());
+		admitted.set(run());
 		await settle();
 		await runtime.dispose();
 		expect(events).toEqual(["create-start", "fence"]);
@@ -1976,10 +1935,10 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 				now: () => 10,
 			});
 			const cleanups = collect<ManagedUntrustedJsComputeCleanupStatus>(runtime.cleanup);
-			inputs.down([["DATA", input()]]);
-			manifests.down([["DATA", manifest()]]);
-			postures.down([["DATA", readiness()]]);
-			admitted.down([["DATA", run()]]);
+			inputs.set(input());
+			manifests.set(manifest());
+			postures.set(readiness());
+			admitted.set(run());
 			await settle();
 			await runtime.dispose();
 			expect(cleanups).toEqual([expect.objectContaining({ state: "unverifiable" })]);
@@ -2029,10 +1988,10 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 			now: () => 10,
 		});
 		const cleanups = collect<ManagedUntrustedJsComputeCleanupStatus>(runtime.cleanup);
-		inputs.down([["DATA", input()]]);
-		manifests.down([["DATA", manifest()]]);
-		postures.down([["DATA", readiness()]]);
-		admitted.down([["DATA", run()]]);
+		inputs.set(input());
+		manifests.set(manifest());
+		postures.set(readiness());
+		admitted.set(run());
 		await settle();
 		await runtime.dispose();
 		expect(events).toEqual(["kill-start"]);
@@ -2080,10 +2039,10 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 			now: () => 10,
 		});
 		const cleanups = collect<ManagedUntrustedJsComputeCleanupStatus>(runtime.cleanup);
-		inputs.down([["DATA", input()]]);
-		manifests.down([["DATA", manifest({ cleanupTimeoutMs: 250 })]]);
-		postures.down([["DATA", readiness()]]);
-		admitted.down([["DATA", run()]]);
+		inputs.set(input());
+		manifests.set(manifest({ cleanupTimeoutMs: 250 }));
+		postures.set(readiness());
+		admitted.set(run());
 		await settle();
 		vi.useFakeTimers();
 		try {
@@ -2153,10 +2112,10 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 			now: () => 10,
 		});
 		const issues = collect<{ code: string }>(runtime.issues);
-		inputs.down([["DATA", input()]]);
-		manifests.down([["DATA", manifest()]]);
-		postures.down([["DATA", readiness()]]);
-		admitted.down([["DATA", run()]]);
+		inputs.set(input());
+		manifests.set(manifest());
+		postures.set(readiness());
+		admitted.set(run());
 		await settle();
 		await runtime.dispose();
 		expect(events).toEqual(["create-start", "fence-start"]);
@@ -2223,10 +2182,10 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 			},
 			now: () => 10,
 		});
-		inputs.down([["DATA", input()]]);
-		manifests.down([["DATA", manifest({ cleanupTimeoutMs: 250 })]]);
-		postures.down([["DATA", readiness()]]);
-		admitted.down([["DATA", run()]]);
+		inputs.set(input());
+		manifests.set(manifest({ cleanupTimeoutMs: 250 }));
+		postures.set(readiness());
+		admitted.set(run());
 		await settle();
 		const disposed = runtime.dispose();
 		await settle();
@@ -2282,10 +2241,10 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 			},
 			now: () => 10,
 		});
-		inputs.down([["DATA", input()]]);
-		manifests.down([["DATA", manifest()]]);
-		postures.down([["DATA", readiness()]]);
-		admitted.down([["DATA", run()]]);
+		inputs.set(input());
+		manifests.set(manifest());
+		postures.set(readiness());
+		admitted.set(run());
 		await settle();
 		const first = runtime.dispose();
 		const second = runtime.dispose();
@@ -2341,12 +2300,12 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 			requestId: secondInput.requestId,
 			operationId: secondInput.operationId,
 		});
-		inputs.down([["DATA", input()]]);
-		inputs.down([["DATA", secondInput]]);
-		manifests.down([["DATA", manifest()]]);
-		postures.down([["DATA", readiness()]]);
-		admitted.down([["DATA", run()]]);
-		admitted.down([["DATA", secondRun]]);
+		inputs.set(input());
+		inputs.set(secondInput);
+		manifests.set(manifest());
+		postures.set(readiness());
+		admitted.set(run());
+		admitted.set(secondRun);
 		await settle();
 		vi.useFakeTimers();
 		try {
@@ -2402,10 +2361,10 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 			now: () => 10,
 		});
 		const outcomes = collect<ExecutorOutcome>(runtime.outcomes);
-		inputs.down([["DATA", input()]]);
-		manifests.down([["DATA", manifest({ executionTimeoutMs: 10 })]]);
-		postures.down([["DATA", readiness()]]);
-		admitted.down([["DATA", run()]]);
+		inputs.set(input());
+		manifests.set(manifest({ executionTimeoutMs: 10 }));
+		postures.set(readiness());
+		admitted.set(run());
 		await new Promise((resolve) => setTimeout(resolve, 20));
 		expect(events).toEqual(["kill-start"]);
 		const disposed = runtime.dispose();
@@ -2463,10 +2422,10 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 		const outcomes = collect<ExecutorOutcome>(runtime.outcomes);
 		const cleanups = collect<ManagedUntrustedJsComputeCleanupStatus>(runtime.cleanup);
 		const lifecycle = collect<ManagedUntrustedJsComputeLifecycleFact>(runtime.lifecycle);
-		inputs.down([["DATA", input()]]);
-		manifests.down([["DATA", manifest({ executionTimeoutMs: 10 })]]);
-		postures.down([["DATA", readiness()]]);
-		admitted.down([["DATA", run()]]);
+		inputs.set(input());
+		manifests.set(manifest({ executionTimeoutMs: 10 }));
+		postures.set(readiness());
+		admitted.set(run());
 		await new Promise((resolve) => setTimeout(resolve, 20));
 		await settle();
 		expect(events).toEqual(["kill-start"]);
@@ -2525,10 +2484,10 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 			now: () => 10,
 		});
 		const outcomes = collect<ExecutorOutcome>(runtime.outcomes);
-		inputs.down([["DATA", input()]]);
-		manifests.down([["DATA", manifest()]]);
-		postures.down([["DATA", readiness()]]);
-		admitted.down([["DATA", run()]]);
+		inputs.set(input());
+		manifests.set(manifest());
+		postures.set(readiness());
+		admitted.set(run());
 		await settle();
 		expect(outcomes).toEqual([expect.objectContaining({ kind: "result" })]);
 		expect(events).toEqual(["destroy-start"]);
@@ -2589,10 +2548,10 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 		const outcomes = collect<ExecutorOutcome>(runtime.outcomes);
 		const cleanups = collect<ManagedUntrustedJsComputeCleanupStatus>(runtime.cleanup);
 		const audit = collect<{ kind: string; issueCode?: string }>(runtime.audit);
-		inputs.down([["DATA", input()]]);
-		manifests.down([["DATA", manifest()]]);
-		postures.down([["DATA", readiness()]]);
-		admitted.down([["DATA", run()]]);
+		inputs.set(input());
+		manifests.set(manifest());
+		postures.set(readiness());
+		admitted.set(run());
 		await settle();
 		decideCancellation(
 			cancellations,
@@ -2650,10 +2609,10 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 		});
 		const outcomes = collect<ExecutorOutcome>(runtime.outcomes);
 		const statuses = collect(runtime.runStatus);
-		inputs.down([["DATA", input()]]);
-		manifests.down([["DATA", manifest({ executionTimeoutMs: 150 })]]);
-		postures.down([["DATA", readiness()]]);
-		admitted.down([["DATA", run()]]);
+		inputs.set(input());
+		manifests.set(manifest({ executionTimeoutMs: 150 }));
+		postures.set(readiness());
+		admitted.set(run());
 		await settle();
 		await runtime.dispose();
 		await new Promise((resolve) => setTimeout(resolve, 180));

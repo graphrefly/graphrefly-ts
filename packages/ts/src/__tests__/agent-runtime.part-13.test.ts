@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { batch } from "../batch/batch.js";
 import type { DataIssue } from "../data/index.js";
 import type {
 	ToolProviderAdapterBinding,
@@ -214,7 +215,7 @@ function visibleOutcomeResultCandidates(
 								? ({ ...base, timeoutMs: outcome.timeoutMs } satisfies EffectRunResult)
 								: ({ ...base, reason: outcome.reason } satisfies EffectRunResult);
 			state.emitted.add(outcome.outcomeId);
-			candidates.down([["DATA", result]]);
+			candidates.set(result);
 		}
 	}
 	const unsubscribes = [
@@ -447,9 +448,9 @@ function createDogfoodHarness(
 	let disposed = false;
 
 	function publishBaseFacts(request: AgentRequestIssued): void {
-		workItems.down([["DATA", workItemSeed()]]);
-		effectRequests.down([["DATA", workItemEffectRequest({ effectRunId: request.effectRunId })]]);
-		requestFacts.down([["DATA", request]]);
+		workItems.set(workItemSeed());
+		effectRequests.set(workItemEffectRequest({ effectRunId: request.effectRunId }));
+		requestFacts.set(request);
 	}
 
 	function seed(request: AgentRequestIssued = toolRequest()): ToolProviderAdapterInput {
@@ -464,9 +465,9 @@ function createDogfoodHarness(
 		});
 		if (resolution === undefined) throw new Error("expected policy resolution");
 		publishBaseFacts(request);
-		catalogs.down([["DATA", catalog]]);
-		routes.down([["DATA", route]]);
-		resolutions.down([["DATA", resolution]]);
+		catalogs.set(catalog);
+		routes.set(route);
+		resolutions.set(resolution);
 		const input = seen.inputs.at(-1);
 		if (input === undefined || input.status !== "ready") throw new Error("expected ready input");
 		return input;
@@ -481,8 +482,8 @@ function createDogfoodHarness(
 		});
 		if (resolution === undefined) throw new Error("expected pending route resolution");
 		publishBaseFacts(request);
-		catalogs.down([["DATA", catalog]]);
-		resolutions.down([["DATA", resolution]]);
+		catalogs.set(catalog);
+		resolutions.set(resolution);
 		const input = seen.inputs.at(-1);
 		if (input === undefined || input.status === "ready") {
 			throw new Error("expected non-ready adapter input");
@@ -511,7 +512,7 @@ function createDogfoodHarness(
 				sourceRefs: opts.sourceRefs,
 				metadata: opts.metadata,
 			});
-			runRequests.down([["DATA", request]]);
+			runRequests.set(request);
 			return request;
 		},
 		dispose() {
@@ -673,47 +674,39 @@ describe("CSP-8 dogfood evidence integration through explicit tool adapter runs 
 			toolRequest({ requestId: "tool-request-not-ready" }),
 		);
 
-		harness.runRequests.down([
-			[
-				"DATA",
-				{
-					kind: "tool-provider-adapter-run-requested",
-					runId: "run-missing-input",
-					adapterInputId: "missing-adapter-input",
-					requestId: validInput.requestId,
-					operationId: validInput.operationId,
-					attempt: 1,
-					reason: "manual",
-				},
-			],
-			[
-				"DATA",
+		batch(() => {
+			harness.runRequests.set({
+				kind: "tool-provider-adapter-run-requested",
+				runId: "run-missing-input",
+				adapterInputId: "missing-adapter-input",
+				requestId: validInput.requestId,
+				operationId: validInput.operationId,
+				attempt: 1,
+				reason: "manual",
+			});
+			harness.runRequests.set(
 				requestToolProviderAdapterRun(validInput, {
 					runId: "run-valid-control",
 					attempt: 1,
 					reason: "manual",
 				}),
-			],
-			[
-				"DATA",
+			);
+			harness.runRequests.set(
 				requestToolProviderAdapterRun(notReadyInput, {
 					runId: "run-not-ready-request",
 					attempt: 1,
 					reason: "manual",
 				}),
-			],
-			[
-				"DATA",
-				{
-					...requestToolProviderAdapterRun(validInput, {
-						runId: "run-stale-request",
-						attempt: 2,
-						reason: "manual",
-					}),
-					requestId: "different-request",
-				},
-			],
-		]);
+			);
+			harness.runRequests.set({
+				...requestToolProviderAdapterRun(validInput, {
+					runId: "run-stale-request",
+					attempt: 2,
+					reason: "manual",
+				}),
+				requestId: "different-request",
+			});
+		});
 
 		expect(calls).toHaveLength(1);
 		expect(harness.seen.runStatus).toEqual(

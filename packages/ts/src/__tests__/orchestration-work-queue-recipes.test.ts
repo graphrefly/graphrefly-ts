@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { batch } from "../batch/batch.js";
 import { graph } from "../graph/graph.js";
 import type { ProcessEffectRequest } from "../orchestration/index.js";
 import {
@@ -17,23 +18,20 @@ describe("orchestration workQueue recipe (D349/D353)", () => {
 		const evidence = collectData(recipe.evidence);
 		const status = collectData(recipe.status);
 
-		records.down([
-			["DATA", admittedRecord()],
-			[
-				"DATA",
-				{
-					kind: "work-completed",
-					recordSeq: 2,
-					queueId: "q",
-					workId: "work-1",
-					leaseId: "lease-1",
-					attempt: 1,
-					workerId: "worker-1",
-					result: { ok: true },
-					recordedAtMs: 120,
-				} satisfies WorkQueueRecord<OrchestrationQueuedEffectPayload>,
-			],
-		]);
+		batch(() => {
+			records.set(admittedRecord());
+			records.set({
+				kind: "work-completed",
+				recordSeq: 2,
+				queueId: "q",
+				workId: "work-1",
+				leaseId: "lease-1",
+				attempt: 1,
+				workerId: "worker-1",
+				result: { ok: true },
+				recordedAtMs: 120,
+			} satisfies WorkQueueRecord<OrchestrationQueuedEffectPayload>);
+		});
 
 		expect(evidence.at(-1)).toEqual(
 			expect.objectContaining({
@@ -62,7 +60,7 @@ describe("orchestration workQueue recipe (D349/D353)", () => {
 		const status = collectData(recipe.status);
 		const audit = collectData(recipe.audit);
 
-		records.down([["DATA", malformedAdmittedRecord()]]);
+		records.set(malformedAdmittedRecord());
 
 		expect(issues.at(-1)).toEqual(
 			expect.objectContaining({ code: "orchestration-queue-malformed-payload" }),

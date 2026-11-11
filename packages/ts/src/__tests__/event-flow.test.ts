@@ -7,6 +7,7 @@ import {
 	messageBus,
 } from "../messaging/index.js";
 import { type EventFlowRecord, eventFlow, eventFlowProjection } from "../patterns/event-flow.js";
+import { asState } from "./helpers/as-state.js";
 
 function collect<T>(node: Node<T>): T[] {
 	const seen: T[] = [];
@@ -112,7 +113,7 @@ describe("eventFlow pattern (D326/D329/D331)", () => {
 
 		bus.publish("events", eventMessage("order.created", { orderId: "o1" }, { id: "evt-1" }));
 		sub.available.subscribe(() => {}); // R-lifetime: an inactive projection does not run
-		sub.availableRequest.down([["DATA", {}]]);
+		asState(sub.availableRequest).set({});
 
 		expect(records).toEqual([
 			expect.objectContaining({

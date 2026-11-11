@@ -81,7 +81,7 @@ for (const arm of ["graph", "plain"] as const) {
 			lane: "pack" | "arrivals" | "current" | "verification" | "local",
 			value: unknown,
 		) => {
-			if (setup) setup.sources[lane].down([["DATA", value as never]]);
+			if (setup) setup.sources[lane].set(value as never);
 			else plain!.feed(lane, value);
 		};
 		const one = proofEvaluation();

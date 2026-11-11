@@ -87,14 +87,15 @@ for (const mode of ["off", "summary"] as const) {
 				const seen: unknown[] = [];
 				observed.push(seen);
 				stops.push(ordinaryExample(view, (v) => seen.push(v)));
-				run.sources.pack.down([["DATA", evaluationPack([e])]]);
+				run.sources.pack.set(evaluationPack([e]));
 				batch(() => {
-					run.sources.current.down([["DATA", f.current]]);
-					run.sources.verification.down([["DATA", f.verification]]);
-					run.sources.local.down([["DATA", f.local]]);
-					run.sources.arrivals.down([
-						["DATA", { packRef: presetBinding.packRef, evaluationRefs: [e.evaluationRef] }],
-					]);
+					run.sources.current.set(f.current);
+					run.sources.verification.set(f.verification);
+					run.sources.local.set(f.local);
+					run.sources.arrivals.set({
+						packRef: presetBinding.packRef,
+						evaluationRefs: [e.evaluationRef],
+					});
 				});
 				await drain();
 				expect(topology(run.graph)).toEqual(before);

@@ -29,13 +29,15 @@ import {
 	PlainPublication,
 	verifyPublicationMaterial,
 } from "../../../../scripts/fixtures/spending-publication-oracle.js";
+import { batch } from "../batch/batch.js";
+import { depBatch } from "../ctx/types.js";
 import {
 	constructionOf,
 	prepareConstruction,
 	startConstruction,
 } from "../graph/construction-scope.js";
 import { Graph } from "../graph/graph.js";
-import type { Node } from "../node/node.js";
+import type { Node, StateNode } from "../node/node.js";
 import { checkpointStateOfNode } from "../node/runtime-accessors.js";
 import type { CausalBinding } from "../solutions/causal-occurrence/capabilities.js";
 import {
@@ -45,10 +47,12 @@ import {
 import type {
 	CausalEffectOutcome,
 	CausalOccurrenceBundleOptions,
+	CommittedEffectsView,
 	RuntimeState,
 } from "../solutions/causal-occurrence/contracts.js";
 import { causalOccurrenceDigest } from "../solutions/causal-occurrence/identity.js";
-import { removeOwnedNodeDep } from "./helpers/owned-rewire.js";
+import { asState } from "./helpers/as-state.js";
+import { removeOwnedNodeDep, rewireOwnedNode } from "./helpers/owned-rewire.js";
 
 vi.mock("node:crypto", async (importOriginal) => {
 	const original = await importOriginal<typeof import("node:crypto")>();
@@ -135,6 +139,19 @@ function collect<T>(n: Node<T>) {
 	stops.push(stop);
 	return { values, messages, stop, last: () => values.at(-1)! };
 }
+/**
+ * Test-only: the committed view is computed by the authority, so a test that feeds the join its
+ * own views rewires the view node to forward a state input seeded with the current view. The view
+ * node keeps its identity, which the join checks.
+ */
+function viewInput(f: ReturnType<typeof fixture>): StateNode<CommittedEffectsView> {
+	const view = f.built.causal.committedEffects;
+	const input = f.graph.state(collect(view).last(), { name: "test/view" });
+	rewireOwnedNode(view as Node<unknown>, [input as Node<unknown>], (ctx) => {
+		for (const value of depBatch(ctx, 0) ?? []) ctx.down([["DATA", value]]);
+	});
+	return input;
+}
 function fixture(p: MaterialProfile = profile) {
 	const graph = new Graph();
 	graphs.push(graph);
@@ -180,7 +197,9 @@ function fixture(p: MaterialProfile = profile) {
 	scope.transferToGraph(owner);
 	startConstruction(graph, owner);
 	const send = (lane: keyof typeof sources, ...values: unknown[]) =>
-		sources[lane].down(values.map((v) => ["DATA", v]));
+		batch(() => {
+			for (const v of values) asState(sources[lane]).set(v);
+		});
 	const release = (a: ReturnType<typeof facts>) => {
 		send("occurrences", a.occurrence);
 		send("admissions", {
@@ -211,7 +230,7 @@ function fixture(p: MaterialProfile = profile) {
 		admit,
 		state,
 		joinFn: nodeCalls.mock.calls.find((c) => c[2]?.name === "requestMaterialJoin")![1]!,
-		frame: (rows: readonly RequestMaterial[]) => material.down([["DATA", oracleSnapshot(p, rows)]]),
+		frame: (rows: readonly RequestMaterial[]) => material.set(oracleSnapshot(p, rows)),
 	};
 }
 describe("private publication material-v1", () => {
@@ -315,7 +334,7 @@ describe("private publication material-v1", () => {
 		const before = JSON.stringify(f.state());
 		const bad = JSON.parse(JSON.stringify(oracleSnapshot(profile, [a.material])));
 		bad.body.materials[0].body.payloadText = "{}";
-		f.material.down([["DATA", bad]]);
+		f.material.set(bad);
 		expect(out.last().rows[0]).toMatchObject({
 			recorded: "admitted-no-outcome",
 			material: "invalid/conflicting",
@@ -327,7 +346,7 @@ describe("private publication material-v1", () => {
 			a = facts(),
 			out = collect(f.built.publication);
 		f.admit(a);
-		f.material.down([["DATA", oracleSnapshot(profile, [a.material])]]);
+		f.material.set(oracleSnapshot(profile, [a.material]));
 		expect(out.last().materialFrame).toBe("binding-mismatch");
 	});
 	it.each([
@@ -416,9 +435,9 @@ describe("private publication material-v1", () => {
 			out = collect(f.built.publication);
 		f.admit(a);
 		const raw = JSON.parse(JSON.stringify(oracleSnapshot(profile, [a.material])));
-		f.material.down([["DATA", raw]]);
+		f.material.set(raw);
 		raw.body.materials[0].body.payloadText = "{}";
-		f.material.down([["DATA", raw]]);
+		f.material.set(raw);
 		expect(out.last().materialFrame).toBe("invalid/conflicting");
 	});
 	it.each(
@@ -478,11 +497,11 @@ describe("private publication material-v1", () => {
 		f.frame([a.material]);
 		f.admit(a);
 		const latest = collect(f.built.causal.committedEffects).last();
-		const source = lane === "material" ? f.material : f.built.causal.committedEffects;
-		source.down([["INVALIDATE"]]);
+		const source = (lane === "material" ? f.material : viewInput(f)) as StateNode<unknown>;
+		source.invalidate();
 		const n = out.values.length;
 		if (lane === "material") f.frame([a.material]);
-		else source.down([["DATA", latest]]);
+		else source.set(latest);
 		expect(out.values.length).toBeGreaterThan(n);
 		expect(out.last().rows[0].material).toBe("matched");
 	});
@@ -493,12 +512,13 @@ describe("private publication material-v1", () => {
 		f.frame([a.material]);
 		f.admit(a);
 		const view = collect(f.built.causal.committedEffects).last();
-		f.material.down([["INVALIDATE"]]);
-		f.built.causal.committedEffects.down([["INVALIDATE"]]);
+		const viewIn = viewInput(f);
+		f.material.invalidate();
+		viewIn.invalidate();
 		f.frame([a.material]);
-		f.material.down([["INVALIDATE"]]);
+		f.material.invalidate();
 		const n = out.values.length;
-		f.built.causal.committedEffects.down([["DATA", view]]);
+		viewIn.set(view);
 		expect(out.values.slice(n).some((v) => v.rows.some((r) => r.material === "matched"))).toBe(
 			false,
 		);
@@ -550,7 +570,7 @@ describe("private publication material-v1", () => {
 		if (kind === "conflict") raw.body.materials.push(facts("A", "conflict").material);
 		if (kind === "empty") raw.body.materials = [];
 		raw.digest = kind === "frame" ? h : oracleHash(oracleCanonical(raw.body));
-		f.material.down([["DATA", raw]]);
+		f.material.set(raw);
 		const index = verifyPublicationMaterial(raw, profile);
 		expect(out.last()).toEqual(oraclePublication(view.last(), index, profile));
 		expect(index.state).toBe(
@@ -603,7 +623,7 @@ describe("private publication material-v1", () => {
 		const { packRef: _, ...coordinates } = changed;
 		const m = oracleMaterial({ ...a.material.body, ...coordinates });
 		const frame = oracleSnapshot(changed, [m]);
-		f.material.down([["DATA", frame]]);
+		f.material.set(frame);
 		expect(verifyPublicationMaterial(frame, profile).state).toBe("binding-mismatch");
 		expect(out.last().rows[0].material).toBe("binding-mismatch");
 	});
@@ -673,7 +693,7 @@ describe("private publication material-v1", () => {
 		f.admit(a);
 		f.frame([a.material]);
 		const n = out.values.length;
-		f.material.down([["ERROR", new Error("source unavailable")]]);
+		f.material.error(new Error("source unavailable"));
 		f.send("effectOutcomes", a.outcome);
 		expect(out.values.length).toBe(n);
 		expect(out.messages.some((m) => (m as unknown[])[0] === "ERROR")).toBe(true);
@@ -685,10 +705,10 @@ describe("private publication material-v1", () => {
 		f.admit(a);
 		const frame = oracleSnapshot(profile, [a.material]);
 		vi.mocked(createHash).mockClear();
-		f.material.down([["DATA", frame]]);
+		f.material.set(frame);
 		expect(createHash).toHaveBeenCalledTimes(4);
 		vi.mocked(createHash).mockClear();
-		f.material.down([["DATA", frame]]);
+		f.material.set(frame);
 		f.send("effectOutcomes", a.outcome);
 		expect(createHash).not.toHaveBeenCalled();
 		expect(out.last().rows[0].recorded).toBe("succeeded");
@@ -775,11 +795,12 @@ describe("private publication material-v1", () => {
 		f.admit(a);
 		f.frame([a.material]);
 		const view = collect(f.built.causal.committedEffects).last();
+		const viewIn = viewInput(f);
 		const mutable = { ...view.binding };
-		f.built.causal.committedEffects.down([["DATA", { ...view, binding: mutable }]]);
+		viewIn.set({ ...view, binding: mutable });
 		const before = out.values.length;
 		mutable.epoch++;
-		f.built.causal.committedEffects.down([["DATA", { ...view, binding: mutable }]]);
+		viewIn.set({ ...view, binding: mutable });
 		expect(out.values.length).toBe(before);
 		expect(out.messages.some((m) => (m as unknown[])[0] === "ERROR")).toBe(true);
 	});
@@ -794,9 +815,10 @@ describe("private publication material-v1", () => {
 		f.admit(a);
 		f.frame([a.material]);
 		const view = collect(f.built.causal.committedEffects).last();
+		const viewIn = viewInput(f);
 		const before = out.values.length;
 		const changed = field === "binding" ? Object.freeze({ ...view.binding, epoch: 2 }) : "wrong";
-		f.built.causal.committedEffects.down([["DATA", { ...view, [field]: changed } as typeof view]]);
+		viewIn.set({ ...view, [field]: changed } as typeof view);
 		expect(out.values.length).toBe(before);
 		expect(out.messages.some((m) => (m as unknown[])[0] === "ERROR")).toBe(true);
 	});
@@ -807,6 +829,7 @@ describe("private publication material-v1", () => {
 		f.admit(a);
 		f.frame([a.material]);
 		const view = collect(f.built.causal.committedEffects).last();
+		const viewIn = viewInput(f);
 		let reads = 0;
 		const bad = Object.freeze({
 			...view.binding,
@@ -817,7 +840,7 @@ describe("private publication material-v1", () => {
 		});
 		const before = out.values.length;
 		try {
-			f.built.causal.committedEffects.down([["DATA", { ...view, binding: bad }]]);
+			viewIn.set({ ...view, binding: bad });
 		} catch {}
 		expect(reads).toBe(0);
 		expect(out.values.length).toBe(before);
@@ -829,7 +852,7 @@ describe("private publication material-v1", () => {
 			out = collect(f.built.publication);
 		f.admit(a);
 		const raw = JSON.parse(JSON.stringify(oracleSnapshot(profile, [a.material])));
-		f.material.down([["DATA", raw]]);
+		f.material.set(raw);
 		raw.body.materials[0].body.payloadText = "{}";
 		vi.mocked(createHash).mockClear();
 		f.send("effectOutcomes", a.outcome);
@@ -839,7 +862,7 @@ describe("private publication material-v1", () => {
 			material: "matched",
 			payload: { message: "Message A" },
 		});
-		f.material.down([["DATA", raw]]);
+		f.material.set(raw);
 		expect(out.last().materialFrame).toBe("invalid/conflicting");
 	});
 	it("material DATA while authority is invalid must replace its previous index", () => {
@@ -848,12 +871,13 @@ describe("private publication material-v1", () => {
 			out = collect(f.built.publication);
 		f.admit(a);
 		const view = collect(f.built.causal.committedEffects).last();
+		const viewIn = viewInput(f);
 		const raw = JSON.parse(JSON.stringify(oracleSnapshot(profile, [a.material])));
-		f.material.down([["DATA", raw]]);
-		f.built.causal.committedEffects.down([["INVALIDATE"]]);
+		f.material.set(raw);
+		viewIn.invalidate();
 		raw.body.materials[0].body.payloadText = "{}";
-		f.material.down([["DATA", raw]]);
-		f.built.causal.committedEffects.down([["DATA", view]]);
+		f.material.set(raw);
+		viewIn.set(view);
 		expect(out.last().rows[0].material).toBe("invalid/conflicting");
 	});
 	it.each([
@@ -971,8 +995,8 @@ describe("private publication material-v1", () => {
 			r.frame(empty);
 			expect(p.latest).toEqual(plain.acceptMaterial(empty));
 			expect(p.latest).toEqual(r.latest);
-			p.material.down([["INVALIDATE"]]);
-			r.material.down([["INVALIDATE"]]);
+			asState(p.material).invalidate();
+			asState(r.material).invalidate();
 			plain.invalidate("material");
 			expect(plain.project()).toBeUndefined();
 			p.frame(frame);
@@ -1047,8 +1071,8 @@ describe("private publication material-v1", () => {
 			plain.acceptView(f.view!);
 			plain.acceptMaterial(frame);
 			const before = [f.stats().dataEvents, r.stats().dataEvents];
-			f.material.down([["ERROR", new Error("terminal")]]);
-			r.material.down([["ERROR", new Error("terminal")]]);
+			asState(f.material).error(new Error("terminal"));
+			asState(r.material).error(new Error("terminal"));
 			plain.acceptError();
 			f.send("effectOutcomes", a.outcome);
 			r.send("effectOutcomes", a.outcome);

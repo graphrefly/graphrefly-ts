@@ -958,44 +958,38 @@ export function localContainerPostgresqlRuntime(
 	let disposed = false;
 	let releasePending = false;
 	const emitIssue = (code: string, message: string) =>
-		issues.down([["DATA", Object.freeze({ kind: "issue", code, message, severity: "error" })]]);
+		issues.set(Object.freeze({ kind: "issue", code, message, severity: "error" }));
 	const phase = (run: Active, value: LocalContainerPostgresqlPhase) => {
-		phases.down([
-			[
-				"DATA",
-				Object.freeze({
-					kind: "local-container-postgresql-phase-detail",
-					runId: run.request.runId,
+		phases.set(
+			Object.freeze({
+				kind: "local-container-postgresql-phase-detail",
+				runId: run.request.runId,
+				attempt: run.request.attempt,
+				environmentRevision: String(run.request.metadata?.executionEnvironmentRevision),
+				manifestFingerprint: run.manifest.fingerprint,
+				sessionEpoch: run.context.sessionEpoch,
+				phase: value,
+				occurredAtMs: opts.now?.(),
+			}),
+		);
+		audit.set(
+			Object.freeze({
+				id: canonicalTupleKey([
+					"local-container-postgresql-audit",
+					run.request.runId,
+					String(run.request.attempt),
+					value,
+				]),
+				kind: `local-container-postgresql-${value}`,
+				subjectId: run.request.runId,
+				metadata: Object.freeze({
 					attempt: run.request.attempt,
-					environmentRevision: String(run.request.metadata?.executionEnvironmentRevision),
+					environmentRevision: run.request.metadata?.executionEnvironmentRevision,
 					manifestFingerprint: run.manifest.fingerprint,
 					sessionEpoch: run.context.sessionEpoch,
-					phase: value,
-					occurredAtMs: opts.now?.(),
 				}),
-			],
-		]);
-		audit.down([
-			[
-				"DATA",
-				Object.freeze({
-					id: canonicalTupleKey([
-						"local-container-postgresql-audit",
-						run.request.runId,
-						String(run.request.attempt),
-						value,
-					]),
-					kind: `local-container-postgresql-${value}`,
-					subjectId: run.request.runId,
-					metadata: Object.freeze({
-						attempt: run.request.attempt,
-						environmentRevision: run.request.metadata?.executionEnvironmentRevision,
-						manifestFingerprint: run.manifest.fingerprint,
-						sessionEpoch: run.context.sessionEpoch,
-					}),
-				}),
-			],
-		]);
+			}),
+		);
 	};
 	const cleanupOnce = (run: Active): Promise<void> => {
 		if (run.cleanupPromise) return run.cleanupPromise;
@@ -1021,19 +1015,16 @@ export function localContainerPostgresqlRuntime(
 						severity: "error",
 					} satisfies DataIssue)
 				: undefined;
-			cleanup.down([
-				[
-					"DATA",
-					Object.freeze({
-						kind: "local-container-postgresql-cleanup-status",
-						runId: run.request.runId,
-						attempt: run.request.attempt,
-						state: failed ? "failed" : "succeeded",
-						...(issue ? { issue } : {}),
-					}),
-				],
-			]);
-			if (issue) issues.down([["DATA", issue]]);
+			cleanup.set(
+				Object.freeze({
+					kind: "local-container-postgresql-cleanup-status",
+					runId: run.request.runId,
+					attempt: run.request.attempt,
+					state: failed ? "failed" : "succeeded",
+					...(issue ? { issue } : {}),
+				}),
+			);
+			if (issue) issues.set(issue);
 		})();
 		return run.cleanupPromise;
 	};
@@ -1086,22 +1077,19 @@ export function localContainerPostgresqlRuntime(
 				sessionEpoch: run.context.sessionEpoch,
 			}),
 		} satisfies ExecutorOutcome);
-		outcomes.down([["DATA", outcome]]);
-		runStatus.down([
-			[
-				"DATA",
-				Object.freeze({
-					kind: "tool-provider-adapter-run-status",
-					runId: run.request.runId,
-					adapterInputId: run.request.adapterInputId,
-					requestId: run.request.requestId,
-					operationId: run.request.operationId,
-					status: "canceled",
-					attempt: run.request.attempt,
-					outcomeId: outcome.outcomeId,
-				}),
-			],
-		]);
+		outcomes.set(outcome);
+		runStatus.set(
+			Object.freeze({
+				kind: "tool-provider-adapter-run-status",
+				runId: run.request.runId,
+				adapterInputId: run.request.adapterInputId,
+				requestId: run.request.requestId,
+				operationId: run.request.operationId,
+				status: "canceled",
+				attempt: run.request.attempt,
+				outcomeId: outcome.outcomeId,
+			}),
+		);
 		active.delete(run.request.runId);
 	};
 	const execute = (raw: ToolProviderAdapterRunRequested) => {
@@ -1294,21 +1282,18 @@ export function localContainerPostgresqlRuntime(
 			startedAtMs: opts.now?.() ?? Date.now(),
 		};
 		active.set(raw.runId, run);
-		admittedRunRequests.down([["DATA", run.request]]);
-		runStatus.down([
-			[
-				"DATA",
-				Object.freeze({
-					kind: "tool-provider-adapter-run-status",
-					runId: raw.runId,
-					adapterInputId: raw.adapterInputId,
-					requestId: raw.requestId,
-					operationId: raw.operationId,
-					status: "started",
-					attempt: raw.attempt,
-				}),
-			],
-		]);
+		admittedRunRequests.set(run.request);
+		runStatus.set(
+			Object.freeze({
+				kind: "tool-provider-adapter-run-status",
+				runId: raw.runId,
+				adapterInputId: raw.adapterInputId,
+				requestId: raw.requestId,
+				operationId: raw.operationId,
+				status: "started",
+				attempt: raw.attempt,
+			}),
+		);
 		phase(run, "preparing");
 		const task = (async () => {
 			let result: PostgresqlDriverQueryResult | undefined;
@@ -1381,46 +1366,35 @@ export function localContainerPostgresqlRuntime(
 								}),
 							},
 						});
-			outcomes.down([["DATA", outcome]]);
-			runStatus.down([
-				[
-					"DATA",
-					{
-						kind: "tool-provider-adapter-run-status",
-						runId: raw.runId,
-						adapterInputId: raw.adapterInputId,
-						requestId: raw.requestId,
-						operationId: raw.operationId,
-						status: outcome.kind,
-						attempt: raw.attempt,
-						outcomeId: outcome.outcomeId,
-					},
-				],
-			]);
+			outcomes.set(outcome);
+			runStatus.set({
+				kind: "tool-provider-adapter-run-status",
+				runId: raw.runId,
+				adapterInputId: raw.adapterInputId,
+				requestId: raw.requestId,
+				operationId: raw.operationId,
+				status: outcome.kind,
+				attempt: raw.attempt,
+				outcomeId: outcome.outcomeId,
+			});
 			const bytes = result?.byteLength ?? 0;
-			usage.down([
-				[
-					"DATA",
-					Object.freeze({
-						runId: raw.runId,
-						latencyMs: Math.max(0, (opts.now?.() ?? Date.now()) - run.startedAtMs),
-					}),
-				],
-			]);
-			movement.down([
-				[
-					"DATA",
-					Object.freeze({
-						kind: "local-container-postgresql-movement-evidence",
-						runId: raw.runId,
-						direction: "container-to-host",
-						classification: "postgresql-query-result",
-						bytes,
-						truncated: false,
-						...(result?.resultRef ? { artifactRefs: [result.resultRef] } : {}),
-					}),
-				],
-			]);
+			usage.set(
+				Object.freeze({
+					runId: raw.runId,
+					latencyMs: Math.max(0, (opts.now?.() ?? Date.now()) - run.startedAtMs),
+				}),
+			);
+			movement.set(
+				Object.freeze({
+					kind: "local-container-postgresql-movement-evidence",
+					runId: raw.runId,
+					direction: "container-to-host",
+					classification: "postgresql-query-result",
+					bytes,
+					truncated: false,
+					...(result?.resultRef ? { artifactRefs: [result.resultRef] } : {}),
+				}),
+			);
 			active.delete(raw.runId);
 		})().finally(() => pending.delete(task));
 		pending.add(task);
@@ -1481,7 +1455,7 @@ export function localContainerPostgresqlRuntime(
 			]),
 		});
 		proposals.set(proposal.proposalId, proposal);
-		cancellationProposals.down([["DATA", proposal]]);
+		cancellationProposals.set(proposal);
 	};
 	const decideCancel = (decision: LocalContainerPostgresqlCancellationDecision) => {
 		if (
@@ -1518,30 +1492,24 @@ export function localContainerPostgresqlRuntime(
 			proposal.attempt === run.request.attempt &&
 			proposal.manifestFingerprint === run.manifest.fingerprint &&
 			proposal.sessionEpoch === run.context.sessionEpoch;
-		cancellationAdmissions.down([
-			[
-				"DATA",
-				Object.freeze({
-					kind: "local-container-postgresql-cancellation-admission",
-					proposalId: proposal.proposalId,
-					decisionId: decision.decisionId,
-					runId: proposal.runId,
-					state: admitted ? "admitted" : "blocked",
-				}),
-			],
-		]);
+		cancellationAdmissions.set(
+			Object.freeze({
+				kind: "local-container-postgresql-cancellation-admission",
+				proposalId: proposal.proposalId,
+				decisionId: decision.decisionId,
+				runId: proposal.runId,
+				state: admitted ? "admitted" : "blocked",
+			}),
+		);
 		if (admitted && run) {
-			cancellationAcknowledgements.down([
-				[
-					"DATA",
-					Object.freeze({
-						kind: "local-container-postgresql-cancellation-acknowledgement",
-						proposalId: proposal.proposalId,
-						runId: proposal.runId,
-						state: "stop-requested",
-					}),
-				],
-			]);
+			cancellationAcknowledgements.set(
+				Object.freeze({
+					kind: "local-container-postgresql-cancellation-acknowledgement",
+					proposalId: proposal.proposalId,
+					runId: proposal.runId,
+					state: "stop-requested",
+				}),
+			);
 			void terminateOnce(run);
 		}
 	};

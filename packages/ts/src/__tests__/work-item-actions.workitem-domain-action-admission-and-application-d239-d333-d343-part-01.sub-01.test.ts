@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { batch } from "../batch/batch.js";
 import { depBatch } from "../ctx/types.js";
 import { graph } from "../graph/graph.js";
 import { canonicalTupleKey } from "../identity.js";
@@ -89,18 +90,13 @@ function _applyPatch(
 		readonly metadata?: Record<string, unknown>;
 	},
 ): void {
-	setup.proposals.down([
-		[
-			"DATA",
-			workItemDomainActionProposalIntake(proposalId, "wi-1", "patch", {
-				payload: opts.payload ?? { patch: opts.patch },
-				metadata: opts.metadata,
-			}),
-		],
-	]);
-	setup.decisions.down([
-		["DATA", admissionDecision(`${admissionId}:decision`, admissionId, proposalId)],
-	]);
+	setup.proposals.set(
+		workItemDomainActionProposalIntake(proposalId, "wi-1", "patch", {
+			payload: opts.payload ?? { patch: opts.patch },
+			metadata: opts.metadata,
+		}),
+	);
+	setup.decisions.set(admissionDecision(`${admissionId}:decision`, admissionId, proposalId));
 }
 
 function admissionDecision(
@@ -201,15 +197,12 @@ describe("WorkItem domain action admission and application (D239/D333-D343) — 
 	it("keeps proposals without admission from mutating WorkItem projections", () => {
 		const setup = setupActions();
 
-		setup.seed.down([["DATA", workItemCreatedFromDraft("wi-1", draft())]]);
-		setup.proposals.down([
-			[
-				"DATA",
-				workItemDomainActionProposalIntake("proposal-1", "wi-1", "patch", {
-					payload: { patch: { summary: "Changed too early" } },
-				}),
-			],
-		]);
+		setup.seed.set(workItemCreatedFromDraft("wi-1", draft()));
+		setup.proposals.set(
+			workItemDomainActionProposalIntake("proposal-1", "wi-1", "patch", {
+				payload: { patch: { summary: "Changed too early" } },
+			}),
+		);
 
 		expect(setup.appliedFacts).toEqual([]);
 		expect(setup.workItems.at(-1)).toMatchObject({
@@ -256,39 +249,29 @@ describe("WorkItem domain action admission and application (D239/D333-D343) — 
 		const guardStatus = collectData(guard.status);
 		const appliedFacts = collectData<WorkItemAuthoringFact>(application.authoringFacts);
 
-		seed.down([["DATA", workItemCreatedFromDraft("wi-1", draft())]]);
-		applyPolicies.down([
-			["DATA", workItemDomainActionApplyPolicy("apply-patch", { actionKinds: ["patch"] })],
-		]);
-		guardPolicies.down([
-			[
-				"DATA",
-				{
-					kind: "work-item-domain-action-capability-guard-policy",
-					policyId: "capability-ready",
-					actionKinds: ["patch"],
-					capabilityRefs: [capabilityRef("boundary-auth")],
-					admissionSubjectIds: ["boundary:boundary-auth"],
+		seed.set(workItemCreatedFromDraft("wi-1", draft()));
+		applyPolicies.set(workItemDomainActionApplyPolicy("apply-patch", { actionKinds: ["patch"] }));
+		guardPolicies.set({
+			kind: "work-item-domain-action-capability-guard-policy",
+			policyId: "capability-ready",
+			actionKinds: ["patch"],
+			capabilityRefs: [capabilityRef("boundary-auth")],
+			admissionSubjectIds: ["boundary:boundary-auth"],
+		});
+		proposalInputs.set(
+			workItemDomainActionProposalIntake("proposal-1", "wi-1", "patch", {
+				payload: { patch: { summary: "Patched after capability admission" } },
+				metadata: {
+					applyPolicyId: "apply-patch",
+					capabilityGuardPolicyId: "capability-ready",
 				},
-			],
-		]);
-		proposalInputs.down([
-			[
-				"DATA",
-				workItemDomainActionProposalIntake("proposal-1", "wi-1", "patch", {
-					payload: { patch: { summary: "Patched after capability admission" } },
-					metadata: {
-						applyPolicyId: "apply-patch",
-						capabilityGuardPolicyId: "capability-ready",
-					},
-				}),
-			],
-		]);
+			}),
+		);
 
 		expect(decisions).toEqual([]);
 		expect(guardStatus.at(-1)).toMatchObject({ state: "deferred" });
 
-		capabilityAdmissions.down([["DATA", capabilityAdmission("boundary-auth", "allowed")]]);
+		capabilityAdmissions.set(capabilityAdmission("boundary-auth", "allowed"));
 
 		expect(decisions).toEqual([expect.objectContaining({ outcome: "admit" })]);
 		expect(decisions.at(-1)?.sourceRefs).toEqual(
@@ -331,27 +314,19 @@ describe("WorkItem domain action admission and application (D239/D333-D343) — 
 		const decisions = collectData<WorkItemDomainActionAdmissionDecision>(guard.decisions);
 		const messages = collectMessages(guard.status);
 
-		guardPolicies.down([
-			[
-				"DATA",
-				{
-					kind: "work-item-domain-action-capability-guard-policy",
-					policyId: "capability-ready",
-					actionKinds: ["patch"],
-					capabilityRefs: [capabilityRef("boundary-auth")],
-					admissionSubjectIds: ["boundary:boundary-auth"],
-				},
-			],
-		]);
-		proposalInputs.down([
-			[
-				"DATA",
-				workItemDomainActionProposalIntake("proposal-1", "wi-1", "patch", {
-					metadata: { capabilityGuardPolicyId: "capability-ready" },
-				}),
-			],
-		]);
-		capabilityAdmissions.down([["DATA", capabilityAdmission("boundary-auth", "blocked")]]);
+		guardPolicies.set({
+			kind: "work-item-domain-action-capability-guard-policy",
+			policyId: "capability-ready",
+			actionKinds: ["patch"],
+			capabilityRefs: [capabilityRef("boundary-auth")],
+			admissionSubjectIds: ["boundary:boundary-auth"],
+		});
+		proposalInputs.set(
+			workItemDomainActionProposalIntake("proposal-1", "wi-1", "patch", {
+				metadata: { capabilityGuardPolicyId: "capability-ready" },
+			}),
+		);
+		capabilityAdmissions.set(capabilityAdmission("boundary-auth", "blocked"));
 
 		expect(decisions).toEqual([expect.objectContaining({ outcome: "reject" })]);
 		expect(messages.filter((msg) => msg[0] === "DATA")).not.toHaveLength(0);
@@ -379,42 +354,32 @@ describe("WorkItem domain action admission and application (D239/D333-D343) — 
 		const decisions = collectData<WorkItemDomainActionAdmissionDecision>(guard.decisions);
 		const status = collectData(guard.status);
 
-		guardPolicies.down([
-			[
-				"DATA",
-				{
-					kind: "work-item-domain-action-capability-guard-policy",
-					policyId: "capability-ready",
-					actionKinds: ["patch"],
-					capabilityRefs: [capabilityRef("shared-id", "auth")],
-					admissionSubjectIds: ["boundary:expected"],
-				},
-			],
-		]);
-		proposalInputs.down([
-			[
-				"DATA",
-				workItemDomainActionProposalIntake("proposal-1", "wi-1", "patch", {
-					metadata: { capabilityGuardPolicyId: "capability-ready" },
-				}),
-			],
-		]);
-		capabilityAdmissions.down([
-			[
-				"DATA",
+		guardPolicies.set({
+			kind: "work-item-domain-action-capability-guard-policy",
+			policyId: "capability-ready",
+			actionKinds: ["patch"],
+			capabilityRefs: [capabilityRef("shared-id", "auth")],
+			admissionSubjectIds: ["boundary:expected"],
+		});
+		proposalInputs.set(
+			workItemDomainActionProposalIntake("proposal-1", "wi-1", "patch", {
+				metadata: { capabilityGuardPolicyId: "capability-ready" },
+			}),
+		);
+		batch(() => {
+			capabilityAdmissions.set(
 				capabilityAdmission("shared-id", "allowed", {
 					kind: "resource",
 					subjectId: "boundary:expected",
 				}),
-			],
-			[
-				"DATA",
+			);
+			capabilityAdmissions.set(
 				capabilityAdmission("shared-id", "allowed", {
 					kind: "auth",
 					subjectId: "boundary:other",
 				}),
-			],
-		]);
+			);
+		});
 
 		expect(decisions).toEqual([]);
 		expect(status.at(-1)).toMatchObject({
@@ -422,15 +387,12 @@ describe("WorkItem domain action admission and application (D239/D333-D343) — 
 			metadata: { missingCapabilityRefs: [canonicalTupleKey(["auth", "shared-id"])] },
 		});
 
-		capabilityAdmissions.down([
-			[
-				"DATA",
-				capabilityAdmission("shared-id", "allowed", {
-					kind: "auth",
-					subjectId: "boundary:expected",
-				}),
-			],
-		]);
+		capabilityAdmissions.set(
+			capabilityAdmission("shared-id", "allowed", {
+				kind: "auth",
+				subjectId: "boundary:expected",
+			}),
+		);
 
 		expect(decisions).toEqual([expect.objectContaining({ outcome: "admit" })]);
 	});
@@ -460,43 +422,30 @@ describe("WorkItem domain action admission and application (D239/D333-D343) — 
 		const issues = collectData(guard.issues);
 		const statusMessages = collectMessages(guard.status);
 
-		capabilityAdmissionStatus.down([
-			[
-				"DATA",
+		capabilityAdmissionStatus.set({
+			kind: "capability-admission-status",
+			statusId: "capability-source-unavailable",
+			state: "capability-admission-issue",
+			issues: [
 				{
-					kind: "capability-admission-status",
-					statusId: "capability-source-unavailable",
-					state: "capability-admission-issue",
-					issues: [
-						{
-							kind: "issue",
-							code: "capability-source-unavailable",
-							message: "Capability admission source unavailable",
-						},
-					],
+					kind: "issue",
+					code: "capability-source-unavailable",
+					message: "Capability admission source unavailable",
 				},
 			],
-		]);
-		guardPolicies.down([
-			[
-				"DATA",
-				{
-					kind: "work-item-domain-action-capability-guard-policy",
-					policyId: "capability-ready",
-					actionKinds: ["patch"],
-					capabilityRefs: [capabilityRef("boundary-auth")],
-					admissionSubjectIds: ["boundary:boundary-auth"],
-				},
-			],
-		]);
-		proposalInputs.down([
-			[
-				"DATA",
-				workItemDomainActionProposalIntake("proposal-1", "wi-1", "patch", {
-					metadata: { capabilityGuardPolicyId: "capability-ready" },
-				}),
-			],
-		]);
+		});
+		guardPolicies.set({
+			kind: "work-item-domain-action-capability-guard-policy",
+			policyId: "capability-ready",
+			actionKinds: ["patch"],
+			capabilityRefs: [capabilityRef("boundary-auth")],
+			admissionSubjectIds: ["boundary:boundary-auth"],
+		});
+		proposalInputs.set(
+			workItemDomainActionProposalIntake("proposal-1", "wi-1", "patch", {
+				metadata: { capabilityGuardPolicyId: "capability-ready" },
+			}),
+		);
 
 		expect(issues.at(-1)).toMatchObject({
 			code: "capability-source-unavailable",
@@ -530,69 +479,51 @@ describe("WorkItem domain action admission and application (D239/D333-D343) — 
 		});
 		const issues = collectData(guard.issues);
 
-		guardPolicies.down([
-			[
-				"DATA",
-				{
-					kind: "work-item-domain-action-capability-guard-policy",
-					policyId: "capability-ready",
-					actionKinds: ["patch"],
-					capabilityRefs: [capabilityRef("boundary-auth")],
-					admissionSubjectIds: ["boundary:boundary-auth"],
-				},
-			],
-		]);
-		proposalInputs.down([
-			[
-				"DATA",
-				workItemDomainActionProposalIntake("proposal-1", "wi-1", "patch", {
-					metadata: { capabilityGuardPolicyId: "capability-ready" },
-				}),
-			],
-		]);
+		guardPolicies.set({
+			kind: "work-item-domain-action-capability-guard-policy",
+			policyId: "capability-ready",
+			actionKinds: ["patch"],
+			capabilityRefs: [capabilityRef("boundary-auth")],
+			admissionSubjectIds: ["boundary:boundary-auth"],
+		});
+		proposalInputs.set(
+			workItemDomainActionProposalIntake("proposal-1", "wi-1", "patch", {
+				metadata: { capabilityGuardPolicyId: "capability-ready" },
+			}),
+		);
 
-		capabilityAdmissionStatus.down([
-			[
-				"DATA",
+		capabilityAdmissionStatus.set({
+			kind: "capability-admission-status",
+			statusId: "wrong-subject",
+			state: "capability-admission-issue",
+			subjectId: "boundary:other",
+			capabilityId: "boundary-auth",
+			capabilityKind: "auth",
+			issues: [
 				{
-					kind: "capability-admission-status",
-					statusId: "wrong-subject",
-					state: "capability-admission-issue",
-					subjectId: "boundary:other",
-					capabilityId: "boundary-auth",
-					capabilityKind: "auth",
-					issues: [
-						{
-							kind: "issue",
-							code: "wrong-subject-status",
-							message: "Wrong subject should not apply",
-						},
-					],
+					kind: "issue",
+					code: "wrong-subject-status",
+					message: "Wrong subject should not apply",
 				},
 			],
-		]);
+		});
 		expect(issues.map((issue) => issue.code)).not.toContain("wrong-subject-status");
 
-		capabilityAdmissionStatus.down([
-			[
-				"DATA",
+		capabilityAdmissionStatus.set({
+			kind: "capability-admission-status",
+			statusId: "matching-subject",
+			state: "capability-admission-issue",
+			subjectId: "boundary:boundary-auth",
+			capabilityId: "boundary-auth",
+			capabilityKind: "auth",
+			issues: [
 				{
-					kind: "capability-admission-status",
-					statusId: "matching-subject",
-					state: "capability-admission-issue",
-					subjectId: "boundary:boundary-auth",
-					capabilityId: "boundary-auth",
-					capabilityKind: "auth",
-					issues: [
-						{
-							kind: "issue",
-							code: "matching-subject-status",
-							message: "Matching subject should apply",
-						},
-					],
+					kind: "issue",
+					code: "matching-subject-status",
+					message: "Matching subject should apply",
 				},
 			],
-		]);
+		});
 		expect(issues.at(-1)).toMatchObject({ code: "matching-subject-status" });
 	});
 
@@ -618,36 +549,23 @@ describe("WorkItem domain action admission and application (D239/D333-D343) — 
 		const issues = collectData(guard.issues);
 		const statusMessages = collectMessages(guard.status);
 
-		guardPolicies.down([["DATA", null as unknown as WorkItemDomainActionCapabilityGuardPolicy]]);
-		guardPolicies.down([
-			[
-				"DATA",
-				{
-					kind: "work-item-domain-action-capability-guard-policy",
-					policyId: "capability-ready",
-					actionKinds: ["patch"],
-					capabilityRefs: [capabilityRef("boundary-auth")],
-					admissionSubjectIds: ["boundary:boundary-auth"],
-				},
-			],
-		]);
-		proposalInputs.down([
-			[
-				"DATA",
-				workItemDomainActionProposalIntake("proposal-1", "wi-1", "patch", {
-					metadata: { capabilityGuardPolicyId: "capability-ready" },
-				}),
-			],
-		]);
-		capabilityAdmissions.down([
-			[
-				"DATA",
-				{
-					...capabilityAdmission("boundary-auth", "allowed"),
-					state: "surprise",
-				} as unknown as CapabilityAdmission,
-			],
-		]);
+		guardPolicies.set(null as unknown as WorkItemDomainActionCapabilityGuardPolicy);
+		guardPolicies.set({
+			kind: "work-item-domain-action-capability-guard-policy",
+			policyId: "capability-ready",
+			actionKinds: ["patch"],
+			capabilityRefs: [capabilityRef("boundary-auth")],
+			admissionSubjectIds: ["boundary:boundary-auth"],
+		});
+		proposalInputs.set(
+			workItemDomainActionProposalIntake("proposal-1", "wi-1", "patch", {
+				metadata: { capabilityGuardPolicyId: "capability-ready" },
+			}),
+		);
+		capabilityAdmissions.set({
+			...capabilityAdmission("boundary-auth", "allowed"),
+			state: "surprise",
+		} as unknown as CapabilityAdmission);
 
 		expect(decisions).toEqual([]);
 		expect(issues.map((issue) => issue.code)).toEqual(

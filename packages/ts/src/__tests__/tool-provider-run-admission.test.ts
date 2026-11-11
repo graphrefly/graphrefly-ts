@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { batch } from "../batch/batch.js";
 import type { DataIssue } from "../data/index.js";
 import { graph } from "../graph/graph.js";
 import { compoundTupleKey } from "../identity.js";
@@ -130,8 +131,8 @@ describe("toolProviderRunAdmissionProjector (D419)", () => {
 			reason: "manual",
 		});
 
-		harness.inputs.down([["DATA", input]]);
-		harness.runRequests.down([["DATA", candidate]]);
+		harness.inputs.set(input);
+		harness.runRequests.set(candidate);
 
 		expect(harness.seen.proposals).toEqual([
 			expect.objectContaining({
@@ -168,8 +169,8 @@ describe("toolProviderRunAdmissionProjector (D419)", () => {
 			reason: "manual",
 		});
 
-		harness.inputs.down([["DATA", input]]);
-		harness.runRequests.down([["DATA", candidate]]);
+		harness.inputs.set(input);
+		harness.runRequests.set(candidate);
 
 		expect(harness.seen.status).toEqual([
 			expect.objectContaining({
@@ -179,20 +180,15 @@ describe("toolProviderRunAdmissionProjector (D419)", () => {
 		]);
 		expect(harness.seen.approved).toEqual([]);
 
-		harness.decisions.down([
-			[
-				"DATA",
-				{
-					kind: "tool-provider-run-admission-decision",
-					decisionId: "decision-approve",
-					proposalId: admissionProposalId("candidate-require"),
-					admissionId: "admission-approve",
-					outcome: "admit",
-					approvedRunId: "approved-require-run",
-					decidedByRef: { kind: "human", id: "operator" },
-				},
-			],
-		]);
+		harness.decisions.set({
+			kind: "tool-provider-run-admission-decision",
+			decisionId: "decision-approve",
+			proposalId: admissionProposalId("candidate-require"),
+			admissionId: "admission-approve",
+			outcome: "admit",
+			approvedRunId: "approved-require-run",
+			decidedByRef: { kind: "human", id: "operator" },
+		});
 
 		expect(harness.seen.admissions.at(-1)).toEqual(
 			expect.objectContaining({
@@ -217,16 +213,13 @@ describe("toolProviderRunAdmissionProjector (D419)", () => {
 		const harness = createHarness();
 		const input = readyInput({ requestId: "never-run", approvalMode: "never" });
 
-		harness.inputs.down([["DATA", input]]);
-		harness.runRequests.down([
-			[
-				"DATA",
-				requestToolProviderAdapterRun(input, {
-					runId: "candidate-never",
-					reason: "manual",
-				}),
-			],
-		]);
+		harness.inputs.set(input);
+		harness.runRequests.set(
+			requestToolProviderAdapterRun(input, {
+				runId: "candidate-never",
+				reason: "manual",
+			}),
+		);
 
 		expect(harness.seen.admissions).toEqual([
 			expect.objectContaining({ runId: "candidate-never", state: "blocked" }),
@@ -248,8 +241,8 @@ describe("toolProviderRunAdmissionProjector (D419)", () => {
 			requestId: "different-request",
 		} satisfies ToolProviderAdapterRunRequested;
 
-		harness.inputs.down([["DATA", input]]);
-		harness.runRequests.down([["DATA", stale]]);
+		harness.inputs.set(input);
+		harness.runRequests.set(stale);
 
 		expect(harness.seen.status).toEqual([
 			expect.objectContaining({ runId: "candidate-stale", state: "issue" }),
@@ -270,32 +263,26 @@ describe("toolProviderRunAdmissionProjector (D419)", () => {
 			reason: "manual",
 		});
 
-		harness.inputs.down([["DATA", input]]);
-		harness.runRequests.down([["DATA", candidate]]);
-		harness.decisions.down([
-			[
-				"DATA",
-				{
-					kind: "tool-provider-run-admission-decision",
-					decisionId: "decision-first",
-					proposalId: admissionProposalId("candidate-duplicate-decision"),
-					admissionId: "admission-first",
-					outcome: "admit",
-					approvedRunId: "approved-first",
-				},
-			],
-			[
-				"DATA",
-				{
-					kind: "tool-provider-run-admission-decision",
-					decisionId: "decision-second",
-					proposalId: admissionProposalId("candidate-duplicate-decision"),
-					admissionId: "admission-second",
-					outcome: "admit",
-					approvedRunId: "approved-second",
-				},
-			],
-		]);
+		harness.inputs.set(input);
+		harness.runRequests.set(candidate);
+		batch(() => {
+			harness.decisions.set({
+				kind: "tool-provider-run-admission-decision",
+				decisionId: "decision-first",
+				proposalId: admissionProposalId("candidate-duplicate-decision"),
+				admissionId: "admission-first",
+				outcome: "admit",
+				approvedRunId: "approved-first",
+			});
+			harness.decisions.set({
+				kind: "tool-provider-run-admission-decision",
+				decisionId: "decision-second",
+				proposalId: admissionProposalId("candidate-duplicate-decision"),
+				admissionId: "admission-second",
+				outcome: "admit",
+				approvedRunId: "approved-second",
+			});
+		});
 
 		expect(harness.seen.approved).toEqual([expect.objectContaining({ runId: "approved-first" })]);
 		expect(harness.seen.issues).toEqual(
@@ -321,9 +308,9 @@ describe("toolProviderRunAdmissionProjector (D419)", () => {
 			reason: "manual",
 		});
 
-		harness.inputs.down([["DATA", input]]);
-		harness.runRequests.down([["DATA", candidate]]);
-		harness.runRequests.down([["DATA", candidate]]);
+		harness.inputs.set(input);
+		harness.runRequests.set(candidate);
+		harness.runRequests.set(candidate);
 
 		const latestView = harness.seen.views.at(-1);
 		expect(latestView?.proposalsByRun.get("candidate-replay")).toHaveLength(1);
@@ -345,9 +332,9 @@ describe("toolProviderRunAdmissionProjector (D419)", () => {
 			sourceRefs: [...candidate.sourceRefs, { kind: "policy", id: "different-authority" }],
 		} satisfies ToolProviderAdapterRunRequested;
 
-		harness.inputs.down([["DATA", input]]);
-		harness.runRequests.down([["DATA", candidate]]);
-		harness.runRequests.down([["DATA", conflicting]]);
+		harness.inputs.set(input);
+		harness.runRequests.set(candidate);
+		harness.runRequests.set(conflicting);
 
 		expect(harness.seen.approved).toEqual([
 			expect.objectContaining({ runId: admittedRunId("candidate-conflicting-replay") }),

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { subscribeNodeValues } from "../adapters/store.js";
+import { batch } from "../batch/batch.js";
 import {
 	type EnvironmentPinnedExecutorProfile,
 	type EnvironmentPinnedExecutorRoute,
@@ -164,10 +165,10 @@ describe("execution environment targeting and local host gate (D603)", () => {
 		const candidate = requestEnvironmentPinnedToolProviderRun(input(), patchedProfile, route(), {
 			runId: "run:unavailable",
 		});
-		inputs.down([["DATA", input()]]);
-		profiles.down([["DATA", patchedProfile]]);
-		routes.down([["DATA", route()]]);
-		admitted.down([["DATA", candidate]]);
+		inputs.set(input());
+		profiles.set(patchedProfile);
+		routes.set(route());
+		admitted.set(candidate);
 		await settle();
 		expect(statuses.at(-1)).toMatchObject({
 			state: "blocked",
@@ -196,22 +197,19 @@ describe("execution environment targeting and local host gate (D603)", () => {
 			const request = requestEnvironmentPinnedToolProviderRun(input(), safeProfile, safeRoute, {
 				runId: `run:${mode}`,
 			});
-			inputs.down([["DATA", input()]]);
-			profiles.down([["DATA", safeProfile]]);
-			routes.down([
-				[
-					"DATA",
-					mode === "mismatch"
-						? route({
-								executionEnvironment: {
-									environmentId: "environment:local-primary",
-									revision: "environment-revision:2",
-								},
-							})
-						: safeRoute,
-				],
-			]);
-			admitted.down([["DATA", request]]);
+			inputs.set(input());
+			profiles.set(safeProfile);
+			routes.set(
+				mode === "mismatch"
+					? route({
+							executionEnvironment: {
+								environmentId: "environment:local-primary",
+								revision: "environment-revision:2",
+							},
+						})
+					: safeRoute,
+			);
+			admitted.set(request);
 			await settle();
 			expect(released).toEqual([]);
 			expect(statuses.at(-1)?.code).toBe(
@@ -323,13 +321,13 @@ describe("execution environment targeting and local host gate (D603)", () => {
 		const candidate = requestEnvironmentPinnedToolProviderRun(input(), profile(), route(), {
 			runId: "run:topology",
 		});
-		inputs.down([["DATA", input()]]);
-		profiles.down([["DATA", profile()]]);
-		routes.down([["DATA", route()]]);
-		admitted.down([
-			["DATA", candidate],
-			["DATA", candidate],
-		]);
+		inputs.set(input());
+		profiles.set(profile());
+		routes.set(route());
+		batch(() => {
+			admitted.set(candidate);
+			admitted.set(candidate);
+		});
 		await settle();
 		expect(emissions).toBe(1);
 		gate.dispose();
@@ -421,25 +419,20 @@ describe("execution environment targeting and local host gate (D603)", () => {
 			runId: "candidate:local-postgresql:1",
 			reason: "manual",
 		});
-		inputs.down([["DATA", safeInput]]);
-		profiles.down([["DATA", safeProfile]]);
-		routes.down([["DATA", safeRoute]]);
-		candidates.down([["DATA", candidate]]);
+		inputs.set(safeInput);
+		profiles.set(safeProfile);
+		routes.set(safeRoute);
+		candidates.set(candidate);
 		await settle();
 		expect(calls).toBe(0);
-		decisions.down([
-			[
-				"DATA",
-				{
-					kind: "tool-provider-run-admission-decision",
-					decisionId: "decision:local-postgresql:1",
-					proposalId: compoundTupleKey("tool-provider-run-admission-proposal", [candidate.runId]),
-					admissionId: "admission:local-postgresql:1",
-					outcome: "admit",
-					approvedRunId: "run:local-postgresql:1",
-				},
-			],
-		]);
+		decisions.set({
+			kind: "tool-provider-run-admission-decision",
+			decisionId: "decision:local-postgresql:1",
+			proposalId: compoundTupleKey("tool-provider-run-admission-proposal", [candidate.runId]),
+			admissionId: "admission:local-postgresql:1",
+			outcome: "admit",
+			approvedRunId: "run:local-postgresql:1",
+		});
 		await settle();
 		expect(calls).toBe(1);
 		const proposals = collect<{ proposalId: string }>(runtime.cancellationProposals);
@@ -457,32 +450,28 @@ describe("execution environment targeting and local host gate (D603)", () => {
 			executionEnvironmentRevision: "environment-revision:1",
 			sessionEpoch: "session:local-host-process",
 		};
-		cancellations.down([
-			["DATA", { ...cancellationBase, executionEnvironmentRevision: "environment-revision:stale" }],
-		]);
+		cancellations.set({
+			...cancellationBase,
+			executionEnvironmentRevision: "environment-revision:stale",
+		});
 		await settle();
 		expect(proposals).toHaveLength(0);
 		expect(issues.at(-1)?.code).toBe("postgresql-cancellation-coordinate-mismatch");
 		for (const mismatch of [{ sessionEpoch: "session:stale" }, { attempt: 2 }]) {
-			cancellations.down([["DATA", { ...cancellationBase, ...mismatch }]]);
+			cancellations.set({ ...cancellationBase, ...mismatch });
 			await settle();
 			expect(proposals).toHaveLength(0);
 			expect(issues.at(-1)?.code).toBe("postgresql-cancellation-coordinate-mismatch");
 		}
-		cancellations.down([["DATA", cancellationBase]]);
+		cancellations.set(cancellationBase);
 		await settle();
 		expect(proposals).toHaveLength(1);
-		cancellationDecisions.down([
-			[
-				"DATA",
-				{
-					kind: "postgresql-run-cancellation-decision",
-					decisionId: "cancel-decision:local-postgresql:1",
-					proposalId: proposals[0].proposalId,
-					outcome: "admit",
-				},
-			],
-		]);
+		cancellationDecisions.set({
+			kind: "postgresql-run-cancellation-decision",
+			decisionId: "cancel-decision:local-postgresql:1",
+			proposalId: proposals[0].proposalId,
+			outcome: "admit",
+		});
 		await settle();
 		expect(outcomes.at(-1)?.kind).toBe("canceled");
 		expect(JSON.stringify(g.topology())).not.toContain("host_private");

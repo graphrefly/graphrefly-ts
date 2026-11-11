@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { attachKeyedRateLimitAuthority, type KeyedRateLimitAuthority } from "../adapters/index.js";
+import { batch } from "../batch/batch.js";
 import { graph, type ObserveEvent } from "../graph/index.js";
 import { canonicalTupleKey } from "../identity.js";
 import { strictJsonCodec } from "../json/codec.js";
@@ -133,7 +134,7 @@ describe("B111.6 deterministic restart evidence", () => {
 		const policy = fixedPolicy(firstRequest);
 		const firstHost = new TestAtomicRateLimitAuthority([policy], [100]);
 		const firstGraph = buildInstance(firstHost, "fixed-before-restart");
-		firstGraph.requests.down([["DATA", firstRequest]]);
+		firstGraph.requests.set(firstRequest);
 		const storedOutcome = firstHost.drainNext();
 		expect(storedOutcome?.result).toBe("allowed");
 		const durableImage = strictRoundtrip(firstHost.snapshot());
@@ -143,7 +144,7 @@ describe("B111.6 deterministic restart evidence", () => {
 		const restartedHost = new TestAtomicRateLimitAuthority([policy], [100, 1_000], durableImage);
 		expect(encoded(restartedHost.snapshot())).toEqual(encoded(durableImage));
 		const restartedGraph = buildInstance(restartedHost, "fixed-after-restart");
-		restartedGraph.requests.down([["DATA", firstRequest]]);
+		restartedGraph.requests.set(firstRequest);
 		expect(restartedHost.drainNext()).toEqual(storedOutcome);
 		expect(restartedGraph.outcomes.values.at(-1)).toEqual(storedOutcome);
 		expect(restartedGraph.admissions.values).toHaveLength(1);
@@ -159,12 +160,12 @@ describe("B111.6 deterministic restart evidence", () => {
 		});
 
 		const denied = request("fixed-window", "fixed-denied", 2);
-		restartedGraph.requests.down([["DATA", denied]]);
+		restartedGraph.requests.set(denied);
 		expect(restartedHost.drainNext()?.result).toBe("denied");
 		expect(restartedGraph.outcomes.values.at(-1)?.result).toBe("denied");
 		expect(restartedGraph.denials.values).toHaveLength(1);
 		const nextWindow = request("fixed-window", "fixed-next-window", 2);
-		restartedGraph.requests.down([["DATA", nextWindow]]);
+		restartedGraph.requests.set(nextWindow);
 		expect(restartedHost.drainNext()?.result).toBe("allowed");
 		expect(restartedGraph.admissions.values).toHaveLength(2);
 		expect(restartedGraph.protectedEffects()).toBeGreaterThan(effectsAfterReplay);
@@ -180,9 +181,9 @@ describe("B111.6 deterministic restart evidence", () => {
 		const policy = slidingPolicy(firstRequest);
 		const firstHost = new TestAtomicRateLimitAuthority([policy], [10, 20]);
 		const firstGraph = buildInstance(firstHost, "sliding-before-restart");
-		firstGraph.requests.down([["DATA", firstRequest]]);
+		firstGraph.requests.set(firstRequest);
 		expect(firstHost.drainNext()?.result).toBe("allowed");
-		firstGraph.requests.down([["DATA", secondRequest]]);
+		firstGraph.requests.set(secondRequest);
 		const storedOutcome = firstHost.drainNext();
 		expect(storedOutcome?.result).toBe("allowed");
 		expect(firstHost.snapshot().states).toMatchObject([
@@ -200,18 +201,18 @@ describe("B111.6 deterministic restart evidence", () => {
 
 		const restartedHost = new TestAtomicRateLimitAuthority([policy], [30, 110], durableImage);
 		const restartedGraph = buildInstance(restartedHost, "sliding-after-restart");
-		restartedGraph.requests.down([["DATA", secondRequest]]);
+		restartedGraph.requests.set(secondRequest);
 		expect(restartedHost.drainNext()).toEqual(storedOutcome);
 		expect(restartedGraph.outcomes.values.at(-1)).toEqual(storedOutcome);
 		expect(restartedGraph.admissions.values).toHaveLength(1);
 		expect(restartedGraph.protectedEffects()).toBeGreaterThan(0);
 		const effectsAfterReplay = restartedGraph.protectedEffects();
 		const denied = request("sliding-window", "sliding-denied", 2);
-		restartedGraph.requests.down([["DATA", denied]]);
+		restartedGraph.requests.set(denied);
 		expect(restartedHost.drainNext()?.result).toBe("denied");
 		expect(restartedGraph.denials.values).toHaveLength(1);
 		const afterCutoff = request("sliding-window", "sliding-after-cutoff", 2);
-		restartedGraph.requests.down([["DATA", afterCutoff]]);
+		restartedGraph.requests.set(afterCutoff);
 		expect(restartedHost.drainNext()?.result).toBe("allowed");
 		expect(restartedGraph.admissions.values).toHaveLength(2);
 		expect(restartedGraph.protectedEffects()).toBeGreaterThan(effectsAfterReplay);
@@ -234,9 +235,9 @@ describe("B111.6 deterministic restart evidence", () => {
 		const policy = tokenPolicy(firstRequest);
 		const firstHost = new TestAtomicRateLimitAuthority([policy], [0, 2]);
 		const firstGraph = buildInstance(firstHost, "token-before-restart");
-		firstGraph.requests.down([["DATA", firstRequest]]);
+		firstGraph.requests.set(firstRequest);
 		expect(firstHost.drainNext()).toMatchObject({ result: "denied", retryAfterMs: 3 });
-		firstGraph.requests.down([["DATA", remainderRequest]]);
+		firstGraph.requests.set(remainderRequest);
 		const storedDenial = firstHost.drainNext();
 		expect(storedDenial).toMatchObject({ result: "denied", retryAfterMs: 1 });
 		expect(firstHost.snapshot().states).toMatchObject([
@@ -247,13 +248,13 @@ describe("B111.6 deterministic restart evidence", () => {
 
 		const restartedHost = new TestAtomicRateLimitAuthority([policy], [3], durableImage);
 		const restartedGraph = buildInstance(restartedHost, "token-after-restart");
-		restartedGraph.requests.down([["DATA", remainderRequest]]);
+		restartedGraph.requests.set(remainderRequest);
 		expect(restartedHost.drainNext()).toEqual(storedDenial);
 		expect(restartedGraph.outcomes.values.at(-1)).toEqual(storedDenial);
 		expect(restartedGraph.denials.values).toHaveLength(1);
 		expect(restartedHost.counters().clockReads).toBe(0);
 		const eligible = request("token-bucket", "token-eligible");
-		restartedGraph.requests.down([["DATA", eligible]]);
+		restartedGraph.requests.set(eligible);
 		expect(restartedHost.drainNext()?.result).toBe("allowed");
 		expect(restartedGraph.admissions.values).toHaveLength(1);
 		expect(restartedGraph.protectedEffects()).toBe(1);
@@ -270,10 +271,10 @@ describe("B111.6 deterministic restart evidence", () => {
 		const token = tokenPolicy(tokenSeed);
 		const host = new TestAtomicRateLimitAuthority([fixed, token], [0, 0]);
 		const instance = buildInstance(host, "image-source");
-		instance.requests.down([
-			["DATA", fixedSeed],
-			["DATA", tokenSeed],
-		]);
+		batch(() => {
+			instance.requests.set(fixedSeed);
+			instance.requests.set(tokenSeed);
+		});
 		host.drainNext();
 		host.drainNext();
 		const image = host.snapshot();
@@ -352,7 +353,7 @@ describe("B111.6 deterministic restart evidence", () => {
 		const originalPolicy = fixedPolicy(originalRequest);
 		const originalHost = new TestAtomicRateLimitAuthority([originalPolicy], [0]);
 		const originalGraph = buildInstance(originalHost, "revision-original");
-		originalGraph.requests.down([["DATA", originalRequest]]);
+		originalGraph.requests.set(originalRequest);
 		originalHost.drainNext();
 		const durableImage = originalHost.snapshot();
 		originalGraph.release();
@@ -396,7 +397,7 @@ describe("B111.6 deterministic restart evidence", () => {
 				durableImage,
 			);
 			const instance = buildInstance(host, `revision-${testCase.name}`);
-			instance.requests.down([["DATA", testCase.nextRequest]]);
+			instance.requests.set(testCase.nextRequest);
 			expect(() => host.drainNext()).toThrow("refuses implicit state reset or migration");
 			expect(host.counters()).toEqual({
 				receiptLookups: 1,
@@ -438,12 +439,12 @@ describe("B111.6 deterministic restart evidence", () => {
 		const policy = fixedPolicy(limitedRequest);
 		const host = new TestAtomicRateLimitAuthority([policy], [0]);
 		const cancelled = buildInstance(host, "cancelled-graph");
-		cancelled.requests.down([["DATA", limitedRequest]]);
+		cancelled.requests.set(limitedRequest);
 		expect(host.pending).toHaveLength(1);
 		cancelled.release();
 		expect(host.pending).toEqual([]);
 		const live = buildInstance(host, "live-after-cancel");
-		live.requests.down([["DATA", request("fixed-window", "live-after-cancel")]]);
+		live.requests.set(request("fixed-window", "live-after-cancel"));
 		expect(host.drainNext()?.result).toBe("allowed");
 		live.release();
 	});
@@ -477,8 +478,8 @@ describe("B111.6 deterministic multi-instance evidence", () => {
 				const host = new TestAtomicRateLimitAuthority([policy], [0, 0]);
 				const first = buildInstance(host, `${testCase.name}-graph-a`);
 				const second = buildInstance(host, `${testCase.name}-graph-b`);
-				first.requests.down([["DATA", firstRequest]]);
-				second.requests.down([["DATA", secondRequest]]);
+				first.requests.set(firstRequest);
+				second.requests.set(secondRequest);
 				expect(host.pending).toHaveLength(2);
 				if (order === "first-second") {
 					host.drainNext(0);
@@ -510,8 +511,8 @@ describe("B111.6 deterministic multi-instance evidence", () => {
 		const host = new TestAtomicRateLimitAuthority([policy], [50, 50, 50]);
 		const first = buildInstance(host, "sliding-coalesce-graph-a");
 		const second = buildInstance(host, "sliding-coalesce-graph-b");
-		first.requests.down([["DATA", firstRequest]]);
-		second.requests.down([["DATA", secondRequest]]);
+		first.requests.set(firstRequest);
+		second.requests.set(secondRequest);
 		host.drainNext(1);
 		host.drainNext(0);
 		expect(first.outcomes.values.at(-1)?.result).toBe("allowed");
@@ -524,7 +525,7 @@ describe("B111.6 deterministic multi-instance evidence", () => {
 			},
 		]);
 		const denied = request("sliding-window", "sliding-coalesce-denied", 3);
-		first.requests.down([["DATA", denied]]);
+		first.requests.set(denied);
 		expect(host.drainNext()?.result).toBe("denied");
 		expect(host.snapshot().states).toMatchObject([
 			{
@@ -543,8 +544,8 @@ describe("B111.6 deterministic multi-instance evidence", () => {
 		const host = new TestAtomicRateLimitAuthority([policy], [0]);
 		const first = buildInstance(host, "conflict-graph-a");
 		const second = buildInstance(host, "conflict-graph-b");
-		first.requests.down([["DATA", firstRequest]]);
-		second.requests.down([["DATA", changedMaterial]]);
+		first.requests.set(firstRequest);
+		second.requests.set(changedMaterial);
 		host.drainNext(0);
 		host.drainNext(0);
 		expect(first.outcomes.values.at(-1)?.result).toBe("allowed");
@@ -567,8 +568,8 @@ describe("B111.6 deterministic multi-instance evidence", () => {
 		const host = new TestAtomicRateLimitAuthority([policy], [0]);
 		const first = buildInstance(host, "replay-graph-a");
 		const second = buildInstance(host, "replay-graph-b");
-		first.requests.down([["DATA", replayedRequest]]);
-		second.requests.down([["DATA", replayedRequest]]);
+		first.requests.set(replayedRequest);
+		second.requests.set(replayedRequest);
 		host.drainNext(0);
 		host.drainNext(0);
 		expect(host.counters()).toMatchObject({
@@ -597,7 +598,7 @@ describe("B111.6 inspection and injected-authority evidence", () => {
 		const stopObserving = instance.g.observe().subscribe((event) => {
 			observedEvents.push(event);
 		});
-		instance.requests.down([["DATA", limitedRequest]]);
+		instance.requests.set(limitedRequest);
 		host.drainNext();
 		const after = instance.g.describe();
 		const topology = (snapshot: typeof after) => ({
@@ -715,13 +716,13 @@ describe("B111.6 inspection and injected-authority evidence", () => {
 		const conflict = request("host-custom", "custom-allowed", 2, "changed-operation");
 		const primary = buildInstance(customAuthority, "custom-authority-primary");
 		const secondary = buildInstance(customAuthority, "custom-authority-secondary");
-		primary.requests.down([
-			["DATA", allowed],
-			["DATA", allowed],
-			["DATA", denied],
-			["DATA", conflict],
-		]);
-		secondary.requests.down([["DATA", secondaryAllowed]]);
+		batch(() => {
+			primary.requests.set(allowed);
+			primary.requests.set(allowed);
+			primary.requests.set(denied);
+			primary.requests.set(conflict);
+		});
+		secondary.requests.set(secondaryAllowed);
 		expect(primary.outcomes.values.map((outcome) => outcome.result)).toEqual([
 			"allowed",
 			"allowed",

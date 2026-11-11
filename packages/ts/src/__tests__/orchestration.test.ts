@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { batch } from "../batch/batch.js";
 import { graph } from "../graph/graph.js";
 import { compoundTupleKey } from "../identity.js";
 import {
@@ -54,8 +55,8 @@ describe("graph-visible resilience bundles (D132)", () => {
 			}
 		});
 
-		events.down([["DATA", { kind: "attempt", attempt: 1 }]]);
-		events.down([["DATA", { kind: "failure", attempt: 1, error: "nope" }]]);
+		events.set({ kind: "attempt", attempt: 1 });
+		events.set({ kind: "failure", attempt: 1, error: "nope" });
 
 		expect(retryStatuses.at(-1)).toEqual([
 			"DATA",
@@ -96,13 +97,13 @@ describe("graph-visible resilience bundles (D132)", () => {
 			}
 		});
 
-		source.down([
-			["DATA", 1],
-			["DATA", 2],
-			["DATA", 3],
-		]);
+		batch(() => {
+			source.set(1);
+			source.set(2);
+			source.set(3);
+		});
 		now = 101;
-		source.down([["DATA", 4]]);
+		source.set(4);
 
 		expect(allowed.filter((msg) => Array.isArray(msg) && msg[0] === "DATA")).toEqual([
 			["DATA", 1],
@@ -336,7 +337,7 @@ describe("ProcessBundle — graph-visible facts-plus-reducer orchestration (D136
 			initialState: { count: 0 },
 			reduce: (command, state) => (command.payload.ok ? { state } : { state: undefined as never }),
 		});
-		process.command.down([["DATA", { type: "missing-id", payload: { ok: true } } as never]]);
+		process.dispatch({ type: "missing-id", payload: { ok: true } } as never);
 		expect(process.errors.cache).toMatchObject({
 			code: "malformed-command",
 			message: "processBundle: command id must be a non-empty string",
@@ -534,19 +535,14 @@ describe("ProcessBundle effect runner — visible outcome-command adapter (D156)
 			processId: "p-1",
 			correlationId: "corr-1",
 		});
-		outcomes.down([
-			[
-				"DATA",
-				{
-					kind: "result",
-					effectId: "cmd-1:effect:1",
-					effectType: "notify",
-					value: { delivered: true },
-					processId: "p-1",
-					correlationId: "corr-1",
-				},
-			],
-		]);
+		outcomes.set({
+			kind: "result",
+			effectId: "cmd-1:effect:1",
+			effectType: "notify",
+			value: { delivered: true },
+			processId: "p-1",
+			correlationId: "corr-1",
+		});
 
 		expect(runner.commands.cache).toEqual({
 			id: compoundTupleKey("process-effect-command", ["cmd-1:effect:1", "effect.result"]),
@@ -592,17 +588,12 @@ describe("ProcessBundle effect runner — visible outcome-command adapter (D156)
 		const unsub = runner.status.subscribe(() => {});
 
 		expect(() => runner.release()).toThrow(/live subscribers/);
-		outcomes.down([
-			[
-				"DATA",
-				{
-					kind: "result",
-					effectId: "effect-1",
-					effectType: "work",
-					value: "ok",
-				},
-			],
-		]);
+		outcomes.set({
+			kind: "result",
+			effectId: "effect-1",
+			effectType: "work",
+			value: "ok",
+		});
 		expect(process.state.cache).toEqual({ done: 1 });
 
 		unsub();

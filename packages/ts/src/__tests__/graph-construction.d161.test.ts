@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { batch } from "../batch/batch.js";
 import { deferRewire } from "../batch/boundary.js";
-import { ctxRewireDiff, depLatest } from "../ctx/types.js";
+import { ctxRewireDiff, depBatch, depLatest } from "../ctx/types.js";
 import { Dispatcher, type Handle } from "../dispatcher/index.js";
 import {
 	ColdConstructionError,
@@ -28,6 +28,7 @@ import {
 	causalOccurrenceBundle,
 	causalOccurrenceDigest,
 } from "../solutions/causal-occurrence.js";
+import { asState } from "./helpers/as-state.js";
 import { rewireOwnedNode } from "./helpers/owned-rewire.js";
 
 afterEach(() => vi.restoreAllMocks());
@@ -94,6 +95,10 @@ function causal(graph = new Graph(), fault = false) {
 		state: "admitted" as const,
 	};
 	const outcomes = graph.node<CausalEffectOutcome>([], null, { name: "input/outcome" });
+	const watermark = graph.state(
+		{ revisionDomain: "d", revision: 1 },
+		{ name: "input/watermark-source" },
+	);
 	const options: CausalOccurrenceBundleOptions<string> = {
 		name: "causal",
 		occurrences: graph.state(occurrence, { name: "input/occurrence" }),
@@ -119,9 +124,12 @@ function causal(graph = new Graph(), fault = false) {
 		effectAdmissions: graph.state(admitted, { name: "input/effect-admission" }),
 		effectOutcomes: outcomes,
 		evidence: graph.node([], null, { name: "input/evidence" }),
-		watermarks: graph.producer(
+		// The watermark lane forwards a host input; with `fault` its first run throws after it sent
+		// the first watermark.
+		watermarks: graph.node(
+			[watermark],
 			(ctx) => {
-				ctx.down([["DATA", { revisionDomain: "d", revision: 1 }]]);
+				for (const value of depBatch(ctx, 0) ?? []) ctx.down([["DATA", value]]);
 				if (fault) throw new Error("after admission");
 			},
 			{ name: "input/watermark" },
@@ -133,7 +141,7 @@ function causal(graph = new Graph(), fault = false) {
 		maxEffects: 8,
 		maxEvidence: 8,
 	};
-	return { graph, options, occurrence, admitted, outcomes };
+	return { graph, options, occurrence, admitted, outcomes, watermark };
 }
 const binding: CausalBinding = {
 	contract: "contract-v2",
@@ -169,7 +177,8 @@ describe("D161 graph construction ownership", () => {
 		expect(changed).toBe(true);
 		expect(f.graph.find("causal/authority")).toBeUndefined();
 		expect(constructionOf(f.graph, "causal")).toBeUndefined();
-		expect(f.graph.describe().nodes).toHaveLength(8);
+		// Only the fixture's input nodes remain: eight lanes plus the watermark's host input.
+		expect(f.graph.describe().nodes).toHaveLength(9);
 		const group = f.graph.topologyGroup();
 		for (const node of f.graph.describe().nodes) group.add(f.graph.find(node.id)!);
 		group.release();
@@ -444,7 +453,7 @@ describe("D161 graph construction ownership", () => {
 		const f = causal();
 		const full = causalComposition(f.graph).composeFull(f.options, binding);
 		const authority = f.graph.find("causal/authority")!;
-		f.outcomes.down([["ERROR", "outcome source lost"]]);
+		f.outcomes.error("outcome source lost");
 		expect(authority.status.output).toBe("errored");
 		// R-terminals: an ended node can still be subscribed; its snapshot ends with its terminal,
 		// and nothing restarts it.
@@ -479,8 +488,9 @@ describe("D161 graph construction ownership", () => {
 				if (m[0] === "DATA") values.push(m[1]);
 			}
 		});
-		f.options.watermarks.down([["DATA", { revisionDomain: "d", revision: 2 }]]);
-		expect(values.length).toBeGreaterThan(0);
+		const subscribed = values.length;
+		f.watermark.set({ revisionDomain: "d", revision: 2 });
+		expect(values.length).toBeGreaterThan(subscribed);
 		expect(values.every((v) => !("retainedEvidence" in (v as object)))).toBe(true);
 		expect(() => assertCausalCapabilities(new Graph(), full, binding)).toThrow();
 		expect(() => assertCausalCapabilities(f.graph, full, { ...binding, epoch: 2 })).toThrow();
@@ -808,7 +818,7 @@ describe("D161 graph construction ownership", () => {
 			const stop = full.startup.subscribe(() => {});
 			stop();
 		}
-		f.options.occurrences.down([["DATA", f.occurrence]]);
+		asState(f.options.occurrences).set(f.occurrence);
 		const state = checkpointStateOfNode(f.graph.find("causal/authority")!).ctxState
 			.value as RuntimeState<string>;
 		expect(state.effects.size).toBe(0);

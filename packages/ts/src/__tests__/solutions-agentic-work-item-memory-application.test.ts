@@ -529,14 +529,14 @@ describe("agentic WorkItem memory application recipe wiring (D572/D576/D577/D581
 			});
 		const second = makeOccurrence("bridge-2", "wi-2");
 		const first = makeOccurrence("bridge-1", "wi-1");
-		occurrences.down([["DATA", second]]);
-		occurrences.down([["DATA", first]]);
+		occurrences.set(second);
+		occurrences.set(first);
 		const outputs = data<SolutionOccurrence<{ readonly proposals: readonly unknown[] }>>(
 			observed.messages,
 		);
 		expect(outputs.map((output) => output.occurrenceId)).toEqual(["bridge-2", "bridge-1"]);
 		expect(outputs.every((output) => output.value.proposals.length === 1)).toBe(true);
-		occurrences.down([["DATA", second]]);
+		occurrences.set(second);
 		expect(data(observed.messages)).toHaveLength(2);
 		observed.unsubscribe();
 	});

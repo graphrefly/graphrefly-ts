@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { batch } from "../batch/batch.js";
 import { graph } from "../graph/graph.js";
 import {
 	type AgentDecision,
@@ -285,29 +286,26 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 8", () => {
 			}
 		});
 
-		outcomes.down([
-			[
-				"DATA",
-				fakeExecutorResult({
-					outcomeId: "outcome-large",
-					requestId: "request-large",
-					operationId: "op-large",
-					routeId: "route-large",
-					executorId: "exec-tool",
-					profileId: "profile-tool",
-					attempt: 1,
-					inputKind: "tool-call",
-					result: {
-						kind: "tool-result",
-						summary: "stdout contained a very long failure explanation",
-						value: { stdout: "RAW_STDOUT_SHOULD_NOT_APPEAR".repeat(20) },
-						refs: [{ kind: "artifact", id: "stdout-summary-ref" }],
-					},
-					evidenceRefs: [{ kind: "executor-route", id: "route-large" }],
-					metadata: { rawResponse: "raw-123" },
-				}),
-			],
-		]);
+		outcomes.set(
+			fakeExecutorResult({
+				outcomeId: "outcome-large",
+				requestId: "request-large",
+				operationId: "op-large",
+				routeId: "route-large",
+				executorId: "exec-tool",
+				profileId: "profile-tool",
+				attempt: 1,
+				inputKind: "tool-call",
+				result: {
+					kind: "tool-result",
+					summary: "stdout contained a very long failure explanation",
+					value: { stdout: "RAW_STDOUT_SHOULD_NOT_APPEAR".repeat(20) },
+					refs: [{ kind: "artifact", id: "stdout-summary-ref" }],
+				},
+				evidenceRefs: [{ kind: "executor-route", id: "route-large" }],
+				metadata: { rawResponse: "raw-123" },
+			}),
+		);
 
 		expect(views).toHaveLength(1);
 		expect(views.at(-1)).toMatchObject({
@@ -357,38 +355,30 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 8", () => {
 			}
 		});
 
-		requestFacts.down([["DATA", issued("request-1", "op-good", "executor", "llm-call")]]);
-		profiles.down([["DATA", { profileId: "profile-1", executorId: "exec-1", kind: "llm" }]]);
-		routes.down([
-			[
-				"DATA",
-				{
-					kind: "executor-route",
-					routeId: "route-1",
-					requestId: "request-1",
-					operationId: "op-good",
-					inputKind: "llm-call",
-					executorId: "exec-1",
-					profileId: "profile-1",
-				},
-			],
-		]);
-		outcomes.down([
-			[
-				"DATA",
-				fakeExecutorResult({
-					outcomeId: "stale",
-					requestId: "request-1",
-					operationId: "op-stale",
-					routeId: "route-1",
-					executorId: "exec-1",
-					profileId: "profile-1",
-					attempt: 1,
-					inputKind: "llm-call",
-					result: { kind: "value", value: true },
-				}),
-			],
-		]);
+		requestFacts.set(issued("request-1", "op-good", "executor", "llm-call"));
+		profiles.set({ profileId: "profile-1", executorId: "exec-1", kind: "llm" });
+		routes.set({
+			kind: "executor-route",
+			routeId: "route-1",
+			requestId: "request-1",
+			operationId: "op-good",
+			inputKind: "llm-call",
+			executorId: "exec-1",
+			profileId: "profile-1",
+		});
+		outcomes.set(
+			fakeExecutorResult({
+				outcomeId: "stale",
+				requestId: "request-1",
+				operationId: "op-stale",
+				routeId: "route-1",
+				executorId: "exec-1",
+				profileId: "profile-1",
+				attempt: 1,
+				inputKind: "llm-call",
+				result: { kind: "value", value: true },
+			}),
+		);
 
 		expect(issues.at(-1)).toMatchObject({ kind: "issue", code: "stale-outcome-operation" });
 		expect(statuses.map((s) => s.status)).not.toContain("completed");
@@ -417,40 +407,30 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 8", () => {
 			}
 		});
 
-		requestFacts.down([["DATA", issued("request-1", "op-1", "executor", "llm-call")]]);
-		profiles.down([["DATA", { profileId: "profile-1", executorId: "exec-1", kind: "llm" }]]);
-		routes.down([
-			[
-				"DATA",
-				{
-					kind: "executor-route",
-					routeId: "route-1",
-					requestId: "request-1",
-					operationId: "op-1",
-					inputKind: "llm-call",
-					executorId: "exec-1",
-					profileId: "profile-1",
-				},
-			],
-		]);
+		requestFacts.set(issued("request-1", "op-1", "executor", "llm-call"));
+		profiles.set({ profileId: "profile-1", executorId: "exec-1", kind: "llm" });
+		routes.set({
+			kind: "executor-route",
+			routeId: "route-1",
+			requestId: "request-1",
+			operationId: "op-1",
+			inputKind: "llm-call",
+			executorId: "exec-1",
+			profileId: "profile-1",
+		});
 		expect(statuses.at(-1)).toMatchObject({ status: "awaiting-provider" });
 		expect(statuses.map((s) => s.status)).not.toContain("completed");
 
-		requestFacts.down([["DATA", issued("request-2", "op-2", "executor", "tool-call")]]);
-		routes.down([
-			[
-				"DATA",
-				{
-					kind: "executor-route",
-					routeId: "route-2",
-					requestId: "request-2",
-					operationId: "op-2",
-					inputKind: "tool-call",
-					executorId: "exec-1",
-					profileId: "profile-1",
-				},
-			],
-		]);
+		requestFacts.set(issued("request-2", "op-2", "executor", "tool-call"));
+		routes.set({
+			kind: "executor-route",
+			routeId: "route-2",
+			requestId: "request-2",
+			operationId: "op-2",
+			inputKind: "tool-call",
+			executorId: "exec-1",
+			profileId: "profile-1",
+		});
 		expect(issues.at(-1)).toMatchObject({
 			kind: "issue",
 			code: "profile-kind-input-incompatible",
@@ -482,53 +462,44 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 8", () => {
 			}
 		});
 
-		requestFacts.down([["DATA", issued("request-1", "op-1", "executor", "llm-call")]]);
-		profiles.down([
-			["DATA", { profileId: "llm-profile", executorId: "llm-exec", kind: "llm" }],
-			["DATA", { profileId: "tool-profile", executorId: "tool-exec", kind: "tool" }],
-		]);
-		routes.down([
-			[
-				"DATA",
-				{
-					kind: "executor-route",
-					routeId: "bad-route",
-					requestId: "request-1",
-					operationId: "op-1",
-					inputKind: "tool-call",
-					executorId: "tool-exec",
-					profileId: "tool-profile",
-				},
-			],
-			[
-				"DATA",
-				{
-					kind: "executor-route",
-					routeId: "good-route",
-					requestId: "request-1",
-					operationId: "op-1",
-					inputKind: "llm-call",
-					executorId: "llm-exec",
-					profileId: "llm-profile",
-				},
-			],
-		]);
-		outcomes.down([
-			[
-				"DATA",
-				fakeExecutorResult({
-					outcomeId: "spoofed",
-					requestId: "request-1",
-					operationId: "op-1",
-					routeId: "good-route",
-					executorId: "tool-exec",
-					profileId: "llm-profile",
-					attempt: 1,
-					inputKind: "llm-call",
-					result: { kind: "value", value: true },
-				}),
-			],
-		]);
+		requestFacts.set(issued("request-1", "op-1", "executor", "llm-call"));
+		batch(() => {
+			profiles.set({ profileId: "llm-profile", executorId: "llm-exec", kind: "llm" });
+			profiles.set({ profileId: "tool-profile", executorId: "tool-exec", kind: "tool" });
+		});
+		batch(() => {
+			routes.set({
+				kind: "executor-route",
+				routeId: "bad-route",
+				requestId: "request-1",
+				operationId: "op-1",
+				inputKind: "tool-call",
+				executorId: "tool-exec",
+				profileId: "tool-profile",
+			});
+			routes.set({
+				kind: "executor-route",
+				routeId: "good-route",
+				requestId: "request-1",
+				operationId: "op-1",
+				inputKind: "llm-call",
+				executorId: "llm-exec",
+				profileId: "llm-profile",
+			});
+		});
+		outcomes.set(
+			fakeExecutorResult({
+				outcomeId: "spoofed",
+				requestId: "request-1",
+				operationId: "op-1",
+				routeId: "good-route",
+				executorId: "tool-exec",
+				profileId: "llm-profile",
+				attempt: 1,
+				inputKind: "llm-call",
+				result: { kind: "value", value: true },
+			}),
+		);
 
 		expect(issues).toEqual(
 			expect.arrayContaining([
@@ -564,53 +535,44 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 8", () => {
 			}
 		});
 
-		requestFacts.down([["DATA", issued("request-1", "op-1", "executor", "llm-call")]]);
-		profiles.down([
-			["DATA", { profileId: "profile-1", executorId: "exec-1", kind: "llm" }],
-			["DATA", { profileId: "profile-2", executorId: "exec-2", kind: "llm" }],
-		]);
-		routes.down([
-			[
-				"DATA",
-				{
-					kind: "executor-route",
-					routeId: "route-1",
-					requestId: "request-1",
-					operationId: "op-1",
-					inputKind: "llm-call",
-					executorId: "exec-1",
-					profileId: "profile-1",
-				},
-			],
-			[
-				"DATA",
-				{
-					kind: "executor-route",
-					routeId: "route-2",
-					requestId: "request-1",
-					operationId: "op-1",
-					inputKind: "llm-call",
-					executorId: "exec-2",
-					profileId: "profile-2",
-				},
-			],
-		]);
-		outcomes.down([
-			[
-				"DATA",
-				fakeExecutorResult({
-					outcomeId: "outcome-1",
-					requestId: "request-1",
-					operationId: "op-1",
-					routeId: "route-1",
-					executorId: "exec-1",
-					profileId: "profile-1",
-					attempt: 1,
-					inputKind: "llm-call",
-					result: { kind: "value", value: true },
-				}),
-			],
-		]);
+		requestFacts.set(issued("request-1", "op-1", "executor", "llm-call"));
+		batch(() => {
+			profiles.set({ profileId: "profile-1", executorId: "exec-1", kind: "llm" });
+			profiles.set({ profileId: "profile-2", executorId: "exec-2", kind: "llm" });
+		});
+		batch(() => {
+			routes.set({
+				kind: "executor-route",
+				routeId: "route-1",
+				requestId: "request-1",
+				operationId: "op-1",
+				inputKind: "llm-call",
+				executorId: "exec-1",
+				profileId: "profile-1",
+			});
+			routes.set({
+				kind: "executor-route",
+				routeId: "route-2",
+				requestId: "request-1",
+				operationId: "op-1",
+				inputKind: "llm-call",
+				executorId: "exec-2",
+				profileId: "profile-2",
+			});
+		});
+		outcomes.set(
+			fakeExecutorResult({
+				outcomeId: "outcome-1",
+				requestId: "request-1",
+				operationId: "op-1",
+				routeId: "route-1",
+				executorId: "exec-1",
+				profileId: "profile-1",
+				attempt: 1,
+				inputKind: "llm-call",
+				result: { kind: "value", value: true },
+			}),
+		);
 
 		expect(issues).not.toContainEqual(
 			expect.objectContaining({ code: "missing-compatible-route" }),
@@ -637,38 +599,30 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 8", () => {
 			}
 		});
 
-		routes.down([
-			[
-				"DATA",
-				{
-					kind: "executor-route",
-					routeId: "route-1",
-					requestId: "request-1",
-					operationId: "op-1",
-					inputKind: "llm-call",
-					executorId: "exec-1",
-					profileId: "profile-1",
-				},
-			],
-		]);
-		outcomes.down([
-			[
-				"DATA",
-				fakeExecutorResult({
-					outcomeId: "outcome-1",
-					requestId: "request-1",
-					operationId: "op-1",
-					routeId: "route-1",
-					executorId: "exec-1",
-					profileId: "profile-1",
-					attempt: 1,
-					inputKind: "llm-call",
-					result: { kind: "value", value: true },
-				}),
-			],
-		]);
-		requestFacts.down([["DATA", issued("request-1", "op-1", "executor", "llm-call")]]);
-		profiles.down([["DATA", { profileId: "profile-1", executorId: "exec-1", kind: "llm" }]]);
+		routes.set({
+			kind: "executor-route",
+			routeId: "route-1",
+			requestId: "request-1",
+			operationId: "op-1",
+			inputKind: "llm-call",
+			executorId: "exec-1",
+			profileId: "profile-1",
+		});
+		outcomes.set(
+			fakeExecutorResult({
+				outcomeId: "outcome-1",
+				requestId: "request-1",
+				operationId: "op-1",
+				routeId: "route-1",
+				executorId: "exec-1",
+				profileId: "profile-1",
+				attempt: 1,
+				inputKind: "llm-call",
+				result: { kind: "value", value: true },
+			}),
+		);
+		requestFacts.set(issued("request-1", "op-1", "executor", "llm-call"));
+		profiles.set({ profileId: "profile-1", executorId: "exec-1", kind: "llm" });
 
 		expect(statuses.at(-1)).toMatchObject({ requestId: "request-1", status: "completed" });
 	});
@@ -688,29 +642,23 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 8", () => {
 			}
 		});
 
-		requestFacts.down([["DATA", issued("prompt-1", "op-1", "prompt")]]);
-		prompts.down([
-			[
-				"DATA",
-				{
-					kind: "prompt-bundle",
-					promptId: "prompt-ready",
-					requestId: "prompt-1",
-					operationId: "op-1",
-					status: "ready",
-				},
-			],
-			[
-				"DATA",
-				{
-					kind: "prompt-bundle",
-					promptId: "prompt-late",
-					requestId: "prompt-1",
-					operationId: "op-1",
-					status: "partial",
-				},
-			],
-		]);
+		requestFacts.set(issued("prompt-1", "op-1", "prompt"));
+		batch(() => {
+			prompts.set({
+				kind: "prompt-bundle",
+				promptId: "prompt-ready",
+				requestId: "prompt-1",
+				operationId: "op-1",
+				status: "ready",
+			});
+			prompts.set({
+				kind: "prompt-bundle",
+				promptId: "prompt-late",
+				requestId: "prompt-1",
+				operationId: "op-1",
+				status: "partial",
+			});
+		});
 
 		expect(statuses.map((s) => s.status)).toContain("completed");
 		expect(
@@ -732,20 +680,17 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 8", () => {
 				msg[0] === "DATA" && status.push(msg[1]);
 			}
 		});
-		effectRuns.down([["DATA", effectRun({ effectRunId: "run-1", goal: { kind: "retry-test" } })]]);
-		requestFacts.down([
-			["DATA", issued("request-1", "op-1", "executor", "llm-call")],
-			[
-				"DATA",
-				{
-					kind: "status",
-					requestId: "request-1",
-					operationId: "op-1",
-					effectRunId: "run-1",
-					status: "retry-exhausted",
-				},
-			],
-		]);
+		effectRuns.set(effectRun({ effectRunId: "run-1", goal: { kind: "retry-test" } }));
+		batch(() => {
+			requestFacts.set(issued("request-1", "op-1", "executor", "llm-call"));
+			requestFacts.set({
+				kind: "status",
+				requestId: "request-1",
+				operationId: "op-1",
+				effectRunId: "run-1",
+				status: "retry-exhausted",
+			});
+		});
 
 		expect(status.at(-1)).toMatchObject({ effectRunId: "run-1", state: "pending" });
 	});
@@ -768,35 +713,25 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 8", () => {
 			}
 		});
 
-		effectRuns.down([["DATA", effectRun({ effectRunId: "run-1", goal: { kind: "test" } })]]);
-		requestFacts.down([["DATA", issued("request-1", "op-1", "executor", "llm-call")]]);
-		decisions.down([
-			[
-				"DATA",
-				{
-					kind: "final",
-					decisionId: "decision-final",
-					effectRunId: "run-1",
-					agentRunId: "agent-1",
-					source: { requestId: "request-1", operationId: "op-1", outcomeId: "outcome-1" },
-					output: { kind: "done", value: true },
-				},
-			],
-		]);
+		effectRuns.set(effectRun({ effectRunId: "run-1", goal: { kind: "test" } }));
+		requestFacts.set(issued("request-1", "op-1", "executor", "llm-call"));
+		decisions.set({
+			kind: "final",
+			decisionId: "decision-final",
+			effectRunId: "run-1",
+			agentRunId: "agent-1",
+			source: { requestId: "request-1", operationId: "op-1", outcomeId: "outcome-1" },
+			output: { kind: "done", value: true },
+		});
 		expect(results).toEqual([]);
 
-		requestFacts.down([
-			[
-				"DATA",
-				{
-					kind: "status",
-					requestId: "request-1",
-					operationId: "op-1",
-					effectRunId: "run-1",
-					status: "completed",
-				},
-			],
-		]);
+		requestFacts.set({
+			kind: "status",
+			requestId: "request-1",
+			operationId: "op-1",
+			effectRunId: "run-1",
+			status: "completed",
+		});
 
 		expect(results.at(-1)).toMatchObject({
 			effectRunId: "run-1",
@@ -828,33 +763,25 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 8", () => {
 			}
 		});
 
-		effectRuns.down([["DATA", effectRun({ effectRunId: "run-1", goal: { kind: "test" } })]]);
-		requestFacts.down([
-			["DATA", issued("request-1", "op-1", "executor", "llm-call")],
-			[
-				"DATA",
-				{
-					kind: "status",
-					requestId: "request-1",
-					operationId: "op-stale",
-					effectRunId: "run-1",
-					status: "completed",
-				},
-			],
-		]);
-		decisions.down([
-			[
-				"DATA",
-				{
-					kind: "final",
-					decisionId: "decision-final",
-					effectRunId: "run-1",
-					agentRunId: "agent-1",
-					source: { requestId: "request-1", operationId: "op-1", outcomeId: "outcome-1" },
-					output: { kind: "done", value: true },
-				},
-			],
-		]);
+		effectRuns.set(effectRun({ effectRunId: "run-1", goal: { kind: "test" } }));
+		batch(() => {
+			requestFacts.set(issued("request-1", "op-1", "executor", "llm-call"));
+			requestFacts.set({
+				kind: "status",
+				requestId: "request-1",
+				operationId: "op-stale",
+				effectRunId: "run-1",
+				status: "completed",
+			});
+		});
+		decisions.set({
+			kind: "final",
+			decisionId: "decision-final",
+			effectRunId: "run-1",
+			agentRunId: "agent-1",
+			source: { requestId: "request-1", operationId: "op-1", outcomeId: "outcome-1" },
+			output: { kind: "done", value: true },
+		});
 
 		expect(issues.at(-1)).toMatchObject({ code: "stale-request-status" });
 		expect(results).toEqual([]);
@@ -886,29 +813,23 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 8", () => {
 				msg[0] === "DATA" && audit.push(msg[1]);
 			}
 		});
-		effectRuns.down([["DATA", effectRun({ effectRunId: "run-1", goal: { kind: "test" } })]]);
-		candidates.down([
-			[
-				"DATA",
-				{
-					kind: "effect-run-result",
-					resultId: "run-1:result",
-					status: "completed",
-					effectRunId: "run-1",
-					output: { kind: "ok" },
-				},
-			],
-			[
-				"DATA",
-				{
-					kind: "effect-run-result",
-					resultId: "run-1:other",
-					status: "failed",
-					effectRunId: "run-1",
-					error: { kind: "issue", code: "failed", message: "failed" },
-				},
-			],
-		]);
+		effectRuns.set(effectRun({ effectRunId: "run-1", goal: { kind: "test" } }));
+		batch(() => {
+			candidates.set({
+				kind: "effect-run-result",
+				resultId: "run-1:result",
+				status: "completed",
+				effectRunId: "run-1",
+				output: { kind: "ok" },
+			});
+			candidates.set({
+				kind: "effect-run-result",
+				resultId: "run-1:other",
+				status: "failed",
+				effectRunId: "run-1",
+				error: { kind: "issue", code: "failed", message: "failed" },
+			});
+		});
 
 		expect(results).toHaveLength(1);
 		expect(issues.at(-1)).toMatchObject({ kind: "issue", code: "conflicting-effect-run-result" });
@@ -935,20 +856,15 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 8", () => {
 				msg[0] === "DATA" && issues.push(msg[1]);
 			}
 		});
-		effectRuns.down([["DATA", effectRun({ effectRunId: "run-1", goal: { kind: "test" } })]]);
+		effectRuns.set(effectRun({ effectRunId: "run-1", goal: { kind: "test" } }));
 
-		candidates.down([
-			[
-				"DATA",
-				{
-					kind: "effect-run-result",
-					resultId: "missing-run:result",
-					status: "completed",
-					effectRunId: "missing-run",
-					output: { kind: "ok" },
-				},
-			],
-		]);
+		candidates.set({
+			kind: "effect-run-result",
+			resultId: "missing-run:result",
+			status: "completed",
+			effectRunId: "missing-run",
+			output: { kind: "ok" },
+		});
 
 		expect(results).toEqual([]);
 		expect(issues.at(-1)).toMatchObject({ code: "unknown-effect-run-result-candidate" });

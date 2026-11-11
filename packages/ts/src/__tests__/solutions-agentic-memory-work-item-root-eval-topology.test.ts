@@ -99,8 +99,11 @@ import {
 	ROOT_EVAL_TOPOLOGY_NO_NETWORK_QA_ARTIFACT_DIGEST,
 	ROOT_EVAL_TOPOLOGY_QUALIFICATION,
 } from "../../evals/graph-native-rerun-avoidance/root-eval-topology-qualification.js";
+import { batch } from "../batch/batch.js";
 import type { DescribeSnapshot } from "../graph/describe.js";
 import type { Node } from "../node/node.js";
+import { asState } from "./helpers/as-state.js";
+import { addOwnedNodeDep, injectOwnedNodeInput } from "./helpers/owned-rewire.js";
 
 const createTopology = (
 	options: Omit<Parameters<typeof createRootEvalTopology>[0], "profileInput"> = {},
@@ -483,9 +486,12 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 		});
 		try {
 			await runRootEval(topology, twoPhaseExecutor());
+			// Test-only replay input: the arrivals merge forwards it like any other occurrence input.
+			const replay = topology.graph.node<unknown>([], null, { name: "test/replay-arrivals" });
+			addOwnedNodeDep(arrivals, replay);
 			const count = observations.length;
 			const before = JSON.stringify(topology.nodes.budgets.cache);
-			arrivals.down([["DATA", [...contributions].reverse()]]);
+			replay.set([...contributions].reverse());
 			expect(observations).toHaveLength(count);
 			expect(rejections).toEqual([]);
 			const source = contributions.filter((event) => event.source === "diagnostics");
@@ -494,18 +500,13 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 				violation === "conflict"
 					? { ...(last.value as object), completedWorkItems: -1 }
 					: last.value;
-			arrivals.down([
-				[
-					"DATA",
-					[
-						{
-							...last,
-							revision: violation === "conflict" ? last.revision : last.revision + 2,
-							value,
-							digest: empiricalStrictJsonDigest(value),
-						},
-					],
-				],
+			replay.set([
+				{
+					...last,
+					revision: violation === "conflict" ? last.revision : last.revision + 2,
+					value,
+					digest: empiricalStrictJsonDigest(value),
+				},
 			]);
 			expect(rejections).toHaveLength(1);
 			expect(rejections[0]).toMatchObject({
@@ -785,10 +786,10 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 				kind: "eval-campaign-start" as const,
 				campaignRef: topology.campaignRef,
 			});
-			topology.inputs.start.down([["DATA", start]]);
+			asState(topology.inputs.start).set(start);
 			const prior = progress.at(-1);
 			const timerCount = scheduled.length;
-			topology.inputs.start.down([["DATA", start]]);
+			asState(topology.inputs.start).set(start);
 			expect(progress.at(-1)).toBe(prior);
 			expect(scheduled).toHaveLength(timerCount);
 		} finally {
@@ -866,15 +867,12 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 			}),
 		];
 		try {
-			topology.inputs.start.down([
-				[
-					"DATA",
-					Object.freeze({
-						kind: "eval-campaign-start" as const,
-						campaignRef: topology.campaignRef,
-					}),
-				],
-			]);
+			asState(topology.inputs.start).set(
+				Object.freeze({
+					kind: "eval-campaign-start" as const,
+					campaignRef: topology.campaignRef,
+				}),
+			);
 			expect(scheduled.length).toBeGreaterThan(1);
 			const admittedBeforeStall = admissions.length;
 			scheduled[0]!.callback();
@@ -886,15 +884,12 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 				leaseMs: 0,
 			});
 			expect(budgets.at(-1)).toMatchObject({ stoppingReason: "progress-stalled" });
-			topology.inputs.start.down([
-				[
-					"DATA",
-					Object.freeze({
-						kind: "eval-campaign-start" as const,
-						campaignRef: topology.campaignRef,
-					}),
-				],
-			]);
+			asState(topology.inputs.start).set(
+				Object.freeze({
+					kind: "eval-campaign-start" as const,
+					campaignRef: topology.campaignRef,
+				}),
+			);
 			expect(admissions).toHaveLength(admittedBeforeStall);
 		} finally {
 			for (const stop of stops) stop();
@@ -1053,7 +1048,7 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 				kind: "eval-campaign-start" as const,
 				campaignRef: topology.campaignRef,
 			});
-			topology.inputs.start.down([["DATA", start]]);
+			asState(topology.inputs.start).set(start);
 			for (let turn = 0; turn < 256 && !settled; turn += 1)
 				await vi.advanceTimersToNextTimerAsync();
 			expect(settled).toBe(true);
@@ -2661,9 +2656,9 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 			await executorGate;
 			return base(effect);
 		});
-		topology.nodes.terminalLifecycleConsistency.down([
-			["ERROR", new TypeError("root eval terminal lifecycle consistency drifted")],
-		]);
+		injectOwnedNodeInput(topology.graph, topology.nodes.terminalLifecycleConsistency).error(
+			new TypeError("root eval terminal lifecycle consistency drifted"),
+		);
 		releaseExecutor();
 		await expect(run).rejects.toThrow(/terminal lifecycle consistency drifted/u);
 	});
@@ -3940,9 +3935,10 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 				if (message[0] === "DATA") diagnostics.push(message[1]);
 			}
 		});
-		topology.inputs.start.down([
-			["DATA", { kind: "eval-campaign-start", campaignRef: topology.campaignRef }],
-		]);
+		asState(topology.inputs.start).set({
+			kind: "eval-campaign-start",
+			campaignRef: topology.campaignRef,
+		});
 		const fact: EvalCleanupFact = Object.freeze({
 			kind: "eval-cleanup-complete",
 			workItemId: `${topology.campaignRef}/replicate-1/cold`,
@@ -3957,9 +3953,11 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 			terminalReason: "no-change",
 			resultDigest: empiricalStrictJsonDigest({ result: "cold" }),
 		});
-		topology.nodes.cleanup.down([["DATA", fact]]);
+		// No verifier runs here, so the cleanup facts come only from the test's input.
+		const cleanup = injectOwnedNodeInput(topology.graph, topology.nodes.cleanup, { only: true });
+		cleanup.set(fact);
 		const afterFirst = diagnostics.length;
-		topology.nodes.cleanup.down([["DATA", fact]]);
+		cleanup.set(fact);
 		expect(diagnostics).toHaveLength(afterFirst);
 		const batched = HARNESS_ARMS.slice(1, 3).map((arm) =>
 			Object.freeze({
@@ -3969,7 +3967,9 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 				resultDigest: empiricalStrictJsonDigest({ result: arm }),
 			}),
 		);
-		topology.nodes.cleanup.down(batched.map((value) => ["DATA", value]));
+		batch(() => {
+			for (const value of batched) cleanup.set(value);
+		});
 		expect(
 			diagnostics
 				.slice(afterFirst)
@@ -3978,15 +3978,10 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 		expectGraphRejects(
 			topology,
 			() =>
-				topology.nodes.cleanup.down([
-					[
-						"DATA",
-						{
-							...fact,
-							resultDigest: empiricalStrictJsonDigest({ result: "contradiction" }),
-						},
-					],
-				]),
+				cleanup.set({
+					...fact,
+					resultDigest: empiricalStrictJsonDigest({ result: "contradiction" }),
+				}),
 			/contradictory cleanup/u,
 		);
 		stop();
@@ -4479,22 +4474,17 @@ describe("D154 adaptive route settlement and coherent terminal QA", () => {
 			await flushUntil(() => callbacks.length === 1 && budgets.at(-1)?.providerCallCount === 1);
 			const input = namedNode(topology, "eval/provider/result-input");
 			const budgetBefore = empiricalStrictJsonDigest(budgets.at(-1));
-			input.down([["DATA", candidate!]]);
+			asState(input).set(candidate!);
 			expect(spacings).toHaveLength(1);
 			expect(empiricalStrictJsonDigest(budgets.at(-1))).toBe(budgetBefore);
 			expect(budgets.at(-1)?.policyQualifiedNonbillableCount).toBe(0);
 			expectGraphRejects(
 				topology,
 				() =>
-					input.down([
-						[
-							"DATA",
-							{
-								...candidate!,
-								resultDigest: empiricalSha256("contradictory response"),
-							},
-						],
-					]),
+					asState(input).set({
+						...candidate!,
+						resultDigest: empiricalSha256("contradictory response"),
+					}),
 				/replay|conflict/u,
 			);
 			expect(budgets.at(-1)?.policyQualifiedNonbillableCount).toBe(0);
@@ -4594,16 +4584,14 @@ describe("D154 adaptive route settlement and coherent terminal QA", () => {
 			expectGraphRejects(
 				topology,
 				() =>
-					namedNode(topology, "eval/provider/pacing-clock").down([
-						[
-							"DATA",
-							{
-								kind: "eval-provider-pacing-clock",
-								phase: "ready",
-								readiness: { ...readiness!, pacingRevision: 0 },
-							},
-						],
-					]),
+					injectOwnedNodeInput(
+						topology.graph,
+						namedNode(topology, "eval/provider/pacing-clock"),
+					).set({
+						kind: "eval-provider-pacing-clock",
+						phase: "ready",
+						readiness: { ...readiness!, pacingRevision: 0 },
+					}),
 				/scheduled occurrence/,
 			);
 			expect(providers).toBe(1);

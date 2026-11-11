@@ -8,7 +8,7 @@ import {
 import type { Graph } from "../graph/graph.js";
 import { compoundTupleKey } from "../identity.js";
 import { strictCanonicalJsonBytes } from "../json/codec.js";
-import type { Node } from "../node/node.js";
+import type { Node, StateNode } from "../node/node.js";
 import type {
 	AgentRuntimeAuditRecord,
 	ExecutorOutcome,
@@ -394,7 +394,8 @@ export function localUntrustedJsComputeRuntime(
 	const now = opts.now ?? Date.now;
 	let disposed = false;
 	let disposePromise: Promise<void> | undefined;
-	const emit = <T>(node: Node<T>, value: T) => node.down([["DATA", value]]);
+	const emit = <T>(node: StateNode<T>, value: NoInfer<T>) =>
+		node.set(value as Exclude<T, (...args: never[]) => unknown>);
 	const emitIssue = (
 		code: string,
 		message: string,

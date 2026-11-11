@@ -126,14 +126,15 @@ export async function runGradedSpendingDemo() {
 		await drainOfflineCompletion();
 		const evaluation = evaluationFixture();
 		const facts = policyFacts(evaluation);
-		sources.pack.down([["DATA", evaluationPack([evaluation])]]);
+		sources.pack.set(evaluationPack([evaluation]));
 		batch(() => {
-			sources.current.down([["DATA", facts.current]]);
-			sources.verification.down([["DATA", facts.verification]]);
-			sources.local.down([["DATA", facts.local]]);
-			sources.arrivals.down([
-				["DATA", { packRef: presetBinding.packRef, evaluationRefs: [evaluation.evaluationRef] }],
-			]);
+			sources.current.set(facts.current);
+			sources.verification.set(facts.verification);
+			sources.local.set(facts.local);
+			sources.arrivals.set({
+				packRef: presetBinding.packRef,
+				evaluationRefs: [evaluation.evaluationRef],
+			});
 		});
 		await drainOfflineCompletion();
 		assert.deepEqual(writes, [`${oracleRequest(evaluation, presetBinding)!.body.payloadText}\n`]);
@@ -154,14 +155,15 @@ export async function runGradedSpendingDemo() {
 		assert.deepEqual(graph.topology(), topology);
 		const evaluationB = evaluationFixture(0, "tea");
 		const factsB = policyFacts(evaluationB, bindingB);
-		sourcesB.pack.down([["DATA", evaluationPack([evaluationB], bindingB)]]);
+		sourcesB.pack.set(evaluationPack([evaluationB], bindingB));
 		batch(() => {
-			sourcesB.current.down([["DATA", factsB.current]]);
-			sourcesB.verification.down([["DATA", factsB.verification]]);
-			sourcesB.local.down([["DATA", factsB.local]]);
-			sourcesB.arrivals.down([
-				["DATA", { packRef: bindingB.packRef, evaluationRefs: [evaluationB.evaluationRef] }],
-			]);
+			sourcesB.current.set(factsB.current);
+			sourcesB.verification.set(factsB.verification);
+			sourcesB.local.set(factsB.local);
+			sourcesB.arrivals.set({
+				packRef: bindingB.packRef,
+				evaluationRefs: [evaluationB.evaluationRef],
+			});
 		});
 		await drainOfflineCompletion();
 		assert.deepEqual(writesB, [`${oracleRequest(evaluationB, bindingB)!.body.payloadText}\n`]);
@@ -193,8 +195,8 @@ export async function runGradedSpendingDemo() {
 		assert.deepEqual(graph.topology(), topology);
 
 		// Existing local stop fact stops new work; it does not manufacture an outcome.
-		sources.local.down([["DATA", { ...facts.local, stop: true }]]);
-		sourcesB.local.down([["DATA", { ...factsB.local, stop: true }]]);
+		sources.local.set({ ...facts.local, stop: true });
+		sourcesB.local.set({ ...factsB.local, stop: true });
 		await drainOfflineCompletion();
 		const finished = app.inspect();
 		assert.equal(finished.normalEndReady, true);

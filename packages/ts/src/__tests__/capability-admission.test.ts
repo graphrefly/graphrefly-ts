@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { batch } from "../batch/batch.js";
 import { graph } from "../graph/graph.js";
 import type { BoundaryCapabilityRef } from "../inspection/boundary.js";
 import type { Wave } from "../protocol/messages.js";
@@ -16,46 +17,33 @@ describe("solution capability admission (D357)", () => {
 	it("projects product-owned capability admission facts instead of AutoPanel security", () => {
 		const setup = admissionSetup();
 
-		setup.policies.down([
-			[
-				"DATA",
-				{
-					kind: "capability-admission-policy",
-					policyId: "github-auth-policy",
-					capabilityKinds: ["auth"],
-					requiredOnly: true,
-					allowedOutcomes: ["allow", "block"],
-				},
-			],
-		]);
-		setup.proposals.down([
-			[
-				"DATA",
-				capabilityAdmissionProposal({
-					proposalId: "proposal-1",
-					subjectId: "boundary:token",
-					boundaryName: "token",
-					role: "input",
-					capability: authCapability,
-					sourceRefs: [{ kind: "boundary-node", id: "token" }],
-				}),
-			],
-		]);
-		setup.decisions.down([
-			[
-				"DATA",
-				{
-					kind: "capability-admission-decision",
-					decisionId: "decision-1",
-					admissionId: "admission-1",
-					proposalId: "proposal-1",
-					outcome: "block",
-					policyId: "github-auth-policy",
-					reason: "Product registry says OAuth is not ready",
-					decidedAtMs: 123,
-				},
-			],
-		]);
+		setup.policies.set({
+			kind: "capability-admission-policy",
+			policyId: "github-auth-policy",
+			capabilityKinds: ["auth"],
+			requiredOnly: true,
+			allowedOutcomes: ["allow", "block"],
+		});
+		setup.proposals.set(
+			capabilityAdmissionProposal({
+				proposalId: "proposal-1",
+				subjectId: "boundary:token",
+				boundaryName: "token",
+				role: "input",
+				capability: authCapability,
+				sourceRefs: [{ kind: "boundary-node", id: "token" }],
+			}),
+		);
+		setup.decisions.set({
+			kind: "capability-admission-decision",
+			decisionId: "decision-1",
+			admissionId: "admission-1",
+			proposalId: "proposal-1",
+			outcome: "block",
+			policyId: "github-auth-policy",
+			reason: "Product registry says OAuth is not ready",
+			decidedAtMs: 123,
+		});
 
 		expect(setup.issues).toEqual([]);
 		expect(setup.admissions).toEqual([
@@ -86,39 +74,30 @@ describe("solution capability admission (D357)", () => {
 		const issueMsgs = collectMessages(setup.bundle.issues);
 		const statusMsgs = collectMessages(setup.bundle.status);
 
-		setup.proposals.down([
-			[
-				"DATA",
-				capabilityAdmissionProposal({
-					proposalId: "proposal-1",
-					subjectId: "boundary:token",
-					capability: authCapability,
-				}),
-			],
-		]);
-		setup.decisions.down([
-			[
-				"DATA",
-				{
-					kind: "capability-admission-decision",
-					decisionId: "decision-missing-policy",
-					admissionId: "admission-missing-policy",
-					proposalId: "proposal-1",
-					outcome: "allow",
-					policyId: "missing-policy",
-				},
-			],
-			[
-				"DATA",
-				{
-					kind: "capability-admission-decision",
-					decisionId: "decision-missing-proposal",
-					admissionId: "admission-missing-proposal",
-					proposalId: "missing-proposal",
-					outcome: "block",
-				},
-			],
-		]);
+		setup.proposals.set(
+			capabilityAdmissionProposal({
+				proposalId: "proposal-1",
+				subjectId: "boundary:token",
+				capability: authCapability,
+			}),
+		);
+		batch(() => {
+			setup.decisions.set({
+				kind: "capability-admission-decision",
+				decisionId: "decision-missing-policy",
+				admissionId: "admission-missing-policy",
+				proposalId: "proposal-1",
+				outcome: "allow",
+				policyId: "missing-policy",
+			});
+			setup.decisions.set({
+				kind: "capability-admission-decision",
+				decisionId: "decision-missing-proposal",
+				admissionId: "admission-missing-proposal",
+				proposalId: "missing-proposal",
+				outcome: "block",
+			});
+		});
 
 		expect(setup.admissions).toEqual([]);
 		expect(setup.issues.map((issue) => issue.code)).toEqual([
@@ -133,45 +112,32 @@ describe("solution capability admission (D357)", () => {
 	it("keeps provider/OAuth/config-form registry data out of capability policy vocabulary", () => {
 		const setup = admissionSetup();
 
-		setup.policies.down([
-			[
-				"DATA",
-				{
-					kind: "capability-admission-policy",
-					policyId: "resource-only",
-					capabilityKinds: ["resource"],
-					allowedOutcomes: ["allow"],
-					metadata: {
-						// Product-owned evidence may be referenced, but this helper does not interpret it
-						// as a provider registry, OAuth flow, or config form schema.
-						productRegistryRef: "registry:github",
-					},
-				},
-			],
-		]);
-		setup.proposals.down([
-			[
-				"DATA",
-				capabilityAdmissionProposal({
-					proposalId: "proposal-1",
-					subjectId: "boundary:token",
-					capability: authCapability,
-				}),
-			],
-		]);
-		setup.decisions.down([
-			[
-				"DATA",
-				{
-					kind: "capability-admission-decision",
-					decisionId: "decision-1",
-					admissionId: "admission-1",
-					proposalId: "proposal-1",
-					outcome: "allow",
-					policyId: "resource-only",
-				},
-			],
-		]);
+		setup.policies.set({
+			kind: "capability-admission-policy",
+			policyId: "resource-only",
+			capabilityKinds: ["resource"],
+			allowedOutcomes: ["allow"],
+			metadata: {
+				// Product-owned evidence may be referenced, but this helper does not interpret it
+				// as a provider registry, OAuth flow, or config form schema.
+				productRegistryRef: "registry:github",
+			},
+		});
+		setup.proposals.set(
+			capabilityAdmissionProposal({
+				proposalId: "proposal-1",
+				subjectId: "boundary:token",
+				capability: authCapability,
+			}),
+		);
+		setup.decisions.set({
+			kind: "capability-admission-decision",
+			decisionId: "decision-1",
+			admissionId: "admission-1",
+			proposalId: "proposal-1",
+			outcome: "allow",
+			policyId: "resource-only",
+		});
 
 		expect(setup.admissions).toEqual([]);
 		expect(setup.issues.at(-1)).toMatchObject({
@@ -185,83 +151,61 @@ describe("solution capability admission (D357)", () => {
 	it("rejects malformed and duplicate policy/decision facts as visible DataIssue records", () => {
 		const setup = admissionSetup();
 
-		setup.proposals.down([
-			[
-				"DATA",
-				{
-					kind: "capability-admission-proposal",
-					subjectId: "boundary:token-a",
-					capability: authCapability,
-				} as unknown as CapabilityAdmissionProposal,
-			],
-			[
-				"DATA",
-				{
-					kind: "capability-admission-proposal",
-					subjectId: "boundary:token-b",
-					capability: authCapability,
-				} as unknown as CapabilityAdmissionProposal,
-			],
-			[
-				"DATA",
+		batch(() => {
+			setup.proposals.set({
+				kind: "capability-admission-proposal",
+				subjectId: "boundary:token-a",
+				capability: authCapability,
+			} as unknown as CapabilityAdmissionProposal);
+			setup.proposals.set({
+				kind: "capability-admission-proposal",
+				subjectId: "boundary:token-b",
+				capability: authCapability,
+			} as unknown as CapabilityAdmissionProposal);
+			setup.proposals.set(
 				capabilityAdmissionProposal({
 					proposalId: "proposal-1",
 					subjectId: "boundary:token",
 					capability: authCapability,
 				}),
-			],
-		]);
-		setup.policies.down([
-			[
-				"DATA",
-				{
-					kind: "capability-admission-policy",
-					policyId: "auth-policy",
-					capabilityKinds: ["auth"],
-					allowedOutcomes: ["allow"],
-				},
-			],
-			[
-				"DATA",
-				{
-					kind: "capability-admission-policy",
-					policyId: "auth-policy",
-					capabilityKinds: ["resource"],
-					allowedOutcomes: ["block"],
-				},
-			],
-			[
-				"DATA",
-				{
-					kind: "capability-admission-policy",
-					policyId: "",
-					capabilityKinds: ["provider"],
-				} as unknown as CapabilityAdmissionPolicy,
-			],
-		]);
-		setup.decisions.down([
-			[
-				"DATA",
-				{
-					kind: "capability-admission-decision",
-					decisionId: "",
-					admissionId: "bad-admission",
-					proposalId: "proposal-1",
-					outcome: "allow",
-				} as unknown as CapabilityAdmissionDecision,
-			],
-			[
-				"DATA",
-				{
-					kind: "capability-admission-decision",
-					decisionId: "decision-ok",
-					admissionId: "admission-ok",
-					proposalId: "proposal-1",
-					outcome: "allow",
-					policyId: "auth-policy",
-				},
-			],
-		]);
+			);
+		});
+		batch(() => {
+			setup.policies.set({
+				kind: "capability-admission-policy",
+				policyId: "auth-policy",
+				capabilityKinds: ["auth"],
+				allowedOutcomes: ["allow"],
+			});
+			setup.policies.set({
+				kind: "capability-admission-policy",
+				policyId: "auth-policy",
+				capabilityKinds: ["resource"],
+				allowedOutcomes: ["block"],
+			});
+			setup.policies.set({
+				kind: "capability-admission-policy",
+				policyId: "",
+				capabilityKinds: ["provider"],
+			} as unknown as CapabilityAdmissionPolicy);
+		});
+		batch(() => {
+			setup.decisions.set({
+				kind: "capability-admission-decision",
+				decisionId: "",
+				admissionId: "bad-admission",
+				proposalId: "proposal-1",
+				outcome: "allow",
+			} as unknown as CapabilityAdmissionDecision);
+			setup.decisions.set({
+				kind: "capability-admission-decision",
+				decisionId: "decision-ok",
+				admissionId: "admission-ok",
+				proposalId: "proposal-1",
+				outcome: "allow",
+				policyId: "auth-policy",
+			});
+		});
 
 		expect(setup.issues.map((issue) => issue.code)).toEqual([
 			"malformed-capability-admission-proposal",

@@ -51,7 +51,7 @@ describe("state node (manual source)", () => {
 		const s = node<number>([], null, { initial: 1 });
 		const { msgs } = collect(s);
 		msgs.length = 0;
-		s.down([["DATA", 2]]);
+		s.set(2);
 		expect(types(msgs)).toEqual(["PENDING", "DATA"]);
 		expect(msgs[1]).toEqual(["DATA", 2]);
 		expect(s.cache).toBe(2);
@@ -70,7 +70,7 @@ describe("occurrences stay DATA (R-resolved-undirty / D49, supersedes R-equals)"
 		const s = node<number>([], null, { initial: 5 });
 		const { msgs } = collect(s);
 		msgs.length = 0;
-		s.down([["DATA", 5]]); // same value is still a distinct occurrence
+		s.set(5); // same value is still a distinct occurrence
 		expect(types(msgs)).toEqual(["PENDING", "DATA"]);
 		expect(s.cache).toBe(5);
 	});
@@ -79,7 +79,7 @@ describe("occurrences stay DATA (R-resolved-undirty / D49, supersedes R-equals)"
 		const s = node<number>([], null, { initial: 5 });
 		const { msgs } = collect(s);
 		msgs.length = 0;
-		s.down([["DATA", 6]]);
+		s.set(6);
 		expect(types(msgs)).toEqual(["PENDING", "DATA"]);
 		expect(s.cache).toBe(6);
 	});
@@ -88,10 +88,10 @@ describe("occurrences stay DATA (R-resolved-undirty / D49, supersedes R-equals)"
 		const s = node<number>([], null, { initial: 5 });
 		const { msgs } = collect(s);
 		msgs.length = 0;
-		s.down([
-			["DATA", 5],
-			["DATA", 5],
-		]);
+		batch(() => {
+			s.set(5);
+			s.set(5);
+		});
 		expect(types(msgs)).toEqual(["PENDING", "DATA", "DATA"]);
 	});
 });
@@ -107,7 +107,7 @@ describe("compute node (derived)", () => {
 		expect(msgs).toContainEqual(["DATA", 4]);
 
 		msgs.length = 0;
-		count.down([["DATA", 10]]);
+		count.set(10);
 		expect(doubled.cache).toBe(20);
 		expect(types(msgs)).toEqual(["PENDING", "DATA"]);
 		expect(msgs[1]).toEqual(["DATA", 20]);
@@ -134,7 +134,7 @@ describe("diamond (R-diamond, glitch-free join)", () => {
 		expect(fireCount).toBe(1); // joined once, not once per leg
 
 		fireCount = 0;
-		a.down([["DATA", 2]]);
+		a.set(2);
 		expect(d.cache).toBe(34); // (2+10) + (2+20)
 		expect(fireCount).toBe(1); // recomputed exactly once
 	});
@@ -157,7 +157,7 @@ describe("first-run gate (R-first-run-gate)", () => {
 		});
 		gated.subscribe(() => {});
 		expect(fired).toBe(false); // b never delivered real DATA -> gate holds
-		b.down([["DATA", 9]]);
+		b.set(9);
 		expect(fired).toBe(true); // now both settled -> fires once
 	});
 
@@ -184,11 +184,21 @@ describe("first-run gate (R-first-run-gate)", () => {
 describe("closed message set at node output (R-messages)", () => {
 	it("down rejects unknown tags; there is no up", () => {
 		const a = node<number>([], null, { initial: 1 });
-		const d = node<number>([a], (ctx: Ctx) => ctx.down([["DATA", 1]]));
-		d.subscribe(() => {});
 		const custom = [["CUSTOM"]] as unknown as Message[];
-		expect(() => d.down(custom)).toThrow(/closed message-type set/);
+		let rejected: unknown;
+		const d = node<number>([a], (ctx: Ctx) => {
+			try {
+				ctx.down(custom);
+			} catch (error) {
+				rejected = error;
+			}
+			ctx.down([["DATA", 1]]);
+		});
+		d.subscribe(() => {});
+		expect(String(rejected)).toMatch(/closed message-type set/);
+		expect(d.cache).toBe(1);
 		expect("up" in d).toBe(false);
+		expect("down" in d).toBe(false);
 	});
 });
 
@@ -449,8 +459,8 @@ describe("B49 core-slot migration", () => {
 		opB.subscribe(() => {});
 
 		batch(() => {
-			sourceA.down([["DATA", 1]]);
-			sourceB.down([["DATA", 1]]);
+			sourceA.set(1);
+			sourceB.set(1);
 		});
 
 		expect(order).toEqual(["A1", "B1", "A2"]);
@@ -462,23 +472,23 @@ describe("D109 node runtime versioning", () => {
 		const s = node<number>([], null, { initial: 1 });
 		expect(s.version).toEqual({ level: 0, counter: 0 });
 
-		s.down([["DATA", 2]]);
+		s.set(2);
 		expect(s.version).toEqual({ level: 0, counter: 1 });
 
-		s.down([
-			["DATA", 3],
-			["DATA", 4],
-		]);
+		batch(() => {
+			s.set(3);
+			s.set(4);
+		});
 		expect(s.version).toEqual({ level: 0, counter: 3 });
 
-		s.down([["INVALIDATE"]]);
+		s.invalidate();
 		expect(s.version).toEqual({ level: 0, counter: 3 });
 
-		s.down([["COMPLETE"]]);
+		s.complete();
 		expect(s.version).toEqual({ level: 0, counter: 3 });
 
 		const errored = node<number>([], null, { initial: 1 });
-		errored.down([["ERROR", "boom"]]);
+		errored.error("boom");
 		expect(errored.version).toEqual({ level: 0, counter: 0 });
 	});
 
@@ -571,7 +581,7 @@ describe("D109 node runtime versioning", () => {
 		});
 		const initialCid = s.version?.level === 1 ? s.version.cid : undefined;
 
-		s.down([["DATA", JSON.parse('{"a":1,"b":2}') as Record<string, number>]]);
+		s.set(JSON.parse('{"a":1,"b":2}') as Record<string, number>);
 
 		expect(calls).toEqual(['{"a":1,"b":2}', '{"a":1,"b":2}']);
 		expect(s.version).toEqual({
@@ -592,14 +602,14 @@ describe("D109 node runtime versioning", () => {
 		msgs.length = 0;
 		downstreamMsgs.length = 0;
 		const before = s.version;
-		expect(() => s.down([["DATA", 2n]])).toThrow(/not JSON-encodable/);
+		expect(() => s.set(2n)).toThrow(/not JSON-encodable/);
 		expect(s.version).toEqual(before);
 		expect(s.cache).toBe(1);
 		expect(s.status.cache).toBe("ready");
 		expect(msgs).toEqual([]);
 		expect(downstreamMsgs).toEqual([]);
 
-		s.down([["DATA", 2]]);
+		s.set(2);
 		expect(types(msgs)).toEqual(["PENDING", "DATA"]);
 		expect(types(downstreamMsgs)).toEqual(["PENDING", "DATA"]);
 		expect(s.version).toMatchObject({ level: 1, counter: 1 });
@@ -611,14 +621,14 @@ describe("D109 node runtime versioning", () => {
 			versioning: { level: 1, hash: customHash },
 		});
 		const customBefore = custom.version;
-		expect(() => custom.down([["DATA", new Date(0)]])).toThrow(/non-plain object/);
+		expect(() => custom.set(new Date(0))).toThrow(/non-plain object/);
 		expect(custom.version).toEqual(customBefore);
 		expect(custom.cache).toBe(1);
 
 		const terminal = node<unknown>([], null, { initial: 1, versioning: 1 });
-		terminal.down([["COMPLETE"]]);
+		terminal.complete();
 		const terminalBefore = terminal.version;
-		expect(() => terminal.down([["DATA", 2n]])).toThrow(/ended/);
+		expect(() => terminal.set(2n)).toThrow(/ended/);
 		expect(terminal.version).toEqual(terminalBefore);
 		expect(terminal.cache).toBe(1);
 		expect(terminal.status.output).toBe("completed");
@@ -630,7 +640,7 @@ describe("D109 node runtime versioning", () => {
 		batchedMsgs.length = 0;
 		const batchedBefore = batched.version;
 
-		expect(() => batch(() => batched.down([["DATA", 2n]]))).toThrow(/not JSON-encodable/);
+		expect(() => batch(() => batched.set(2n))).toThrow(/not JSON-encodable/);
 		expect(batchedMsgs).toEqual([]);
 		expect(batched.version).toEqual(batchedBefore);
 		expect(batched.cache).toBe(1);
@@ -644,7 +654,7 @@ describe("D109 node runtime versioning", () => {
 		batchedSnapshotMsgs.length = 0;
 		const batchedPayload: Record<string, unknown> = { a: 1 };
 		batch(() => {
-			batchedSnapshot.down([["DATA", batchedPayload]]);
+			batchedSnapshot.set(batchedPayload);
 			batchedPayload.a = 2;
 			batchedPayload.bad = 2n;
 		});
@@ -662,7 +672,7 @@ describe("D109 node runtime versioning", () => {
 		const v0 = node<unknown>([], null, { initial: 1, versioning: 0 });
 		const v0Msgs = collect(v0).msgs;
 		v0Msgs.length = 0;
-		v0.down([["DATA", 2n]]);
+		v0.set(2n);
 		expect(v0.version).toEqual({ level: 0, counter: 1 });
 		expect(v0.cache).toBe(2n);
 		expect(types(v0Msgs)).toEqual(["PENDING", "DATA"]);
@@ -670,7 +680,7 @@ describe("D109 node runtime versioning", () => {
 		const disabled = node<unknown>([], null, { initial: 1, versioning: false });
 		const disabledMsgs = collect(disabled).msgs;
 		disabledMsgs.length = 0;
-		disabled.down([["DATA", new Date(0)]]);
+		disabled.set(new Date(0));
 		expect(disabled.version).toBeUndefined();
 		expect(disabled.cache).toEqual(new Date(0));
 		expect(types(disabledMsgs)).toEqual(["PENDING", "DATA"]);

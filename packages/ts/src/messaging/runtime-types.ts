@@ -2,6 +2,8 @@ import type { NodeFn } from "../ctx/types.js";
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
 import type { AttachableInput } from "../node/attachable-input.js";
+import type { StateNode } from "../node/node.js";
+import type { MessageBusCommand } from "./index.js";
 import type {
 	MessageBusDeadLetterEntry,
 	MessageBusDedupePolicy,
@@ -47,4 +49,5 @@ export interface MessageBusState {
 	deadLetterSeq: number;
 	readonly commandBody: NodeFn;
 	readonly commandSources: AttachableInput;
+	readonly publish: StateNode<MessageBusCommand>;
 }

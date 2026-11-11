@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { batch } from "../batch/batch.js";
 import { depBatch } from "../ctx/types.js";
 import { graph } from "../graph/graph.js";
 import type { BoundaryCapabilityKind } from "../inspection/boundary.js";
@@ -83,18 +84,13 @@ function applyPatch(
 		readonly metadata?: Record<string, unknown>;
 	},
 ): void {
-	setup.proposals.down([
-		[
-			"DATA",
-			workItemDomainActionProposalIntake(proposalId, "wi-1", "patch", {
-				payload: opts.payload ?? { patch: opts.patch },
-				metadata: opts.metadata,
-			}),
-		],
-	]);
-	setup.decisions.down([
-		["DATA", admissionDecision(`${admissionId}:decision`, admissionId, proposalId)],
-	]);
+	setup.proposals.set(
+		workItemDomainActionProposalIntake(proposalId, "wi-1", "patch", {
+			payload: opts.payload ?? { patch: opts.patch },
+			metadata: opts.metadata,
+		}),
+	);
+	setup.decisions.set(admissionDecision(`${admissionId}:decision`, admissionId, proposalId));
 }
 
 function admissionDecision(
@@ -193,22 +189,19 @@ function plan(): VerificationPlan {
 describe("WorkItem domain action admission and application (D239/D333-D343) — part 2", () => {
 	it("records admitted verification actions visibly without closing lifecycle magically", () => {
 		const setup = setupActions();
-		setup.seed.down([["DATA", workItemCreatedFromDraft("wi-1", draft())]]);
-		setup.applyPolicies.down([
-			["DATA", workItemDomainActionApplyPolicy("apply-verify", { actionKinds: ["mark-verified"] })],
-		]);
+		setup.seed.set(workItemCreatedFromDraft("wi-1", draft()));
+		setup.applyPolicies.set(
+			workItemDomainActionApplyPolicy("apply-verify", { actionKinds: ["mark-verified"] }),
+		);
 
-		setup.proposals.down([
-			[
-				"DATA",
-				workItemDomainActionProposalIntake("proposal-verify", "wi-1", "mark-verified", {
-					metadata: { executionInputRevision: 1, applyPolicyId: "apply-verify" },
-				}),
-			],
-		]);
-		setup.decisions.down([
-			["DATA", admissionDecision("decision-verify", "admission-verify", "proposal-verify")],
-		]);
+		setup.proposals.set(
+			workItemDomainActionProposalIntake("proposal-verify", "wi-1", "mark-verified", {
+				metadata: { executionInputRevision: 1, applyPolicyId: "apply-verify" },
+			}),
+		);
+		setup.decisions.set(
+			admissionDecision("decision-verify", "admission-verify", "proposal-verify"),
+		);
 
 		expect(setup.appliedFacts).toEqual([]);
 		expect(setup.applications.at(-1)).toMatchObject({
@@ -225,21 +218,16 @@ describe("WorkItem domain action admission and application (D239/D333-D343) — 
 
 	it("emits stale issues for admitted actions targeting old revision coordinates", () => {
 		const setup = setupActions();
-		setup.seed.down([["DATA", workItemCreatedFromDraft("wi-1", draft())]]);
-		setup.seed.down([
-			[
-				"DATA",
-				{
-					kind: "work-item-patched",
-					eventId: "wi-1:detail",
-					workItemId: "wi-1",
-					patch: { detail: "Changed before admission" },
-				},
-			],
-		]);
-		setup.applyPolicies.down([
-			["DATA", workItemDomainActionApplyPolicy("apply-patch", { actionKinds: ["patch"] })],
-		]);
+		setup.seed.set(workItemCreatedFromDraft("wi-1", draft()));
+		setup.seed.set({
+			kind: "work-item-patched",
+			eventId: "wi-1:detail",
+			workItemId: "wi-1",
+			patch: { detail: "Changed before admission" },
+		});
+		setup.applyPolicies.set(
+			workItemDomainActionApplyPolicy("apply-patch", { actionKinds: ["patch"] }),
+		);
 
 		applyPatch(setup, "proposal-stale", "admission-stale", {
 			patch: { summary: "Too old" },
@@ -256,27 +244,21 @@ describe("WorkItem domain action admission and application (D239/D333-D343) — 
 
 	it("rejects conflicting proposal and admission revision metadata visibly", () => {
 		const setup = setupActions();
-		setup.seed.down([["DATA", workItemCreatedFromDraft("wi-1", draft())]]);
-		setup.applyPolicies.down([
-			["DATA", workItemDomainActionApplyPolicy("apply-patch", { actionKinds: ["patch"] })],
-		]);
-		setup.proposals.down([
-			[
-				"DATA",
-				workItemDomainActionProposalIntake("proposal-conflict", "wi-1", "patch", {
-					payload: { patch: { summary: "Conflicting refs" } },
-					metadata: { executionInputRevision: 1, applyPolicyId: "apply-patch" },
-				}),
-			],
-		]);
-		setup.decisions.down([
-			[
-				"DATA",
-				admissionDecision("decision-conflict", "admission-conflict", "proposal-conflict", "admit", {
-					metadata: { executionInputRevision: 2 },
-				}),
-			],
-		]);
+		setup.seed.set(workItemCreatedFromDraft("wi-1", draft()));
+		setup.applyPolicies.set(
+			workItemDomainActionApplyPolicy("apply-patch", { actionKinds: ["patch"] }),
+		);
+		setup.proposals.set(
+			workItemDomainActionProposalIntake("proposal-conflict", "wi-1", "patch", {
+				payload: { patch: { summary: "Conflicting refs" } },
+				metadata: { executionInputRevision: 1, applyPolicyId: "apply-patch" },
+			}),
+		);
+		setup.decisions.set(
+			admissionDecision("decision-conflict", "admission-conflict", "proposal-conflict", "admit", {
+				metadata: { executionInputRevision: 2 },
+			}),
+		);
 
 		expect(setup.appliedFacts).toEqual([]);
 		expect(setup.applicationIssues.at(-1)).toMatchObject({ code: "stale-execution-input" });
@@ -285,23 +267,23 @@ describe("WorkItem domain action admission and application (D239/D333-D343) — 
 
 	it("suppresses duplicate proposal and admission application visibly", () => {
 		const setup = setupActions();
-		setup.seed.down([["DATA", workItemCreatedFromDraft("wi-1", draft())]]);
-		setup.applyPolicies.down([
-			["DATA", workItemDomainActionApplyPolicy("apply-patch", { actionKinds: ["patch"] })],
-		]);
+		setup.seed.set(workItemCreatedFromDraft("wi-1", draft()));
+		setup.applyPolicies.set(
+			workItemDomainActionApplyPolicy("apply-patch", { actionKinds: ["patch"] }),
+		);
 		const proposal = workItemDomainActionProposalIntake("proposal-dup", "wi-1", "patch", {
 			payload: { patch: { summary: "Once" } },
 			metadata: { executionInputRevision: 1, applyPolicyId: "apply-patch" },
 		});
 
-		setup.proposals.down([
-			["DATA", proposal],
-			["DATA", proposal],
-		]);
-		setup.decisions.down([
-			["DATA", admissionDecision("decision-dup", "admission-dup", "proposal-dup")],
-			["DATA", admissionDecision("decision-dup", "admission-dup", "proposal-dup")],
-		]);
+		batch(() => {
+			setup.proposals.set(proposal);
+			setup.proposals.set(proposal);
+		});
+		batch(() => {
+			setup.decisions.set(admissionDecision("decision-dup", "admission-dup", "proposal-dup"));
+			setup.decisions.set(admissionDecision("decision-dup", "admission-dup", "proposal-dup"));
+		});
 
 		expect(setup.appliedFacts).toHaveLength(1);
 		expect(setup.intakeStatus.map((status) => status.state)).toContain("duplicate");
@@ -312,7 +294,7 @@ describe("WorkItem domain action admission and application (D239/D333-D343) — 
 
 	it("emits missing or invalid apply policy as visible status without lowering facts", () => {
 		const setup = setupActions();
-		setup.seed.down([["DATA", workItemCreatedFromDraft("wi-1", draft())]]);
+		setup.seed.set(workItemCreatedFromDraft("wi-1", draft()));
 
 		applyPatch(setup, "proposal-no-policy", "admission-no-policy", {
 			patch: { summary: "No policy" },
@@ -326,10 +308,10 @@ describe("WorkItem domain action admission and application (D239/D333-D343) — 
 
 	it("makes invalid patch validation terminal instead of re-emitting on later waves", () => {
 		const setup = setupActions();
-		setup.seed.down([["DATA", workItemCreatedFromDraft("wi-1", draft())]]);
-		setup.applyPolicies.down([
-			["DATA", workItemDomainActionApplyPolicy("apply-patch", { actionKinds: ["patch"] })],
-		]);
+		setup.seed.set(workItemCreatedFromDraft("wi-1", draft()));
+		setup.applyPolicies.set(
+			workItemDomainActionApplyPolicy("apply-patch", { actionKinds: ["patch"] }),
+		);
 
 		applyPatch(setup, "proposal-bad-ac", "admission-bad-ac", {
 			payload: { acceptanceCriteria: [{ statement: "missing id" }] },
@@ -338,12 +320,9 @@ describe("WorkItem domain action admission and application (D239/D333-D343) — 
 		const issueCount = setup.applicationIssues.length;
 		const statusCount = setup.applicationStatus.length;
 
-		setup.applyPolicies.down([
-			[
-				"DATA",
-				workItemDomainActionApplyPolicy("apply-patch-extra", { actionKinds: ["require-review"] }),
-			],
-		]);
+		setup.applyPolicies.set(
+			workItemDomainActionApplyPolicy("apply-patch-extra", { actionKinds: ["require-review"] }),
+		);
 
 		expect(setup.appliedFacts).toEqual([]);
 		expect(setup.applicationIssues).toHaveLength(issueCount);
@@ -352,10 +331,10 @@ describe("WorkItem domain action admission and application (D239/D333-D343) — 
 
 	it("rejects multi-fact patch actions atomically when any event id was already emitted", () => {
 		const setup = setupActions();
-		setup.seed.down([["DATA", workItemCreatedFromDraft("wi-1", draft())]]);
-		setup.applyPolicies.down([
-			["DATA", workItemDomainActionApplyPolicy("apply-patch", { actionKinds: ["patch"] })],
-		]);
+		setup.seed.set(workItemCreatedFromDraft("wi-1", draft()));
+		setup.applyPolicies.set(
+			workItemDomainActionApplyPolicy("apply-patch", { actionKinds: ["patch"] }),
+		);
 
 		applyPatch(setup, "proposal-first-event", "admission-first-event", {
 			payload: { patch: { summary: "First" }, eventId: "shared-event" },
@@ -382,52 +361,38 @@ describe("WorkItem domain action admission and application (D239/D333-D343) — 
 
 	it("lowers admitted spawn actions to WorkItemCreated only under explicit create policy", () => {
 		const setup = setupActions();
-		setup.seed.down([["DATA", workItemCreatedFromDraft("wi-parent", draft())]]);
-		setup.applyPolicies.down([
-			["DATA", workItemDomainActionApplyPolicy("spawn-review", { actionKinds: ["spawn-child"] })],
-		]);
-		setup.proposals.down([
-			[
-				"DATA",
-				workItemDomainActionProposalIntake("spawn-1", "wi-parent", "spawn-child", {
-					payload: { childWorkItemId: "wi-child", draft: draft({ summary: "Child" }) },
-					metadata: { executionInputRevision: 1, applyPolicyId: "spawn-review" },
-				}),
-			],
-		]);
-		setup.decisions.down([
-			["DATA", admissionDecision("spawn-decision", "spawn-admission", "spawn-1")],
-		]);
+		setup.seed.set(workItemCreatedFromDraft("wi-parent", draft()));
+		setup.applyPolicies.set(
+			workItemDomainActionApplyPolicy("spawn-review", { actionKinds: ["spawn-child"] }),
+		);
+		setup.proposals.set(
+			workItemDomainActionProposalIntake("spawn-1", "wi-parent", "spawn-child", {
+				payload: { childWorkItemId: "wi-child", draft: draft({ summary: "Child" }) },
+				metadata: { executionInputRevision: 1, applyPolicyId: "spawn-review" },
+			}),
+		);
+		setup.decisions.set(admissionDecision("spawn-decision", "spawn-admission", "spawn-1"));
 
 		expect(setup.appliedFacts).toEqual([]);
 		expect(setup.applications.at(-1)).toMatchObject({ state: "proposal-only" });
 
 		const incompleteCreateSetup = setupActions();
-		incompleteCreateSetup.seed.down([["DATA", workItemCreatedFromDraft("wi-parent", draft())]]);
-		incompleteCreateSetup.applyPolicies.down([
-			[
-				"DATA",
-				workItemDomainActionApplyPolicy("spawn-create", {
-					actionKinds: ["spawn-child"],
-					spawn: { create: true },
-				}),
-			],
-		]);
-		incompleteCreateSetup.proposals.down([
-			[
-				"DATA",
-				workItemDomainActionProposalIntake("spawn-create", "wi-parent", "spawn-child", {
-					payload: { childWorkItemId: "wi-child", draft: draft({ summary: "Child" }) },
-					metadata: { executionInputRevision: 1, applyPolicyId: "spawn-create" },
-				}),
-			],
-		]);
-		incompleteCreateSetup.decisions.down([
-			[
-				"DATA",
-				admissionDecision("spawn-create-decision", "spawn-create-admission", "spawn-create"),
-			],
-		]);
+		incompleteCreateSetup.seed.set(workItemCreatedFromDraft("wi-parent", draft()));
+		incompleteCreateSetup.applyPolicies.set(
+			workItemDomainActionApplyPolicy("spawn-create", {
+				actionKinds: ["spawn-child"],
+				spawn: { create: true },
+			}),
+		);
+		incompleteCreateSetup.proposals.set(
+			workItemDomainActionProposalIntake("spawn-create", "wi-parent", "spawn-child", {
+				payload: { childWorkItemId: "wi-child", draft: draft({ summary: "Child" }) },
+				metadata: { executionInputRevision: 1, applyPolicyId: "spawn-create" },
+			}),
+		);
+		incompleteCreateSetup.decisions.set(
+			admissionDecision("spawn-create-decision", "spawn-create-admission", "spawn-create"),
+		);
 
 		expect(incompleteCreateSetup.appliedFacts).toEqual([]);
 		expect(incompleteCreateSetup.applicationIssues.at(-1)).toMatchObject({
@@ -439,40 +404,31 @@ describe("WorkItem domain action admission and application (D239/D333-D343) — 
 		});
 
 		const createSetup = setupActions();
-		createSetup.seed.down([["DATA", workItemCreatedFromDraft("wi-parent", draft())]]);
-		createSetup.applyPolicies.down([
-			[
-				"DATA",
-				workItemDomainActionApplyPolicy("spawn-create-complete", {
-					actionKinds: ["spawn-child"],
-					spawn: {
-						create: true,
-						linkParent: true,
-						idempotencyKey: "spawn:create:wi-child",
-						maxChildrenPerAdmission: 1,
-					},
-				}),
-			],
-		]);
-		createSetup.proposals.down([
-			[
-				"DATA",
-				workItemDomainActionProposalIntake("spawn-create-complete", "wi-parent", "spawn-child", {
-					payload: { childWorkItemId: "wi-child", draft: draft({ summary: "Child" }) },
-					metadata: { executionInputRevision: 1, applyPolicyId: "spawn-create-complete" },
-				}),
-			],
-		]);
-		createSetup.decisions.down([
-			[
-				"DATA",
-				admissionDecision(
-					"spawn-create-complete-decision",
-					"spawn-create-complete-admission",
-					"spawn-create-complete",
-				),
-			],
-		]);
+		createSetup.seed.set(workItemCreatedFromDraft("wi-parent", draft()));
+		createSetup.applyPolicies.set(
+			workItemDomainActionApplyPolicy("spawn-create-complete", {
+				actionKinds: ["spawn-child"],
+				spawn: {
+					create: true,
+					linkParent: true,
+					idempotencyKey: "spawn:create:wi-child",
+					maxChildrenPerAdmission: 1,
+				},
+			}),
+		);
+		createSetup.proposals.set(
+			workItemDomainActionProposalIntake("spawn-create-complete", "wi-parent", "spawn-child", {
+				payload: { childWorkItemId: "wi-child", draft: draft({ summary: "Child" }) },
+				metadata: { executionInputRevision: 1, applyPolicyId: "spawn-create-complete" },
+			}),
+		);
+		createSetup.decisions.set(
+			admissionDecision(
+				"spawn-create-complete-decision",
+				"spawn-create-complete-admission",
+				"spawn-create-complete",
+			),
+		);
 
 		expect(createSetup.appliedFacts).toEqual([
 			expect.objectContaining({
@@ -495,14 +451,12 @@ describe("WorkItem domain action admission and application (D239/D333-D343) — 
 
 	it("turns malformed runtime action payloads into DataIssue/status instead of protocol ERROR", () => {
 		const setup = setupActions();
-		setup.seed.down([["DATA", workItemCreatedFromDraft("wi-1", draft())]]);
-		setup.applyPolicies.down([
-			["DATA", workItemDomainActionApplyPolicy("apply-patch", { actionKinds: ["patch"] })],
-		]);
+		setup.seed.set(workItemCreatedFromDraft("wi-1", draft()));
+		setup.applyPolicies.set(
+			workItemDomainActionApplyPolicy("apply-patch", { actionKinds: ["patch"] }),
+		);
 
-		setup.proposals.down([
-			["DATA", { kind: "work-item-domain-action-proposal-intake", proposalId: "" }],
-		]);
+		setup.proposals.set({ kind: "work-item-domain-action-proposal-intake", proposalId: "" });
 		applyPatch(setup, "proposal-bad-payload", "admission-bad-payload", {
 			payload: "not-a-patch",
 			metadata: { executionInputRevision: 1, applyPolicyId: "apply-patch" },

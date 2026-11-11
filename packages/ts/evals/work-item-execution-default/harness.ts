@@ -125,21 +125,16 @@ export function runD687Arm(
 	const planIssues = collectData(bundle.plan.issues);
 
 	for (const item of scenario.workItems) {
-		workItems.down([
-			[
-				"DATA",
-				{
-					workItemId: item.workItemId,
-					summary: `D687 ${scenario.scenarioId}`,
-					authoringRevision: item.authoringRevision,
-					executionInputRevision: item.executionInputRevision,
-					lastEventId: `event:${item.workItemId}:${item.authoringRevision}`,
-					revisionSourceRefs: [
-						{ kind: "work-item-revision", id: `${item.workItemId}:${item.authoringRevision}` },
-					],
-				} satisfies WorkItemProjection<D687Input>,
+		workItems.set({
+			workItemId: item.workItemId,
+			summary: `D687 ${scenario.scenarioId}`,
+			authoringRevision: item.authoringRevision,
+			executionInputRevision: item.executionInputRevision,
+			lastEventId: `event:${item.workItemId}:${item.authoringRevision}`,
+			revisionSourceRefs: [
+				{ kind: "work-item-revision", id: `${item.workItemId}:${item.authoringRevision}` },
 			],
-		]);
+		} satisfies WorkItemProjection<D687Input>);
 	}
 	for (const item of scenario.workItems) {
 		const proposal = {
@@ -169,8 +164,8 @@ export function runD687Arm(
 				sourceRefs: member.sourceRefs,
 			})),
 		} satisfies WorkItemEffectPlanProposed<D687Input>;
-		proposals.down([["DATA", proposal]]);
-		if (item.duplicateProposal) proposals.down([["DATA", proposal]]);
+		proposals.set(proposal);
+		if (item.duplicateProposal) proposals.set(proposal);
 	}
 
 	let requestCursor = 0;
@@ -190,9 +185,7 @@ export function runD687Arm(
 		if (item === undefined || member === undefined) {
 			throw new Error("D687 could not bind an issued request to its frozen member");
 		}
-		admittedResults.down([
-			["DATA", resultFor(request, member, item.executionInputRevision, ordinal++)],
-		]);
+		admittedResults.set(resultFor(request, member, item.executionInputRevision, ordinal++));
 	}
 	const topology = g.topology();
 	const stageSpecs = [

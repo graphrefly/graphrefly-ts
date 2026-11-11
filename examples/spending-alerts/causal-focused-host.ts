@@ -182,7 +182,7 @@ export function buildOfflineSpendingHost(
 					const snapshot = frame();
 					maxFrameBytes = Math.max(maxFrameBytes, Buffer.byteLength(canonicalMaterial(snapshot)));
 					notifications++;
-					source.down([["DATA", snapshot]]);
+					source.set(snapshot);
 				} catch {
 					fault = "delivery-failed";
 				} finally {

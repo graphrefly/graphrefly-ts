@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { batch } from "../batch/batch.js";
 import type { DataIssue } from "../data/index.js";
 import { graph } from "../graph/graph.js";
 import {
@@ -318,10 +319,9 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 6", () => {
 			}
 		});
 
-		inputs.down([["DATA", ready]]);
-		runRequests.down([
-			[
-				"DATA",
+		inputs.set(ready);
+		batch(() => {
+			runRequests.set(
 				requestToolProviderAdapterRun(ready, {
 					runId: longRunA,
 					attempt: 1,
@@ -334,10 +334,9 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 6", () => {
 					],
 					metadata: { rawResponse: "RAW_RUN_REQUEST_REPLAY_METADATA_SHOULD_NOT_PROJECT" },
 				}),
-			],
-			["DATA", requestToolProviderAdapterRun(ready, { runId: longRunB, attempt: 2 })],
-			[
-				"DATA",
+			);
+			runRequests.set(requestToolProviderAdapterRun(ready, { runId: longRunB, attempt: 2 }));
+			runRequests.set(
 				requestToolProviderAdapterRun(ready, {
 					runId: longRunA,
 					attempt: 1,
@@ -350,8 +349,8 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 6", () => {
 					],
 					metadata: { rawResponse: "RAW_RUN_REQUEST_REPLAY_METADATA_SHOULD_NOT_PROJECT" },
 				}),
-			],
-		]);
+			);
+		});
 
 		const replayed = emittedRequests.filter((request) => request.runId === longRunA);
 		expect(replayed).toHaveLength(2);
@@ -446,32 +445,21 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 6", () => {
 			}
 		});
 
-		inputs.down([["DATA", ready]]);
-		runRequests.down([
-			[
-				"DATA",
-				{
-					...requestToolProviderAdapterRun(ready, { runId: "bad-run-a", attempt: 1 }),
-					requestId: "stale-a",
-				},
-			],
-			[
-				"DATA",
-				{
-					...requestToolProviderAdapterRun(ready, { runId: "bad-run-b", attempt: 2 }),
-					requestId: "stale-b",
-				},
-			],
-		]);
-		runRequests.down([
-			[
-				"DATA",
-				{
-					...requestToolProviderAdapterRun(ready, { runId: "bad-run-a", attempt: 1 }),
-					requestId: "stale-a",
-				},
-			],
-		]);
+		inputs.set(ready);
+		batch(() => {
+			runRequests.set({
+				...requestToolProviderAdapterRun(ready, { runId: "bad-run-a", attempt: 1 }),
+				requestId: "stale-a",
+			});
+			runRequests.set({
+				...requestToolProviderAdapterRun(ready, { runId: "bad-run-b", attempt: 2 }),
+				requestId: "stale-b",
+			});
+		});
+		runRequests.set({
+			...requestToolProviderAdapterRun(ready, { runId: "bad-run-a", attempt: 1 }),
+			requestId: "stale-a",
+		});
 
 		expect(runStatus.length).toBeGreaterThan(1);
 		expect(issues.length).toBeGreaterThan(1);
@@ -558,45 +546,33 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 6", () => {
 			}
 		});
 
-		inputs.down([["DATA", ready]]);
-		runRequests.down([
-			[
-				"DATA",
-				{
-					...requestToolProviderAdapterRun(ready, { runId: "stale-run", attempt: 2 }),
-					requestId: "other-request",
-				},
-			],
-			[
-				"DATA",
-				{
-					...requestToolProviderAdapterRun(ready, { runId: "missing-run", attempt: 1 }),
-					adapterInputId: "missing-adapter-input",
-				},
-			],
-			[
-				"DATA",
-				{
-					kind: "tool-provider-adapter-run-requested",
-					adapterInputId: ready.adapterInputId,
-					requestId: ready.requestId,
-				} as unknown as ToolProviderAdapterRunRequested,
-			],
-			[
-				"DATA",
-				{
-					...requestToolProviderAdapterRun(ready, { runId: "raw-request", attempt: 3 }),
-					metadata: { rawResponse: "RAW_RUN_REQUEST_SHOULD_NOT_PROJECT" },
-					sourceRefs: [
-						{
-							kind: "provider-raw",
-							id: "raw-explicit-request",
-							metadata: { stdout: "RAW_RUN_REQUEST_SOURCE_REF_SHOULD_NOT_PROJECT" },
-						},
-					],
-				},
-			],
-		]);
+		inputs.set(ready);
+		batch(() => {
+			runRequests.set({
+				...requestToolProviderAdapterRun(ready, { runId: "stale-run", attempt: 2 }),
+				requestId: "other-request",
+			});
+			runRequests.set({
+				...requestToolProviderAdapterRun(ready, { runId: "missing-run", attempt: 1 }),
+				adapterInputId: "missing-adapter-input",
+			});
+			runRequests.set({
+				kind: "tool-provider-adapter-run-requested",
+				adapterInputId: ready.adapterInputId,
+				requestId: ready.requestId,
+			} as unknown as ToolProviderAdapterRunRequested);
+			runRequests.set({
+				...requestToolProviderAdapterRun(ready, { runId: "raw-request", attempt: 3 }),
+				metadata: { rawResponse: "RAW_RUN_REQUEST_SHOULD_NOT_PROJECT" },
+				sourceRefs: [
+					{
+						kind: "provider-raw",
+						id: "raw-explicit-request",
+						metadata: { stdout: "RAW_RUN_REQUEST_SOURCE_REF_SHOULD_NOT_PROJECT" },
+					},
+				],
+			});
+		});
 
 		expect(calls).toEqual([]);
 		expect(issues).toEqual(
@@ -692,7 +668,7 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 6", () => {
 			}
 		});
 
-		inputs.down([["DATA", ready]]);
+		inputs.set(ready);
 
 		expect(issues).toEqual(
 			expect.arrayContaining([
@@ -745,7 +721,7 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 6", () => {
 			}
 		});
 
-		inputs.down([["DATA", ready]]);
+		inputs.set(ready);
 
 		expect(status.at(-1)).toMatchObject({
 			status: "failed",
@@ -860,26 +836,21 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 6", () => {
 			policies: [],
 			policyRefs: [],
 		};
-		requestFacts.down([["DATA", request]]);
-		catalogs.down([["DATA", catalog]]);
+		requestFacts.set(request);
+		catalogs.set(catalog);
 		expect(resolutions.at(-1)).toMatchObject({
 			status: "pending-route",
 			requestId: "policy-req",
 		});
-		routes.down([
-			[
-				"DATA",
-				{
-					kind: "executor-route",
-					routeId: "policy-route",
-					requestId: "policy-req",
-					operationId: "policy-op",
-					executorId: "bare-exec",
-					profileId: "bare-profile",
-					inputKind: "tool-call",
-				},
-			],
-		]);
+		routes.set({
+			kind: "executor-route",
+			routeId: "policy-route",
+			requestId: "policy-req",
+			operationId: "policy-op",
+			executorId: "bare-exec",
+			profileId: "bare-profile",
+			inputKind: "tool-call",
+		});
 
 		expect(resolutions.at(-1)).toMatchObject({
 			status: "missing-policy",

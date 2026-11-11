@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { attachKeyedRateLimitAuthority, type KeyedRateLimitAuthority } from "../adapters/index.js";
+import { batch } from "../batch/batch.js";
 import { graph } from "../graph/index.js";
 import { strictCanonicalJsonBytes, strictJsonCodec } from "../json/codec.js";
 import type { Node } from "../node/node.js";
@@ -195,8 +196,8 @@ describe("D648/D649 bounded admission and exact correlation", () => {
 				algorithm: { kind: "host-owned-algorithm", revision: "opaque-v99" },
 			},
 		});
-		t.requests.down([["DATA", req]]);
-		t.outcomes.down([["DATA", outcome(req, "allowed")]]);
+		t.requests.set(req);
+		t.outcomes.set(outcome(req, "allowed"));
 
 		expect(t.admissions.values).toHaveLength(1);
 		expect(t.admissions.values[0]).toMatchObject({
@@ -218,8 +219,8 @@ describe("D648/D649 bounded admission and exact correlation", () => {
 	it("treats a valid denial as ready rather than a gate failure", () => {
 		const t = setup();
 		const req = request("deny");
-		t.requests.down([["DATA", req]]);
-		t.outcomes.down([["DATA", outcome(req, "denied")]]);
+		t.requests.set(req);
+		t.outcomes.set(outcome(req, "denied"));
 
 		expect(t.admissions.values).toEqual([]);
 		expect(t.denials.values).toHaveLength(1);
@@ -243,14 +244,14 @@ describe("D648/D649 bounded admission and exact correlation", () => {
 		const b = request("b", {
 			key: { kind: "network-key", id: "different-key", revision: "opaque-v1" },
 		});
-		t.requests.down([
-			["DATA", a],
-			["DATA", b],
-		]);
-		t.outcomes.down([
-			["DATA", outcome(b, "denied")],
-			["DATA", outcome(a, "allowed")],
-		]);
+		batch(() => {
+			t.requests.set(a);
+			t.requests.set(b);
+		});
+		batch(() => {
+			t.outcomes.set(outcome(b, "denied"));
+			t.outcomes.set(outcome(a, "allowed"));
+		});
 
 		expect(t.admissions.values.map((item) => item.requestId)).toEqual(["a"]);
 		expect(t.denials.values.map((item) => item.requestId)).toEqual(["b"]);
@@ -282,10 +283,10 @@ describe("D648/D649 bounded admission and exact correlation", () => {
 			const t = setup();
 			const original = request(`reuse-${label}`);
 			const replacement = request(`reuse-${label}`, changed);
-			t.requests.down([
-				["DATA", original],
-				["DATA", replacement],
-			]);
+			batch(() => {
+				t.requests.set(original);
+				t.requests.set(replacement);
+			});
 			expect(t.admissions.values).toEqual([]);
 			expect(t.issues.values.map((item) => item.code)).toContain(
 				"keyed-rate-limit-request-conflict",
@@ -304,13 +305,13 @@ describe("D648/D649 bounded admission and exact correlation", () => {
 				algorithm: { kind: "fixed-window", revision: "algorithm-v1" },
 			},
 		});
-		t.requests.down([["DATA", current]]);
-		t.outcomes.down([["DATA", outcome(stale, "allowed")]]);
+		t.requests.set(current);
+		t.outcomes.set(outcome(stale, "allowed"));
 		const authorityMismatch = {
 			...outcome(current, "allowed", "wrong-authority"),
 			authority: { kind: "quota-store", id: "replica", revision: "schema-v2" },
 		} as KeyedRateLimitOutcome;
-		t.outcomes.down([["DATA", authorityMismatch]]);
+		t.outcomes.set(authorityMismatch);
 
 		expect(t.admissions.values).toEqual([]);
 		expect(t.issues.values.map((item) => item.code)).toEqual([
@@ -325,13 +326,13 @@ describe("D648/D649 bounded admission and exact correlation", () => {
 		const t = setup();
 		const req = request("replay");
 		const allowed = outcome(req, "allowed");
-		t.requests.down([["DATA", req]]);
-		t.outcomes.down([
-			["DATA", allowed],
-			["DATA", allowed],
-		]);
-		t.requests.down([["DATA", req]]);
-		t.outcomes.down([["DATA", outcome(req, "denied", "conflicting")]]);
+		t.requests.set(req);
+		batch(() => {
+			t.outcomes.set(allowed);
+			t.outcomes.set(allowed);
+		});
+		t.requests.set(req);
+		t.outcomes.set(outcome(req, "denied", "conflicting"));
 
 		expect(t.admissions.values).toHaveLength(1);
 		expect(t.denials.values).toEqual([]);
@@ -343,8 +344,8 @@ describe("D648/D649 bounded admission and exact correlation", () => {
 	it("retains replay suppression across deactivate and resubscribe of the same live gate", () => {
 		const t = setup();
 		const req = request("reactivate");
-		t.requests.down([["DATA", req]]);
-		t.outcomes.down([["DATA", outcome(req, "allowed")]]);
+		t.requests.set(req);
+		t.outcomes.set(outcome(req, "allowed"));
 		expect(t.admissions.values).toHaveLength(1);
 		t.release();
 
@@ -358,14 +359,14 @@ describe("D648/D649 bounded admission and exact correlation", () => {
 		const allowedA = request("identity-a");
 		const allowedB = request("identity-b");
 		const sharedOutcomeId = "authority-local-outcome";
-		t.requests.down([
-			["DATA", allowedA],
-			["DATA", allowedB],
-		]);
-		t.outcomes.down([
-			["DATA", { ...outcome(allowedA, "allowed"), outcomeId: sharedOutcomeId }],
-			["DATA", { ...outcome(allowedB, "allowed"), outcomeId: sharedOutcomeId }],
-		]);
+		batch(() => {
+			t.requests.set(allowedA);
+			t.requests.set(allowedB);
+		});
+		batch(() => {
+			t.outcomes.set({ ...outcome(allowedA, "allowed"), outcomeId: sharedOutcomeId });
+			t.outcomes.set({ ...outcome(allowedB, "allowed"), outcomeId: sharedOutcomeId });
+		});
 
 		expect(t.admissions.values).toHaveLength(2);
 		expect(t.admissions.values[0]?.admissionId).not.toBe(t.admissions.values[1]?.admissionId);
@@ -376,23 +377,20 @@ describe("D648/D649 bounded admission and exact correlation", () => {
 		const t = setup();
 		const unavailable = request("unavailable");
 		const conflict = request("conflict");
-		t.requests.down([
-			["DATA", { ...request("malformed"), unknown: true } as KeyedRateLimitRequest],
-			["DATA", unavailable],
-			["DATA", conflict],
-		]);
-		t.outcomes.down([
-			[
-				"DATA",
-				{
-					...outcome(unavailable, "allowed"),
-					retryAfterMs: BigInt(1),
-				} as unknown as KeyedRateLimitOutcome,
-			],
-			["DATA", outcome(request("orphan"), "allowed")],
-			["DATA", outcome(unavailable, "unavailable")],
-			["DATA", outcome(conflict, "conflict")],
-		]);
+		batch(() => {
+			t.requests.set({ ...request("malformed"), unknown: true } as KeyedRateLimitRequest);
+			t.requests.set(unavailable);
+			t.requests.set(conflict);
+		});
+		batch(() => {
+			t.outcomes.set({
+				...outcome(unavailable, "allowed"),
+				retryAfterMs: BigInt(1),
+			} as unknown as KeyedRateLimitOutcome);
+			t.outcomes.set(outcome(request("orphan"), "allowed"));
+			t.outcomes.set(outcome(unavailable, "unavailable"));
+			t.outcomes.set(outcome(conflict, "conflict"));
+		});
 
 		expect(t.admissions.values).toEqual([]);
 		expect(t.denials.values).toEqual([]);
@@ -414,28 +412,28 @@ describe("D648/D649 bounded admission and exact correlation", () => {
 		const a = request("bounded-a");
 		const b = request("bounded-b");
 		const c = request("bounded-c");
-		t.requests.down([
-			["DATA", a],
-			["DATA", b],
-		]);
+		batch(() => {
+			t.requests.set(a);
+			t.requests.set(b);
+		});
 		expect(t.issues.values.map((item) => item.code)).toContain("keyed-rate-limit-request-overflow");
 		expect(t.cursor.values.at(-1)).toMatchObject({ pending: 1, overflowed: 1 });
 
-		t.outcomes.down([["DATA", outcome(a, "allowed")]]);
-		t.requests.down([["DATA", c]]);
-		t.outcomes.down([["DATA", outcome(c, "denied")]]);
+		t.outcomes.set(outcome(a, "allowed"));
+		t.requests.set(c);
+		t.outcomes.set(outcome(c, "denied"));
 		expect(t.cursor.values.at(-1)).toMatchObject({
 			pending: 0,
 			completedRetained: 1,
 			completedEvicted: 1,
 		});
 
-		t.outcomes.down([["DATA", outcome(a, "allowed")]]);
+		t.outcomes.set(outcome(a, "allowed"));
 		expect(t.admissions.values).toHaveLength(1);
 		expect(t.issues.values.map((item) => item.code)).toContain("keyed-rate-limit-orphan-outcome");
 
-		t.requests.down([["DATA", a]]);
-		t.outcomes.down([["DATA", outcome(a, "allowed")]]);
+		t.requests.set(a);
+		t.outcomes.set(outcome(a, "allowed"));
 		expect(t.admissions.values).toHaveLength(2);
 		expect(t.cursor.values.at(-1)).toMatchObject({ completedEvicted: 2, allowed: 2 });
 		t.release();
@@ -452,8 +450,8 @@ describe("D648/D649 bounded admission and exact correlation", () => {
 			},
 		});
 		const identity = keyedRateLimitRequestIdentity(req);
-		t.requests.down([["DATA", req]]);
-		t.outcomes.down([["DATA", outcome(req, "unavailable")]]);
+		t.requests.set(req);
+		t.outcomes.set(outcome(req, "unavailable"));
 
 		const diagnostics = JSON.stringify({
 			issues: t.issues.values,
@@ -487,7 +485,7 @@ describe("D648/D649 host authority adapter and topology", () => {
 		const admissions = capture(gate.admissions);
 		const effectRelease = protectedEffect.subscribe(() => {});
 
-		requests.down([["DATA", request("topology")]]);
+		requests.set(request("topology"));
 		expect(admissions.values).toHaveLength(1);
 
 		const topology = g.describe();
@@ -520,7 +518,7 @@ describe("D648/D649 host authority adapter and topology", () => {
 				complete(outcome(req, "allowed"));
 			},
 		});
-		requests.down([["DATA", request("late-activation")]]);
+		requests.set(request("late-activation"));
 
 		const admissions = capture(adapter.admission.admissions);
 		expect(admissions.values.map((item) => item.requestId)).toEqual(["late-activation"]);
@@ -542,7 +540,7 @@ describe("D648/D649 host authority adapter and topology", () => {
 			const issues = capture(gate.issues);
 			const errors = capture(adapter.errors);
 
-			requests.down([["DATA", request(`adapter-${mode}`)]]);
+			requests.set(request(`adapter-${mode}`));
 			expect(admissions.values).toEqual([]);
 			expect(issues.values.map((item) => item.code)).toContain(
 				"keyed-rate-limit-authority-unavailable",
@@ -569,7 +567,7 @@ describe("D648/D649 host authority adapter and topology", () => {
 			},
 		});
 		const statuses = capture(adapter.status);
-		requests.down([["DATA", request("cancel")]]);
+		requests.set(request("cancel"));
 		expect(statuses.values.at(-1)?.state).toBe("requested");
 		statuses.release();
 		expect(cancelled).toBe(1);
@@ -595,10 +593,10 @@ describe("D648/D649 host authority adapter and topology", () => {
 		const cursor = capture(adapter.cursor);
 		const admissions = capture(adapter.admission.admissions);
 
-		requests.down([
-			["DATA", request("bounded-authority-a")],
-			["DATA", request("bounded-authority-b")],
-		]);
+		batch(() => {
+			requests.set(request("bounded-authority-a"));
+			requests.set(request("bounded-authority-b"));
+		});
 
 		expect(consumes).toBe(1);
 		expect(authorityRequests.values.map((item) => item.requestId)).toEqual(["bounded-authority-a"]);
@@ -638,10 +636,10 @@ describe("D648/D649 host authority adapter and topology", () => {
 		const errors = capture(adapter.errors);
 		const cursor = capture(adapter.cursor);
 
-		requests.down([
-			["DATA", request("mismatch-a")],
-			["DATA", request("mismatch-b")],
-		]);
+		batch(() => {
+			requests.set(request("mismatch-a"));
+			requests.set(request("mismatch-b"));
+		});
 
 		expect(consumes).toBe(2);
 		expect(admissions.values.map((item) => item.requestId)).toEqual(["mismatch-b"]);
@@ -671,7 +669,7 @@ describe("D648/D649 host authority adapter and topology", () => {
 
 		// The run's arrays reach subscribers after it returned, so the unsubscribe a sink makes on
 		// "requested" cannot cancel work that run already started.
-		requests.down([["DATA", request("deactivate-before-consume")]]);
+		requests.set(request("deactivate-before-consume"));
 		expect(consumes).toBe(1);
 	});
 
@@ -691,7 +689,7 @@ describe("D648/D649 host authority adapter and topology", () => {
 		});
 
 		// R-failure@3: a sink that throws has no node to end; its failure goes to the reporter.
-		expect(() => requests.down([["DATA", request("delivery-error")]])).not.toThrow();
+		expect(() => requests.set(request("delivery-error"))).not.toThrow();
 		expect(reported.map((e) => String((e as Error).message))).toContain(
 			"downstream delivery failed",
 		);
@@ -717,7 +715,7 @@ describe("D648/D649 host authority adapter and topology", () => {
 			}
 		});
 
-		expect(() => requests.down([["DATA", request("caught-delivery-error")]])).not.toThrow();
+		expect(() => requests.set(request("caught-delivery-error"))).not.toThrow();
 		expect(reported.map((e) => String((e as Error).message))).toContain("caught delivery failed");
 		release();
 	});
@@ -742,10 +740,10 @@ describe("D648/D649 host authority adapter and topology", () => {
 		const gate = adapter.admission;
 		const admissions = capture(gate.admissions);
 		const req = request("idempotent");
-		requests.down([
-			["DATA", req],
-			["DATA", req],
-		]);
+		batch(() => {
+			requests.set(req);
+			requests.set(req);
+		});
 
 		expect(durableConsumes).toBe(1);
 		expect(admissions.values).toHaveLength(1);

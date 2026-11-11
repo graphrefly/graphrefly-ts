@@ -15,6 +15,12 @@ import {
 	type TopicMessage,
 	toTopic,
 } from "../messaging/index.js";
+import { asState } from "./helpers/as-state.js";
+
+/** The bus's host input: its command node's first declared dependency. */
+function publishInput(bus: { readonly commands: { readonly deps: readonly unknown[] } }) {
+	return asState(bus.commands.deps[0] as Parameters<typeof asState>[0]);
+}
 
 describe("messaging passive vocabulary (D125/D132)", () => {
 	it("exports standard topic constants and a passive topic message envelope", () => {
@@ -76,7 +82,7 @@ describe("messageBus clean-slate retained topic log (D279/D282/D284/D285/D325)",
 		]);
 		const catalog = bus.catalog();
 		catalog.snapshot.subscribe(() => {}); // R-lifetime: an inactive projection does not run
-		catalog.snapshotRequest.down([["DATA", {}]]);
+		asState(catalog.snapshotRequest).set({});
 		expect(catalog.snapshot.cache?.topics.map((topic) => topic.topic)).not.toContain("missing");
 	});
 
@@ -91,9 +97,7 @@ describe("messageBus clean-slate retained topic log (D279/D282/D284/D285/D325)",
 		});
 
 		expect(() =>
-			bus.commands.down([
-				["DATA", { kind: "bogus", topic: "orders", commandId: "bad-1" } as never],
-			]),
+			publishInput(bus).set({ kind: "bogus", topic: "orders", commandId: "bad-1" } as never),
 		).not.toThrow();
 
 		expect(issues.at(-1)).toEqual([
@@ -101,7 +105,7 @@ describe("messageBus clean-slate retained topic log (D279/D282/D284/D285/D325)",
 			expect.objectContaining({ code: "malformed-command", source: "messageBus" }),
 		]);
 
-		expect(() => bus.commands.down([["DATA", null as never]])).not.toThrow();
+		expect(() => publishInput(bus).set(null as never)).not.toThrow();
 		expect(issues.at(-1)).toEqual([
 			"DATA",
 			expect.objectContaining({ code: "malformed-command", source: "messageBus" }),
@@ -163,7 +167,7 @@ describe("messageBus clean-slate retained topic log (D279/D282/D284/D285/D325)",
 			}
 		});
 
-		source.down([["DATA", { id: "o1" }]]);
+		source.set({ id: "o1" });
 
 		expect(commands.at(-1)).toEqual([
 			"DATA",
@@ -190,9 +194,9 @@ describe("messageBus clean-slate retained topic log (D279/D282/D284/D285/D325)",
 			}
 		});
 
-		source.down([["DATA", { id: "o1" }]]);
+		source.set({ id: "o1" });
 		sink.release();
-		source.down([["DATA", { id: "o2" }]]);
+		source.set({ id: "o2" });
 
 		expect(messages).toContainEqual(["DATA", expect.objectContaining({ payload: { id: "o1" } })]);
 		expect(messages).not.toContainEqual([
@@ -230,9 +234,9 @@ describe("messageBus clean-slate retained topic log (D279/D282/D284/D285/D325)",
 			}
 		});
 
-		catalog.snapshotRequest.down([["DATA", { limit: 1 }]]);
-		topic.snapshotRequest.down([["DATA", { limit: 1 }]]);
-		dead.snapshotRequest.down([["DATA", { code: "unknown-topic" }]]);
+		asState(catalog.snapshotRequest).set({ limit: 1 });
+		asState(topic.snapshotRequest).set({ limit: 1 });
+		asState(dead.snapshotRequest).set({ code: "unknown-topic" });
 
 		expect(catalogMsgs.at(-1)).toEqual([
 			"DATA",
@@ -277,7 +281,7 @@ describe("messageBus clean-slate retained topic log (D279/D282/D284/D285/D325)",
 			}
 		});
 
-		sub.availableRequest.down([["DATA", { limit: 1 }]]);
+		asState(sub.availableRequest).set({ limit: 1 });
 		expect(available.at(-1)).toEqual([
 			"DATA",
 			expect.objectContaining({
@@ -287,7 +291,7 @@ describe("messageBus clean-slate retained topic log (D279/D282/D284/D285/D325)",
 			}),
 		]);
 
-		sub.availableRequest.down([["DATA", { afterSeq: 1 }]]);
+		asState(sub.availableRequest).set({ afterSeq: 1 });
 		expect(available.at(-1)).toEqual([
 			"DATA",
 			expect.objectContaining({
@@ -337,7 +341,7 @@ describe("messageBus clean-slate retained topic log (D279/D282/D284/D285/D325)",
 		bus.publish("orders", "a");
 		bus.publish("orders", "b");
 		sub.available.subscribe(() => {}); // R-lifetime: an inactive projection does not run
-		sub.availableRequest.down([["DATA", {}]]);
+		asState(sub.availableRequest).set({});
 
 		expect(issues.at(-1)).toEqual(["DATA", expect.objectContaining({ code: "retention-gap" })]);
 		expect(sub.available.cache?.cursor).toEqual(
@@ -376,9 +380,7 @@ describe("messageBus clean-slate retained topic log (D279/D282/D284/D285/D325)",
 		});
 		bus.publish("orders", "a");
 
-		bus.commands.down([
-			["DATA", { kind: "ack", topic: "orders", subscriptionId: "missing", seq: 1 }],
-		]);
+		publishInput(bus).set({ kind: "ack", topic: "orders", subscriptionId: "missing", seq: 1 });
 		expect(issues.at(-1)).toEqual([
 			"DATA",
 			expect.objectContaining({ code: "unknown-subscription" }),
@@ -391,7 +393,7 @@ describe("messageBus clean-slate retained topic log (D279/D282/D284/D285/D325)",
 			expect.objectContaining({ code: "cursor-out-of-range" }),
 		]);
 		sub.available.subscribe(() => {}); // R-lifetime: an inactive projection does not run
-		sub.availableRequest.down([["DATA", {}]]);
+		asState(sub.availableRequest).set({});
 		expect(sub.available.cache?.cursor.nextSeq).toBe(1);
 		expect(sub.available.cache?.messages.map((msg) => msg.seq)).toEqual([1]);
 	});
@@ -434,7 +436,7 @@ describe("messageBus topic projection request (graphrefly-ts:D172)", () => {
 		});
 		expect(msgs).toEqual([["START"]]);
 
-		topic.snapshotRequest.down([["DATA", {}]]);
+		asState(topic.snapshotRequest).set({});
 
 		expect(msgs.at(-1)).toEqual([
 			"DATA",

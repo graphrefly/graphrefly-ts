@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { batch } from "../batch/batch.js";
 import { graph } from "../graph/graph.js";
 import {
 	type AgentRequestIssued,
@@ -279,59 +280,49 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 12", () => {
 				msg[0] === "DATA" && issues.push(msg[1]);
 			}
 		});
-		policies.down([
-			[
-				"DATA",
-				{
-					kind: "work-item-domain-action-admission-policy",
-					policyId: "admit-ready",
-					actionKinds: ["mark-ready"],
-					allowedOutcomes: ["admit"],
-				},
-			],
-		]);
+		policies.set({
+			kind: "work-item-domain-action-admission-policy",
+			policyId: "admit-ready",
+			actionKinds: ["mark-ready"],
+			allowedOutcomes: ["admit"],
+		});
 
-		proposals.down([
-			["DATA", workItemActionProposal("proposal-1", "mark-ready")],
-			["DATA", workItemActionProposal("proposal-1", "mark-ready")],
-			["DATA", workItemActionProposal("proposal-2", "mark-ready")],
-			["DATA", workItemActionProposal("proposal-3", "mark-ready")],
-			["DATA", workItemActionProposal("proposal-4", "other-action")],
-			["DATA", workItemActionProposal("proposal-5", "mark-ready")],
-		]);
-		decisions.down([
-			[
-				"DATA",
+		batch(() => {
+			proposals.set(workItemActionProposal("proposal-1", "mark-ready"));
+			proposals.set(workItemActionProposal("proposal-1", "mark-ready"));
+			proposals.set(workItemActionProposal("proposal-2", "mark-ready"));
+			proposals.set(workItemActionProposal("proposal-3", "mark-ready"));
+			proposals.set(workItemActionProposal("proposal-4", "other-action"));
+			proposals.set(workItemActionProposal("proposal-5", "mark-ready"));
+		});
+		batch(() => {
+			decisions.set(
 				workItemAdmissionDecision("decision-ok", "admission-1", "proposal-1", "admit", {
 					policyId: "admit-ready",
 				}),
-			],
-			[
-				"DATA",
+			);
+			decisions.set(
 				workItemAdmissionDecision(
 					"decision-duplicate-admission",
 					"admission-1",
 					"proposal-2",
 					"admit",
 				),
-			],
-			[
-				"DATA",
+			);
+			decisions.set(
 				workItemAdmissionDecision("decision-stale", "admission-stale", "proposal-3", "admit", {
 					sourceRefs: [{ kind: "work-item-domain-action-proposal", id: "proposal-other" }],
 				}),
-			],
-			[
-				"DATA",
+			);
+			decisions.set(
 				workItemAdmissionDecision(
 					"decision-missing",
 					"admission-missing",
 					"proposal-missing",
 					"admit",
 				),
-			],
-			[
-				"DATA",
+			);
+			decisions.set(
 				workItemAdmissionDecision(
 					"decision-policy-mismatch",
 					"admission-mismatch",
@@ -341,14 +332,13 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 12", () => {
 						policyId: "admit-ready",
 					},
 				),
-			],
-			[
-				"DATA",
+			);
+			decisions.set(
 				workItemAdmissionDecision("decision-ok", "admission-5", "proposal-5", "admit", {
 					policyId: "admit-ready",
 				}),
-			],
-		]);
+			);
+		});
 
 		expect(admissions).toHaveLength(1);
 		expect(admissions.at(-1)).toMatchObject({
@@ -391,14 +381,13 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 12", () => {
 				msg[0] === "DATA" && issues.push(msg[1]);
 			}
 		});
-		proposals.down([
-			["DATA", workItemActionProposal("proposal-1", "mark-ready")],
-			["DATA", workItemActionProposal("proposal-2", "mark-ready")],
-			["DATA", workItemActionProposal("proposal-3", "mark-ready")],
-		]);
-		decisions.down([
-			[
-				"DATA",
+		batch(() => {
+			proposals.set(workItemActionProposal("proposal-1", "mark-ready"));
+			proposals.set(workItemActionProposal("proposal-2", "mark-ready"));
+			proposals.set(workItemActionProposal("proposal-3", "mark-ready"));
+		});
+		batch(() => {
+			decisions.set(
 				workItemAdmissionDecision(
 					"decision-missing-policy",
 					"admission-missing-policy",
@@ -408,9 +397,8 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 12", () => {
 						policyId: "missing-policy",
 					},
 				),
-			],
-			[
-				"DATA",
+			);
+			decisions.set(
 				workItemAdmissionDecision(
 					"decision-stale-policy",
 					"admission-stale-policy",
@@ -421,9 +409,8 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 12", () => {
 						sourceRefs: [{ kind: "work-item-domain-action-admission-policy", id: "other-policy" }],
 					},
 				),
-			],
-			[
-				"DATA",
+			);
+			decisions.set(
 				workItemAdmissionDecision(
 					"decision-ambiguous-merge",
 					"admission-ambiguous-merge",
@@ -434,8 +421,8 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 12", () => {
 						targetAdmissionId: "admission-1",
 					},
 				),
-			],
-		]);
+			);
+		});
 
 		expect(admissions).toEqual([]);
 		expect(issues.map((issue) => (issue as { code: string }).code)).toEqual([
@@ -470,40 +457,33 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 12", () => {
 			}
 		});
 
-		decisions.down([
-			[
-				"DATA",
+		batch(() => {
+			decisions.set(
 				workItemAdmissionDecision("decision-admit", "admission-admit", "proposal-admit", "admit", {
 					policyId: "late-policy",
 				}),
-			],
-			[
-				"DATA",
+			);
+			decisions.set(
 				workItemAdmissionDecision("decision-merge", "admission-merge", "proposal-merge", "merge", {
 					targetAdmissionId: "admission-admit",
 				}),
-			],
-		]);
+			);
+		});
 		expect(admissions).toEqual([]);
 		expect(issues.map((issue) => (issue as { code: string }).code)).toEqual(
 			expect.arrayContaining(["missing-work-item-domain-action-admission-proposal"]),
 		);
 
-		policies.down([
-			[
-				"DATA",
-				{
-					kind: "work-item-domain-action-admission-policy",
-					policyId: "late-policy",
-					actionKinds: ["mark-ready"],
-					allowedOutcomes: ["admit"],
-				},
-			],
-		]);
-		proposals.down([
-			["DATA", workItemActionProposal("proposal-merge", "mark-ready")],
-			["DATA", workItemActionProposal("proposal-admit", "mark-ready")],
-		]);
+		policies.set({
+			kind: "work-item-domain-action-admission-policy",
+			policyId: "late-policy",
+			actionKinds: ["mark-ready"],
+			allowedOutcomes: ["admit"],
+		});
+		batch(() => {
+			proposals.set(workItemActionProposal("proposal-merge", "mark-ready"));
+			proposals.set(workItemActionProposal("proposal-admit", "mark-ready"));
+		});
 
 		expect(admissions.map((admission) => admission.admissionId)).toEqual([
 			"admission-admit",

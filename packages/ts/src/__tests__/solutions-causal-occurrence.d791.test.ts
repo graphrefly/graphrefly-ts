@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it } from "vitest";
+import { batch } from "../batch/batch.js";
 import type { DataIssue, DataResult } from "../data/index.js";
 import { constructionOf } from "../graph/construction-scope.js";
 import { Graph } from "../graph/graph.js";
@@ -28,6 +29,7 @@ import {
 	causalOccurrenceDigest,
 	causalOccurrenceRequiredEdges,
 } from "../solutions/causal-occurrence.js";
+import { asState } from "./helpers/as-state.js";
 import { removeOwnedNodeDep } from "./helpers/owned-rewire.js";
 
 const digest = (char: string) => `sha256:${char.repeat(64)}`;
@@ -208,20 +210,20 @@ describe("D791 causal occurrence contract-v2", () => {
 	it("keeps candidate/decision mismatch quiet and releases each exact admitted occurrence once", () => {
 		const f = fixture();
 		const first = occurrence(1);
-		f.occurrences.down([["DATA", first]]);
+		f.occurrences.set(first);
 		expect(f.messages.get("released")?.filter((message) => message[0] !== "START")).toEqual([]);
-		f.admissions.down([["DATA", admission({ ...refOf(first), digest: digest("f") })]]);
+		f.admissions.set(admission({ ...refOf(first), digest: digest("f") }));
 		expect(f.messages.get("released")?.filter((message) => message[0] !== "START")).toEqual([]);
-		f.admissions.down([["DATA", admission(first)]]);
+		f.admissions.set(admission(first));
 		expect(data(f.messages.get("released"))).toEqual([]);
-		f.watermarks.down([["DATA", { revisionDomain: "test-domain", revision: 1 }]]);
+		f.watermarks.set({ revisionDomain: "test-domain", revision: 1 });
 		expect(data<CausalOccurrence<string>>(f.messages.get("released"))).toEqual([first]);
 		expect(f.messages.get("released")?.filter((message) => message[0] === "PENDING")).toHaveLength(
 			1,
 		);
 		expect(f.messages.get("released")?.filter((message) => message[0] === "RESOLVED")).toEqual([]);
-		f.admissions.down([["DATA", admission(first)]]);
-		f.occurrences.down([["DATA", first]]);
+		f.admissions.set(admission(first));
+		f.occurrences.set(first);
 		expect(data(f.messages.get("released"))).toHaveLength(1);
 		expect(f.messages.get("released")?.filter((message) => message[0] === "ERROR")).toEqual([]);
 		f.stop();
@@ -230,14 +232,14 @@ describe("D791 causal occurrence contract-v2", () => {
 	it("fails closed for decision-first exact-ref mismatch and for an unbound digest", () => {
 		const f = fixture();
 		const value = occurrence(1);
-		f.admissions.down([["DATA", admission({ ...refOf(value), digest: digest("f") })]]);
-		f.occurrences.down([["DATA", value]]);
-		f.watermarks.down([["DATA", { revisionDomain: "test-domain", revision: 1 }]]);
+		f.admissions.set(admission({ ...refOf(value), digest: digest("f") }));
+		f.occurrences.set(value);
+		f.watermarks.set({ revisionDomain: "test-domain", revision: 1 });
 		expect(f.messages.get("released")?.filter((message) => message[0] !== "START")).toEqual([]);
-		f.admissions.down([["DATA", admission(value)]]);
+		f.admissions.set(admission(value));
 		expect(data<CausalOccurrence<string>>(f.messages.get("released"))).toEqual([value]);
 		const altered = { ...value, value: "altered-with-stale-digest" };
-		f.occurrences.down([["DATA", altered]]);
+		f.occurrences.set(altered);
 		expect(data<DataIssue>(f.messages.get("issues")).map((entry) => entry.code)).toContain(
 			"causal-occurrence/digest-mismatch",
 		);
@@ -247,15 +249,15 @@ describe("D791 causal occurrence contract-v2", () => {
 	it("blocks skipped revisions until the global gap is filled and reports conflicts as DATA issues", () => {
 		const f = fixture();
 		const second = occurrence(2);
-		f.admissions.down([["DATA", admission(second)]]);
-		f.occurrences.down([["DATA", second]]);
+		f.admissions.set(admission(second));
+		f.occurrences.set(second);
 		expect(data(f.messages.get("released"))).toEqual([]);
 		expect(data<DataIssue>(f.messages.get("issues")).map((value) => value.code)).toContain(
 			"causal-occurrence/skipped-revision",
 		);
-		f.occurrences.down([["DATA", occurrence(1)]]);
-		f.admissions.down([["DATA", admission(occurrence(1))]]);
-		f.watermarks.down([["DATA", { revisionDomain: "test-domain", revision: 2 }]]);
+		f.occurrences.set(occurrence(1));
+		f.admissions.set(admission(occurrence(1)));
+		f.watermarks.set({ revisionDomain: "test-domain", revision: 2 });
 		expect(
 			data<CausalOccurrence<string>>(f.messages.get("released")).map((value) => value.revision),
 		).toEqual([1, 2]);
@@ -263,9 +265,7 @@ describe("D791 causal occurrence contract-v2", () => {
 			...second,
 			value: "conflicting-value",
 		};
-		f.occurrences.down([
-			["DATA", { ...conflictMaterial, digest: causalOccurrenceDigest(conflictMaterial) }],
-		]);
+		f.occurrences.set({ ...conflictMaterial, digest: causalOccurrenceDigest(conflictMaterial) });
 		expect(data<DataIssue>(f.messages.get("issues")).map((value) => value.code)).toContain(
 			"causal-occurrence/replay-conflict",
 		);
@@ -277,15 +277,15 @@ describe("D791 causal occurrence contract-v2", () => {
 		const f = fixture();
 		const first = occurrence(1);
 		const second = occurrence(2);
-		f.occurrences.down([
-			["DATA", first],
-			["DATA", second],
-		]);
-		f.admissions.down([
-			["DATA", admission(first)],
-			["DATA", admission(second)],
-		]);
-		f.watermarks.down([["DATA", { revisionDomain: "test-domain", revision: 2 }]]);
+		batch(() => {
+			f.occurrences.set(first);
+			f.occurrences.set(second);
+		});
+		batch(() => {
+			f.admissions.set(admission(first));
+			f.admissions.set(admission(second));
+		});
+		f.watermarks.set({ revisionDomain: "test-domain", revision: 2 });
 		const messages = f.messages.get("released") ?? [];
 		expect(messages.filter((message) => message[0] === "PENDING")).toHaveLength(2);
 		expect(messages.filter((message) => message[0] === "DATA")).toHaveLength(2);
@@ -296,16 +296,16 @@ describe("D791 causal occurrence contract-v2", () => {
 		const f = fixture();
 		const first = occurrence(1, "shared-id");
 		const second = occurrence(2, "shared-id");
-		f.occurrences.down([
-			["DATA", first],
-			["DATA", second],
-		]);
-		f.admissions.down([
-			["DATA", admission(first)],
-			["DATA", admission(second)],
-		]);
+		batch(() => {
+			f.occurrences.set(first);
+			f.occurrences.set(second);
+		});
+		batch(() => {
+			f.admissions.set(admission(first));
+			f.admissions.set(admission(second));
+		});
 		expect(data(f.messages.get("currentness"))).toEqual([]);
-		f.watermarks.down([["DATA", { revisionDomain: "test-domain", revision: 2 }]]);
+		f.watermarks.set({ revisionDomain: "test-domain", revision: 2 });
 		expect(
 			data<CausalCurrentness>(f.messages.get("currentness")).map((entry) => [
 				entry.occurrence.revision,
@@ -324,9 +324,9 @@ describe("D791 causal occurrence contract-v2", () => {
 	it("treats a terminal rejection as quiescent without fabricating a release or branch terminal", () => {
 		const f = fixture();
 		const value = occurrence(1);
-		f.occurrences.down([["DATA", value]]);
-		f.admissions.down([["DATA", admission(value, "rejected")]]);
-		f.watermarks.down([["DATA", { revisionDomain: "test-domain", revision: 1 }]]);
+		f.occurrences.set(value);
+		f.admissions.set(admission(value, "rejected"));
+		f.watermarks.set({ revisionDomain: "test-domain", revision: 1 });
 		expect(data(f.messages.get("released"))).toEqual([]);
 		expect(data<CausalQuiescence>(f.messages.get("quiescence")).at(-1)).toMatchObject({
 			lifecycle: true,
@@ -338,18 +338,18 @@ describe("D791 causal occurrence contract-v2", () => {
 	it("requires exact terminal fan-in and conserves admitted effects through D184 DATA results", () => {
 		const f = fixture();
 		const value = occurrence(1);
-		f.occurrences.down([["DATA", value]]);
-		f.admissions.down([["DATA", admission(value)]]);
-		f.watermarks.down([["DATA", { revisionDomain: "test-domain", revision: 1 }]]);
+		f.occurrences.set(value);
+		f.admissions.set(admission(value));
+		f.watermarks.set({ revisionDomain: "test-domain", revision: 1 });
 		const terminal = (branch: string, result: DataResult<unknown>): CausalBranchTerminal => ({
 			occurrence: value,
 			branch,
 			state: result.kind === "ok" ? "completed" : "failed",
 			result,
 		});
-		f.branchTerminals.down([["DATA", terminal("materialize", ok("done"))]]);
+		f.branchTerminals.set(terminal("materialize", ok("done")));
 		expect(data(f.messages.get("terminals"))).toEqual([]);
-		f.branchTerminals.down([["DATA", terminal("audit", error("audit-failed"))]]);
+		f.branchTerminals.set(terminal("audit", error("audit-failed")));
 		expect(
 			data<CausalTerminalFanIn>(f.messages.get("terminals"))[0]?.terminals.map(
 				(entry) => entry.branch,
@@ -362,30 +362,27 @@ describe("D791 causal occurrence contract-v2", () => {
 			requestRef: { kind: "request", id: "request-1" },
 			proposalDigest: digest("b"),
 		};
-		f.effectProposals.down([["DATA", proposal]]);
+		f.effectProposals.set(proposal);
 		const effectAdmission: CausalEffectAdmission = {
 			...proposal,
 			admissionRef: { kind: "effect-admission", id: "admission-1" },
 			state: "admitted",
 		};
-		f.effectAdmissions.down([["DATA", effectAdmission]]);
-		f.effectOutcomes.down([
-			["DATA", { ...effectAdmission, state: "succeeded", result: error("wrong-result-kind") }],
-		]);
+		f.effectAdmissions.set(effectAdmission);
+		f.effectOutcomes.set({
+			...effectAdmission,
+			state: "succeeded",
+			result: error("wrong-result-kind"),
+		});
 		expect(data<DataIssue>(f.messages.get("issues")).map((entry) => entry.code)).toContain(
 			"causal-occurrence/effect-outcome-mismatch",
 		);
-		f.effectOutcomes.down([
-			[
-				"DATA",
-				{
-					...effectAdmission,
-					admissionRef: { kind: "effect-admission", id: "wrong-admission" },
-					state: "failed",
-					result: error("wrong-admission"),
-				},
-			],
-		]);
+		f.effectOutcomes.set({
+			...effectAdmission,
+			admissionRef: { kind: "effect-admission", id: "wrong-admission" },
+			state: "failed",
+			result: error("wrong-admission"),
+		});
 		expect(data<CausalEffectConservation>(f.messages.get("conservation")).at(-1)).toMatchObject({
 			admitted: 1,
 			active: 1,
@@ -396,7 +393,7 @@ describe("D791 causal occurrence contract-v2", () => {
 			state: "failed",
 			result: error("remote-failure"),
 		};
-		f.effectOutcomes.down([["DATA", outcome]]);
+		f.effectOutcomes.set(outcome);
 		const last = data<CausalEffectConservation>(f.messages.get("conservation")).at(-1)!;
 		expect(last).toBeDefined();
 		expect(last.proposed).toBe(last.pendingAdmission + last.rejected + last.admitted);
@@ -427,33 +424,33 @@ describe("D791 causal occurrence contract-v2", () => {
 			admissionRef: { kind: "effect-admission", id: "admission-reordered" },
 			state: "admitted",
 		};
-		f.effectOutcomes.down([
-			["DATA", { ...effectAdmission, state: "failed", result: error("reordered-failure") }],
-		]);
-		f.effectAdmissions.down([["DATA", effectAdmission]]);
-		f.effectProposals.down([["DATA", proposal]]);
+		f.effectOutcomes.set({
+			...effectAdmission,
+			state: "failed",
+			result: error("reordered-failure"),
+		});
+		f.effectAdmissions.set(effectAdmission);
+		f.effectProposals.set(proposal);
 		for (const branch of ["audit", "materialize"]) {
-			f.branchTerminals.down([
-				["DATA", { occurrence: refOf(value), branch, state: "completed", result: ok(branch) }],
-			]);
+			f.branchTerminals.set({
+				occurrence: refOf(value),
+				branch,
+				state: "completed",
+				result: ok(branch),
+			});
 		}
 		for (const kind of ["trace", "receipt"]) {
-			f.evidence.down([
-				[
-					"DATA",
-					{
-						occurrence: refOf(value),
-						evidenceKind: kind,
-						evidenceId: `${kind}-reordered`,
-						evidenceDigest: digest(kind === "trace" ? "7" : "8"),
-						coverage: "included",
-					},
-				],
-			]);
+			f.evidence.set({
+				occurrence: refOf(value),
+				evidenceKind: kind,
+				evidenceId: `${kind}-reordered`,
+				evidenceDigest: digest(kind === "trace" ? "7" : "8"),
+				coverage: "included",
+			});
 		}
-		f.occurrences.down([["DATA", value]]);
-		f.admissions.down([["DATA", admission(value)]]);
-		f.watermarks.down([["DATA", { revisionDomain: "test-domain", revision: 1 }]]);
+		f.occurrences.set(value);
+		f.admissions.set(admission(value));
+		f.watermarks.set({ revisionDomain: "test-domain", revision: 1 });
 		expect(data<CausalTerminalFanIn>(f.messages.get("terminals"))).toHaveLength(1);
 		expect(data<CausalEffectConservation>(f.messages.get("conservation")).at(-1)).toMatchObject({
 			admitted: 1,
@@ -470,9 +467,9 @@ describe("D791 causal occurrence contract-v2", () => {
 	it("conserves every terminal effect bucket with the matching D184 result kind", () => {
 		const f = fixture();
 		const value = occurrence(1);
-		f.occurrences.down([["DATA", value]]);
-		f.admissions.down([["DATA", admission(value)]]);
-		f.watermarks.down([["DATA", { revisionDomain: "test-domain", revision: 1 }]]);
+		f.occurrences.set(value);
+		f.admissions.set(admission(value));
+		f.watermarks.set({ revisionDomain: "test-domain", revision: 1 });
 		const states = ["succeeded", "failed", "cancelled", "reconcile-required", "unknown"] as const;
 		states.forEach((state, index) => {
 			const proposal: CausalEffectProposal = {
@@ -486,18 +483,13 @@ describe("D791 causal occurrence contract-v2", () => {
 				admissionRef: { kind: "effect-admission", id: `admission-${state}` },
 				state: "admitted",
 			};
-			f.effectProposals.down([["DATA", proposal]]);
-			f.effectAdmissions.down([["DATA", admitted]]);
-			f.effectOutcomes.down([
-				[
-					"DATA",
-					{
-						...admitted,
-						state,
-						result: state === "succeeded" ? ok(state) : error(`terminal-${state}`),
-					},
-				],
-			]);
+			f.effectProposals.set(proposal);
+			f.effectAdmissions.set(admitted);
+			f.effectOutcomes.set({
+				...admitted,
+				state,
+				result: state === "succeeded" ? ok(state) : error(`terminal-${state}`),
+			});
 		});
 		const conserved = data<CausalEffectConservation>(f.messages.get("conservation")).at(-1)!;
 		expect(conserved).toMatchObject({
@@ -518,45 +510,30 @@ describe("D791 causal occurrence contract-v2", () => {
 	it("rejects malformed closed states and non-canonical DATA without protocol ERROR", () => {
 		const f = fixture();
 		const value = occurrence(1);
-		f.occurrences.down([["DATA", value]]);
-		f.admissions.down([["DATA", admission(value)]]);
-		f.watermarks.down([["DATA", { revisionDomain: "test-domain", revision: 1 }]]);
-		f.branchTerminals.down([
-			[
-				"DATA",
-				{
-					occurrence: refOf(value),
-					branch: "audit",
-					state: "invented",
-					result: ok("bad"),
-				} as never,
-			],
-		]);
+		f.occurrences.set(value);
+		f.admissions.set(admission(value));
+		f.watermarks.set({ revisionDomain: "test-domain", revision: 1 });
+		f.branchTerminals.set({
+			occurrence: refOf(value),
+			branch: "audit",
+			state: "invented",
+			result: ok("bad"),
+		} as never);
 		const cyclic: { self?: unknown } = {};
 		cyclic.self = cyclic;
-		f.branchTerminals.down([
-			[
-				"DATA",
-				{
-					occurrence: refOf(value),
-					branch: "audit",
-					state: "completed",
-					result: ok(cyclic),
-				},
-			],
-		]);
-		f.evidence.down([
-			[
-				"DATA",
-				{
-					occurrence: refOf(value),
-					evidenceKind: "receipt",
-					evidenceId: "external-without-ref",
-					evidenceDigest: digest("9"),
-					coverage: "external-only",
-				},
-			],
-		]);
+		f.branchTerminals.set({
+			occurrence: refOf(value),
+			branch: "audit",
+			state: "completed",
+			result: ok(cyclic),
+		});
+		f.evidence.set({
+			occurrence: refOf(value),
+			evidenceKind: "receipt",
+			evidenceId: "external-without-ref",
+			evidenceDigest: digest("9"),
+			coverage: "external-only",
+		});
 		const issueMessages = f.messages.get("issues") ?? [];
 		expect(data<DataIssue>(issueMessages).map((entry) => entry.code)).toEqual(
 			expect.arrayContaining([
@@ -572,9 +549,9 @@ describe("D791 causal occurrence contract-v2", () => {
 	it("fails closed at effect/evidence bounds and rejects a wrong-occurrence outcome", () => {
 		const f = fixture({ maxEffects: 1, maxEvidence: 1 });
 		const value = occurrence(1);
-		f.occurrences.down([["DATA", value]]);
-		f.admissions.down([["DATA", admission(value)]]);
-		f.watermarks.down([["DATA", { revisionDomain: "test-domain", revision: 1 }]]);
+		f.occurrences.set(value);
+		f.admissions.set(admission(value));
+		f.watermarks.set({ revisionDomain: "test-domain", revision: 1 });
 		const proposal: CausalEffectProposal = {
 			occurrence: refOf(value),
 			effectId: "bounded-effect",
@@ -586,31 +563,21 @@ describe("D791 causal occurrence contract-v2", () => {
 			admissionRef: { kind: "effect-admission", id: "bounded-admission" },
 			state: "admitted",
 		};
-		f.effectProposals.down([["DATA", proposal]]);
-		f.effectAdmissions.down([["DATA", admitted]]);
-		f.effectProposals.down([
-			[
-				"DATA",
-				{
-					...proposal,
-					effectId: "over-bound-effect",
-					requestRef: { kind: "request", id: "over-bound-request" },
-					proposalDigest: digest("6"),
-				},
-			],
-		]);
+		f.effectProposals.set(proposal);
+		f.effectAdmissions.set(admitted);
+		f.effectProposals.set({
+			...proposal,
+			effectId: "over-bound-effect",
+			requestRef: { kind: "request", id: "over-bound-request" },
+			proposalDigest: digest("6"),
+		});
 		const wrongOccurrence = occurrence(1, "wrong-occurrence");
-		f.effectOutcomes.down([
-			[
-				"DATA",
-				{
-					...admitted,
-					occurrence: refOf(wrongOccurrence),
-					state: "failed",
-					result: error("wrong-occurrence"),
-				},
-			],
-		]);
+		f.effectOutcomes.set({
+			...admitted,
+			occurrence: refOf(wrongOccurrence),
+			state: "failed",
+			result: error("wrong-occurrence"),
+		});
 		expect(data<CausalEffectConservation>(f.messages.get("conservation")).at(-1)).toMatchObject({
 			proposed: 1,
 			admitted: 1,
@@ -624,8 +591,8 @@ describe("D791 causal occurrence contract-v2", () => {
 			evidenceDigest: digest(kind === "receipt" ? "7" : "8"),
 			coverage: "included",
 		});
-		f.evidence.down([["DATA", evidence("receipt")]]);
-		f.evidence.down([["DATA", evidence("trace")]]);
+		f.evidence.set(evidence("receipt"));
+		f.evidence.set(evidence("trace"));
 		const coverage = data<CausalEvidenceCoverage>(f.messages.get("coverage")).at(-1)!;
 		expect(coverage).toBeDefined();
 		expect(coverage.complete).toBe(false);
@@ -643,27 +610,30 @@ describe("D791 causal occurrence contract-v2", () => {
 	it("never evicts unsettled obligations and exposes retention-gap after settled eviction", () => {
 		const f = fixture({ maxOccurrences: 1 });
 		const first = occurrence(1);
-		f.occurrences.down([["DATA", first]]);
-		f.admissions.down([["DATA", admission(first)]]);
-		f.watermarks.down([["DATA", { revisionDomain: "test-domain", revision: 1 }]]);
-		f.occurrences.down([["DATA", occurrence(2)]]);
+		f.occurrences.set(first);
+		f.admissions.set(admission(first));
+		f.watermarks.set({ revisionDomain: "test-domain", revision: 1 });
+		f.occurrences.set(occurrence(2));
 		expect(data<DataIssue>(f.messages.get("issues")).map((entry) => entry.code)).toContain(
 			"causal-occurrence/retention-capacity",
 		);
 		for (const branch of ["materialize", "audit"]) {
-			f.branchTerminals.down([
-				["DATA", { occurrence: refOf(first), branch, state: "completed", result: ok(branch) }],
-			]);
+			f.branchTerminals.set({
+				occurrence: refOf(first),
+				branch,
+				state: "completed",
+				result: ok(branch),
+			});
 		}
 		const gap = data<CausalEvidenceCoverage>(f.messages.get("coverage")).at(-1)!;
 		expect(gap).toMatchObject({ complete: false, missingKinds: ["receipt", "trace"] });
-		f.occurrences.down([["DATA", first]]);
+		f.occurrences.set(first);
 		expect(data<DataIssue>(f.messages.get("issues")).map((entry) => entry.code)).toContain(
 			"causal-occurrence/retention-gap",
 		);
 		const second = occurrence(2);
-		f.admissions.down([["DATA", admission(second)]]);
-		f.watermarks.down([["DATA", { revisionDomain: "test-domain", revision: 2 }]]);
+		f.admissions.set(admission(second));
+		f.watermarks.set({ revisionDomain: "test-domain", revision: 2 });
 		expect(
 			data<CausalOccurrence<string>>(f.messages.get("released")).map((entry) => entry.revision),
 		).toEqual([1]);
@@ -677,13 +647,11 @@ describe("D791 causal occurrence contract-v2", () => {
 	it("makes evidence gaps explicit and distinguishes lifecycle from retained-evidence quiescence", () => {
 		const f = fixture();
 		const value = occurrence(1);
-		f.occurrences.down([["DATA", value]]);
-		f.admissions.down([["DATA", admission(value)]]);
-		f.watermarks.down([["DATA", { revisionDomain: "test-domain", revision: 1 }]]);
+		f.occurrences.set(value);
+		f.admissions.set(admission(value));
+		f.watermarks.set({ revisionDomain: "test-domain", revision: 1 });
 		for (const branch of ["materialize", "audit"]) {
-			f.branchTerminals.down([
-				["DATA", { occurrence: value, branch, state: "completed", result: ok(branch) }],
-			]);
+			f.branchTerminals.set({ occurrence: value, branch, state: "completed", result: ok(branch) });
 		}
 		expect(data<CausalQuiescence>(f.messages.get("quiescence")).at(-1)).toMatchObject({
 			lifecycle: true,
@@ -699,8 +667,8 @@ describe("D791 causal occurrence contract-v2", () => {
 			evidenceDigest: digest(evidenceKind === "receipt" ? "c" : "d"),
 			coverage,
 		});
-		f.evidence.down([["DATA", evidence("receipt", "included")]]);
-		f.evidence.down([["DATA", evidence("trace", "retention-gap")]]);
+		f.evidence.set(evidence("receipt", "included"));
+		f.evidence.set(evidence("trace", "retention-gap"));
 		const coverage = data<CausalEvidenceCoverage>(f.messages.get("coverage")).at(-1)!;
 		expect(coverage).toMatchObject({
 			complete: false,
@@ -720,12 +688,12 @@ describe("D791 causal occurrence contract-v2", () => {
 			const { digest: _digest, ...material } = { ...occurrence(1), revisionDomain: domain };
 			return { ...material, digest: causalOccurrenceDigest(material) };
 		};
-		f.watermarks.down([["DATA", { revisionDomain: "watermark-first", revision: 0 }]]);
+		f.watermarks.set({ revisionDomain: "watermark-first", revision: 0 });
 		const pending = inDomain("pending-first");
-		f.admissions.down([["DATA", admission(pending)]]);
-		f.occurrences.down([["DATA", inDomain("over-bound")]]);
+		f.admissions.set(admission(pending));
+		f.occurrences.set(inDomain("over-bound"));
 		for (let i = 0; i < 16; i++) {
-			f.watermarks.down([["DATA", { revisionDomain: `unknown-${i}`, revision: 0 }]]);
+			f.watermarks.set({ revisionDomain: `unknown-${i}`, revision: 0 });
 		}
 		expect(
 			new Set(data<CausalQuiescence>(f.messages.get("quiescence")).map((v) => v.revisionDomain)),
@@ -735,22 +703,22 @@ describe("D791 causal occurrence contract-v2", () => {
 				(v) => v.code === "causal-occurrence/domain-bound",
 			),
 		).toHaveLength(17);
-		f.occurrences.down([["DATA", pending]]);
-		f.watermarks.down([["DATA", { revisionDomain: "pending-first", revision: 1 }]]);
+		f.occurrences.set(pending);
+		f.watermarks.set({ revisionDomain: "pending-first", revision: 1 });
 		expect(data<CausalOccurrence<string>>(f.messages.get("released"))).toEqual([pending]);
 		f.stop();
 	});
 
 	it("does not reserve domain capacity for invalid DATA and accepts repeated known-domain watermarks", () => {
 		const f = fixture({ maxOccurrences: 1 });
-		f.watermarks.down([["DATA", { revisionDomain: "invalid", revision: -1 }]]);
+		f.watermarks.set({ revisionDomain: "invalid", revision: -1 });
 		const value = occurrence(1);
-		f.occurrences.down([["DATA", { ...value, revisionDomain: "bad-digest" }]]);
-		f.occurrences.down([["DATA", value]]);
-		f.admissions.down([["DATA", admission(value)]]);
+		f.occurrences.set({ ...value, revisionDomain: "bad-digest" });
+		f.occurrences.set(value);
+		f.admissions.set(admission(value));
 		for (let i = 0; i < 8; i++)
-			f.watermarks.down([["DATA", { revisionDomain: value.revisionDomain, revision: 1 }]]);
-		f.watermarks.down([["DATA", { revisionDomain: "new-domain", revision: 0 }]]);
+			f.watermarks.set({ revisionDomain: value.revisionDomain, revision: 1 });
+		f.watermarks.set({ revisionDomain: "new-domain", revision: 0 });
 		expect(data<CausalOccurrence<string>>(f.messages.get("released"))).toEqual([value]);
 		expect(
 			data<DataIssue>(f.messages.get("issues")).filter(
@@ -772,16 +740,19 @@ describe("D791 causal occurrence contract-v2", () => {
 				coverage: "included",
 			});
 			// Retain receipt first; the trace input is the same one-slot pending obligation in both arms.
-			if (early) f.evidence.down([["DATA", fact("receipt", "receipt")]]);
-			f.occurrences.down([["DATA", value]]);
-			if (!early) f.evidence.down([["DATA", fact("receipt", "receipt")]]);
-			f.admissions.down([["DATA", admission(value)]]);
-			f.watermarks.down([["DATA", { revisionDomain: value.revisionDomain, revision: 1 }]]);
+			if (early) f.evidence.set(fact("receipt", "receipt"));
+			f.occurrences.set(value);
+			if (!early) f.evidence.set(fact("receipt", "receipt"));
+			f.admissions.set(admission(value));
+			f.watermarks.set({ revisionDomain: value.revisionDomain, revision: 1 });
 			for (const branch of ["materialize", "audit"])
-				f.branchTerminals.down([
-					["DATA", { occurrence: refOf(value), branch, state: "completed", result: ok(branch) }],
-				]);
-			for (let i = 0; i < 8; i++) f.evidence.down([["DATA", fact("trace", `trace-${i}`)]]);
+				f.branchTerminals.set({
+					occurrence: refOf(value),
+					branch,
+					state: "completed",
+					result: ok(branch),
+				});
+			for (let i = 0; i < 8; i++) f.evidence.set(fact("trace", `trace-${i}`));
 			const coverage = data<CausalEvidenceCoverage>(f.messages.get("coverage")).at(-1)!;
 			expect(coverage).toMatchObject({
 				complete: false,
@@ -805,27 +776,25 @@ describe("D791 causal occurrence contract-v2", () => {
 			const value = occurrence(1);
 			const send = () => {
 				for (const kind of ["receipt", "trace"])
-					f.evidence.down([
-						[
-							"DATA",
-							{
-								occurrence: refOf(value),
-								evidenceKind: kind,
-								evidenceId: kind,
-								evidenceDigest: digest("c"),
-								coverage: "included",
-							},
-						],
-					]);
+					f.evidence.set({
+						occurrence: refOf(value),
+						evidenceKind: kind,
+						evidenceId: kind,
+						evidenceDigest: digest("c"),
+						coverage: "included",
+					});
 			};
 			if (early) send();
-			f.occurrences.down([["DATA", value]]);
-			f.admissions.down([["DATA", admission(value)]]);
-			f.watermarks.down([["DATA", { revisionDomain: value.revisionDomain, revision: 1 }]]);
+			f.occurrences.set(value);
+			f.admissions.set(admission(value));
+			f.watermarks.set({ revisionDomain: value.revisionDomain, revision: 1 });
 			for (const branch of ["materialize", "audit"])
-				f.branchTerminals.down([
-					["DATA", { occurrence: refOf(value), branch, state: "completed", result: ok(branch) }],
-				]);
+				f.branchTerminals.set({
+					occurrence: refOf(value),
+					branch,
+					state: "completed",
+					result: ok(branch),
+				});
 			if (!early) send();
 			const result = {
 				coverage: data<CausalEvidenceCoverage>(f.messages.get("coverage")).at(-1),
@@ -857,22 +826,27 @@ describe("D791 causal occurrence contract-v2", () => {
 					proposalDigest: digest("b"),
 				}),
 			);
-			const send = () => f.effectProposals.down(proposals.map((v) => ["DATA", v]));
+			const send = () =>
+				batch(() => {
+					for (const v of proposals) asState(f.effectProposals).set(v);
+				});
 			if (early) send();
-			f.occurrences.down([["DATA", value]]);
-			f.admissions.down([["DATA", admission(value)]]);
-			f.watermarks.down([["DATA", { revisionDomain: value.revisionDomain, revision: 1 }]]);
+			f.occurrences.set(value);
+			f.admissions.set(admission(value));
+			f.watermarks.set({ revisionDomain: value.revisionDomain, revision: 1 });
 			if (!early) send();
-			f.effectAdmissions.down([
-				[
-					"DATA",
-					{ ...proposals[0]!, admissionRef: { kind: "admission", id: "deny" }, state: "rejected" },
-				],
-			]);
+			f.effectAdmissions.set({
+				...proposals[0]!,
+				admissionRef: { kind: "admission", id: "deny" },
+				state: "rejected",
+			});
 			for (const branch of ["materialize", "audit"])
-				f.branchTerminals.down([
-					["DATA", { occurrence: refOf(value), branch, state: "completed", result: ok(branch) }],
-				]);
+				f.branchTerminals.set({
+					occurrence: refOf(value),
+					branch,
+					state: "completed",
+					result: ok(branch),
+				});
 			const result = {
 				conservation: data<CausalEffectConservation>(f.messages.get("conservation")).at(-1),
 				quiescence: data<CausalQuiescence>(f.messages.get("quiescence")).at(-1),
@@ -898,11 +872,9 @@ describe("D791 causal occurrence contract-v2", () => {
 			const first = occurrence(1);
 			const second = occurrence(2);
 			const release = (value: CausalOccurrence<string>) => {
-				f.occurrences.down([["DATA", value]]);
-				f.admissions.down([["DATA", admission(value)]]);
-				f.watermarks.down([
-					["DATA", { revisionDomain: value.revisionDomain, revision: value.revision }],
-				]);
+				f.occurrences.set(value);
+				f.admissions.set(admission(value));
+				f.watermarks.set({ revisionDomain: value.revisionDomain, revision: value.revision });
 			};
 			const propose = (value: CausalOccurrenceRef): CausalEffectProposal => ({
 				occurrence: refOf(value),
@@ -912,17 +884,19 @@ describe("D791 causal occurrence contract-v2", () => {
 			});
 			release(first);
 			const firstProposal = propose(first);
-			f.effectProposals.down([["DATA", firstProposal]]);
-			f.effectAdmissions.down([
-				[
-					"DATA",
-					{ ...firstProposal, state: "rejected", admissionRef: { kind: "admission", id: "first" } },
-				],
-			]);
+			f.effectProposals.set(firstProposal);
+			f.effectAdmissions.set({
+				...firstProposal,
+				state: "rejected",
+				admissionRef: { kind: "admission", id: "first" },
+			});
 			for (const branch of queued ? ["materialize"] : ["materialize", "audit"])
-				f.branchTerminals.down([
-					["DATA", { occurrence: refOf(first), branch, state: "completed", result: ok(branch) }],
-				]);
+				f.branchTerminals.set({
+					occurrence: refOf(first),
+					branch,
+					state: "completed",
+					result: ok(branch),
+				});
 			const proposal = propose(second);
 			const admitted: CausalEffectAdmission = {
 				...proposal,
@@ -930,9 +904,9 @@ describe("D791 causal occurrence contract-v2", () => {
 				admissionRef: { kind: "admission", id: "second" },
 			};
 			const send = () => {
-				f.effectOutcomes.down([["DATA", { ...admitted, state: "succeeded", result: ok("done") }]]);
-				f.effectAdmissions.down([["DATA", admitted]]);
-				f.effectProposals.down([["DATA", proposal]]);
+				f.effectOutcomes.set({ ...admitted, state: "succeeded", result: ok("done") });
+				f.effectAdmissions.set(admitted);
+				f.effectProposals.set(proposal);
 			};
 			if (early) send();
 			release(second);
@@ -941,24 +915,19 @@ describe("D791 causal occurrence contract-v2", () => {
 				lifecycle: false,
 				pendingEffectIds: [proposal.effectId],
 			});
-			f.effectProposals.down([
-				[
-					"DATA",
-					{
-						...proposal,
-						proposalDigest: digest("c"),
-						requestRef: { kind: "request", id: "conflict" },
-					},
-				],
-			]);
-			f.occurrences.down([["DATA", occurrence(3)]]);
+			f.effectProposals.set({
+				...proposal,
+				proposalDigest: digest("c"),
+				requestRef: { kind: "request", id: "conflict" },
+			});
+			f.occurrences.set(occurrence(3));
 			if (queued)
-				f.branchTerminals.down([
-					[
-						"DATA",
-						{ occurrence: refOf(first), branch: "audit", state: "completed", result: ok("audit") },
-					],
-				]);
+				f.branchTerminals.set({
+					occurrence: refOf(first),
+					branch: "audit",
+					state: "completed",
+					result: ok("audit"),
+				});
 			expect(data<CausalEffectConservation>(f.messages.get("conservation")).at(-1)).toMatchObject({
 				occurrence: refOf(second),
 				proposed: 1,
@@ -994,23 +963,18 @@ describe("D791 causal occurrence contract-v2", () => {
 					{ kind: "ok" },
 					{ status: "failed" },
 				])
-					f.effectOutcomes.down([
-						[
-							"DATA",
-							{
-								...admitted,
-								state: result.kind === "ok" ? "succeeded" : "failed",
-								result,
-							} as never,
-						],
-					]);
+					f.effectOutcomes.set({
+						...admitted,
+						state: result.kind === "ok" ? "succeeded" : "failed",
+						result,
+					} as never);
 			};
 			if (early) send();
-			f.occurrences.down([["DATA", value]]);
-			f.admissions.down([["DATA", admission(value)]]);
-			f.watermarks.down([["DATA", { revisionDomain: value.revisionDomain, revision: 1 }]]);
-			f.effectProposals.down([["DATA", proposal]]);
-			f.effectAdmissions.down([["DATA", admitted]]);
+			f.occurrences.set(value);
+			f.admissions.set(admission(value));
+			f.watermarks.set({ revisionDomain: value.revisionDomain, revision: 1 });
+			f.effectProposals.set(proposal);
+			f.effectAdmissions.set(admitted);
 			if (!early) send();
 			expect(data<CausalEffectConservation>(f.messages.get("conservation")).at(-1)).toMatchObject({
 				admitted: 1,
@@ -1031,26 +995,24 @@ describe("D791 causal occurrence contract-v2", () => {
 	it("promotes a new domain's first pending revision when another domain frees capacity", () => {
 		const f = fixture({ maxOccurrences: 2 });
 		for (const value of [occurrence(1), occurrence(2)]) {
-			f.occurrences.down([["DATA", value]]);
-			f.admissions.down([["DATA", admission(value)]]);
-			f.watermarks.down([
-				["DATA", { revisionDomain: value.revisionDomain, revision: value.revision }],
-			]);
+			f.occurrences.set(value);
+			f.admissions.set(admission(value));
+			f.watermarks.set({ revisionDomain: value.revisionDomain, revision: value.revision });
 		}
 		const { digest: _digest, ...material } = occurrence(1, "new-domain-first");
 		const changed = { ...material, revisionDomain: "new-domain" };
 		const value = { ...changed, digest: causalOccurrenceDigest(changed) };
-		f.occurrences.down([["DATA", value]]);
-		f.admissions.down([["DATA", admission(value)]]);
-		f.watermarks.down([["DATA", { revisionDomain: value.revisionDomain, revision: 1 }]]);
+		f.occurrences.set(value);
+		f.admissions.set(admission(value));
+		f.watermarks.set({ revisionDomain: value.revisionDomain, revision: 1 });
 		expect(data<CausalOccurrence<string>>(f.messages.get("released"))).toHaveLength(2);
 		for (const branch of ["materialize", "audit"])
-			f.branchTerminals.down([
-				[
-					"DATA",
-					{ occurrence: refOf(occurrence(1)), branch, state: "completed", result: ok(branch) },
-				],
-			]);
+			f.branchTerminals.set({
+				occurrence: refOf(occurrence(1)),
+				branch,
+				state: "completed",
+				result: ok(branch),
+			});
 		expect(data<CausalOccurrence<string>>(f.messages.get("released"))).toEqual([
 			occurrence(1),
 			occurrence(2),
@@ -1060,7 +1022,7 @@ describe("D791 causal occurrence contract-v2", () => {
 			occurrence: refOf(value),
 			state: "current",
 		});
-		f.occurrences.down([["DATA", value]]);
+		f.occurrences.set(value);
 		expect(data<CausalOccurrence<string>>(f.messages.get("released"))).toHaveLength(3);
 		f.stop();
 	});
@@ -1071,29 +1033,24 @@ describe("D791 causal occurrence contract-v2", () => {
 			["failed", ok("bad-failure")],
 		] as const) {
 			const f = fixture({ maxOccurrences: 1 });
-			f.effectOutcomes.down([
-				[
-					"DATA",
-					{
-						occurrence: refOf(occurrence(1)),
-						effectId: "invalid",
-						requestRef: { kind: "request", id: "invalid" },
-						admissionRef: { kind: "admission", id: "invalid" },
-						proposalDigest: digest("b"),
-						state,
-						result,
-					},
-				],
-			]);
+			f.effectOutcomes.set({
+				occurrence: refOf(occurrence(1)),
+				effectId: "invalid",
+				requestRef: { kind: "request", id: "invalid" },
+				admissionRef: { kind: "admission", id: "invalid" },
+				proposalDigest: digest("b"),
+				state,
+				result,
+			});
 			expect(data<DataIssue>(f.messages.get("issues")).map((v) => v.code)).toContain(
 				"causal-occurrence/effect-outcome-mismatch",
 			);
 			const { digest: _digest, ...material } = occurrence(1, "valid-domain-first");
 			const changed = { ...material, revisionDomain: "valid-domain" };
 			const value = { ...changed, digest: causalOccurrenceDigest(changed) };
-			f.occurrences.down([["DATA", value]]);
-			f.admissions.down([["DATA", admission(value)]]);
-			f.watermarks.down([["DATA", { revisionDomain: value.revisionDomain, revision: 1 }]]);
+			f.occurrences.set(value);
+			f.admissions.set(admission(value));
+			f.watermarks.set({ revisionDomain: value.revisionDomain, revision: 1 });
 			expect(data<CausalOccurrence<string>>(f.messages.get("released"))).toEqual([value]);
 			expect(data<DataIssue>(f.messages.get("issues")).map((v) => v.code)).not.toContain(
 				"causal-occurrence/domain-bound",
@@ -1106,13 +1063,16 @@ describe("D791 causal occurrence contract-v2", () => {
 		const run = (detach: boolean, settle: boolean) => {
 			const f = fixture();
 			const value = occurrence(1);
-			f.occurrences.down([["DATA", value]]);
-			f.admissions.down([["DATA", admission(value)]]);
-			f.watermarks.down([["DATA", { revisionDomain: value.revisionDomain, revision: 1 }]]);
+			f.occurrences.set(value);
+			f.admissions.set(admission(value));
+			f.watermarks.set({ revisionDomain: value.revisionDomain, revision: 1 });
 			for (const branch of ["materialize", "audit"])
-				f.branchTerminals.down([
-					["DATA", { occurrence: value, branch, state: "completed", result: ok(branch) }],
-				]);
+				f.branchTerminals.set({
+					occurrence: value,
+					branch,
+					state: "completed",
+					result: ok(branch),
+				});
 			const proposal: CausalEffectProposal = {
 				occurrence: refOf(value),
 				effectId: "ui-effect",
@@ -1124,8 +1084,8 @@ describe("D791 causal occurrence contract-v2", () => {
 				state: "admitted",
 				admissionRef: { kind: "admission", id: "ui-admission" },
 			};
-			f.effectProposals.down([["DATA", proposal]]);
-			f.effectAdmissions.down([["DATA", admitted]]);
+			f.effectProposals.set(proposal);
+			f.effectAdmissions.set(admitted);
 			expect(data<CausalEffectConservation>(f.messages.get("conservation")).at(-1)).toMatchObject({
 				admitted: 1,
 				active: 1,
@@ -1136,17 +1096,12 @@ describe("D791 causal occurrence contract-v2", () => {
 				),
 			).toHaveLength(1);
 			if (detach) f.unsubscribeOutputs();
-			f.effectOutcomes.down([
-				[
-					"DATA",
-					{
-						...admitted,
-						admissionRef: { kind: "admission", id: "wrong" },
-						state: "failed",
-						result: error("failure"),
-					},
-				],
-			]);
+			f.effectOutcomes.set({
+				...admitted,
+				admissionRef: { kind: "admission", id: "wrong" },
+				state: "failed",
+				result: error("failure"),
+			});
 			// External inspection adds no subscription/keepalive and does not drive computation.
 			expect(f.owner.find("causal/authority")?.cache).toMatchObject({
 				kind: "fact",
@@ -1155,28 +1110,21 @@ describe("D791 causal occurrence contract-v2", () => {
 			if (detach) f.subscribeOutputs();
 			for (const values of f.messages.values()) values.length = 0;
 			if (settle) {
-				f.effectOutcomes.down([
-					["DATA", { ...admitted, state: "failed", result: error("failure") }],
-				]);
+				f.effectOutcomes.set({ ...admitted, state: "failed", result: error("failure") });
 				expect(data<CausalEffectConservation>(f.messages.get("conservation")).at(-1)).toMatchObject(
 					{ admitted: 1, active: 0, failed: 1 },
 				);
 			}
 			for (const evidenceKind of ["receipt", "trace"])
-				f.evidence.down([
-					[
-						"DATA",
-						{
-							occurrence: refOf(value),
-							evidenceKind,
-							evidenceId: evidenceKind,
-							evidenceDigest: digest("c"),
-							coverage: "included",
-						},
-					],
-				]);
+				f.evidence.set({
+					occurrence: refOf(value),
+					evidenceKind,
+					evidenceId: evidenceKind,
+					evidenceDigest: digest("c"),
+					coverage: "included",
+				});
 			// Force a fresh quiescence fact through DATA without inventing an outcome.
-			f.watermarks.down([["DATA", { revisionDomain: value.revisionDomain, revision: 2 }]]);
+			f.watermarks.set({ revisionDomain: value.revisionDomain, revision: 2 });
 			expect(data<CausalQuiescence>(f.messages.get("quiescence")).at(-1)).toMatchObject({
 				pendingEffectIds: settle ? [] : ["ui-effect"],
 			});

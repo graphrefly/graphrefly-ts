@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { batch } from "../batch/batch.js";
 import { graph } from "../graph/graph.js";
 import {
 	type AgentRequestIssued,
@@ -285,46 +286,29 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 11", () => {
 				msg[0] === "DATA" && issues.push(msg[1]);
 			}
 		});
-		workItems.down([["DATA", workItemSeed("wi-1")]]);
-		policies.down([
-			[
-				"DATA",
-				{
-					kind: "work-item-effect-mapping-policy",
-					policyId: "unreferenced-action-policy",
-					actionProposals: [{ actionKind: "close-work-item", statuses: ["completed"] }],
-				},
-			],
-		]);
-		results.down([
-			[
-				"DATA",
-				{
-					kind: "effect-run-result",
-					resultId: "run-1:result",
-					status: "completed",
-					effectRunId: "run-1",
-					sourceRefs: [
-						{ kind: "work-item-effect-mapping-policy", id: "unreferenced-action-policy" },
-					],
-					output: { kind: "verified" },
-				},
-			],
-		]);
-		evidence.down([
-			[
-				"DATA",
-				{
-					kind: "work-item-evidence-recorded",
-					evidenceId: "evidence-1",
-					workItemId: "wi-1",
-					effectRunId: "run-1",
-					effectRunResultId: "run-1:result",
-					status: "completed",
-					output: { kind: "verified" },
-				},
-			],
-		]);
+		workItems.set(workItemSeed("wi-1"));
+		policies.set({
+			kind: "work-item-effect-mapping-policy",
+			policyId: "unreferenced-action-policy",
+			actionProposals: [{ actionKind: "close-work-item", statuses: ["completed"] }],
+		});
+		results.set({
+			kind: "effect-run-result",
+			resultId: "run-1:result",
+			status: "completed",
+			effectRunId: "run-1",
+			sourceRefs: [{ kind: "work-item-effect-mapping-policy", id: "unreferenced-action-policy" }],
+			output: { kind: "verified" },
+		});
+		evidence.set({
+			kind: "work-item-evidence-recorded",
+			evidenceId: "evidence-1",
+			workItemId: "wi-1",
+			effectRunId: "run-1",
+			effectRunResultId: "run-1:result",
+			status: "completed",
+			output: { kind: "verified" },
+		});
 
 		expect(proposals).toEqual([]);
 		expect(issues).toEqual([]);
@@ -354,76 +338,51 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 11", () => {
 				msg[0] === "DATA" && issues.push(msg[1]);
 			}
 		});
-		workItems.down([["DATA", workItemSeed("wi-1")]]);
-		evidence.down([
-			[
-				"DATA",
-				{
-					kind: "work-item-evidence-recorded",
-					evidenceId: "missing-result-evidence",
-					workItemId: "wi-1",
-					effectRunId: "missing-run",
-					effectRunResultId: "missing-run:result",
-					status: "completed",
-					sourceRefs: [{ kind: "work-item-effect-mapping-policy", id: "policy-propose-missing" }],
-					output: { kind: "verified" },
-				},
-			],
-		]);
-		results.down([
-			[
-				"DATA",
-				{
-					kind: "effect-run-result",
-					resultId: "run-1:result",
-					status: "failed",
-					effectRunId: "run-1",
-					error: { kind: "issue", code: "failed", message: "failed" },
-				},
-			],
-		]);
-		evidence.down([
-			[
-				"DATA",
-				{
-					kind: "work-item-evidence-recorded",
-					evidenceId: "stale-evidence",
-					workItemId: "wi-1",
-					effectRunId: "run-1",
-					effectRunResultId: "run-1:result",
-					status: "completed",
-					sourceRefs: [{ kind: "work-item-effect-mapping-policy", id: "policy-propose-missing" }],
-					output: { kind: "verified" },
-				},
-			],
-		]);
-		results.down([
-			[
-				"DATA",
-				{
-					kind: "effect-run-result",
-					resultId: "run-2:result",
-					status: "completed",
-					effectRunId: "run-2",
-					output: { kind: "verified" },
-				},
-			],
-		]);
-		evidence.down([
-			[
-				"DATA",
-				{
-					kind: "work-item-evidence-recorded",
-					evidenceId: "missing-policy-evidence",
-					workItemId: "wi-1",
-					effectRunId: "run-2",
-					effectRunResultId: "run-2:result",
-					status: "completed",
-					sourceRefs: [{ kind: "work-item-effect-mapping-policy", id: "policy-propose-missing" }],
-					output: { kind: "verified" },
-				},
-			],
-		]);
+		workItems.set(workItemSeed("wi-1"));
+		evidence.set({
+			kind: "work-item-evidence-recorded",
+			evidenceId: "missing-result-evidence",
+			workItemId: "wi-1",
+			effectRunId: "missing-run",
+			effectRunResultId: "missing-run:result",
+			status: "completed",
+			sourceRefs: [{ kind: "work-item-effect-mapping-policy", id: "policy-propose-missing" }],
+			output: { kind: "verified" },
+		});
+		results.set({
+			kind: "effect-run-result",
+			resultId: "run-1:result",
+			status: "failed",
+			effectRunId: "run-1",
+			error: { kind: "issue", code: "failed", message: "failed" },
+		});
+		evidence.set({
+			kind: "work-item-evidence-recorded",
+			evidenceId: "stale-evidence",
+			workItemId: "wi-1",
+			effectRunId: "run-1",
+			effectRunResultId: "run-1:result",
+			status: "completed",
+			sourceRefs: [{ kind: "work-item-effect-mapping-policy", id: "policy-propose-missing" }],
+			output: { kind: "verified" },
+		});
+		results.set({
+			kind: "effect-run-result",
+			resultId: "run-2:result",
+			status: "completed",
+			effectRunId: "run-2",
+			output: { kind: "verified" },
+		});
+		evidence.set({
+			kind: "work-item-evidence-recorded",
+			evidenceId: "missing-policy-evidence",
+			workItemId: "wi-1",
+			effectRunId: "run-2",
+			effectRunResultId: "run-2:result",
+			status: "completed",
+			sourceRefs: [{ kind: "work-item-effect-mapping-policy", id: "policy-propose-missing" }],
+			output: { kind: "verified" },
+		});
 
 		expect(proposals).toEqual([]);
 		expect(issues).toEqual(
@@ -459,29 +418,19 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 11", () => {
 				msg[0] === "DATA" && issues.push(msg[1]);
 			}
 		});
-		workItems.down([["DATA", workItemSeed("wi-1")]]);
-		policies.down([
-			[
-				"DATA",
-				{
-					kind: "work-item-effect-mapping-policy",
-					policyId: "policy-propose",
-					actionProposals: [{ actionKind: "mark-ready", statuses: ["completed"] }],
-				},
-			],
-		]);
-		results.down([
-			[
-				"DATA",
-				{
-					kind: "effect-run-result",
-					resultId: "run-1:result",
-					status: "completed",
-					effectRunId: "run-1",
-					output: { kind: "verified" },
-				},
-			],
-		]);
+		workItems.set(workItemSeed("wi-1"));
+		policies.set({
+			kind: "work-item-effect-mapping-policy",
+			policyId: "policy-propose",
+			actionProposals: [{ actionKind: "mark-ready", statuses: ["completed"] }],
+		});
+		results.set({
+			kind: "effect-run-result",
+			resultId: "run-1:result",
+			status: "completed",
+			effectRunId: "run-1",
+			output: { kind: "verified" },
+		});
 		const firstEvidence: WorkItemEvidenceRecorded = {
 			kind: "work-item-evidence-recorded",
 			evidenceId: "evidence-1",
@@ -492,16 +441,11 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 11", () => {
 			sourceRefs: [{ kind: "work-item-effect-mapping-policy", id: "policy-propose" }],
 			output: { kind: "verified" },
 		};
-		evidence.down([["DATA", firstEvidence]]);
-		evidence.down([
-			[
-				"DATA",
-				{
-					...firstEvidence,
-					output: { kind: "verified", value: { replacement: true } },
-				},
-			],
-		]);
+		evidence.set(firstEvidence);
+		evidence.set({
+			...firstEvidence,
+			output: { kind: "verified", value: { replacement: true } },
+		});
 
 		expect(proposals).toHaveLength(1);
 		expect(issues.at(-1)).toMatchObject({
@@ -533,56 +477,36 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 11", () => {
 				msg[0] === "DATA" && issues.push(msg[1]);
 			}
 		});
-		workItems.down([["DATA", workItemSeed("wi-1")]]);
-		policies.down([
-			[
-				"DATA",
-				{
-					kind: "work-item-effect-mapping-policy",
-					policyId: "policy-propose",
-					actionProposals: [{ actionKind: "mark-ready", statuses: ["completed"] }],
-				},
-			],
-		]);
-		results.down([
-			[
-				"DATA",
-				{
-					kind: "effect-run-result",
-					resultId: "run-1:result",
-					status: "completed",
-					effectRunId: "run-1",
-					output: { kind: "verified" },
-				},
-			],
-		]);
-		evidence.down([
-			[
-				"DATA",
-				{
-					kind: "work-item-evidence-recorded",
-					evidenceId: "evidence-1",
-					workItemId: "wi-1",
-					effectRunId: "run-1",
-					effectRunResultId: "run-1:result",
-					status: "completed",
-					sourceRefs: [{ kind: "work-item-effect-mapping-policy", id: "policy-propose" }],
-					output: { kind: "verified" },
-				},
-			],
-		]);
-		results.down([
-			[
-				"DATA",
-				{
-					kind: "effect-run-result",
-					resultId: "run-1:result",
-					status: "failed",
-					effectRunId: "run-1",
-					error: { kind: "issue", code: "failed", message: "replacement" },
-				},
-			],
-		]);
+		workItems.set(workItemSeed("wi-1"));
+		policies.set({
+			kind: "work-item-effect-mapping-policy",
+			policyId: "policy-propose",
+			actionProposals: [{ actionKind: "mark-ready", statuses: ["completed"] }],
+		});
+		results.set({
+			kind: "effect-run-result",
+			resultId: "run-1:result",
+			status: "completed",
+			effectRunId: "run-1",
+			output: { kind: "verified" },
+		});
+		evidence.set({
+			kind: "work-item-evidence-recorded",
+			evidenceId: "evidence-1",
+			workItemId: "wi-1",
+			effectRunId: "run-1",
+			effectRunResultId: "run-1:result",
+			status: "completed",
+			sourceRefs: [{ kind: "work-item-effect-mapping-policy", id: "policy-propose" }],
+			output: { kind: "verified" },
+		});
+		results.set({
+			kind: "effect-run-result",
+			resultId: "run-1:result",
+			status: "failed",
+			effectRunId: "run-1",
+			error: { kind: "issue", code: "failed", message: "replacement" },
+		});
 
 		expect(proposals).toHaveLength(1);
 		expect(issues.at(-1)).toMatchObject({
@@ -608,48 +532,33 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 11", () => {
 				msg[0] === "DATA" && proposals.push(msg[1] as WorkItemDomainActionProposal);
 			}
 		});
-		workItems.down([["DATA", workItemSeed("wi-1")]]);
-		policies.down([
-			[
-				"DATA",
-				{
-					kind: "work-item-effect-mapping-policy",
-					policyId: "policy-propose",
-					actionProposals: [
-						{ actionKind: "default-payload" },
-						{ actionKind: "result-ref", payloadFrom: "effect-run-result" },
-						{ actionKind: "static-payload", payload: { approvedByPolicy: true } },
-					],
-				},
+		workItems.set(workItemSeed("wi-1"));
+		policies.set({
+			kind: "work-item-effect-mapping-policy",
+			policyId: "policy-propose",
+			actionProposals: [
+				{ actionKind: "default-payload" },
+				{ actionKind: "result-ref", payloadFrom: "effect-run-result" },
+				{ actionKind: "static-payload", payload: { approvedByPolicy: true } },
 			],
-		]);
-		results.down([
-			[
-				"DATA",
-				{
-					kind: "effect-run-result",
-					resultId: "run-1:result",
-					status: "completed",
-					effectRunId: "run-1",
-					output: { kind: "verified", value: { ok: true } },
-				},
-			],
-		]);
-		evidence.down([
-			[
-				"DATA",
-				{
-					kind: "work-item-evidence-recorded",
-					evidenceId: "evidence-1",
-					workItemId: "wi-1",
-					effectRunId: "run-1",
-					effectRunResultId: "run-1:result",
-					status: "completed",
-					sourceRefs: [{ kind: "work-item-effect-mapping-policy", id: "policy-propose" }],
-					output: { kind: "verified", value: { ok: true } },
-				},
-			],
-		]);
+		});
+		results.set({
+			kind: "effect-run-result",
+			resultId: "run-1:result",
+			status: "completed",
+			effectRunId: "run-1",
+			output: { kind: "verified", value: { ok: true } },
+		});
+		evidence.set({
+			kind: "work-item-evidence-recorded",
+			evidenceId: "evidence-1",
+			workItemId: "wi-1",
+			effectRunId: "run-1",
+			effectRunResultId: "run-1:result",
+			status: "completed",
+			sourceRefs: [{ kind: "work-item-effect-mapping-policy", id: "policy-propose" }],
+			output: { kind: "verified", value: { ok: true } },
+		});
 
 		expect(proposals.find((proposal) => proposal.actionKind === "default-payload")?.payload).toBe(
 			undefined,
@@ -690,21 +599,16 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 11", () => {
 				msg[0] === "DATA" && views.push(msg[1]);
 			}
 		});
-		workItems.down([["DATA", workItemSeed("wi-other")]]);
+		workItems.set(workItemSeed("wi-other"));
 
-		effectRequests.down([
-			[
-				"DATA",
-				{
-					kind: "work-item-effect-requested",
-					requestId: "wi-effect-1",
-					workItemId: "wi-missing",
-					effectRunId: "run-1",
-					effectKind: "verification",
-					goal: { kind: "verify" },
-				},
-			],
-		]);
+		effectRequests.set({
+			kind: "work-item-effect-requested",
+			requestId: "wi-effect-1",
+			workItemId: "wi-missing",
+			effectRunId: "run-1",
+			effectKind: "verification",
+			goal: { kind: "verify" },
+		});
 
 		expect(seededRuns).toEqual([]);
 		expect(issues.at(-1)).toMatchObject({ code: "unknown-work-item-effect-request" });
@@ -713,7 +617,7 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 11", () => {
 				.pendingEffectRequests,
 		).toEqual([]);
 
-		workItems.down([["DATA", workItemSeed("wi-missing")]]);
+		workItems.set(workItemSeed("wi-missing"));
 		expect(seededRuns).toEqual([]);
 		expect(
 			(views.at(-1) as { pendingEffectRequests: readonly WorkItemEffectRequested[] })
@@ -746,32 +650,26 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 11", () => {
 				msg[0] === "DATA" && views.push(msg[1]);
 			}
 		});
-		workItems.down([["DATA", workItemSeed("wi-1")]]);
+		workItems.set(workItemSeed("wi-1"));
 
-		effectRequests.down([
-			[
-				"DATA",
-				{
-					kind: "work-item-effect-requested",
-					requestId: "wi-effect-1",
-					workItemId: "wi-1",
-					effectRunId: "run-1",
-					effectKind: "verification",
-					goal: { kind: "verify" },
-				},
-			],
-			[
-				"DATA",
-				{
-					kind: "work-item-effect-requested",
-					requestId: "wi-effect-2",
-					workItemId: "wi-1",
-					effectRunId: "run-1",
-					effectKind: "verification",
-					goal: { kind: "verify-again" },
-				},
-			],
-		]);
+		batch(() => {
+			effectRequests.set({
+				kind: "work-item-effect-requested",
+				requestId: "wi-effect-1",
+				workItemId: "wi-1",
+				effectRunId: "run-1",
+				effectKind: "verification",
+				goal: { kind: "verify" },
+			});
+			effectRequests.set({
+				kind: "work-item-effect-requested",
+				requestId: "wi-effect-2",
+				workItemId: "wi-1",
+				effectRunId: "run-1",
+				effectKind: "verification",
+				goal: { kind: "verify-again" },
+			});
+		});
 
 		expect(seededRuns).toHaveLength(1);
 		expect(issues.at(-1)).toMatchObject({ code: "duplicate-work-item-effect-run" });
@@ -825,31 +723,23 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 11", () => {
 			}
 		});
 
-		policies.down([
-			[
-				"DATA",
-				{
-					kind: "work-item-domain-action-admission-policy",
-					policyId: "admit-ready",
-					actionKinds: ["mark-ready"],
-					allowedOutcomes: ["admit"],
-				},
-			],
-		]);
-		proposals.down([["DATA", workItemActionProposal("proposal-1", "mark-ready")]]);
-		decisions.down([
-			[
-				"DATA",
-				workItemAdmissionDecision("decision-1", "admission-1", "proposal-1", "admit", {
-					policyId: "admit-ready",
-					decidedAtMs: 1199,
-					sourceRefs: [
-						{ kind: "work-item-domain-action-proposal", id: "proposal-1" },
-						{ kind: "work-item-domain-action-admission-policy", id: "admit-ready" },
-					],
-				}),
-			],
-		]);
+		policies.set({
+			kind: "work-item-domain-action-admission-policy",
+			policyId: "admit-ready",
+			actionKinds: ["mark-ready"],
+			allowedOutcomes: ["admit"],
+		});
+		proposals.set(workItemActionProposal("proposal-1", "mark-ready"));
+		decisions.set(
+			workItemAdmissionDecision("decision-1", "admission-1", "proposal-1", "admit", {
+				policyId: "admit-ready",
+				decidedAtMs: 1199,
+				sourceRefs: [
+					{ kind: "work-item-domain-action-proposal", id: "proposal-1" },
+					{ kind: "work-item-domain-action-admission-policy", id: "admit-ready" },
+				],
+			}),
+		);
 
 		expect(issues).toEqual([]);
 		expect(admissions).toEqual([
@@ -910,37 +800,33 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 11", () => {
 			}
 		});
 
-		proposals.down([
-			["DATA", workItemActionProposal("proposal-reject", "mark-ready")],
-			["DATA", workItemActionProposal("proposal-defer", "mark-ready")],
-			["DATA", workItemActionProposal("proposal-merge-target", "mark-ready")],
-			["DATA", workItemActionProposal("proposal-merge", "mark-ready")],
-		]);
-		decisions.down([
-			[
-				"DATA",
+		batch(() => {
+			proposals.set(workItemActionProposal("proposal-reject", "mark-ready"));
+			proposals.set(workItemActionProposal("proposal-defer", "mark-ready"));
+			proposals.set(workItemActionProposal("proposal-merge-target", "mark-ready"));
+			proposals.set(workItemActionProposal("proposal-merge", "mark-ready"));
+		});
+		batch(() => {
+			decisions.set(
 				workItemAdmissionDecision(
 					"decision-reject",
 					"admission-reject",
 					"proposal-reject",
 					"reject",
 				),
-			],
-			[
-				"DATA",
+			);
+			decisions.set(
 				workItemAdmissionDecision("decision-defer", "admission-defer", "proposal-defer", "defer"),
-			],
-			[
-				"DATA",
+			);
+			decisions.set(
 				workItemAdmissionDecision(
 					"decision-merge-target",
 					"admission-merge-target",
 					"proposal-merge-target",
 					"admit",
 				),
-			],
-			[
-				"DATA",
+			);
+			decisions.set(
 				workItemAdmissionDecision("decision-merge", "admission-merge", "proposal-merge", "merge", {
 					targetProposalId: "proposal-merge-target",
 					sourceRefs: [
@@ -948,8 +834,8 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 11", () => {
 						{ kind: "work-item-domain-action-proposal", id: "proposal-merge-target" },
 					],
 				}),
-			],
-		]);
+			);
+		});
 
 		expect(admissions.map((admission) => admission.state)).toEqual([
 			"rejected",

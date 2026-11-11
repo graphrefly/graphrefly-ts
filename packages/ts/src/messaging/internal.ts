@@ -2,7 +2,7 @@ import { deferAfterBatchForTarget } from "../batch/batch.js";
 import type { NodeFn } from "../ctx/types.js";
 import type { Graph } from "../graph/graph.js";
 import type { AttachableInput } from "../node/attachable-input.js";
-import type { Node } from "../node/node.js";
+import type { Node, StateNode } from "../node/node.js";
 import { validateNodeRewire } from "../node/node-rewire-runtime.js";
 import { nodeRuntimeHost } from "../node/node-runtime-host.js";
 import type { MessageBusCommand } from "./index.js";
@@ -12,6 +12,7 @@ export interface MessageBusInternalState {
 	readonly name: string;
 	readonly commandBody: NodeFn;
 	readonly commandSources: AttachableInput;
+	readonly publish: StateNode<MessageBusCommand>;
 }
 
 const busStates = new WeakMap<object, MessageBusInternalState>();
@@ -47,21 +48,11 @@ export function attachMessageBusDeferredCommandSink(
 	const state = getMessageBusState(bus);
 	if (state === undefined) throw new Error("messageBus: unknown implementation");
 	if (state.graph !== graph) throw new Error("messageBus: command sink graph must match");
-	const busCommands = (bus as { readonly commands?: Node<MessageBusCommand> }).commands;
-	if (busCommands === undefined) throw new Error("messageBus: missing commands node");
-	const boundary = commands as Node<MessageBusCommand> & {
-		__deferBoundary?: (fn: () => void) => void;
-	};
+	// A command reaches the bus as a write to its publish input, a request that runs after the wave
+	// that delivered it (R-request-order).
 	const unsubscribe = commands.subscribe((incoming) => {
-		for (const msg of incoming) {
-			if (msg[0] !== "DATA") {
-				continue;
-			}
-			const command = msg[1] as MessageBusCommand;
-			const send = () => busCommands.down([["DATA", command]]);
-			if (boundary.__deferBoundary === undefined) send();
-			else boundary.__deferBoundary(send);
-		}
+		for (const msg of incoming)
+			if (msg[0] === "DATA") state.publish.set(msg[1] as MessageBusCommand);
 	});
 	return unsubscribe;
 }

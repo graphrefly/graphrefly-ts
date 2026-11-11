@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { batch } from "../batch/batch.js";
 import {
 	type PostgresqlDriverQueryRequest,
 	type PostgresqlDriverQueryResult,
@@ -202,13 +203,13 @@ describe("PostgreSQL-compatible tool provider (D602)", () => {
 		const issues = collect<{ code: string }>(runtime.issues);
 		const audits = collect<unknown>(runtime.audit);
 
-		inputs.down([["DATA", input()]]);
+		inputs.set(input());
 		await settle();
 		expect(calls).toHaveLength(0);
-		admitted.down([
-			["DATA", run()],
-			["DATA", run()],
-		]);
+		batch(() => {
+			admitted.set(run());
+			admitted.set(run());
+		});
 		await settle();
 
 		expect(calls).toHaveLength(1);
@@ -265,23 +266,18 @@ describe("PostgreSQL-compatible tool provider (D602)", () => {
 			runId: "candidate:postgresql:1",
 			reason: "manual",
 		});
-		inputs.down([["DATA", ready]]);
-		candidates.down([["DATA", candidate]]);
+		inputs.set(ready);
+		candidates.set(candidate);
 		await settle();
 		expect(calls).toBe(0);
-		decisions.down([
-			[
-				"DATA",
-				{
-					kind: "tool-provider-run-admission-decision",
-					decisionId: "decision:postgresql:1",
-					proposalId: compoundTupleKey("tool-provider-run-admission-proposal", [candidate.runId]),
-					admissionId: "admission:postgresql:1",
-					outcome: "admit",
-					approvedRunId: "run:postgresql:approved:1",
-				},
-			],
-		]);
+		decisions.set({
+			kind: "tool-provider-run-admission-decision",
+			decisionId: "decision:postgresql:1",
+			proposalId: compoundTupleKey("tool-provider-run-admission-proposal", [candidate.runId]),
+			admissionId: "admission:postgresql:1",
+			outcome: "admit",
+			approvedRunId: "run:postgresql:approved:1",
+		});
 		await settle();
 		expect(calls).toBe(1);
 		await runtime.dispose();
@@ -306,8 +302,8 @@ describe("PostgreSQL-compatible tool provider (D602)", () => {
 				}),
 			});
 			const incomplete = { ...run(), [field]: undefined };
-			inputs.down([["DATA", input()]]);
-			admitted.down([["DATA", incomplete]]);
+			inputs.set(input());
+			admitted.set(incomplete);
 			await settle();
 			expect(calls, field).toBe(0);
 			await runtime.dispose();
@@ -336,12 +332,11 @@ describe("PostgreSQL-compatible tool provider (D602)", () => {
 		});
 		const outcomes = collect<ExecutorOutcome>(runtime.outcomes);
 		const issues = collect<{ code: string }>(runtime.issues);
-		inputs.down([["DATA", input()]]);
-		admitted.down([
-			["DATA", run()],
-			["DATA", run({ requestId: "request:conflict" })],
-			[
-				"DATA",
+		inputs.set(input());
+		batch(() => {
+			admitted.set(run());
+			admitted.set(run({ requestId: "request:conflict" }));
+			admitted.set(
 				run({
 					runId: "run:environment-conflict",
 					metadata: {
@@ -352,9 +347,8 @@ describe("PostgreSQL-compatible tool provider (D602)", () => {
 						executionSessionEpoch: "session:1",
 					},
 				}),
-			],
-			[
-				"DATA",
+			);
+			admitted.set(
 				run({
 					runId: "run:environment-conflict",
 					metadata: {
@@ -365,8 +359,8 @@ describe("PostgreSQL-compatible tool provider (D602)", () => {
 						executionSessionEpoch: "session:2",
 					},
 				}),
-			],
-		]);
+			);
+		});
 		await settle();
 		expect(
 			issues.filter((entry) => entry.code === "postgresql-run-coordinate-conflict"),
@@ -390,13 +384,10 @@ describe("PostgreSQL-compatible tool provider (D602)", () => {
 				arguments: { ...args(), sql: "SELECT leaked" } as never,
 			},
 		});
-		inputs.down([["DATA", sqlBearing]]);
-		admitted.down([
-			[
-				"DATA",
-				run({ runId: "run:sql", adapterInputId: "adapter-input:sql", requestId: "request:sql" }),
-			],
-		]);
+		inputs.set(sqlBearing);
+		admitted.set(
+			run({ runId: "run:sql", adapterInputId: "adapter-input:sql", requestId: "request:sql" }),
+		);
 		await settle();
 		expect(outcomes.at(-1)).toEqual(
 			expect.objectContaining({
@@ -443,8 +434,8 @@ describe("PostgreSQL-compatible tool provider (D602)", () => {
 			const outcomes = collect<ExecutorOutcome>(runtime.outcomes);
 			const nextArgs =
 				scenario === "parameter" ? { ...args(), parameters: ["x".repeat(5000)] } : args();
-			inputs.down([["DATA", input({ toolCall: { ...input().toolCall!, arguments: nextArgs } })]]);
-			admitted.down([["DATA", run()]]);
+			inputs.set(input({ toolCall: { ...input().toolCall!, arguments: nextArgs } }));
+			admitted.set(run());
 			await settle();
 			expect(outcomes.at(-1)).toEqual(expect.objectContaining({ kind: "failure" }));
 			if (scenario === "parameter") expect(queried).toBe(0);
@@ -498,8 +489,8 @@ describe("PostgreSQL-compatible tool provider (D602)", () => {
 			},
 		});
 		const outcomes = collect<ExecutorOutcome>(runtime.outcomes);
-		inputs.down([["DATA", input()]]);
-		admitted.down([["DATA", run()]]);
+		inputs.set(input());
+		admitted.set(run());
 		await settle();
 		expect(outcomes).toEqual([
 			expect.objectContaining({
@@ -529,16 +520,13 @@ describe("PostgreSQL-compatible tool provider (D602)", () => {
 			}),
 		});
 		const mutable = structuredClone(args());
-		inputs.down([
-			[
-				"DATA",
-				input({
-					toolCall: { kind: "tool-call", toolName: "postgresql.query", arguments: mutable },
-				}),
-			],
-		]);
+		inputs.set(
+			input({
+				toolCall: { kind: "tool-call", toolName: "postgresql.query", arguments: mutable },
+			}),
+		);
 		(mutable.parameters as PostgresqlParameter[])[0] = "mutated";
-		admitted.down([["DATA", run()]]);
+		admitted.set(run());
 		await settle();
 		expect(received[0]?.parameters).toEqual(["west", 7]);
 
@@ -551,26 +539,20 @@ describe("PostgreSQL-compatible tool provider (D602)", () => {
 				return "SELECT leaked";
 			},
 		});
-		inputs.down([
-			[
-				"DATA",
-				input({
-					adapterInputId: "adapter-input:hostile",
-					requestId: "request:hostile",
-					toolCall: { kind: "tool-call", toolName: "postgresql.query", arguments: hostile },
-				}),
-			],
-		]);
-		admitted.down([
-			[
-				"DATA",
-				run({
-					runId: "run:hostile",
-					adapterInputId: "adapter-input:hostile",
-					requestId: "request:hostile",
-				}),
-			],
-		]);
+		inputs.set(
+			input({
+				adapterInputId: "adapter-input:hostile",
+				requestId: "request:hostile",
+				toolCall: { kind: "tool-call", toolName: "postgresql.query", arguments: hostile },
+			}),
+		);
+		admitted.set(
+			run({
+				runId: "run:hostile",
+				adapterInputId: "adapter-input:hostile",
+				requestId: "request:hostile",
+			}),
+		);
 		await settle();
 		expect(getterCalled).toBe(false);
 		expect(received).toHaveLength(1);
@@ -603,8 +585,8 @@ describe("PostgreSQL-compatible tool provider (D602)", () => {
 			}),
 		});
 		const outcomes = collect<ExecutorOutcome>(runtime.outcomes);
-		inputs.down([["DATA", input()]]);
-		admitted.down([["DATA", run()]]);
+		inputs.set(input());
+		admitted.set(run());
 		await settle();
 		expect(calls).toBe(1);
 		expect(outcomes).toEqual([
@@ -638,10 +620,10 @@ describe("PostgreSQL-compatible tool provider (D602)", () => {
 		const outcomes = collect<ExecutorOutcome>(runtime.outcomes);
 		const proposals = collect<{ proposalId: string }>(runtime.cancellationProposals);
 		const admissions = collect<{ state: string }>(runtime.cancellationAdmissions);
-		inputs.down([["DATA", input()]]);
-		admitted.down([["DATA", run()]]);
+		inputs.set(input());
+		admitted.set(run());
 		await settle();
-		cancellationRequests.down([["DATA", cancellation("operation:wrong")]]);
+		cancellationRequests.set(cancellation("operation:wrong"));
 		await settle();
 		expect(proposals).toHaveLength(0);
 		let leakedGetter = false;
@@ -655,26 +637,21 @@ describe("PostgreSQL-compatible tool provider (D602)", () => {
 				return "private";
 			},
 		});
-		cancellationRequests.down([["DATA", exactCancellation]]);
+		cancellationRequests.set(exactCancellation);
 		await settle();
 		expect(proposals).toHaveLength(0);
 		expect(leakedGetter).toBe(false);
 		expect(JSON.stringify(proposals)).not.toContain("connectionString");
-		cancellationRequests.down([["DATA", cancellation("operation:1")]]);
+		cancellationRequests.set(cancellation("operation:1"));
 		await settle();
 		expect(proposals).toHaveLength(1);
 		expect(outcomes).toHaveLength(0);
-		cancellationDecisions.down([
-			[
-				"DATA",
-				{
-					kind: "postgresql-run-cancellation-decision",
-					decisionId: "cancel-decision:1",
-					proposalId: proposals[0]!.proposalId,
-					outcome: "admit",
-				},
-			],
-		]);
+		cancellationDecisions.set({
+			kind: "postgresql-run-cancellation-decision",
+			decisionId: "cancel-decision:1",
+			proposalId: proposals[0]!.proposalId,
+			outcome: "admit",
+		});
 		await settle();
 		expect(admissions).toEqual([expect.objectContaining({ state: "admitted" })]);
 		expect(outcomes).toEqual([
@@ -770,8 +747,8 @@ async function timeoutRuntime(ownership: "runtime-owned" | "caller-owned") {
 		),
 	});
 	const outcomes = collect<ExecutorOutcome>(runtime.outcomes);
-	inputs.down([["DATA", input()]]);
-	admitted.down([["DATA", run()]]);
+	inputs.set(input());
+	admitted.set(run());
 	await new Promise<void>((resolve) => setTimeout(resolve, 15));
 	await settle();
 	return { runtime, outcomes, closed: () => closeCount, released: () => releaseCount };

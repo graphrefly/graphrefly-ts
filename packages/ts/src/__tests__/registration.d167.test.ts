@@ -18,7 +18,7 @@ import { map } from "../graph/operators.js";
 import { type MessageBusCommand, messageBus, toTopic } from "../messaging/index.js";
 import { attachMessageBusCommandSource } from "../messaging/internal.js";
 import { NodeCore } from "../node/core.js";
-import { Node } from "../node/node.js";
+import { Node, type StateNode } from "../node/node.js";
 import { nodeRuntimeHost } from "../node/node-runtime-host.js";
 import { ColdNodeAcquisitionError } from "../node/owned-acquisition.js";
 import {
@@ -52,10 +52,12 @@ function busFixture() {
 	const bus = messageBus(graph, { name: "bus", topics: ["t"] });
 	const a = graph.node<MessageBusCommand>([], null, { name: "a" });
 	const b = graph.node<MessageBusCommand>([], null, { name: "b" });
-	return { graph, bus, a, b };
+	// The bus's own publish input is its first declared dependency; attached sources follow it.
+	const publish = graph.find("bus/publish") as StateNode<MessageBusCommand>;
+	return { graph, bus, a, b, publish };
 }
 function pending(bus: ReturnType<typeof messageBus>) {
-	bus.commands.down([["DATA", { kind: "declareTopic", topic: "t" }]]);
+	(bus.commands.deps[0] as StateNode<MessageBusCommand>).set({ kind: "declareTopic", topic: "t" });
 }
 
 describe("D167 issued runtime identity and lifecycle", () => {
@@ -345,12 +347,12 @@ describe("D167 exact command binding and existing D110 batch fate", () => {
 		const f = busFixture();
 		const foreign = new Graph().node<MessageBusCommand>();
 		expect(() => attachMessageBusCommandSource(f.graph, f.bus, foreign)).toThrow();
-		expect(f.bus.commands.deps).toEqual([]);
+		expect(f.bus.commands.deps).toEqual([f.publish]);
 		const dispose = attachMessageBusCommandSource(f.graph, f.bus, f.a);
-		expect(f.bus.commands.deps).toEqual([f.a]);
+		expect(f.bus.commands.deps).toEqual([f.publish, f.a]);
 		dispose();
 		dispose();
-		expect(f.bus.commands.deps).toEqual([]);
+		expect(f.bus.commands.deps).toEqual([f.publish]);
 	});
 	it.each([false, true])("two deferred adds use actual deps; rollback=%s", (rollback) => {
 		const f = busFixture();
@@ -358,10 +360,10 @@ describe("D167 exact command binding and existing D110 batch fate", () => {
 			pending(f.bus);
 			attachMessageBusCommandSource(f.graph, f.bus, f.a);
 			attachMessageBusCommandSource(f.graph, f.bus, f.b);
-			expect(f.bus.commands.deps).toEqual([]);
+			expect(f.bus.commands.deps).toEqual([f.publish]);
 			if (rollback) ctx.rollback();
 		});
-		expect(f.bus.commands.deps).toEqual(rollback ? [] : [f.a, f.b]);
+		expect(f.bus.commands.deps).toEqual(rollback ? [f.publish] : [f.publish, f.a, f.b]);
 		if (!rollback) {
 			const seen: unknown[] = [];
 			const unsubscribe = f.bus.commands.subscribe((incoming) => {
@@ -370,7 +372,7 @@ describe("D167 exact command binding and existing D110 batch fate", () => {
 				}
 			});
 			const command: MessageBusCommand = { kind: "declareTopic", topic: "later" };
-			f.b.down([["DATA", command]]);
+			f.b.set(command);
 			expect(seen).toContainEqual(command);
 			unsubscribe();
 		}
@@ -396,7 +398,7 @@ describe("D167 exact command binding and existing D110 batch fate", () => {
 			const remove = attachMessageBusCommandSource(f.graph, f.bus, a);
 			remove();
 		});
-		expect(f.bus.commands.deps).toEqual([]);
+		expect(f.bus.commands.deps).toEqual([f.publish]);
 		expect(activations).toEqual(["add", "remove"]);
 	});
 	it("rolled-back removal remains removable through the same disposer", () => {
@@ -407,9 +409,9 @@ describe("D167 exact command binding and existing D110 batch fate", () => {
 			remove();
 			ctx.rollback();
 		});
-		expect(f.bus.commands.deps).toEqual([f.a]);
+		expect(f.bus.commands.deps).toEqual([f.publish, f.a]);
 		remove();
-		expect(f.bus.commands.deps).toEqual([]);
+		expect(f.bus.commands.deps).toEqual([f.publish]);
 	});
 	it.each([
 		false,
@@ -429,9 +431,9 @@ describe("D167 exact command binding and existing D110 batch fate", () => {
 			});
 		else add();
 		duplicate();
-		expect(f.bus.commands.deps).toEqual([f.a]);
+		expect(f.bus.commands.deps).toEqual([f.publish, f.a]);
 		first();
-		expect(f.bus.commands.deps).toEqual([]);
+		expect(f.bus.commands.deps).toEqual([f.publish]);
 	});
 	it("retains committed deps when new dependency activation throws", () => {
 		const f = busFixture();
@@ -444,7 +446,7 @@ describe("D167 exact command binding and existing D110 batch fate", () => {
 			throw new Error("activation");
 		});
 		expect(() => attachMessageBusCommandSource(f.graph, f.bus, source)).toThrow("activation");
-		expect(f.bus.commands.deps).toEqual([source]);
+		expect(f.bus.commands.deps).toEqual([f.publish, source]);
 		expect(subscribe).not.toHaveBeenCalled();
 	});
 	it("public toTopic release survives a rolled-back remove", () => {
@@ -465,7 +467,7 @@ describe("D167 exact command binding and existing D110 batch fate", () => {
 		const first = attachMessageBusCommandSource(f.graph, f.bus, f.a);
 		const duplicate = attachMessageBusCommandSource(f.graph, f.bus, f.a);
 		first();
-		f.bus.commands.down([["COMPLETE"]]);
+		f.publish.complete();
 		expect(first).not.toThrow();
 		expect(duplicate).not.toThrow();
 	});

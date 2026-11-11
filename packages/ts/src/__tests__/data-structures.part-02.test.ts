@@ -18,6 +18,7 @@ import { mergeReactiveLogs, reactiveLog, scanLog } from "../graph/data-structure
 import { graph } from "../graph/graph.js";
 import { Dispatcher, type Message } from "../index.js";
 import type { Node } from "../node/node.js";
+import { asState } from "./helpers/as-state.js";
 import { rewireOwnedNode } from "./helpers/owned-rewire.js";
 
 const _types = (m: Message[]) => m.map((x) => x[0]);
@@ -44,7 +45,7 @@ class CountingDispatcher extends Dispatcher {
 
 /** Request one snapshot: a live write to the collection's request state (graphrefly-ts:D172). */
 function demand(request: Node<true>): void {
-	request.down([["DATA", true]]);
+	asState(request).set(true);
 }
 
 describe("reactiveIndex (D60 #4) — ordered snapshot + Z reverse-lookup", () => {

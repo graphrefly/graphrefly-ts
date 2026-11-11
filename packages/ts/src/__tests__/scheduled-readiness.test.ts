@@ -17,15 +17,15 @@ describe("scheduledReadinessProjector (D424)", () => {
 		const harness = createHarness();
 		const schedule = readiness("sched-pending", 1_000);
 
-		harness.schedules.down([["DATA", schedule]]);
+		harness.schedules.set(schedule);
 		expect(harness.seen.pending).toEqual([
 			expect.objectContaining({ scheduleId: "sched-pending", readyAtMs: 1_000 }),
 		]);
 		expect(harness.seen.ready).toEqual([]);
 
-		harness.clocks.down([["DATA", clock(999)]]);
+		harness.clocks.set(clock(999));
 		expect(harness.seen.ready).toEqual([]);
-		harness.clocks.down([["DATA", clock(999.5)]]);
+		harness.clocks.set(clock(999.5));
 		expect(harness.seen.ready).toEqual([]);
 		expect(
 			harness.seen.status.filter(
@@ -46,7 +46,7 @@ describe("scheduledReadinessProjector (D424)", () => {
 			expect.objectContaining({ scheduleId: "sched-pending", state: "pending", nowMs: 999.5 }),
 		);
 
-		harness.clocks.down([["DATA", clock(1_000)]]);
+		harness.clocks.set(clock(1_000));
 		expect(harness.seen.ready).toEqual([
 			expect.objectContaining({ scheduleId: "sched-pending", readyAtMs: 1_000, nowMs: 1_000 }),
 		]);
@@ -56,10 +56,10 @@ describe("scheduledReadinessProjector (D424)", () => {
 		const harness = createHarness();
 		const schedule = readiness("sched-replay", 10);
 
-		harness.schedules.down([["DATA", schedule]]);
-		harness.clocks.down([["DATA", clock(10)]]);
-		harness.schedules.down([["DATA", schedule]]);
-		harness.clocks.down([["DATA", clock(10)]]);
+		harness.schedules.set(schedule);
+		harness.clocks.set(clock(10));
+		harness.schedules.set(schedule);
+		harness.clocks.set(clock(10));
 
 		expect(harness.seen.ready).toHaveLength(1);
 		expect(harness.seen.status.filter((status) => status.state === "ready")).toHaveLength(1);
@@ -70,22 +70,22 @@ describe("scheduledReadinessProjector (D424)", () => {
 
 	it("handles clock before schedule and schedule before clock", () => {
 		const first = createHarness();
-		first.clocks.down([["DATA", clock(100)]]);
-		first.schedules.down([["DATA", readiness("clock-first", 100)]]);
+		first.clocks.set(clock(100));
+		first.schedules.set(readiness("clock-first", 100));
 		expect(first.seen.ready).toEqual([expect.objectContaining({ scheduleId: "clock-first" })]);
 
 		const second = createHarness();
-		second.schedules.down([["DATA", readiness("schedule-first", 100)]]);
-		second.clocks.down([["DATA", clock(100)]]);
+		second.schedules.set(readiness("schedule-first", 100));
+		second.clocks.set(clock(100));
 		expect(second.seen.ready).toEqual([expect.objectContaining({ scheduleId: "schedule-first" })]);
 	});
 
 	it("does not un-ready or duplicate ready after clock rollback", () => {
 		const harness = createHarness();
-		harness.schedules.down([["DATA", readiness("rollback", 100)]]);
-		harness.clocks.down([["DATA", clock(100)]]);
-		harness.clocks.down([["DATA", clock(90, "clock-rollback")]]);
-		harness.clocks.down([["DATA", clock(110)]]);
+		harness.schedules.set(readiness("rollback", 100));
+		harness.clocks.set(clock(100));
+		harness.clocks.set(clock(90, "clock-rollback"));
+		harness.clocks.set(clock(110));
 
 		expect(harness.seen.ready).toHaveLength(1);
 		expect(harness.seen.issues).toEqual([
@@ -96,17 +96,12 @@ describe("scheduledReadinessProjector (D424)", () => {
 
 	it("emits visible issue/status for malformed schedules and no ready fact", () => {
 		const harness = createHarness();
-		harness.schedules.down([
-			[
-				"DATA",
-				{
-					kind: "scheduled-readiness-requested",
-					scheduleId: "bad-schedule",
-					sourceRefs: [{ kind: "source", id: "bad" }],
-				} as ScheduledReadinessRequested,
-			],
-		]);
-		harness.clocks.down([["DATA", clock(100)]]);
+		harness.schedules.set({
+			kind: "scheduled-readiness-requested",
+			scheduleId: "bad-schedule",
+			sourceRefs: [{ kind: "source", id: "bad" }],
+		} as ScheduledReadinessRequested);
+		harness.clocks.set(clock(100));
 
 		expect(harness.seen.ready).toEqual([]);
 		expect(harness.seen.issues).toEqual([
@@ -119,8 +114,8 @@ describe("scheduledReadinessProjector (D424)", () => {
 
 	it("emits visible issues for non-object schedule and clock facts", () => {
 		const harness = createHarness();
-		harness.schedules.down([["DATA", null as unknown as ScheduledReadinessRequested]]);
-		harness.clocks.down([["DATA", null as unknown as ScheduledReadinessClock]]);
+		harness.schedules.set(null as unknown as ScheduledReadinessRequested);
+		harness.clocks.set(null as unknown as ScheduledReadinessClock);
 
 		expect(harness.seen.issues).toEqual(
 			expect.arrayContaining([
@@ -136,8 +131,8 @@ describe("scheduledReadinessProjector (D424)", () => {
 	it("fails closed for non-object malformed schedule and clock facts", () => {
 		const harness = createHarness();
 
-		harness.schedules.down([["DATA", null as unknown as ScheduledReadinessRequested]]);
-		harness.clocks.down([["DATA", null as unknown as ScheduledReadinessClock]]);
+		harness.schedules.set(null as unknown as ScheduledReadinessRequested);
+		harness.clocks.set(null as unknown as ScheduledReadinessClock);
 
 		expect(harness.seen.ready).toEqual([]);
 		expect(harness.seen.issues).toEqual(
@@ -151,24 +146,14 @@ describe("scheduledReadinessProjector (D424)", () => {
 	it("fails closed for malformed schedule and clock ref fields", () => {
 		const harness = createHarness();
 
-		harness.schedules.down([
-			[
-				"DATA",
-				{
-					...readiness("bad-refs", 10),
-					sourceRefs: { kind: "not-array", id: "bad" },
-				} as unknown as ScheduledReadinessRequested,
-			],
-		]);
-		harness.clocks.down([
-			[
-				"DATA",
-				{
-					...clock(10),
-					sourceRefs: { kind: "not-array", id: "bad-clock" },
-				} as unknown as ScheduledReadinessClock,
-			],
-		]);
+		harness.schedules.set({
+			...readiness("bad-refs", 10),
+			sourceRefs: { kind: "not-array", id: "bad" },
+		} as unknown as ScheduledReadinessRequested);
+		harness.clocks.set({
+			...clock(10),
+			sourceRefs: { kind: "not-array", id: "bad-clock" },
+		} as unknown as ScheduledReadinessClock);
 
 		expect(harness.seen.ready).toEqual([]);
 		expect(harness.seen.issues).toEqual(
@@ -182,18 +167,13 @@ describe("scheduledReadinessProjector (D424)", () => {
 	it("rejects stale subjectRef and notBeforeMs aliases", () => {
 		const harness = createHarness();
 
-		harness.schedules.down([
-			[
-				"DATA",
-				{
-					kind: "scheduled-readiness-requested",
-					scheduleId: "stale-aliases",
-					subjectRef: { kind: "subject", id: "stale-aliases" },
-					notBeforeMs: 10,
-				} as unknown as ScheduledReadinessRequested,
-			],
-		]);
-		harness.clocks.down([["DATA", clock(10)]]);
+		harness.schedules.set({
+			kind: "scheduled-readiness-requested",
+			scheduleId: "stale-aliases",
+			subjectRef: { kind: "subject", id: "stale-aliases" },
+			notBeforeMs: 10,
+		} as unknown as ScheduledReadinessRequested);
+		harness.clocks.set(clock(10));
 
 		expect(harness.seen.ready).toEqual([]);
 		expect(harness.seen.issues).toEqual([
@@ -203,10 +183,10 @@ describe("scheduledReadinessProjector (D424)", () => {
 
 	it("keeps the first valid schedule when a scheduleId replays with conflicting material", () => {
 		const harness = createHarness();
-		harness.schedules.down([["DATA", readiness("conflict", 10)]]);
-		harness.clocks.down([["DATA", clock(10)]]);
+		harness.schedules.set(readiness("conflict", 10));
+		harness.clocks.set(clock(10));
 
-		harness.schedules.down([["DATA", readiness("conflict", 20)]]);
+		harness.schedules.set(readiness("conflict", 20));
 
 		expect(harness.seen.ready).toHaveLength(1);
 		expect(harness.seen.ready[0]).toEqual(
@@ -231,10 +211,12 @@ describe("scheduledReadinessProjector (D424)", () => {
 
 	it("emits overdue without executing, claiming, admitting, or requesting work", () => {
 		const harness = createHarness();
-		harness.schedules.down([
-			["DATA", { ...readiness("overdue", 100), deadlineMs: 90, reason: "retry-backoff" }],
-		]);
-		harness.clocks.down([["DATA", clock(100)]]);
+		harness.schedules.set({
+			...readiness("overdue", 100),
+			deadlineMs: 90,
+			reason: "retry-backoff",
+		});
+		harness.clocks.set(clock(100));
 
 		expect(harness.seen.ready).toHaveLength(1);
 		expect(harness.seen.overdue).toEqual([
@@ -254,17 +236,12 @@ describe("scheduledReadinessProjector (D424)", () => {
 	it("bounds public metadata and source refs", () => {
 		const harness = createHarness();
 		const raw = "x".repeat(10_000);
-		harness.schedules.down([
-			[
-				"DATA",
-				{
-					...readiness("redaction", 1),
-					sourceRefs: [{ kind: "source", id: "redaction", metadata: { apiKey: "SECRET" } }],
-					metadata: { rawResponseBody: raw, small: "ok" },
-				},
-			],
-		]);
-		harness.clocks.down([["DATA", clock(1)]]);
+		harness.schedules.set({
+			...readiness("redaction", 1),
+			sourceRefs: [{ kind: "source", id: "redaction", metadata: { apiKey: "SECRET" } }],
+			metadata: { rawResponseBody: raw, small: "ok" },
+		});
+		harness.clocks.set(clock(1));
 
 		const serialized = JSON.stringify(harness.seen.ready[0]);
 		expect(serialized).not.toContain("SECRET");

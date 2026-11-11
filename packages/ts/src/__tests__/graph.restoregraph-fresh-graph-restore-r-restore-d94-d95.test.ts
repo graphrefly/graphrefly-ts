@@ -196,7 +196,7 @@ describe("restoreGraph — fresh graph restore (R-restore / D94 / D95)", () => {
 			complete: "manual",
 		});
 		collect(memo);
-		src.down([["COMPLETE"]]);
+		src.complete();
 		expect(memo.cache).toBe(1);
 
 		const memoDescriptor: GraphRestoreDescriptor = {
@@ -432,8 +432,8 @@ describe("restoreGraph — fresh graph restore (R-restore / D94 / D95)", () => {
 		const g = graph();
 		const done = g.state(1, { name: "done" });
 		const failed = g.state(2, { name: "failed" });
-		done.down([["COMPLETE"]]);
-		failed.down([["ERROR", "boom"]]);
+		done.complete();
+		failed.error("boom");
 
 		const restored = restoreGraph(g.checkpoint(), { registry: defaultRestoreRegistry });
 		expect(restored.find("done")?.status.output).toBe("completed");
@@ -581,7 +581,7 @@ describe("restoreGraph — fresh graph restore (R-restore / D94 / D95)", () => {
 		const g = graph({ versioning: { level: 1, hash } });
 		const src = g.state(1, { name: "src" });
 		src.set(2);
-		src.down([["INVALIDATE"]]);
+		src.invalidate();
 		const checkpoint = g.checkpoint();
 		const srcCheckpoint = checkpoint.nodes.find((n) => n.id === "src");
 		expect(srcCheckpoint?.value).toEqual({ kind: "SENTINEL" });

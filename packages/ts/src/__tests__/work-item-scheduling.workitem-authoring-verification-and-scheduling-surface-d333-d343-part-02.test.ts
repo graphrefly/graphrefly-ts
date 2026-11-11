@@ -173,10 +173,8 @@ describe("WorkItem authoring, verification, and scheduling surface (D333-D343) â
 	it("lowers WorkItemEffectPlan parallel members together", () => {
 		const setup = planSetup();
 
-		setup.facts.down([["DATA", workItemCreatedFromDraft("wi-1", draft())]]);
-		setup.proposals.down([
-			["DATA", planProposal([planMember("A"), planMember("B"), planMember("C")])],
-		]);
+		setup.facts.set(workItemCreatedFromDraft("wi-1", draft()));
+		setup.proposals.set(planProposal([planMember("A"), planMember("B"), planMember("C")]));
 
 		expect(setup.requests.map((request) => request.planMemberId)).toEqual(["A", "B", "C"]);
 		expect(setup.requests).toEqual([
@@ -194,50 +192,40 @@ describe("WorkItem authoring, verification, and scheduling surface (D333-D343) â
 	it("lowers WorkItemEffectPlan fan-out/fan-in only after all member deps pass", () => {
 		const setup = planSetup();
 
-		setup.facts.down([["DATA", workItemCreatedFromDraft("wi-1", draft())]]);
-		setup.proposals.down([
-			[
-				"DATA",
-				planProposal([
-					planMember("A"),
-					planMember("B", { dependsOnMemberIds: ["A"] }),
-					planMember("C", { dependsOnMemberIds: ["A"] }),
-					planMember("D", { dependsOnMemberIds: ["B", "C"] }),
-				]),
-			],
-		]);
+		setup.facts.set(workItemCreatedFromDraft("wi-1", draft()));
+		setup.proposals.set(
+			planProposal([
+				planMember("A"),
+				planMember("B", { dependsOnMemberIds: ["A"] }),
+				planMember("C", { dependsOnMemberIds: ["A"] }),
+				planMember("D", { dependsOnMemberIds: ["B", "C"] }),
+			]),
+		);
 
 		expect(setup.requests.map((request) => request.planMemberId)).toEqual(["A"]);
-		setup.evidence.down([["DATA", evidenceForPlanRequest("ev-a", setup.requests.at(-1)!)]]);
+		setup.evidence.set(evidenceForPlanRequest("ev-a", setup.requests.at(-1)!));
 		expect(setup.requests.map((request) => request.planMemberId)).toEqual(["A", "B", "C"]);
 
 		const requestB = setup.requests.find((request) => request.planMemberId === "B")!;
 		const requestC = setup.requests.find((request) => request.planMemberId === "C")!;
-		setup.evidence.down([["DATA", evidenceForPlanRequest("ev-b", requestB)]]);
+		setup.evidence.set(evidenceForPlanRequest("ev-b", requestB));
 		expect(setup.requests.map((request) => request.planMemberId)).toEqual(["A", "B", "C"]);
 
-		setup.evidence.down([["DATA", evidenceForPlanRequest("ev-c", requestC)]]);
+		setup.evidence.set(evidenceForPlanRequest("ev-c", requestC));
 		expect(setup.requests.map((request) => request.planMemberId)).toEqual(["A", "B", "C", "D"]);
 	});
 
 	it("rejects stale and malformed WorkItemEffectPlan proposals visibly", () => {
 		const setup = planSetup();
 
-		setup.facts.down([["DATA", workItemCreatedFromDraft("wi-1", draft())]]);
-		setup.facts.down([
-			[
-				"DATA",
-				{
-					kind: "work-item-patched",
-					eventId: "wi-1:detail",
-					workItemId: "wi-1",
-					patch: { detail: "new execution input" },
-				},
-			],
-		]);
-		setup.proposals.down([
-			["DATA", planProposal([planMember("A")], { executionInputRevision: 1 })],
-		]);
+		setup.facts.set(workItemCreatedFromDraft("wi-1", draft()));
+		setup.facts.set({
+			kind: "work-item-patched",
+			eventId: "wi-1:detail",
+			workItemId: "wi-1",
+			patch: { detail: "new execution input" },
+		});
+		setup.proposals.set(planProposal([planMember("A")], { executionInputRevision: 1 }));
 
 		expect(setup.rejected.at(-1)).toMatchObject({
 			kind: "work-item-effect-plan-rejected",
@@ -265,14 +253,14 @@ describe("WorkItem authoring, verification, and scheduling surface (D333-D343) â
 	it("defers WorkItemEffectPlan proposals until their WorkItem projection exists", () => {
 		const setup = planSetup();
 
-		setup.proposals.down([["DATA", planProposal([planMember("A")])]]);
+		setup.proposals.set(planProposal([planMember("A")]));
 		expect(setup.rejected).toEqual([]);
 		expect(setup.status.at(-1)).toMatchObject({
 			state: "deferred",
 			metadata: { reason: "missing-work-item" },
 		});
 
-		setup.facts.down([["DATA", workItemCreatedFromDraft("wi-1", draft())]]);
+		setup.facts.set(workItemCreatedFromDraft("wi-1", draft()));
 		expect(setup.admitted.at(-1)).toMatchObject({
 			kind: "work-item-effect-plan-admitted",
 			planId: "effect-plan-1",
@@ -283,20 +271,17 @@ describe("WorkItem authoring, verification, and scheduling surface (D333-D343) â
 	it("suppresses duplicate WorkItemEffectPlan terminal evidence without rewriting results", () => {
 		const setup = planSetup();
 
-		setup.facts.down([["DATA", workItemCreatedFromDraft("wi-1", draft())]]);
-		setup.proposals.down([["DATA", planProposal([planMember("A")])]]);
+		setup.facts.set(workItemCreatedFromDraft("wi-1", draft()));
+		setup.proposals.set(planProposal([planMember("A")]));
 		const request = setup.requests.at(-1)!;
 
-		setup.evidence.down([["DATA", evidenceForPlanRequest("ev-a", request)]]);
-		setup.evidence.down([
-			[
-				"DATA",
-				evidenceForPlanRequest("ev-a-late-fail", request, {
-					status: "failed",
-					error: { kind: "issue", code: "late-fail", message: "late fail" },
-				}),
-			],
-		]);
+		setup.evidence.set(evidenceForPlanRequest("ev-a", request));
+		setup.evidence.set(
+			evidenceForPlanRequest("ev-a-late-fail", request, {
+				status: "failed",
+				error: { kind: "issue", code: "late-fail", message: "late fail" },
+			}),
+		);
 
 		expect(setup.results).toHaveLength(1);
 		expect(setup.results.at(-1)).toMatchObject({ status: "succeeded" });
@@ -306,25 +291,22 @@ describe("WorkItem authoring, verification, and scheduling surface (D333-D343) â
 	it("keeps optional independent failure from failing all-required WorkItemEffectPlan results", () => {
 		const setup = planSetup();
 
-		setup.facts.down([["DATA", workItemCreatedFromDraft("wi-1", draft())]]);
-		setup.proposals.down([
-			["DATA", planProposal([planMember("required"), planMember("optional", { required: false })])],
-		]);
+		setup.facts.set(workItemCreatedFromDraft("wi-1", draft()));
+		setup.proposals.set(
+			planProposal([planMember("required"), planMember("optional", { required: false })]),
+		);
 
 		const requiredRequest = setup.requests.find((request) => request.planMemberId === "required")!;
 		const optionalRequest = setup.requests.find((request) => request.planMemberId === "optional")!;
-		setup.evidence.down([["DATA", evidenceForPlanRequest("ev-required", requiredRequest)]]);
+		setup.evidence.set(evidenceForPlanRequest("ev-required", requiredRequest));
 		expect(setup.results).toEqual([expect.objectContaining({ status: "succeeded" })]);
 
-		setup.evidence.down([
-			[
-				"DATA",
-				evidenceForPlanRequest("ev-optional-failed", optionalRequest, {
-					status: "failed",
-					error: { kind: "issue", code: "optional-failed", message: "optional failed" },
-				}),
-			],
-		]);
+		setup.evidence.set(
+			evidenceForPlanRequest("ev-optional-failed", optionalRequest, {
+				status: "failed",
+				error: { kind: "issue", code: "optional-failed", message: "optional failed" },
+			}),
+		);
 
 		expect(setup.results).toHaveLength(1);
 		expect(setup.results.at(-1)).toMatchObject({ status: "succeeded" });
@@ -333,26 +315,20 @@ describe("WorkItem authoring, verification, and scheduling surface (D333-D343) â
 	it("uses top-level plan coordinates rather than metadata as WorkItemEffectPlan join keys", () => {
 		const setup = planSetup();
 
-		setup.facts.down([["DATA", workItemCreatedFromDraft("wi-1", draft())]]);
-		setup.proposals.down([
-			[
-				"DATA",
-				planProposal([
-					planMember("A", { metadata: { label: "same" } }),
-					planMember("B", { dependsOnMemberIds: ["A"], metadata: { label: "same" } }),
-				]),
-			],
-		]);
+		setup.facts.set(workItemCreatedFromDraft("wi-1", draft()));
+		setup.proposals.set(
+			planProposal([
+				planMember("A", { metadata: { label: "same" } }),
+				planMember("B", { dependsOnMemberIds: ["A"], metadata: { label: "same" } }),
+			]),
+		);
 
 		const requestA = setup.requests.at(-1)!;
-		setup.evidence.down([
-			[
-				"DATA",
-				evidenceForPlanRequest("ev-a", requestA, {
-					metadata: { planId: "wrong-plan", planMemberId: "B", label: "same" },
-				}),
-			],
-		]);
+		setup.evidence.set(
+			evidenceForPlanRequest("ev-a", requestA, {
+				metadata: { planId: "wrong-plan", planMemberId: "B", label: "same" },
+			}),
+		);
 
 		expect(setup.requests.map((request) => request.planMemberId)).toEqual(["A", "B"]);
 		expect(setup.requests.map((request) => request.requestId)).toEqual([
@@ -364,21 +340,18 @@ describe("WorkItem authoring, verification, and scheduling surface (D333-D343) â
 	it("rejects WorkItemEffectPlan evidence whose request/effectRun conflicts with plan coordinates", () => {
 		const setup = planSetup();
 
-		setup.facts.down([["DATA", workItemCreatedFromDraft("wi-1", draft())]]);
-		setup.proposals.down([
-			["DATA", planProposal([planMember("A"), planMember("B", { dependsOnMemberIds: ["A"] })])],
-		]);
+		setup.facts.set(workItemCreatedFromDraft("wi-1", draft()));
+		setup.proposals.set(
+			planProposal([planMember("A"), planMember("B", { dependsOnMemberIds: ["A"] })]),
+		);
 
 		const requestA = setup.requests.find((request) => request.planMemberId === "A")!;
-		setup.evidence.down([
-			[
-				"DATA",
-				evidenceForPlanRequest("ev-conflict", requestA, {
-					planMemberId: "B",
-					metadata: { planMemberId: "B" },
-				}),
-			],
-		]);
+		setup.evidence.set(
+			evidenceForPlanRequest("ev-conflict", requestA, {
+				planMemberId: "B",
+				metadata: { planMemberId: "B" },
+			}),
+		);
 
 		expect(setup.issues.at(-1)).toMatchObject({ code: "dangling-ref" });
 		expect(setup.status.at(-1)).toMatchObject({
@@ -393,22 +366,19 @@ describe("WorkItem authoring, verification, and scheduling surface (D333-D343) â
 	it("rejects early WorkItemEffectPlan evidence once conflicting request coordinates are known", () => {
 		const setup = planSetup();
 
-		setup.evidence.down([
-			[
-				"DATA",
-				evidenceFact("ev-early-conflict", {
-					requestId: "work-item:wi-1:effect-plan:1:effect-plan-1:A",
-					effectRunId: "effect-run:work-item:wi-1:effect-plan:1:effect-plan-1:A",
-					executionInputRevision: 1,
-					planId: "effect-plan-1",
-					planMemberId: "B",
-				}),
-			],
-		]);
-		setup.facts.down([["DATA", workItemCreatedFromDraft("wi-1", draft())]]);
-		setup.proposals.down([
-			["DATA", planProposal([planMember("A"), planMember("B", { dependsOnMemberIds: ["A"] })])],
-		]);
+		setup.evidence.set(
+			evidenceFact("ev-early-conflict", {
+				requestId: "work-item:wi-1:effect-plan:1:effect-plan-1:A",
+				effectRunId: "effect-run:work-item:wi-1:effect-plan:1:effect-plan-1:A",
+				executionInputRevision: 1,
+				planId: "effect-plan-1",
+				planMemberId: "B",
+			}),
+		);
+		setup.facts.set(workItemCreatedFromDraft("wi-1", draft()));
+		setup.proposals.set(
+			planProposal([planMember("A"), planMember("B", { dependsOnMemberIds: ["A"] })]),
+		);
 
 		expect(setup.issues.at(-1)).toMatchObject({ code: "dangling-ref" });
 		expect(setup.status.at(-1)).toMatchObject({
@@ -423,18 +393,15 @@ describe("WorkItem authoring, verification, and scheduling surface (D333-D343) â
 	it("rejects WorkItemEffectPlan evidence with correct member coordinates but wrong execution identity", () => {
 		const setup = planSetup();
 
-		setup.facts.down([["DATA", workItemCreatedFromDraft("wi-1", draft())]]);
-		setup.proposals.down([["DATA", planProposal([planMember("A")])]]);
+		setup.facts.set(workItemCreatedFromDraft("wi-1", draft()));
+		setup.proposals.set(planProposal([planMember("A")]));
 
 		const requestA = setup.requests.find((request) => request.planMemberId === "A")!;
-		setup.evidence.down([
-			[
-				"DATA",
-				evidenceForPlanRequest("ev-wrong-effect", requestA, {
-					effectRunId: "effect-run:wrong",
-				}),
-			],
-		]);
+		setup.evidence.set(
+			evidenceForPlanRequest("ev-wrong-effect", requestA, {
+				effectRunId: "effect-run:wrong",
+			}),
+		);
 
 		expect(setup.issues.at(-1)).toMatchObject({ code: "dangling-ref" });
 		expect(setup.status.at(-1)).toMatchObject({
@@ -448,18 +415,15 @@ describe("WorkItem authoring, verification, and scheduling surface (D333-D343) â
 	it("rejects WorkItemEffectPlan evidence whose requestId disagrees with known effectRun", () => {
 		const setup = planSetup();
 
-		setup.facts.down([["DATA", workItemCreatedFromDraft("wi-1", draft())]]);
-		setup.proposals.down([["DATA", planProposal([planMember("A")])]]);
+		setup.facts.set(workItemCreatedFromDraft("wi-1", draft()));
+		setup.proposals.set(planProposal([planMember("A")]));
 
 		const requestA = setup.requests.find((request) => request.planMemberId === "A")!;
-		setup.evidence.down([
-			[
-				"DATA",
-				evidenceForPlanRequest("ev-request-mismatch", requestA, {
-					requestId: "unknown-request",
-				}),
-			],
-		]);
+		setup.evidence.set(
+			evidenceForPlanRequest("ev-request-mismatch", requestA, {
+				requestId: "unknown-request",
+			}),
+		);
 
 		expect(setup.issues.at(-1)).toMatchObject({ code: "dangling-ref" });
 		expect(setup.status.at(-1)).toMatchObject({
@@ -474,15 +438,15 @@ describe("WorkItem authoring, verification, and scheduling surface (D333-D343) â
 	it("accepts WorkItemEffectPlan evidence with member coordinates and effectRun but no requestId", () => {
 		const setup = planSetup();
 
-		setup.facts.down([["DATA", workItemCreatedFromDraft("wi-1", draft())]]);
-		setup.proposals.down([["DATA", planProposal([planMember("A")])]]);
+		setup.facts.set(workItemCreatedFromDraft("wi-1", draft()));
+		setup.proposals.set(planProposal([planMember("A")]));
 
 		const requestA = setup.requests.find((request) => request.planMemberId === "A")!;
 		const { requestId: _requestId, ...evidenceWithoutRequestId } = evidenceForPlanRequest(
 			"ev-no-request",
 			requestA,
 		);
-		setup.evidence.down([["DATA", evidenceWithoutRequestId]]);
+		setup.evidence.set(evidenceWithoutRequestId);
 
 		expect(setup.issues.map((item) => item.code)).not.toContain("dangling-ref");
 		expect(
@@ -499,29 +463,26 @@ describe("WorkItem authoring, verification, and scheduling surface (D333-D343) â
 	it("replays early WorkItemEffectPlan evidence once the admitted plan is visible", () => {
 		const setup = planSetup();
 
-		setup.evidence.down([
-			[
-				"DATA",
-				evidenceFact("ev-a-early", {
-					effectRunId: "effect-run:work-item:wi-1:effect-plan:1:effect-plan-1:A",
-					requestId: "work-item:wi-1:effect-plan:1:effect-plan-1:A",
-					executionInputRevision: 1,
-					planId: "effect-plan-1",
-					planMemberId: "A",
-					metadata: {
-						requestId: "metadata-request-should-not-be-needed",
-					},
-				}),
-			],
-		]);
-		setup.facts.down([["DATA", workItemCreatedFromDraft("wi-1", draft())]]);
-		setup.proposals.down([
-			["DATA", planProposal([planMember("A"), planMember("B", { dependsOnMemberIds: ["A"] })])],
-		]);
+		setup.evidence.set(
+			evidenceFact("ev-a-early", {
+				effectRunId: "effect-run:work-item:wi-1:effect-plan:1:effect-plan-1:A",
+				requestId: "work-item:wi-1:effect-plan:1:effect-plan-1:A",
+				executionInputRevision: 1,
+				planId: "effect-plan-1",
+				planMemberId: "A",
+				metadata: {
+					requestId: "metadata-request-should-not-be-needed",
+				},
+			}),
+		);
+		setup.facts.set(workItemCreatedFromDraft("wi-1", draft()));
+		setup.proposals.set(
+			planProposal([planMember("A"), planMember("B", { dependsOnMemberIds: ["A"] })]),
+		);
 
 		expect(setup.requests.map((request) => request.planMemberId)).toEqual(["A", "B"]);
 
-		setup.evidence.down([["DATA", evidenceForPlanRequest("ev-b", setup.requests.at(-1)!)]]);
+		setup.evidence.set(evidenceForPlanRequest("ev-b", setup.requests.at(-1)!));
 		expect(setup.results.at(-1)).toMatchObject({ status: "succeeded" });
 		expect(setup.results.at(-1)?.memberResults).toContainEqual(
 			expect.objectContaining({
@@ -534,20 +495,17 @@ describe("WorkItem authoring, verification, and scheduling surface (D333-D343) â
 	it("rejects WorkItemEffectPlan evidence for unknown plan members", () => {
 		const setup = planSetup();
 
-		setup.facts.down([["DATA", workItemCreatedFromDraft("wi-1", draft())]]);
-		setup.proposals.down([["DATA", planProposal([planMember("A")])]]);
-		setup.evidence.down([
-			[
-				"DATA",
-				evidenceFact("ev-ghost", {
-					metadata: {
-						executionInputRevision: 1,
-						planId: "effect-plan-1",
-						planMemberId: "ghost",
-					},
-				}),
-			],
-		]);
+		setup.facts.set(workItemCreatedFromDraft("wi-1", draft()));
+		setup.proposals.set(planProposal([planMember("A")]));
+		setup.evidence.set(
+			evidenceFact("ev-ghost", {
+				metadata: {
+					executionInputRevision: 1,
+					planId: "effect-plan-1",
+					planMemberId: "ghost",
+				},
+			}),
+		);
 
 		expect(setup.issues.at(-1)).toMatchObject({ code: "dangling-ref" });
 		expect(setup.status.at(-1)).toMatchObject({
@@ -560,24 +518,19 @@ describe("WorkItem authoring, verification, and scheduling surface (D333-D343) â
 	it("does not release admitted WorkItemEffectPlan members after the WorkItem revision changes", () => {
 		const setup = planSetup();
 
-		setup.facts.down([["DATA", workItemCreatedFromDraft("wi-1", draft())]]);
-		setup.proposals.down([
-			["DATA", planProposal([planMember("A"), planMember("B", { dependsOnMemberIds: ["A"] })])],
-		]);
+		setup.facts.set(workItemCreatedFromDraft("wi-1", draft()));
+		setup.proposals.set(
+			planProposal([planMember("A"), planMember("B", { dependsOnMemberIds: ["A"] })]),
+		);
 		expect(setup.requests.map((request) => request.planMemberId)).toEqual(["A"]);
 
-		setup.facts.down([
-			[
-				"DATA",
-				{
-					kind: "work-item-patched",
-					eventId: "wi-1:detail-after-admit",
-					workItemId: "wi-1",
-					patch: { detail: "new execution input" },
-				},
-			],
-		]);
-		setup.evidence.down([["DATA", evidenceForPlanRequest("ev-a", setup.requests.at(-1)!)]]);
+		setup.facts.set({
+			kind: "work-item-patched",
+			eventId: "wi-1:detail-after-admit",
+			workItemId: "wi-1",
+			patch: { detail: "new execution input" },
+		});
+		setup.evidence.set(evidenceForPlanRequest("ev-a", setup.requests.at(-1)!));
 
 		expect(setup.requests.map((request) => request.planMemberId)).toEqual(["A"]);
 		expect(setup.status).toContainEqual(
@@ -591,26 +544,20 @@ describe("WorkItem authoring, verification, and scheduling surface (D333-D343) â
 	it("fails a WorkItemEffectPlan when a failed optional dependency blocks required work", () => {
 		const setup = planSetup();
 
-		setup.facts.down([["DATA", workItemCreatedFromDraft("wi-1", draft())]]);
-		setup.proposals.down([
-			[
-				"DATA",
-				planProposal([
-					planMember("A", { required: false }),
-					planMember("B", { dependsOnMemberIds: ["A"] }),
-				]),
-			],
-		]);
+		setup.facts.set(workItemCreatedFromDraft("wi-1", draft()));
+		setup.proposals.set(
+			planProposal([
+				planMember("A", { required: false }),
+				planMember("B", { dependsOnMemberIds: ["A"] }),
+			]),
+		);
 
-		setup.evidence.down([
-			[
-				"DATA",
-				evidenceForPlanRequest("ev-a", setup.requests.at(-1)!, {
-					status: "failed",
-					error: { kind: "issue", code: "optional-failed", message: "optional failed" },
-				}),
-			],
-		]);
+		setup.evidence.set(
+			evidenceForPlanRequest("ev-a", setup.requests.at(-1)!, {
+				status: "failed",
+				error: { kind: "issue", code: "optional-failed", message: "optional failed" },
+			}),
+		);
 
 		expect(setup.requests.map((request) => request.planMemberId)).toEqual(["A"]);
 		expect(setup.results.at(-1)).toMatchObject({ status: "failed" });

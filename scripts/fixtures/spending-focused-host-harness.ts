@@ -79,8 +79,7 @@ export function runHost(
 		for (const stop of subscriptions) stop();
 		subscriptions = [];
 	};
-	const send = (lane: keyof typeof sources, value: unknown) =>
-		sources[lane].down([["DATA", value]]);
+	const send = (lane: keyof typeof sources, value: unknown) => sources[lane].set(value as never);
 	const drive = (evaluations: readonly Evaluation[]) => {
 		const facts = evaluations.map((e) => policyFacts(e));
 		send("pack", evaluationPack(evaluations));

@@ -319,48 +319,31 @@ export function wireBridge<TOutbound = unknown, TInbound = unknown>(
 		errors,
 		cursor,
 		attempts,
-		start: () => command.down([["DATA", { kind: "start" }]]),
+		start: () => command.set({ kind: "start" }),
 		send: (payload, sendOpts) =>
-			command.down([
-				[
-					"DATA",
-					{
-						kind: "send",
-						payload,
-						idempotencyKey: sendOpts?.idempotencyKey,
-						requestId: sendOpts?.requestId,
-					},
-				],
-			]),
+			command.set({
+				kind: "send",
+				payload,
+				idempotencyKey: sendOpts?.idempotencyKey,
+				requestId: sendOpts?.requestId,
+			}),
 		ack: (ackForSeq, ackOpts) =>
-			command.down([
-				[
-					"DATA",
-					{
-						kind: "ack",
-						ackForSeq,
-						idempotencyKey: ackOpts?.idempotencyKey,
-						requestId: ackOpts?.requestId,
-					},
-				],
-			]),
+			command.set({
+				kind: "ack",
+				ackForSeq,
+				idempotencyKey: ackOpts?.idempotencyKey,
+				requestId: ackOpts?.requestId,
+			}),
 		nack: (ackForSeq, error, nackOpts) =>
-			command.down([
-				[
-					"DATA",
-					{
-						kind: "nack",
-						ackForSeq,
-						error,
-						idempotencyKey: nackOpts?.idempotencyKey,
-						requestId: nackOpts?.requestId,
-					},
-				],
-			]),
+			command.set({
+				kind: "nack",
+				ackForSeq,
+				error,
+				idempotencyKey: nackOpts?.idempotencyKey,
+				requestId: nackOpts?.requestId,
+			}),
 		close: (reason, closeOpts) =>
-			command.down([
-				["DATA", { kind: "close", reason, idempotencyKey: closeOpts?.idempotencyKey }],
-			]),
+			command.set({ kind: "close", reason, idempotencyKey: closeOpts?.idempotencyKey }),
 	};
 	bridgeCommandSources.set(bundle as WireBridgeBundle<unknown, unknown>, { sources: [] });
 	bridgeInboundTargets.set(bundle as WireBridgeBundle<unknown, unknown>, inboundCore);
@@ -1333,10 +1316,10 @@ function detachWireBridgeInboundSource<TOutbound, TInbound>(
 	}
 }
 
-function wireBridgeInboundTarget<TInbound>(
-	bridge: WireBridgeBundle<unknown, TInbound>,
+function wireBridgeInboundTarget<TOutbound, TInbound>(
+	bridge: WireBridgeBundle<TOutbound, TInbound>,
 ): Node<WireBridgeEnvelope<TInbound> | WireBridgeInvalidIngress> {
-	const target = bridgeInboundTargets.get(bridge as WireBridgeBundle<unknown, unknown>);
+	const target = bridgeInboundTargets.get(bridge as unknown as WireBridgeBundle<unknown, unknown>);
 	if (target === undefined) {
 		throw new Error("remoteResponder: bridge inbound target registry missing");
 	}

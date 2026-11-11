@@ -65,7 +65,7 @@ describe("C-3 INVALIDATE × ctx.state, manual INVALIDATE policy (R-invalidation)
 		expect(statesAtRun).toEqual([undefined]); // first run: fresh state
 
 		msgs.length = 0;
-		s.down([["INVALIDATE"]]);
+		s.invalidate();
 		expect(types(msgs)).toEqual(["PENDING", "INVALIDATE"]); // cascaded downstream exactly once
 		expect(onInv).toBe(1);
 		expect(d.cache).toBeUndefined();
@@ -73,12 +73,12 @@ describe("C-3 INVALIDATE × ctx.state, manual INVALIDATE policy (R-invalidation)
 
 		// idempotent: a second INVALIDATE on an already-reset upstream is a no-op
 		msgs.length = 0;
-		s.down([["INVALIDATE"]]);
+		s.invalidate();
 		expect(msgs).toEqual([]);
 		expect(onInv).toBe(1);
 
 		// ctx.state preserved across INVALIDATE (lifecycle-continue, NOT fresh-lifecycle)
-		s.down([["DATA", 5]]);
+		s.set(5);
 		expect(statesAtRun).toEqual([undefined, "kept"]);
 		expect(d.cache).toBe(10);
 	});
@@ -119,7 +119,7 @@ describe("C-4 a sync leg and an async leg: the async result is a later wave, not
 
 		msgs.length = 0;
 		cOut.length = 0;
-		a.down([["DATA", 2]]);
+		a.set(2);
 		// In A's wave c sent nothing, so the kernel settled it; d ran once on b's new value and
 		// c's old one, and no PENDING stays open while c's work runs.
 		expect(types(cOut)).toEqual(["PENDING", "RESOLVED"]);
@@ -167,16 +167,16 @@ describe("C-8 intra-graph runtime rewire (R-rewire / D42)", () => {
 		addOwnedNodeDep(d, b, sum); // (2) subscribeDep(B): B cached → push-on-subscribe → D recomputes
 		expect(d.cache).toBe(101); // 1 + 100
 
-		b.down([["DATA", 50]]); // (3) B drives D
+		b.set(50); // (3) B drives D
 		expect(d.cache).toBe(51); // 1 + 50
 
 		removeOwnedNodeDep(d, a, aOnly); // (4) unsubscribeDep(A) → deps = [B]
 		expect(d.cache).toBe(51); // cache PRESERVED (A was not dirty — no recompute)
 
-		a.down([["DATA", 9]]); // (5) A no longer drives D — its edge is drained
+		a.set(9); // (5) A no longer drives D — its edge is drained
 		expect(d.cache).toBe(51);
 
-		b.down([["DATA", 7]]); // B is dep0 now → drives D
+		b.set(7); // B is dep0 now → drives D
 		expect(d.cache).toBe(7);
 
 		let runs = 0;
@@ -191,10 +191,15 @@ describe("C-8 intra-graph runtime rewire (R-rewire / D42)", () => {
 
 	it("rejects rewire on a terminal node (throw → graph-layer ERROR, D30)", () => {
 		const a = node<number>([], null, { initial: 1 });
-		const id = (ctx: Ctx) => ctx.down([["DATA", depLatest(ctx, 0) as number]]);
+		// D forwards A's value and completes on the value 2.
+		const id = (ctx: Ctx) => {
+			const v = depLatest(ctx, 0) as number;
+			ctx.down(v === 2 ? [["COMPLETE"]] : [["DATA", v]]);
+		};
 		const d = node<number>([a], id, { complete: "manual" });
 		collect(d);
-		d.down([["COMPLETE"]]); // D terminal
+		a.set(2); // D terminal
+		expect(d.status.output).toBe("completed");
 		expect(() => rewireOwnedNode(d, [a], id)).toThrow(/terminal/);
 	});
 });
@@ -300,9 +305,19 @@ describe("C-12 occurrences stay DATA; RESOLVED is undirty-only (R-resolved-undir
 	});
 
 	it("RESOLVED is the kernel's alone: output carrying it is rejected (R-wave@2, D799)", () => {
-		const s = node<number>([], null, { initial: 1 });
+		const t = node<number>([], null, { initial: 0 });
+		let rejected: unknown;
+		const s = node<number>([t], (ctx) => {
+			if (depBatch(ctx, 0)?.[0] !== 1) return ctx.down([["DATA", 1]]);
+			try {
+				ctx.down([["DATA", 2], ["RESOLVED"]]);
+			} catch (error) {
+				rejected = error;
+			}
+		});
 		collect(s);
-		expect(() => s.down([["DATA", 2], ["RESOLVED"]])).toThrow(/kernel/);
+		t.set(1);
+		expect(String(rejected)).toMatch(/kernel/);
 		expect(s.cache).toBe(1);
 	});
 });

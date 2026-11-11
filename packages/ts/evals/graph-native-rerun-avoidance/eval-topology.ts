@@ -1,7 +1,8 @@
+import { batch } from "../../src/batch/batch.js";
 import { type Ctx, depBatch, depLatest } from "../../src/ctx/types.js";
 import { type Graph, graph } from "../../src/graph/graph.js";
 import type { ObserveEvent } from "../../src/graph/inspect.js";
-import type { Node } from "../../src/node/node.js";
+import type { Node, StateNode } from "../../src/node/node.js";
 import { merge } from "../../src/operators/index.js";
 import type { AgentRequestIssued, EffectRunResult } from "../../src/orchestration/agent-runtime.js";
 import {
@@ -1036,7 +1037,10 @@ export interface RootEvalTopology {
 	readonly campaignRef: string;
 	readonly campaignContract: EvalCampaignContract;
 	readonly inputs: {
-		readonly start: Node<{ readonly kind: "eval-campaign-start"; readonly campaignRef: string }>;
+		readonly start: StateNode<{
+			readonly kind: "eval-campaign-start";
+			readonly campaignRef: string;
+		}>;
 	};
 	runAdmittedEffects(
 		executor: (effect: EvalExecutableEffect) => Promise<EvalExecutorOutcome>,
@@ -9322,11 +9326,11 @@ async function runRootEvalWithOutcomeInput(
 	terminalProviderResultAdmissions: Node<EvalProviderOutcome>,
 	failedProviderResultAdmissions: Node<EvalProviderOutcome>,
 	retryableProviderResultAdmissions: Node<EvalProviderOutcome>,
-	providerOutcomeInput: Node<EvalProviderOutcome>,
-	sourceToolOutcomes: Node<EvalEffectOutcome>,
-	targetToolOutcomes: Node<EvalEffectOutcome>,
-	retryDelayOutcomes: Node<EvalRetryDelayOutcome>,
-	billingObservationOutcomes: Node<EvalBillingObservationOutcome>,
+	providerOutcomeInput: StateNode<EvalProviderOutcome>,
+	sourceToolOutcomes: StateNode<EvalEffectOutcome>,
+	targetToolOutcomes: StateNode<EvalEffectOutcome>,
+	retryDelayOutcomes: StateNode<EvalRetryDelayOutcome>,
+	billingObservationOutcomes: StateNode<EvalBillingObservationOutcome>,
 	executor: (effect: EvalExecutableEffect) => Promise<EvalExecutorOutcome>,
 	signal?: AbortSignal,
 	releaseKeepalives: () => void = () => undefined,
@@ -9581,30 +9585,29 @@ async function runRootEvalWithOutcomeInput(
 									throw new TypeError("provider outcome lost its admitted receipt identity");
 								activeProviderExecutions -= 1;
 								providerExecutionCounted = false;
-								providerOutcomeInput.down([["DATA", validated]]);
+								providerOutcomeInput.set(validated);
 							} else if (effect.kind === "eval-admitted-tool-effect") {
 								const validated = Object.freeze(
 									validateOutcomeReceipt(outcome as EvalEffectOutcome),
 								);
 								if (validated.admission !== effect)
 									throw new TypeError("tool outcome lost its admitted receipt identity");
-								if (validated.workItemRole === "source")
-									sourceToolOutcomes.down([["DATA", validated]]);
-								else targetToolOutcomes.down([["DATA", validated]]);
+								if (validated.workItemRole === "source") sourceToolOutcomes.set(validated);
+								else targetToolOutcomes.set(validated);
 							} else if (effect.kind === "eval-admitted-retry-delay") {
 								const validated = Object.freeze(
 									validateRetryDelayOutcome(outcome as EvalRetryDelayOutcome),
 								);
 								if (validated.admission !== effect)
 									throw new TypeError("retry delay outcome lost its admitted receipt identity");
-								retryDelayOutcomes.down([["DATA", validated]]);
+								retryDelayOutcomes.set(validated);
 							} else {
 								const validated = Object.freeze(
 									validateBillingObservationOutcome(outcome as EvalBillingObservationOutcome),
 								);
 								if (validated.admission !== effect)
 									throw new TypeError("billing observation lost its admitted receipt identity");
-								billingObservationOutcomes.down([["DATA", validated]]);
+								billingObservationOutcomes.set(validated);
 							}
 						} catch (error) {
 							abort(error);
@@ -9624,57 +9627,51 @@ async function runRootEvalWithOutcomeInput(
 						});
 						try {
 							if (effect.kind === "eval-admitted-tool-effect") {
-								(effect.workItemRole === "source" ? sourceToolOutcomes : targetToolOutcomes).down([
-									[
-										"DATA",
-										Object.freeze({
-											kind: "eval-effect-outcome" as const,
-											admission: effect,
-											executionId: effect.executionId,
-											admissionId: effect.providerAdmission.admissionId,
-											toolAdmissionId: effect.toolAdmissionId,
-											operationId: effect.providerAdmission.operationId,
-											argumentsDigest: effect.argumentsDigest,
-											effectRunId: effect.effectRunId,
-											workItemId: effect.workItemId,
-											workItemRole: effect.workItemRole,
-											replicate: effect.replicate,
-											arm: effect.arm,
-											providerLogicalAttempt: effect.providerLogicalAttempt,
-											dispatchOrdinal: effect.dispatchOrdinal,
-											capacityRetryOrdinal: effect.capacityRetryOrdinal,
-											availabilityRetryOrdinal: effect.availabilityRetryOrdinal,
-											status: "failed" as const,
-											costMicrousd: 0 as const,
-											elapsedMs: 0,
-											resultDigest,
-											evidence: Object.freeze({
-												expectedDigest: resultDigest,
-												actualDigest: resultDigest,
-												diff: "no-change" as const,
-												cleanupCompleted: false,
-												publicSemantic: "different" as const,
-												hiddenVerifier: "fail" as const,
-											}),
+								(effect.workItemRole === "source" ? sourceToolOutcomes : targetToolOutcomes).set(
+									Object.freeze({
+										kind: "eval-effect-outcome" as const,
+										admission: effect,
+										executionId: effect.executionId,
+										admissionId: effect.providerAdmission.admissionId,
+										toolAdmissionId: effect.toolAdmissionId,
+										operationId: effect.providerAdmission.operationId,
+										argumentsDigest: effect.argumentsDigest,
+										effectRunId: effect.effectRunId,
+										workItemId: effect.workItemId,
+										workItemRole: effect.workItemRole,
+										replicate: effect.replicate,
+										arm: effect.arm,
+										providerLogicalAttempt: effect.providerLogicalAttempt,
+										dispatchOrdinal: effect.dispatchOrdinal,
+										capacityRetryOrdinal: effect.capacityRetryOrdinal,
+										availabilityRetryOrdinal: effect.availabilityRetryOrdinal,
+										status: "failed" as const,
+										costMicrousd: 0 as const,
+										elapsedMs: 0,
+										resultDigest,
+										evidence: Object.freeze({
+											expectedDigest: resultDigest,
+											actualDigest: resultDigest,
+											diff: "no-change" as const,
+											cleanupCompleted: false,
+											publicSemantic: "different" as const,
+											hiddenVerifier: "fail" as const,
 										}),
-									],
-								]);
+									}),
+								);
 							} else if (effect.kind === "eval-admitted-retry-delay") abort(error);
 							else
-								billingObservationOutcomes.down([
-									[
-										"DATA",
-										Object.freeze({
-											kind: "eval-billing-observation-outcome" as const,
-											admission: effect,
-											executionId: effect.executionId,
-											observation: effect.observation,
-											status: "failed" as const,
-											currentKeyAfter: null,
-											resultDigest,
-										}),
-									],
-								]);
+								billingObservationOutcomes.set(
+									Object.freeze({
+										kind: "eval-billing-observation-outcome" as const,
+										admission: effect,
+										executionId: effect.executionId,
+										observation: effect.observation,
+										status: "failed" as const,
+										currentKeyAfter: null,
+										resultDigest,
+									}),
+								);
 						} catch (deliveryError) {
 							abort(deliveryError);
 						}
@@ -9725,15 +9722,12 @@ async function runRootEvalWithOutcomeInput(
 			onAbort();
 			return;
 		}
-		topology.inputs.start.down([
-			[
-				"DATA",
-				Object.freeze({
-					kind: "eval-campaign-start" as const,
-					campaignRef: topology.campaignRef,
-				}),
-			],
-		]);
+		topology.inputs.start.set(
+			Object.freeze({
+				kind: "eval-campaign-start" as const,
+				campaignRef: topology.campaignRef,
+			}),
+		);
 	});
 }
 

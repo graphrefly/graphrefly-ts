@@ -503,10 +503,10 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 		const envelopes = collect(runtime.admittedEnvelopes);
 		const admissionIssues = collect(runtime.issues);
 		const facts = collect<ManagedCloudPostgresqlLifecycleFact>(runtime.lifecycle);
-		inputs.down([["DATA", input()]]);
-		manifests.down([["DATA", manifest()]]);
-		postures.down([["DATA", readiness()]]);
-		admitted.down([["DATA", run()]]);
+		inputs.set(input());
+		manifests.set(manifest());
+		postures.set(readiness());
+		admitted.set(run());
 		await settle();
 		expect(envelopes, JSON.stringify(admissionIssues)).toEqual([
 			expect.objectContaining({
@@ -519,16 +519,11 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 				workerRevision: "worker-runtime:1",
 			}),
 		]);
-		admitted.down([
-			[
-				"DATA",
-				{
-					...run(),
-					runId: "run:forged-admission",
-					metadata: { ...run().metadata, admissionId: "admission:forged" },
-				},
-			],
-		]);
+		admitted.set({
+			...run(),
+			runId: "run:forged-admission",
+			metadata: { ...run().metadata, admissionId: "admission:forged" },
+		});
 		await settle();
 		expect(envelopes).toHaveLength(1);
 		expect(store.calls).toEqual(["admit"]);
@@ -537,40 +532,30 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 		);
 		const malformedProposalId =
 			'tool-provider-run-admission-proposal:["candidate:run:1",{"private":"value"}]';
-		admitted.down([
-			[
-				"DATA",
-				{
-					...run(),
-					runId: "run:malformed-proposal",
-					sourceRefs: [
-						{ kind: "tool-provider-run-admission-proposal", id: malformedProposalId },
-						{ kind: "tool-provider-run-admission", id: "admission:1" },
-						{ kind: "tool-provider-run-admission-decision", id: "admission-decision:1" },
-					],
-					metadata: { ...run().metadata, proposalId: malformedProposalId },
-				},
+		admitted.set({
+			...run(),
+			runId: "run:malformed-proposal",
+			sourceRefs: [
+				{ kind: "tool-provider-run-admission-proposal", id: malformedProposalId },
+				{ kind: "tool-provider-run-admission", id: "admission:1" },
+				{ kind: "tool-provider-run-admission-decision", id: "admission-decision:1" },
 			],
-		]);
+			metadata: { ...run().metadata, proposalId: malformedProposalId },
+		});
 		await settle();
 		expect(envelopes).toHaveLength(1);
 		expect(store.calls).toEqual(["admit"]);
 		const noncanonicalProposalId = 'tool-provider-run-admission-proposal:[ "candidate:run:1" ]';
-		admitted.down([
-			[
-				"DATA",
-				{
-					...run(),
-					runId: "run:noncanonical-proposal",
-					sourceRefs: [
-						{ kind: "tool-provider-run-admission-proposal", id: noncanonicalProposalId },
-						{ kind: "tool-provider-run-admission", id: "admission:1" },
-						{ kind: "tool-provider-run-admission-decision", id: "admission-decision:1" },
-					],
-					metadata: { ...run().metadata, proposalId: noncanonicalProposalId },
-				},
+		admitted.set({
+			...run(),
+			runId: "run:noncanonical-proposal",
+			sourceRefs: [
+				{ kind: "tool-provider-run-admission-proposal", id: noncanonicalProposalId },
+				{ kind: "tool-provider-run-admission", id: "admission:1" },
+				{ kind: "tool-provider-run-admission-decision", id: "admission-decision:1" },
 			],
-		]);
+			metadata: { ...run().metadata, proposalId: noncanonicalProposalId },
+		});
 		await settle();
 		expect(envelopes).toHaveLength(1);
 		expect(store.calls).toEqual(["admit"]);
@@ -634,10 +619,10 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 		});
 		const facts = collect<ManagedCloudPostgresqlLifecycleFact>(runtime.lifecycle);
 		const issues = collect<{ code: string }>(runtime.issues);
-		inputs.down([["DATA", input()]]);
-		manifests.down([["DATA", manifest()]]);
-		postures.down([["DATA", readiness()]]);
-		admitted.down([["DATA", run()]]);
+		inputs.set(input());
+		manifests.set(manifest());
+		postures.set(readiness());
+		admitted.set(run());
 		await settle();
 		transport.onMessage?.({
 			kind: "claim",
@@ -690,10 +675,10 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 			now: () => 10,
 		});
 		const issues = collect<{ code: string }>(runtime.issues);
-		inputs.down([["DATA", input()]]);
-		manifests.down([["DATA", manifest()]]);
-		postures.down([["DATA", readiness()]]);
-		admitted.down([["DATA", run()]]);
+		inputs.set(input());
+		manifests.set(manifest());
+		postures.set(readiness());
+		admitted.set(run());
 		await settle();
 		transport.onMessage?.({
 			kind: "claim",
@@ -737,18 +722,15 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 		});
 		const envelopes = collect(runtime.admittedEnvelopes);
 		const issues = collect<{ code: string }>(runtime.issues);
-		inputs.down([["DATA", input()]]);
-		manifests.down([["DATA", manifest({ deploymentProfile: "docker-compose-development" })]]);
-		postures.down([
-			[
-				"DATA",
-				readiness({
-					state: "unavailable",
-					deploymentProfile: "docker-compose-development",
-				}),
-			],
-		]);
-		admitted.down([["DATA", run()]]);
+		inputs.set(input());
+		manifests.set(manifest({ deploymentProfile: "docker-compose-development" }));
+		postures.set(
+			readiness({
+				state: "unavailable",
+				deploymentProfile: "docker-compose-development",
+			}),
+		);
+		admitted.set(run());
 		await settle();
 		expect(envelopes).toHaveLength(0);
 		expect(store.calls).toHaveLength(0);
@@ -1212,10 +1194,10 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 		});
 		const states = collect<{ state: string }>(runtime.cancellations);
 		const outcomes = collect(runtime.outcomes);
-		inputs.down([["DATA", input()]]);
-		manifests.down([["DATA", manifest()]]);
-		postures.down([["DATA", readiness()]]);
-		admitted.down([["DATA", run()]]);
+		inputs.set(input());
+		manifests.set(manifest());
+		postures.set(readiness());
+		admitted.set(run());
 		await settle();
 		transport.onMessage?.({
 			kind: "claim",
@@ -1229,16 +1211,11 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 			authAttestationRef: { kind: "attestation", id: "auth:1" },
 		});
 		await settle();
-		cancels.down([
-			[
-				"DATA",
-				{
-					kind: "managed-cloud-postgresql-cancellation-requested",
-					cancellationId: "cancel:1",
-					...lease,
-				},
-			],
-		]);
+		cancels.set({
+			kind: "managed-cloud-postgresql-cancellation-requested",
+			cancellationId: "cancel:1",
+			...lease,
+		});
 		await settle();
 		expect(store.calls.indexOf("persist-cancel")).toBeLessThan(
 			transport.sent.findIndex((m) => m.kind === "cancel") + store.calls.length,
@@ -2405,10 +2382,10 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 				now: () => 10,
 			});
 			const issues = collect<{ code: string }>(runtime.issues);
-			inputs.down([["DATA", input()]]);
-			manifests.down([["DATA", manifest()]]);
-			postures.down([["DATA", candidate]]);
-			admitted.down([["DATA", run()]]);
+			inputs.set(input());
+			manifests.set(manifest());
+			postures.set(candidate);
+			admitted.set(run());
 			await settle();
 			expect(store.calls).not.toContain("admit");
 			expect(issues).toContainEqual(
@@ -2852,12 +2829,12 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 		});
 		const outcomes = collect<ExecutorOutcome>(runtime.outcomes);
 		const facts = collect<ManagedCloudPostgresqlLifecycleFact>(runtime.lifecycle);
-		inputs.down([["DATA", input()]]);
-		manifests.down([["DATA", manifest()]]);
-		postures.down([["DATA", readiness()]]);
-		admitted.down([["DATA", run()]]);
-		admitted.down([["DATA", { ...run(), runId: "run:2" }]]);
-		admitted.down([["DATA", { ...run(), runId: "run:3" }]]);
+		inputs.set(input());
+		manifests.set(manifest());
+		postures.set(readiness());
+		admitted.set(run());
+		admitted.set({ ...run(), runId: "run:2" });
+		admitted.set({ ...run(), runId: "run:3" });
 		await settle();
 		expect(queued.map((value) => value.runId)).toEqual(["run:1", "run:2", "run:3"]);
 		transport.onMessage?.({
@@ -2876,16 +2853,11 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 			expect.objectContaining({ kind: "claim-granted", runId: "run:1" }),
 		);
 		expect(queued.map((value) => value.runId)).toEqual(["run:2", "run:3"]);
-		cancels.down([
-			[
-				"DATA",
-				{
-					kind: "managed-cloud-postgresql-cancellation-requested",
-					cancellationId: "cancel:concrete:1",
-					...lease,
-				},
-			],
-		]);
+		cancels.set({
+			kind: "managed-cloud-postgresql-cancellation-requested",
+			cancellationId: "cancel:concrete:1",
+			...lease,
+		});
 		await settle();
 		const cancelCount = transport.sent.filter((message) => message.kind === "cancel").length;
 		await runtime.expire();
@@ -2990,10 +2962,10 @@ async function activeRuntime(store = new Store()) {
 		authorizationRecheck: allowAuthorizationRecheckDriver(),
 		now: () => 10,
 	});
-	inputs.down([["DATA", input()]]);
-	manifests.down([["DATA", manifest()]]);
-	postures.down([["DATA", readiness()]]);
-	admitted.down([["DATA", run()]]);
+	inputs.set(input());
+	manifests.set(manifest());
+	postures.set(readiness());
+	admitted.set(run());
 	await settle();
 	transport.onMessage?.({
 		kind: "claim",

@@ -29,7 +29,7 @@ function fixture(capacity = 64, enqueue: (callback: () => void) => void = queueM
 			);
 			try {
 				notifications++;
-				source.down([["DATA", snapshot]]);
+				source.set(snapshot);
 			} catch {
 				faulted = true;
 			} finally {
@@ -104,10 +104,10 @@ it("delivers after nested batch commits, with one immutable complete snapshot", 
 	try {
 		batch(() =>
 			batch(() =>
-				f.input.down([
-					["DATA", 1],
-					["DATA", 2],
-				]),
+				batch(() => {
+					f.input.set(1);
+					f.input.set(2);
+				}),
 			),
 		);
 		expect(f.observed).toEqual([]);
@@ -131,7 +131,7 @@ it("does not create a host record or notification from rolled back input", async
 	const f = fixture();
 	try {
 		batch((ctx) => {
-			f.input.down([["DATA", 1]]);
+			f.input.set(1);
 			ctx.rollback();
 		});
 		await checkpoint();
@@ -146,7 +146,7 @@ it("retains records across UI detachment and rejects duplicate and conflicting c
 	const f = fixture();
 	try {
 		f.observerStop();
-		f.input.down([["DATA", 1]]);
+		f.input.set(1);
 		await checkpoint();
 		f.complete({ id: 1, result: "cancelled" });
 		f.complete({ id: 1, result: "succeeded" });
@@ -183,7 +183,7 @@ it("coalesces new completions during delivery into one subsequent notification",
 		}
 	});
 	try {
-		f.input.down([["DATA", 1]]);
+		f.input.set(1);
 		await checkpoint();
 		await checkpoint();
 		expect(f.status().notifications).toBe(2);
@@ -218,7 +218,7 @@ it("a throwing source observer is isolated and does not fault the completion hos
 		}
 	});
 	try {
-		f.input.down([["DATA", 1]]);
+		f.input.set(1);
 		await checkpoint();
 		expect(f.status().faulted).toBe(false);
 		expect(f.records.get(1)).toEqual({ id: 1, result: "cancelled" });

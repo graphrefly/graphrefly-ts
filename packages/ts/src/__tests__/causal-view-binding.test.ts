@@ -43,16 +43,17 @@ it.each(["INVALIDATE", "ERROR"] as const)("%s makes previous values unavailable"
 	const node = graph.node([], null);
 	const view = Object.fromEntries(
 		["assessment", "publication", "coverage", "issues", "startup"].map((k) => [k, node]),
-	) as SpendingAlertsView;
+	) as unknown as SpendingAlertsView;
 	let latest: Parameters<Parameters<typeof mountSpendingView>[1]>[0] | undefined;
 	const stop = mountSpendingView(view, (value) => {
 		latest = value;
 	});
 	try {
 		expect(latest?.unavailable).toHaveLength(5);
-		node.down([["DATA", { observed: true }]]);
+		node.set({ observed: true });
 		expect(latest?.unavailable).toHaveLength(0);
-		node.down(kind === "ERROR" ? [["ERROR", new Error("dependency lost")]] : [["INVALIDATE"]]);
+		if (kind === "ERROR") node.error(new Error("dependency lost"));
+		else node.invalidate();
 		expect(latest?.unavailable).toHaveLength(5);
 		expect(latest?.values).toEqual({});
 	} finally {
@@ -64,7 +65,7 @@ it("initial renderer failure removes all newly installed view subscriptions", ()
 	const nodes = [0, 1, 2, 3, 4].map(() => graph.node([], null));
 	const view = Object.fromEntries(
 		["assessment", "publication", "coverage", "issues", "startup"].map((k, i) => [k, nodes[i]]),
-	) as SpendingAlertsView;
+	) as unknown as SpendingAlertsView;
 	let calls = 0;
 	expect(() =>
 		mountSpendingView(view, () => {
@@ -72,7 +73,7 @@ it("initial renderer failure removes all newly installed view subscriptions", ()
 			throw Error("render");
 		}),
 	).toThrow("render");
-	for (const n of nodes) n.down([["DATA", "later"]]);
+	for (const n of nodes) n.set("later");
 	expect(calls).toBe(1);
 });
 

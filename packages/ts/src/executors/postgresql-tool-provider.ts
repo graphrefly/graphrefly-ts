@@ -452,24 +452,19 @@ export function postgresqlToolProviderRuntime(
 	let shutdownPromise: Promise<void> | undefined;
 	let topologyReleased = false;
 
-	const publishIssue = (next: DataIssue): void => issues.down([["DATA", next]]);
+	const publishIssue = (next: DataIssue): void => issues.set(next);
 	const publishAudit = (
 		kind: string,
 		subjectId: string,
 		metadata?: Record<string, unknown>,
 	): void => {
 		auditSeq += 1;
-		audit.down([
-			[
-				"DATA",
-				{
-					id: compoundTupleKey("postgresql-runtime-audit", [name, String(auditSeq)]),
-					kind,
-					subjectId,
-					...(metadata === undefined ? {} : { metadata }),
-				},
-			],
-		]);
+		audit.set({
+			id: compoundTupleKey("postgresql-runtime-audit", [name, String(auditSeq)]),
+			kind,
+			subjectId,
+			...(metadata === undefined ? {} : { metadata }),
+		});
 	};
 	const publishRunStatus = (
 		request: ToolProviderAdapterRunRequested,
@@ -477,35 +472,30 @@ export function postgresqlToolProviderRuntime(
 		outcomeId?: string,
 		nextIssues?: readonly DataIssue[],
 	): void => {
-		runStatus.down([
-			[
-				"DATA",
-				{
-					kind: "tool-provider-adapter-run-status",
-					runId: request.runId,
-					adapterInputId: request.adapterInputId,
-					requestId: request.requestId,
-					operationId: request.operationId,
-					status: next,
-					attempt: request.attempt,
-					...(outcomeId === undefined ? {} : { outcomeId }),
-					...(nextIssues === undefined ? {} : { issues: nextIssues }),
-					sourceRefs: request.sourceRefs,
-					metadata: {
-						providerId,
-						adapterVersion: opts.adapterVersion,
-						driverCompatibility: opts.driverCompatibility,
-					},
-				},
-			],
-		]);
+		runStatus.set({
+			kind: "tool-provider-adapter-run-status",
+			runId: request.runId,
+			adapterInputId: request.adapterInputId,
+			requestId: request.requestId,
+			operationId: request.operationId,
+			status: next,
+			attempt: request.attempt,
+			...(outcomeId === undefined ? {} : { outcomeId }),
+			...(nextIssues === undefined ? {} : { issues: nextIssues }),
+			sourceRefs: request.sourceRefs,
+			metadata: {
+				providerId,
+				adapterVersion: opts.adapterVersion,
+				driverCompatibility: opts.driverCompatibility,
+			},
+		});
 	};
 
 	function publishOutcome(
 		activeRun: ActiveRun,
 		outcome: ExecutorOutcome<PostgresqlQueryToolResult>,
 	): void {
-		outcomes.down([["DATA", outcome]]);
+		outcomes.set(outcome);
 		publishRunStatus(activeRun.request, outcome.kind, outcome.outcomeId, outcome.issues);
 		const requestStatus =
 			outcome.kind === "result"
@@ -513,20 +503,15 @@ export function postgresqlToolProviderRuntime(
 				: outcome.kind === "failure"
 					? "failed"
 					: outcome.kind;
-		status.down([
-			[
-				"DATA",
-				{
-					kind: "status",
-					requestId: activeRun.request.requestId,
-					operationId: activeRun.request.operationId,
-					effectRunId: activeRun.input.effectRunId ?? activeRun.request.runId,
-					status: requestStatus,
-					sourceRefs: outcome.evidenceRefs,
-					metadata: { runId: activeRun.request.runId, adapterVersion: opts.adapterVersion },
-				},
-			],
-		]);
+		status.set({
+			kind: "status",
+			requestId: activeRun.request.requestId,
+			operationId: activeRun.request.operationId,
+			effectRunId: activeRun.input.effectRunId ?? activeRun.request.runId,
+			status: requestStatus,
+			sourceRefs: outcome.evidenceRefs,
+			metadata: { runId: activeRun.request.runId, adapterVersion: opts.adapterVersion },
+		});
 		publishAudit("postgresql-runtime-finished", activeRun.request.requestId, {
 			runId: activeRun.request.runId,
 			attempt: activeRun.request.attempt,
@@ -752,7 +737,7 @@ export function postgresqlToolProviderRuntime(
 			]),
 		});
 		proposals.set(proposal.proposalId, proposal);
-		cancellationProposals.down([["DATA", proposal]]);
+		cancellationProposals.set(proposal);
 	}
 
 	function decideCancellation(decision: PostgresqlRunCancellationDecision): void {
@@ -811,7 +796,7 @@ export function postgresqlToolProviderRuntime(
 			state: admitted ? "admitted" : "blocked",
 			sourceRefs: decisionSourceRefs,
 		});
-		cancellationAdmissions.down([["DATA", admission]]);
+		cancellationAdmissions.set(admission);
 		if (admitted && run !== undefined) {
 			run.cancelKind = "user";
 			run.controller.abort();

@@ -14,7 +14,7 @@
 
 import { type Ctx, depBatch, depCount, depLatest } from "../../ctx/types.js";
 import { attachableInput } from "../../node/attachable-input.js";
-import { Node } from "../../node/node.js";
+import { Node, StateNode } from "../../node/node.js";
 import { oneArrayPerRun } from "../../node/one-array-per-run.js";
 import { errorPayload } from "../../protocol/messages.js";
 import type { Operator } from "../operators.js";
@@ -273,7 +273,7 @@ export function reactiveList<T>(
 				meta: { kind: "collection_policy", collection: "reactiveList", policy: "maxSize" },
 			});
 		}
-		return new Node<number>([], null, {
+		return new StateNode<number>([], null, {
 			...base,
 			initial: value,
 			factory: "reactiveList.maxSizePolicy",

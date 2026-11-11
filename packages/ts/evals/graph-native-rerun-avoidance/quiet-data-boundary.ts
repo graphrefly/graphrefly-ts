@@ -1,3 +1,4 @@
+import { batch } from "../../src/batch/batch.js";
 import { depBatch } from "../../src/ctx/types.js";
 import type { Graph } from "../../src/graph/graph.js";
 import type { Node } from "../../src/node/node.js";

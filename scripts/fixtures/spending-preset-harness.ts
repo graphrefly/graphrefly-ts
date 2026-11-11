@@ -16,6 +16,7 @@ import {
 	spendingInputNodes,
 	spendingNodeNames,
 } from "../../examples/spending-alerts/causal-preset.js";
+import { batch } from "../../packages/ts/src/batch/batch.js";
 import {
 	type ConstructionScope,
 	prepareConstruction,
@@ -260,7 +261,9 @@ export function presetRun(
 		stops = [];
 	};
 	const send = (lane: keyof typeof sources, ...values: unknown[]) =>
-		sources[lane].down(values.map((v) => ["DATA", v]));
+		batch(() => {
+			for (const v of values) sources[lane].set(v as never);
+		});
 	const drive = (e: Evaluation) => {
 		const f = policyFacts(e, binding);
 		send("current", f.current);

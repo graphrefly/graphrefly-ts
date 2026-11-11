@@ -16,7 +16,7 @@ import type {
 	MessageBusStatus,
 } from "../messaging/index.js";
 import { attachMessageBusDeferredCommandSink } from "../messaging/internal.js";
-import { type Node, requestDownAfterWave } from "../node/node.js";
+import type { Node, StateNode } from "../node/node.js";
 import { oneArrayPerRun } from "../node/one-array-per-run.js";
 import { availablePage, deadLetterPage, workSnapshot } from "./projections.js";
 import type { QueueEvent, RuntimeState, WorkState } from "./runtime-types.js";
@@ -115,18 +115,13 @@ export function workQueue<T = unknown>(graph: Graph, opts: WorkQueueOptions<T>):
 		from: opts.from ?? "earliest",
 		name: `${name}/admission`,
 	});
-	const commands = graph.node<WorkQueueCommand<T>>(
-		[],
-		oneArrayPerRun((ctx) => {
-			for (const command of depBatch(ctx, 0) ?? []) ctx.down([["DATA", command]]);
-		}),
-		{
-			name: `${name}/commands`,
-			factory: "workQueueCommands",
-			complete: "manual",
-			error: "manual",
-		},
-	);
+	// The queue's host input (graphrefly-ts:D175: host writes go only to a state node).
+	const commands = graph.node<WorkQueueCommand<T>>([], null, {
+		name: `${name}/commands`,
+		factory: "workQueueCommands",
+		complete: "manual",
+		error: "manual",
+	});
 	const state: RuntimeState<T> = {
 		recordSeq: 0,
 		leaseSeq: 0,
@@ -161,9 +156,7 @@ export function workQueue<T = unknown>(graph: Graph, opts: WorkQueueOptions<T>):
 			}
 			if (shouldPull) {
 				// A request for one page, after this wave (graphrefly-ts:D172).
-				requestDownAfterWave(admission.availableRequest as Node<unknown>, [
-					["DATA", { limit: 100 }],
-				]);
+				(admission.availableRequest as StateNode<WorkQueueAvailableParams>).set({ limit: 100 });
 			}
 		}),
 		{
@@ -429,7 +422,7 @@ export function workQueue<T = unknown>(graph: Graph, opts: WorkQueueOptions<T>):
  * A projection's request state (graphrefly-ts:D172): the projection declares it as a dependency
  * and serves one page per live write, with the written params.
  */
-function projectionRequest<P>(graph: Graph, projectionName: string, factory: string): Node<P> {
+function projectionRequest<P>(graph: Graph, projectionName: string, factory: string): StateNode<P> {
 	return graph.node<P>([], null, {
 		name: `${projectionName}/request`,
 		factory,

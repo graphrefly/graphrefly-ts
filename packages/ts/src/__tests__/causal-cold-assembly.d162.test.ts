@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { batch } from "../batch/batch.js";
 import { depLatest } from "../ctx/types.js";
 import { Dispatcher, type Handle } from "../dispatcher/index.js";
 import {
@@ -27,6 +28,7 @@ import type {
 	RuntimeState,
 } from "../solutions/causal-occurrence/contracts.js";
 import { causalOccurrenceDigest } from "../solutions/causal-occurrence.js";
+import { asState } from "./helpers/as-state.js";
 
 const graphs: Graph[] = [];
 const dispatchers = new Map<Graph, CountingDispatcher>();
@@ -257,10 +259,10 @@ describe("D162 private shared cold assembly", () => {
 		startConstruction(f.graph, owner);
 		expect(f.value.cache).toBeUndefined();
 		expect(effects(f)).toHaveLength(0);
-		f.a.down([
-			["DATA", 2],
-			["DATA", 2],
-		]);
+		batch(() => {
+			f.a.set(2);
+			f.a.set(2);
+		});
 		expect(f.value.cache).toEqual(f.occurrence);
 		expect(effects(f)).toHaveLength(1);
 		expect(effects(f)[0]?.admission?.state).toBe("admitted");
@@ -389,7 +391,7 @@ describe("D162 private shared cold assembly", () => {
 		expect(constructionOf(graph!, "run")).toBeUndefined();
 		expect(shared).toEqual([2]);
 		expect(dispatchers.get(graph!)!.live).toEqual(handles!);
-		graph!.find("external/a")!.down([["DATA", 7]]);
+		asState(graph!.find("external/a")!).set(7);
 		expect(shared).toEqual([2, 7]);
 	});
 	it.each([
@@ -474,15 +476,15 @@ describe("D162 private shared cold assembly", () => {
 				error: { kind: "issue", code: "known-failure", message: "fixture boundary did not write" },
 			},
 		};
-		f.outcomes.down([["DATA", { ...outcome, admissionRef: { kind: "admission", id: "wrong" } }]]);
+		f.outcomes.set({ ...outcome, admissionRef: { kind: "admission", id: "wrong" } });
 		expect(effects(f)[0]?.outcome).toBeUndefined();
 		const collect = f.built.ports.conservation.subscribe((incoming) => {
 			for (const m of incoming) {
 				if (m[0] === "DATA") seen.push(m[1]);
 			}
 		});
-		f.outcomes.down([["DATA", outcome]]);
-		f.outcomes.down([["DATA", outcome]]);
+		f.outcomes.set(outcome);
+		f.outcomes.set(outcome);
 		collect();
 		const again = f.built.ports.conservation.subscribe((incoming) => {
 			for (const m of incoming) {

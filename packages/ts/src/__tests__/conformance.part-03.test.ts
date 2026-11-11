@@ -9,6 +9,7 @@
  */
 
 import { describe, expect, it } from "vitest";
+import { batch } from "../batch/batch.js";
 import type { Ctx, Message } from "../index.js";
 import { depLatest, dynamicNode, fromPromise, graph, node } from "../index.js";
 
@@ -56,7 +57,7 @@ describe("C-23 raw ctx waveData is the only dep-value input (R-fn-contract / R-c
 		);
 		collect(n);
 
-		a.down([["DATA", 1]]);
+		a.set(1);
 
 		expect(seen).toEqual({
 			waveData: [[[1]]],
@@ -78,17 +79,22 @@ describe("C-23 raw ctx waveData is the only dep-value input (R-fn-contract / R-c
 		);
 		collect(n);
 
-		b.down([["DATA", "b"]]);
+		b.set("b");
 		expect(captures.at(-1)).toEqual([[], [["b"]]]);
 
 		// R-wave: the array is split at its last INVALIDATE; what came before it is dropped.
-		a.down([["DATA", 1], ["DATA", 2], ["INVALIDATE"], ["DATA", 3]]);
+		batch(() => {
+			a.set(1);
+			a.set(2);
+			a.invalidate();
+			a.set(3);
+		});
 		expect(captures.at(-1)).toEqual([[[3]], []]);
 
-		a.down([["DATA", null]]);
+		a.set(null);
 		expect(captures.at(-1)).toEqual([[[null]], []]);
 
-		a.down([["DATA", []]]);
+		a.set([]);
 		expect(captures.at(-1)).toEqual([[[[]]], []]);
 	});
 
@@ -108,7 +114,7 @@ describe("C-23 raw ctx waveData is the only dep-value input (R-fn-contract / R-c
 			{ partial: true },
 		);
 		collect(n);
-		src.down([["DATA", 1]]);
+		src.set(1);
 		expect(captures.at(-1)).toEqual([[[]]]);
 	});
 
@@ -130,7 +136,7 @@ describe("C-23 raw ctx waveData is the only dep-value input (R-fn-contract / R-c
 		);
 		collect(n);
 
-		a.down([["COMPLETE"]]);
+		a.complete();
 		expect(waves.at(-1)).toEqual([[]]);
 		expect(terminals.at(-1)).toEqual([true]);
 
@@ -149,7 +155,7 @@ describe("C-23 raw ctx waveData is the only dep-value input (R-fn-contract / R-c
 			},
 		);
 		collect(m);
-		b.down([["ERROR", e]]);
+		b.error(e);
 		expect(waves.at(-1)).toEqual([[]]);
 		expect(terminals.at(-1)).toEqual([e]);
 
@@ -167,7 +173,7 @@ describe("C-23 raw ctx waveData is the only dep-value input (R-fn-contract / R-c
 			},
 		);
 		collect(p);
-		c.down([["ERROR", null]]);
+		c.error(null);
 		expect(waves.at(-1)).toEqual([[]]);
 		expect(terminals.at(-1)).toEqual([null]);
 	});
@@ -191,10 +197,10 @@ describe("C-23 raw ctx waveData is the only dep-value input (R-fn-contract / R-c
 		);
 		collect(n);
 
-		a.down([["COMPLETE"]]);
+		a.complete();
 		expect(captures.at(-1)).toEqual({ waveData: [[], []], terminal: [true, false] });
 
-		b.down([["DATA", 1]]);
+		b.set(1);
 		expect(captures.at(-1)).toEqual({ waveData: [[], [[1]]], terminal: [false, false] });
 	});
 
@@ -207,14 +213,14 @@ describe("C-23 raw ctx waveData is the only dep-value input (R-fn-contract / R-c
 			}
 		});
 		msgs.length = 0;
-		expect(() => s.down([["ERROR", undefined]])).toThrow(/non-SENTINEL/);
-		expect(() => s.down([["ERROR", false]])).toThrow(/non-boolean/);
-		expect(() => s.down([["ERROR", true]])).toThrow(/non-boolean/);
+		expect(() => s.error(undefined)).toThrow(/non-SENTINEL/);
+		expect(() => s.error(false)).toThrow(/non-boolean/);
+		expect(() => s.error(true)).toThrow(/non-boolean/);
 		expect(() =>
-			s.down([
-				["DATA", 1],
-				["ERROR", false],
-			]),
+			batch(() => {
+				s.set(1);
+				s.error(false);
+			}),
 		).toThrow(/non-boolean/);
 		expect(msgs).toEqual([]);
 
@@ -250,7 +256,7 @@ describe("C-23 raw ctx waveData is the only dep-value input (R-fn-contract / R-c
 		const { msgs } = collect(d);
 		msgs.length = 0;
 
-		b.down([["DATA", 2]]);
+		b.set(2);
 
 		expect(captures.at(-1)).toEqual([[], [[2]]]);
 		expect(types(msgs)).toEqual(["PENDING", "RESOLVED"]);

@@ -660,8 +660,8 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 2", () => {
 			}
 		});
 
-		inputs.down([["DATA", { ...ready, status: "missing-policy" }]]);
-		inputs.down([["DATA", ready]]);
+		inputs.set({ ...ready, status: "missing-policy" });
+		inputs.set(ready);
 
 		expect(calls).toEqual([ready]);
 		expect(status.map((fact) => fact.status)).toEqual(["in-flight", "completed"]);
@@ -713,7 +713,7 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 2", () => {
 			}
 		});
 
-		inputs.down([["DATA", ready]]);
+		inputs.set(ready);
 
 		expect(outcomes).toEqual([
 			expect.objectContaining({
@@ -764,7 +764,7 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 2", () => {
 			}
 		});
 
-		inputs.down([["DATA", ready]]);
+		inputs.set(ready);
 
 		expect(outcomes).toEqual([
 			expect.objectContaining({
@@ -819,7 +819,7 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 2", () => {
 			}
 		});
 
-		inputs.down([["DATA", ready]]);
+		inputs.set(ready);
 
 		expect(outcomes).toEqual([
 			expect.objectContaining({
@@ -862,7 +862,7 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 2", () => {
 			}
 		});
 
-		inputs.down([["DATA", ready]]);
+		inputs.set(ready);
 
 		expect(outcomes).toEqual([
 			expect.objectContaining({
@@ -909,7 +909,7 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 2", () => {
 			}
 		});
 
-		inputs.down([["DATA", ready]]);
+		inputs.set(ready);
 
 		expect(outcomes).toEqual([
 			expect.objectContaining({
@@ -965,7 +965,7 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 2", () => {
 			}
 		});
 
-		inputs.down([["DATA", ready]]);
+		inputs.set(ready);
 
 		expect(outcomes).toEqual([
 			expect.objectContaining({

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { batch } from "../batch/batch.js";
 import { graph } from "../graph/graph.js";
 import {
 	type AgentDecisionContinue,
@@ -303,28 +304,25 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 1", () => {
 			}
 		});
 
-		outcomes.down([
-			[
-				"DATA",
-				fakeExecutorFailure({
-					outcomeId: "outcome-1",
-					requestId: "request-1",
-					operationId: "op-1",
-					routeId: "route-1",
-					executorId: "exec-1",
-					profileId: "profile-1",
-					attempt: 1,
-					retryable: true,
-					error: {
-						kind: "issue",
-						code: "provider-failed",
-						message: "Provider returned a long failure message for compact projection",
-					},
-					usage: { inputTokens: 10, outputTokens: 2 },
-					evidenceRefs: [{ kind: "executor-outcome", id: "outcome-1" }],
-				}),
-			],
-		]);
+		outcomes.set(
+			fakeExecutorFailure({
+				outcomeId: "outcome-1",
+				requestId: "request-1",
+				operationId: "op-1",
+				routeId: "route-1",
+				executorId: "exec-1",
+				profileId: "profile-1",
+				attempt: 1,
+				retryable: true,
+				error: {
+					kind: "issue",
+					code: "provider-failed",
+					message: "Provider returned a long failure message for compact projection",
+				},
+				usage: { inputTokens: 10, outputTokens: 2 },
+				evidenceRefs: [{ kind: "executor-outcome", id: "outcome-1" }],
+			}),
+		);
 
 		expect(projected.at(-1)).toMatchObject({
 			kind: "executor-outcome-view",
@@ -409,32 +407,22 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 1", () => {
 			}
 		});
 
-		workItems.down([
-			[
-				"DATA",
-				{
-					kind: "work-item",
-					workItemId: "wi-1",
-					sourceRefs: [{ kind: "work-item", id: "wi-1" }],
-					workItemKind: "issue",
-					lifecycleStatus: "open",
-				},
-			],
-		]);
-		effectRequests.down([
-			[
-				"DATA",
-				{
-					kind: "work-item-effect-requested",
-					requestId: "wi-effect-1",
-					workItemId: "wi-1",
-					effectRunId: "run-1",
-					effectKind: "verification",
-					goal: { kind: "verify", summary: "check acceptance" },
-					sourceRefs: [{ kind: "acceptance-criteria", id: "ac-1" }],
-				},
-			],
-		]);
+		workItems.set({
+			kind: "work-item",
+			workItemId: "wi-1",
+			sourceRefs: [{ kind: "work-item", id: "wi-1" }],
+			workItemKind: "issue",
+			lifecycleStatus: "open",
+		});
+		effectRequests.set({
+			kind: "work-item-effect-requested",
+			requestId: "wi-effect-1",
+			workItemId: "wi-1",
+			effectRunId: "run-1",
+			effectKind: "verification",
+			goal: { kind: "verify", summary: "check acceptance" },
+			sourceRefs: [{ kind: "acceptance-criteria", id: "ac-1" }],
+		});
 		expect(seededRuns.at(-1)).toMatchObject({
 			effectRunId: "run-1",
 			subjectRefs: [{ kind: "work-item", id: "wi-1" }],
@@ -465,72 +453,59 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 1", () => {
 			sourceRefs: [{ kind: "agent-decision", id: "decision-continue" }],
 		});
 		const issued = issueAgentRequest(proposal, admitted);
-		requestFacts.down([
-			["DATA", proposal],
-			["DATA", admitted],
-			["DATA", issued],
-		]);
-		profiles.down([
-			[
-				"DATA",
-				{
-					profileId: "profile-1",
-					executorId: "exec-1",
-					kind: "llm",
-					acceptedInputKinds: ["llm-call"],
-				},
-			],
-		]);
-		routes.down([
-			[
-				"DATA",
-				{
-					kind: "executor-route",
-					routeId: "route-1",
-					requestId: "request-1",
-					operationId: "op-1",
-					inputId: "input-1",
-					inputKind: "llm-call",
-					executorId: "exec-1",
-					profileId: "profile-1",
-				},
-			],
-		]);
-		outcomes.down([
-			[
-				"DATA",
-				fakeExecutorResult({
-					outcomeId: "outcome-1",
-					requestId: "request-1",
-					operationId: "op-1",
-					routeId: "route-1",
-					executorId: "exec-1",
-					profileId: "profile-1",
-					attempt: 1,
-					inputId: "input-1",
-					inputKind: "llm-call",
-					result: {
+		batch(() => {
+			requestFacts.set(proposal);
+			requestFacts.set(admitted);
+			requestFacts.set(issued);
+		});
+		profiles.set({
+			profileId: "profile-1",
+			executorId: "exec-1",
+			kind: "llm",
+			acceptedInputKinds: ["llm-call"],
+		});
+		routes.set({
+			kind: "executor-route",
+			routeId: "route-1",
+			requestId: "request-1",
+			operationId: "op-1",
+			inputId: "input-1",
+			inputKind: "llm-call",
+			executorId: "exec-1",
+			profileId: "profile-1",
+		});
+		outcomes.set(
+			fakeExecutorResult({
+				outcomeId: "outcome-1",
+				requestId: "request-1",
+				operationId: "op-1",
+				routeId: "route-1",
+				executorId: "exec-1",
+				profileId: "profile-1",
+				attempt: 1,
+				inputId: "input-1",
+				inputKind: "llm-call",
+				result: {
+					kind: "agent-decision",
+					value: {
 						kind: "agent-decision",
-						value: {
-							kind: "agent-decision",
-							schemaRef: "graphrefly.agent-decision.v0",
-							decision: {
-								kind: "final",
-								decisionId: "decision-final",
-								effectRunId: "run-1",
-								agentRunId: "agent-1",
-								source: {
-									requestId: "request-1",
-									operationId: "op-1",
-									outcomeId: "outcome-1",
-								},
-								output: { kind: "verified", value: { ok: true } },
+						schemaRef: "graphrefly.agent-decision.v0",
+						decision: {
+							kind: "final",
+							decisionId: "decision-final",
+							effectRunId: "run-1",
+							agentRunId: "agent-1",
+							source: {
+								requestId: "request-1",
+								operationId: "op-1",
+								outcomeId: "outcome-1",
 							},
+							output: { kind: "verified", value: { ok: true } },
 						},
 					},
-				}),
-			],
-		]);
+				},
+			}),
+		);
 
 		expect(evidence.at(-1)).toMatchObject({
 			kind: "work-item-evidence-recorded",
@@ -600,17 +575,14 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 1", () => {
 			}
 		});
 
-		effectRuns.down([
-			[
-				"DATA",
-				effectRun({
-					effectRunId: "run-1",
-					agentRunId: "agent-1",
-					subjectRefs: [{ kind: "work-item", id: "wi-1" }],
-					goal: { kind: "verify", summary: "check acceptance" },
-				}),
-			],
-		]);
+		effectRuns.set(
+			effectRun({
+				effectRunId: "run-1",
+				agentRunId: "agent-1",
+				subjectRefs: [{ kind: "work-item", id: "wi-1" }],
+				goal: { kind: "verify", summary: "check acceptance" },
+			}),
+		);
 		const continueDecision: AgentDecisionContinue = {
 			kind: "continue",
 			decisionId: "decision-continue",
@@ -631,72 +603,59 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 1", () => {
 			sourceRefs: [{ kind: "agent-decision", id: "decision-continue" }],
 		});
 		const issued = issueAgentRequest(proposal, admitted);
-		requestFacts.down([
-			["DATA", proposal],
-			["DATA", admitted],
-			["DATA", issued],
-		]);
-		profiles.down([
-			[
-				"DATA",
-				{
-					profileId: "profile-1",
-					executorId: "exec-1",
-					kind: "llm",
-					acceptedInputKinds: ["llm-call"],
-				},
-			],
-		]);
-		routes.down([
-			[
-				"DATA",
-				{
-					kind: "executor-route",
-					routeId: "route-1",
-					requestId: "request-1",
-					operationId: "op-1",
-					inputId: "input-1",
-					inputKind: "llm-call",
-					executorId: "exec-1",
-					profileId: "profile-1",
-				},
-			],
-		]);
-		outcomes.down([
-			[
-				"DATA",
-				fakeExecutorResult({
-					outcomeId: "outcome-1",
-					requestId: "request-1",
-					operationId: "op-1",
-					routeId: "route-1",
-					executorId: "exec-1",
-					profileId: "profile-1",
-					attempt: 1,
-					inputId: "input-1",
-					inputKind: "llm-call",
-					result: {
+		batch(() => {
+			requestFacts.set(proposal);
+			requestFacts.set(admitted);
+			requestFacts.set(issued);
+		});
+		profiles.set({
+			profileId: "profile-1",
+			executorId: "exec-1",
+			kind: "llm",
+			acceptedInputKinds: ["llm-call"],
+		});
+		routes.set({
+			kind: "executor-route",
+			routeId: "route-1",
+			requestId: "request-1",
+			operationId: "op-1",
+			inputId: "input-1",
+			inputKind: "llm-call",
+			executorId: "exec-1",
+			profileId: "profile-1",
+		});
+		outcomes.set(
+			fakeExecutorResult({
+				outcomeId: "outcome-1",
+				requestId: "request-1",
+				operationId: "op-1",
+				routeId: "route-1",
+				executorId: "exec-1",
+				profileId: "profile-1",
+				attempt: 1,
+				inputId: "input-1",
+				inputKind: "llm-call",
+				result: {
+					kind: "agent-decision",
+					value: {
 						kind: "agent-decision",
-						value: {
-							kind: "agent-decision",
-							schemaRef: "graphrefly.agent-decision.v0",
-							decision: {
-								kind: "final",
-								decisionId: "decision-final",
-								effectRunId: "run-1",
-								agentRunId: "agent-1",
-								source: {
-									requestId: "request-1",
-									operationId: "op-1",
-									outcomeId: "outcome-1",
-								},
-								output: { kind: "verified", value: { ok: true } },
+						schemaRef: "graphrefly.agent-decision.v0",
+						decision: {
+							kind: "final",
+							decisionId: "decision-final",
+							effectRunId: "run-1",
+							agentRunId: "agent-1",
+							source: {
+								requestId: "request-1",
+								operationId: "op-1",
+								outcomeId: "outcome-1",
 							},
+							output: { kind: "verified", value: { ok: true } },
 						},
 					},
-				}),
-			],
-		]);
+				},
+			}),
+		);
 
 		expect(statuses.map((s) => s.status)).toContain("awaiting-provider");
 		expect(statuses.at(-1)).toMatchObject({ requestId: "request-1", status: "completed" });
@@ -739,68 +698,50 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 1", () => {
 		const promptReq = issued("prompt-1", "prompt-op", "prompt");
 		const executorReq = issued("exec-1", "exec-op", "executor", "tool-call");
 
-		requestFacts.down([
-			["DATA", contextReq],
-			["DATA", promptReq],
-			["DATA", executorReq],
-		]);
-		context.down([
-			[
-				"DATA",
-				{
-					kind: "context-contribution",
-					contributionId: "ctx-1",
-					requestId: "context-1",
-					operationId: "ctx-op",
-					status: "ready",
-					frameId: "frame-1",
-				},
-			],
-		]);
-		prompts.down([
-			[
-				"DATA",
-				{
-					kind: "prompt-bundle",
-					promptId: "prompt-bundle-1",
-					requestId: "prompt-1",
-					operationId: "prompt-op",
-					status: "ready",
-					sourceFrameIds: ["frame-1"],
-				},
-			],
-		]);
-		profiles.down([["DATA", { profileId: "tool-profile", executorId: "tool-exec", kind: "tool" }]]);
-		routes.down([
-			[
-				"DATA",
-				{
-					kind: "executor-route",
-					routeId: "tool-route",
-					requestId: "exec-1",
-					operationId: "exec-op",
-					inputKind: "tool-call",
-					executorId: "tool-exec",
-					profileId: "tool-profile",
-				},
-			],
-		]);
-		outcomes.down([
-			[
-				"DATA",
-				fakeExecutorResult({
-					outcomeId: "tool-outcome",
-					requestId: "exec-1",
-					operationId: "exec-op",
-					routeId: "tool-route",
-					executorId: "tool-exec",
-					profileId: "tool-profile",
-					attempt: 1,
-					inputKind: "tool-call",
-					result: { kind: "tool-result", value: { ok: true } },
-				}),
-			],
-		]);
+		batch(() => {
+			requestFacts.set(contextReq);
+			requestFacts.set(promptReq);
+			requestFacts.set(executorReq);
+		});
+		context.set({
+			kind: "context-contribution",
+			contributionId: "ctx-1",
+			requestId: "context-1",
+			operationId: "ctx-op",
+			status: "ready",
+			frameId: "frame-1",
+		});
+		prompts.set({
+			kind: "prompt-bundle",
+			promptId: "prompt-bundle-1",
+			requestId: "prompt-1",
+			operationId: "prompt-op",
+			status: "ready",
+			sourceFrameIds: ["frame-1"],
+		});
+		profiles.set({ profileId: "tool-profile", executorId: "tool-exec", kind: "tool" });
+		routes.set({
+			kind: "executor-route",
+			routeId: "tool-route",
+			requestId: "exec-1",
+			operationId: "exec-op",
+			inputKind: "tool-call",
+			executorId: "tool-exec",
+			profileId: "tool-profile",
+		});
+		outcomes.set(
+			fakeExecutorResult({
+				outcomeId: "tool-outcome",
+				requestId: "exec-1",
+				operationId: "exec-op",
+				routeId: "tool-route",
+				executorId: "tool-exec",
+				profileId: "tool-profile",
+				attempt: 1,
+				inputKind: "tool-call",
+				result: { kind: "tool-result", value: { ok: true } },
+			}),
+		);
 
 		expect(
 			statuses
@@ -877,42 +818,34 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 1", () => {
 			/apiKey|secret|client|transport|subprocess|sdk|oauth|credential/i,
 		);
 
-		requestFacts.down([["DATA", issued("tool-req", "tool-op", "executor", "tool-call")]]);
-		profiles.down([["DATA", profile]]);
-		routes.down([
-			[
-				"DATA",
-				{
-					kind: "executor-route",
-					routeId: "tool-route",
-					requestId: "tool-req",
-					operationId: "tool-op",
-					inputKind: "tool-call",
-					executorId: profile.executorId,
-					profileId: profile.profileId,
+		requestFacts.set(issued("tool-req", "tool-op", "executor", "tool-call"));
+		profiles.set(profile);
+		routes.set({
+			kind: "executor-route",
+			routeId: "tool-route",
+			requestId: "tool-req",
+			operationId: "tool-op",
+			inputKind: "tool-call",
+			executorId: profile.executorId,
+			profileId: profile.profileId,
+		});
+		outcomes.set(
+			fakeExecutorResult({
+				outcomeId: "tool-outcome",
+				requestId: "tool-req",
+				operationId: "tool-op",
+				routeId: "tool-route",
+				executorId: profile.executorId,
+				profileId: profile.profileId,
+				attempt: 1,
+				inputKind: "tool-call",
+				result: {
+					kind: "tool-result",
+					summary: "read complete",
+					refs: [{ kind: "artifact", id: "artifact:file-read:1" }],
 				},
-			],
-		]);
-		outcomes.down([
-			[
-				"DATA",
-				fakeExecutorResult({
-					outcomeId: "tool-outcome",
-					requestId: "tool-req",
-					operationId: "tool-op",
-					routeId: "tool-route",
-					executorId: profile.executorId,
-					profileId: profile.profileId,
-					attempt: 1,
-					inputKind: "tool-call",
-					result: {
-						kind: "tool-result",
-						summary: "read complete",
-						refs: [{ kind: "artifact", id: "artifact:file-read:1" }],
-					},
-				}),
-			],
-		]);
+			}),
+		);
 
 		expect(statuses.at(-1)).toMatchObject({ requestId: "tool-req", status: "completed" });
 	});

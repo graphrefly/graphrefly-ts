@@ -15,6 +15,7 @@ import {
 import { batch } from "../batch/batch.js";
 import { depBatch } from "../ctx/types.js";
 import { graph } from "../graph/graph.js";
+import { asState } from "./helpers/as-state.js";
 
 interface VectorRecord {
 	readonly schema: "graphrefly.protobuf.golden.v1";
@@ -306,7 +307,7 @@ describe("D498 wireBridgeProtobuf focused helper", () => {
 			}
 		});
 
-		protobuf.inboundBytes.down([["DATA", canonicalInboundBytes()]]);
+		asState(protobuf.inboundBytes).set(canonicalInboundBytes());
 
 		expect(dataMessages(issues)).toEqual([]);
 		expect(dataMessages(inbound)).toContainEqual([
@@ -337,10 +338,11 @@ describe("D498 wireBridgeProtobuf focused helper", () => {
 			}
 		});
 
-		protobuf.inboundBytes.down([
-			["DATA", canonicalInboundBytes()],
-			["DATA", malformedInboundBytes()],
-		]);
+		batch(() => {
+			const target = asState(protobuf.inboundBytes);
+			target.set(canonicalInboundBytes());
+			target.set(malformedInboundBytes());
+		});
 
 		expect(dataMessages(status)).toEqual([
 			["DATA", { decoded: 1, encoded: 0, issues: 0, state: "active" }],
@@ -375,17 +377,14 @@ describe("D498 wireBridgeProtobuf focused helper", () => {
 			}
 		});
 
-		bridge.inbound.down([
-			[
-				"DATA",
-				wireBridgeEnvelope<WireBridgeProtobufData>({
-					sessionId: "s1",
-					type: "data",
-					seq: 1,
-					payload: { kind: "data", value: { kind: "value", value: new Uint8Array([1]) } },
-				}),
-			],
-		]);
+		bridge.inbound.set(
+			wireBridgeEnvelope<WireBridgeProtobufData>({
+				sessionId: "s1",
+				type: "data",
+				seq: 1,
+				payload: { kind: "data", value: { kind: "value", value: new Uint8Array([1]) } },
+			}),
+		);
 
 		expect(dataMessages(status)).toEqual([]);
 	});
@@ -422,7 +421,7 @@ describe("D498 wireBridgeProtobuf focused helper", () => {
 			}
 		});
 
-		protobuf.inboundBytes.down([["DATA", malformedInboundBytes()]]);
+		asState(protobuf.inboundBytes).set(malformedInboundBytes());
 
 		expect(dataMessages(issues)).toContainEqual([
 			"DATA",
@@ -484,7 +483,7 @@ describe("D498 wireBridgeProtobuf focused helper", () => {
 			}
 		});
 
-		protobuf.inboundBytes.down([["DATA", malformedInboundBytes()]]);
+		asState(protobuf.inboundBytes).set(malformedInboundBytes());
 
 		expect(dataMessages(inbound)).toContainEqual([
 			"DATA",
@@ -526,7 +525,7 @@ describe("D498 wireBridgeProtobuf focused helper", () => {
 			}
 		});
 
-		protobuf.inboundBytes.down([["DATA", malformedInboundBytes()]]);
+		asState(protobuf.inboundBytes).set(malformedInboundBytes());
 
 		expect(dataMessages(inbound)).toContainEqual([
 			"DATA",
@@ -562,7 +561,7 @@ describe("D498 wireBridgeProtobuf focused helper", () => {
 			}
 		});
 
-		protobuf.inboundBytes.down([["DATA", malformedInboundBytes()]]);
+		asState(protobuf.inboundBytes).set(malformedInboundBytes());
 
 		expect(dataMessages(issues)).toContainEqual([
 			"DATA",
@@ -864,7 +863,7 @@ describe("D498 wireBridgeProtobuf focused helper", () => {
 					: {}),
 			};
 			trace.push(row);
-			target.down([["DATA", item]]);
+			asState(target).set(item);
 		};
 		const pumpAll = (
 			direction: TraceRow["direction"],
@@ -1020,7 +1019,7 @@ describe("D498 wireBridgeProtobuf focused helper", () => {
 			}
 		});
 
-		a.down([["DATA", bytes("a0")]]);
+		a.set(bytes("a0"));
 		captureBytes(g1ToG2Out, g1ToG2Queue);
 		pumpAll("g1_to_g2", g1ToG2Queue, g2FromG1Bytes.inboundBytes);
 		captureBytes(g2ToG1Out, g2ToG1Queue);
@@ -1033,7 +1032,7 @@ describe("D498 wireBridgeProtobuf focused helper", () => {
 		g1InboundStatus.length = 0;
 		trace.length = 0;
 		batch(() => {
-			a.down([["DATA", bytes("a1")]]);
+			a.set(bytes("a1"));
 		});
 		captureBytes(g1ToG2Out, g1ToG2Queue);
 
@@ -1121,7 +1120,7 @@ describe("D498 wireBridgeProtobuf focused helper", () => {
 			}
 		});
 
-		protobuf.inboundBytes.down([["DATA", canonicalInboundBytes()]]);
+		asState(protobuf.inboundBytes).set(canonicalInboundBytes());
 		expect(dataMessages(inbound)).toContainEqual([
 			"DATA",
 			expect.objectContaining({ sessionId: "s1", type: "data" }),
@@ -1132,21 +1131,16 @@ describe("D498 wireBridgeProtobuf focused helper", () => {
 			from: "bridge/protobuf/inboundDecoded",
 			to: "bridge/inbound",
 		});
-		expect(() => protobuf.inboundBytes.down([["DATA", canonicalInboundBytes()]])).toThrow(
-			/released/,
-		);
+		expect(() => asState(protobuf.inboundBytes).set(canonicalInboundBytes())).toThrow(/released/);
 
-		bridge.inbound.down([
-			[
-				"DATA",
-				wireBridgeEnvelope<WireBridgeProtobufData>({
-					sessionId: "s1",
-					type: "data",
-					seq: 42,
-					payload: { kind: "data", value: { kind: "value", value: new Uint8Array([1]) } },
-				}),
-			],
-		]);
+		bridge.inbound.set(
+			wireBridgeEnvelope<WireBridgeProtobufData>({
+				sessionId: "s1",
+				type: "data",
+				seq: 42,
+				payload: { kind: "data", value: { kind: "value", value: new Uint8Array([1]) } },
+			}),
+		);
 		expect(dataMessages(inbound)).toContainEqual([
 			"DATA",
 			expect.objectContaining({ metadata: expect.objectContaining({ seq: 42 }) }),

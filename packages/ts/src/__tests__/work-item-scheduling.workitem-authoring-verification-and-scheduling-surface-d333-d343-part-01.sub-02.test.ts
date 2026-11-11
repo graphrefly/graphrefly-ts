@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { batch } from "../batch/batch.js";
 import { graph } from "../graph/graph.js";
 import type {
 	WorkItemEffectRequested,
@@ -188,48 +189,40 @@ describe("WorkItem authoring, verification, and scheduling surface (D333-D343) â
 		const requests = collectData(lowerer.effectRequests);
 		const status = collectData(lowerer.status);
 
-		facts.down([
-			[
-				"DATA",
-				workItemCreatedFromDraft(
-					"wi-1",
-					draft({
-						verificationPlan: {
-							planId: "plan-deps",
-							steps: [
-								{ stepId: "step-a", mode: "auto", verifiesCriteriaIds: ["ac-1"] },
-								{
-									stepId: "step-b",
-									mode: "auto",
-									verifiesCriteriaIds: ["ac-1"],
-									dependsOnStepIds: ["step-a"],
-								},
-							],
-						},
-					}),
-				),
-			],
-		]);
+		facts.set(
+			workItemCreatedFromDraft(
+				"wi-1",
+				draft({
+					verificationPlan: {
+						planId: "plan-deps",
+						steps: [
+							{ stepId: "step-a", mode: "auto", verifiesCriteriaIds: ["ac-1"] },
+							{
+								stepId: "step-b",
+								mode: "auto",
+								verifiesCriteriaIds: ["ac-1"],
+								dependsOnStepIds: ["step-a"],
+							},
+						],
+					},
+				}),
+			),
+		);
 		expect(requests.map((request) => request.metadata?.verificationStepIds)).toEqual([["step-a"]]);
 		expect(status.at(-1)).toMatchObject({ code: "blocked-prerequisite" });
 
-		results.down([
-			[
-				"DATA",
-				{
-					kind: "verification-result-recorded",
-					resultId: "result-a",
-					workItemId: "wi-1",
-					evidenceId: "ev-a",
-					effectRunId: "run-a",
-					effectRunResultId: "effect-result-a",
-					executionInputRevision: 1,
-					verificationStepIds: ["step-a"],
-					acceptanceCriterionIds: ["ac-1"],
-					status: "passed",
-				},
-			],
-		]);
+		results.set({
+			kind: "verification-result-recorded",
+			resultId: "result-a",
+			workItemId: "wi-1",
+			evidenceId: "ev-a",
+			effectRunId: "run-a",
+			effectRunResultId: "effect-result-a",
+			executionInputRevision: 1,
+			verificationStepIds: ["step-a"],
+			acceptanceCriterionIds: ["ac-1"],
+			status: "passed",
+		});
 
 		expect(requests.map((request) => request.metadata?.verificationStepIds)).toEqual([
 			["step-a"],
@@ -251,35 +244,27 @@ describe("WorkItem authoring, verification, and scheduling surface (D333-D343) â
 		const proposals = collectData(mapper.proposals);
 		const issues = collectData(mapper.issues);
 
-		facts.down([["DATA", workItemCreatedFromDraft("wi-1", draft())]]);
-		policies.down([
-			[
-				"DATA",
+		facts.set(workItemCreatedFromDraft("wi-1", draft()));
+		policies.set({
+			kind: "work-item-verification-mapping-policy",
+			policyId: "verify-policy",
+			actionProposals: [
+				{ actionKind: "wrong-output", outputKinds: ["other"], payloadFrom: "output" },
 				{
-					kind: "work-item-verification-mapping-policy",
-					policyId: "verify-policy",
-					actionProposals: [
-						{ actionKind: "wrong-output", outputKinds: ["other"], payloadFrom: "output" },
-						{
-							actionKind: "payload-output",
-							outputKinds: ["verification-output"],
-							payloadFrom: "output",
-						},
-						{ actionKind: "payload-result", payloadFrom: "effect-run-result" },
-						{ actionKind: "payload-evidence", payloadFrom: "evidence" },
-						{ actionKind: "" },
-					],
-				} satisfies WorkItemVerificationMappingPolicy,
+					actionKind: "payload-output",
+					outputKinds: ["verification-output"],
+					payloadFrom: "output",
+				},
+				{ actionKind: "payload-result", payloadFrom: "effect-run-result" },
+				{ actionKind: "payload-evidence", payloadFrom: "evidence" },
+				{ actionKind: "" },
 			],
-		]);
-		evidence.down([
-			[
-				"DATA",
-				evidenceFact("ev-policy-payload", {
-					sourceRefs: [{ kind: "work-item-verification-mapping-policy", id: "verify-policy" }],
-				}),
-			],
-		]);
+		} satisfies WorkItemVerificationMappingPolicy);
+		evidence.set(
+			evidenceFact("ev-policy-payload", {
+				sourceRefs: [{ kind: "work-item-verification-mapping-policy", id: "verify-policy" }],
+			}),
+		);
 
 		expect(proposals.map((proposal) => proposal.actionKind)).toEqual([
 			"payload-output",
@@ -322,29 +307,21 @@ describe("WorkItem authoring, verification, and scheduling surface (D333-D343) â
 		const proposals = collectData(mapper.proposals);
 		const issues = collectData(mapper.issues);
 
-		facts.down([["DATA", workItemCreatedFromDraft("wi-1", draft())]]);
-		evidence.down([
-			[
-				"DATA",
-				evidenceFact("ev-late-policy", {
-					sourceRefs: [{ kind: "work-item-verification-mapping-policy", id: "late-policy" }],
-				}),
-			],
-		]);
+		facts.set(workItemCreatedFromDraft("wi-1", draft()));
+		evidence.set(
+			evidenceFact("ev-late-policy", {
+				sourceRefs: [{ kind: "work-item-verification-mapping-policy", id: "late-policy" }],
+			}),
+		);
 		expect(results).toHaveLength(1);
 		expect(issues.at(-1)).toMatchObject({ code: "missing-policy" });
 		expect(proposals).toEqual([]);
 
-		policies.down([
-			[
-				"DATA",
-				{
-					kind: "work-item-verification-mapping-policy",
-					policyId: "late-policy",
-					actionProposals: [{ actionKind: "mark-verified", statuses: ["completed"] }],
-				} satisfies WorkItemVerificationMappingPolicy,
-			],
-		]);
+		policies.set({
+			kind: "work-item-verification-mapping-policy",
+			policyId: "late-policy",
+			actionProposals: [{ actionKind: "mark-verified", statuses: ["completed"] }],
+		} satisfies WorkItemVerificationMappingPolicy);
 
 		expect(results).toHaveLength(1);
 		expect(proposals.at(-1)).toMatchObject({
@@ -365,11 +342,11 @@ describe("WorkItem authoring, verification, and scheduling surface (D333-D343) â
 		const results = collectData(mapper.results);
 		const issues = collectData(mapper.issues);
 
-		evidence.down([["DATA", evidenceFact("ev-before-work-item")]]);
+		evidence.set(evidenceFact("ev-before-work-item"));
 		expect(results).toEqual([]);
 		expect(issues.at(-1)).toMatchObject({ code: "dangling-ref" });
 
-		facts.down([["DATA", workItemCreatedFromDraft("wi-1", draft())]]);
+		facts.set(workItemCreatedFromDraft("wi-1", draft()));
 
 		expect(results.at(-1)).toMatchObject({
 			resultId: "verification-result:ev-before-work-item",
@@ -391,44 +368,32 @@ describe("WorkItem authoring, verification, and scheduling surface (D333-D343) â
 		const proposals = collectData(mapper.proposals);
 		const issues = collectData(mapper.issues);
 
-		facts.down([["DATA", workItemCreatedFromDraft("wi-1", draft())]]);
-		policies.down([
-			[
-				"DATA",
-				{
-					kind: "work-item-verification-mapping-policy",
-					policyId: "bad-policy",
-					actionProposals: [{ metadata: { missing: "actionKind" } }],
-				} as unknown as WorkItemVerificationMappingPolicy,
-			],
-			[
-				"DATA",
-				{
-					kind: "work-item-verification-mapping-policy",
-					policyId: "policy-a",
-					actionProposals: [{ actionKind: "mark-verified-a" }],
-				} satisfies WorkItemVerificationMappingPolicy,
-			],
-			[
-				"DATA",
-				{
-					kind: "work-item-verification-mapping-policy",
-					policyId: "policy-b",
-					actionProposals: [{ actionKind: "mark-verified-b" }],
-				} satisfies WorkItemVerificationMappingPolicy,
-			],
-		]);
-		evidence.down([
-			[
-				"DATA",
-				evidenceFact("ev-multi-policy", {
-					sourceRefs: [
-						{ kind: "work-item-verification-mapping-policy", id: "policy-a" },
-						{ kind: "work-item-verification-mapping-policy", id: "policy-b" },
-					],
-				}),
-			],
-		]);
+		facts.set(workItemCreatedFromDraft("wi-1", draft()));
+		batch(() => {
+			policies.set({
+				kind: "work-item-verification-mapping-policy",
+				policyId: "bad-policy",
+				actionProposals: [{ metadata: { missing: "actionKind" } }],
+			} as unknown as WorkItemVerificationMappingPolicy);
+			policies.set({
+				kind: "work-item-verification-mapping-policy",
+				policyId: "policy-a",
+				actionProposals: [{ actionKind: "mark-verified-a" }],
+			} satisfies WorkItemVerificationMappingPolicy);
+			policies.set({
+				kind: "work-item-verification-mapping-policy",
+				policyId: "policy-b",
+				actionProposals: [{ actionKind: "mark-verified-b" }],
+			} satisfies WorkItemVerificationMappingPolicy);
+		});
+		evidence.set(
+			evidenceFact("ev-multi-policy", {
+				sourceRefs: [
+					{ kind: "work-item-verification-mapping-policy", id: "policy-a" },
+					{ kind: "work-item-verification-mapping-policy", id: "policy-b" },
+				],
+			}),
+		);
 
 		expect(issues.at(0)).toMatchObject({ code: "policy-mismatch" });
 		expect(proposals.map((proposal) => proposal.actionKind)).toEqual([
@@ -449,19 +414,16 @@ describe("WorkItem authoring, verification, and scheduling surface (D333-D343) â
 		const results = collectData(mapper.results);
 		const issues = collectData(mapper.issues);
 
-		facts.down([["DATA", workItemCreatedFromDraft("wi-1", draft())]]);
-		evidence.down([
-			[
-				"DATA",
-				evidenceFact("ev-bad-coverage", {
-					metadata: {
-						executionInputRevision: 1,
-						verificationStepIds: ["missing-step"],
-						acceptanceCriterionIds: ["ac-1"],
-					},
-				}),
-			],
-		]);
+		facts.set(workItemCreatedFromDraft("wi-1", draft()));
+		evidence.set(
+			evidenceFact("ev-bad-coverage", {
+				metadata: {
+					executionInputRevision: 1,
+					verificationStepIds: ["missing-step"],
+					acceptanceCriterionIds: ["ac-1"],
+				},
+			}),
+		);
 
 		expect(results).toEqual([]);
 		expect(issues.at(-1)).toMatchObject({ code: "dangling-ref" });
@@ -513,30 +475,27 @@ describe("WorkItem authoring, verification, and scheduling surface (D333-D343) â
 	it("lowers WorkItemEffectPlan serial members one prerequisite at a time", () => {
 		const setup = planSetup();
 
-		setup.facts.down([["DATA", workItemCreatedFromDraft("wi-1", draft())]]);
-		setup.proposals.down([
-			[
-				"DATA",
-				planProposal([
-					planMember("A"),
-					planMember("B", { dependsOnMemberIds: ["A"] }),
-					planMember("C", { dependsOnMemberIds: ["B"] }),
-				]),
-			],
-		]);
+		setup.facts.set(workItemCreatedFromDraft("wi-1", draft()));
+		setup.proposals.set(
+			planProposal([
+				planMember("A"),
+				planMember("B", { dependsOnMemberIds: ["A"] }),
+				planMember("C", { dependsOnMemberIds: ["B"] }),
+			]),
+		);
 
 		expect(setup.requests.map((request) => request.planMemberId)).toEqual(["A"]);
 		expect(
 			setup.status.filter((item) => item.state === "blocked").map((item) => item.planMemberId),
 		).toEqual(["B", "C"]);
 
-		setup.evidence.down([["DATA", evidenceForPlanRequest("ev-a", setup.requests.at(-1)!)]]);
+		setup.evidence.set(evidenceForPlanRequest("ev-a", setup.requests.at(-1)!));
 		expect(setup.requests.map((request) => request.planMemberId)).toEqual(["A", "B"]);
 
-		setup.evidence.down([["DATA", evidenceForPlanRequest("ev-b", setup.requests.at(-1)!)]]);
+		setup.evidence.set(evidenceForPlanRequest("ev-b", setup.requests.at(-1)!));
 		expect(setup.requests.map((request) => request.planMemberId)).toEqual(["A", "B", "C"]);
 
-		setup.evidence.down([["DATA", evidenceForPlanRequest("ev-c", setup.requests.at(-1)!)]]);
+		setup.evidence.set(evidenceForPlanRequest("ev-c", setup.requests.at(-1)!));
 		expect(setup.results.at(-1)).toMatchObject({
 			status: "succeeded",
 			memberResults: [

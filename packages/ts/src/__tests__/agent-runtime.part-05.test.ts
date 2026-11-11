@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { batch } from "../batch/batch.js";
 import type { DataIssue } from "../data/index.js";
 import { graph } from "../graph/graph.js";
 import {
@@ -386,20 +387,15 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 5", () => {
 			}
 		});
 
-		inputs.down([["DATA", firstWithPayload]]);
-		runRequests.down([
-			[
-				"DATA",
-				requestToolProviderAdapterRun(firstWithPayload, {
-					runId: oversizedRunId,
-					attempt: 1,
-				}),
-			],
-		]);
-		inputs.down([["DATA", second]]);
-		runRequests.down([
-			["DATA", requestToolProviderAdapterRun(second, { runId: "all-score-b", attempt: 1 })],
-		]);
+		inputs.set(firstWithPayload);
+		runRequests.set(
+			requestToolProviderAdapterRun(firstWithPayload, {
+				runId: oversizedRunId,
+				attempt: 1,
+			}),
+		);
+		inputs.set(second);
+		runRequests.set(requestToolProviderAdapterRun(second, { runId: "all-score-b", attempt: 1 }));
 
 		expect(runtimeStatus).toEqual(
 			expect.arrayContaining([
@@ -469,11 +465,11 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 5", () => {
 			to: "runtimeRetentionNode/retentionPolicy",
 		});
 
-		inputs.down([["DATA", ready]]);
-		runRequests.down([
-			["DATA", requestToolProviderAdapterRun(ready, { runId: "node-run", attempt: 1 })],
-			["DATA", requestToolProviderAdapterRun(ready, { runId: "node-run", attempt: 2 })],
-		]);
+		inputs.set(ready);
+		batch(() => {
+			runRequests.set(requestToolProviderAdapterRun(ready, { runId: "node-run", attempt: 1 }));
+			runRequests.set(requestToolProviderAdapterRun(ready, { runId: "node-run", attempt: 2 }));
+		});
 		maxSize.set(1);
 
 		expect(runtimeStatus).toEqual(
@@ -538,15 +534,13 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 5", () => {
 			}
 		});
 
-		inputs.down([["DATA", ready]]);
-		runRequests.down([
-			["DATA", requestToolProviderAdapterRun(ready, { runId: "invalid-run", attempt: 1 })],
-			["DATA", requestToolProviderAdapterRun(ready, { runId: "invalid-run", attempt: 2 })],
-		]);
+		inputs.set(ready);
+		batch(() => {
+			runRequests.set(requestToolProviderAdapterRun(ready, { runId: "invalid-run", attempt: 1 }));
+			runRequests.set(requestToolProviderAdapterRun(ready, { runId: "invalid-run", attempt: 2 }));
+		});
 		maxSize.set(0);
-		runRequests.down([
-			["DATA", requestToolProviderAdapterRun(ready, { runId: "invalid-run", attempt: 3 })],
-		]);
+		runRequests.set(requestToolProviderAdapterRun(ready, { runId: "invalid-run", attempt: 3 }));
 
 		expect(runtimeStatus).toEqual(
 			expect.arrayContaining([
@@ -648,40 +642,36 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 5", () => {
 			}
 		});
 
-		evidenceInputs.down([
-			["DATA", evidenceFirst],
-			["DATA", evidenceSecond],
-		]);
-		evidenceRunRequests.down([
-			[
-				"DATA",
+		batch(() => {
+			evidenceInputs.set(evidenceFirst);
+			evidenceInputs.set(evidenceSecond);
+		});
+		batch(() => {
+			evidenceRunRequests.set(
 				requestToolProviderAdapterRun(evidenceFirst, {
 					runId: "evidence-score-a-1",
 					attempt: 1,
 				}),
-			],
-			[
-				"DATA",
+			);
+			evidenceRunRequests.set(
 				requestToolProviderAdapterRun(evidenceFirst, {
 					runId: "evidence-score-a-2",
 					attempt: 2,
 				}),
-			],
-			[
-				"DATA",
+			);
+			evidenceRunRequests.set(
 				requestToolProviderAdapterRun(evidenceSecond, {
 					runId: "evidence-score-b-1",
 					attempt: 1,
 				}),
-			],
-			[
-				"DATA",
+			);
+			evidenceRunRequests.set(
 				requestToolProviderAdapterRun(evidenceSecond, {
 					runId: "evidence-score-b-2",
 					attempt: 2,
 				}),
-			],
-		]);
+			);
+		});
 
 		expect(evidenceRuntimeStatus).toEqual(
 			expect.arrayContaining([
@@ -744,17 +734,12 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 5", () => {
 			}
 		});
 
-		inputs.down([["DATA", ready]]);
+		inputs.set(ready);
 		expect(() =>
-			runRequests.down([
-				[
-					"DATA",
-					{
-						...requestToolProviderAdapterRun(ready, { runId: "run-issues-score-invalid" }),
-						requestId: "stale-request",
-					},
-				],
-			]),
+			runRequests.set({
+				...requestToolProviderAdapterRun(ready, { runId: "run-issues-score-invalid" }),
+				requestId: "stale-request",
+			}),
 		).not.toThrow();
 
 		expect(
@@ -829,27 +814,22 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 5", () => {
 			}
 		});
 
-		inputs.down([
-			["DATA", first],
-			["DATA", second],
-		]);
-		runRequests.down([
-			[
-				"DATA",
+		batch(() => {
+			inputs.set(first);
+			inputs.set(second);
+		});
+		runRequests.set({
+			...requestToolProviderAdapterRun(first, { runId: "trimmed-input" }),
+			metadata: { rawResponse: "RAW_RETAINED_REQUEST_METADATA" },
+			sourceRefs: [
 				{
-					...requestToolProviderAdapterRun(first, { runId: "trimmed-input" }),
-					metadata: { rawResponse: "RAW_RETAINED_REQUEST_METADATA" },
-					sourceRefs: [
-						{
-							kind: "provider-raw",
-							id: "raw-retained-request",
-							metadata: { stdout: "RAW_RETAINED_REQUEST_SOURCE_REF" },
-						},
-					],
-					rawResponse: "RAW_RETAINED_REQUEST_TOP_LEVEL",
-				} as unknown as ToolProviderAdapterRunRequested,
+					kind: "provider-raw",
+					id: "raw-retained-request",
+					metadata: { stdout: "RAW_RETAINED_REQUEST_SOURCE_REF" },
+				},
 			],
-		]);
+			rawResponse: "RAW_RETAINED_REQUEST_TOP_LEVEL",
+		} as unknown as ToolProviderAdapterRunRequested);
 
 		expect(calls).toEqual([]);
 		expect(emittedRequests).toEqual(
@@ -928,15 +908,15 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 5", () => {
 			}
 		});
 
-		inputs.down([
-			["DATA", first],
-			["DATA", second],
-			["DATA", first],
-		]);
-		runRequests.down([
-			["DATA", requestToolProviderAdapterRun(first, { runId: "refreshed-first" })],
-			["DATA", requestToolProviderAdapterRun(second, { runId: "trimmed-second" })],
-		]);
+		batch(() => {
+			inputs.set(first);
+			inputs.set(second);
+			inputs.set(first);
+		});
+		batch(() => {
+			runRequests.set(requestToolProviderAdapterRun(first, { runId: "refreshed-first" }));
+			runRequests.set(requestToolProviderAdapterRun(second, { runId: "trimmed-second" }));
+		});
 
 		expect(calls).toEqual([first.adapterInputId]);
 		expect(runStatus).toEqual(

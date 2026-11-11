@@ -318,7 +318,7 @@ export function cqrs<TCommand = unknown, TEvent = unknown>(
 		audit,
 		cursor,
 		dispatch(commandFact) {
-			command.down([["DATA", commandFact]]);
+			command.set(commandFact);
 			return commandFact;
 		},
 	};

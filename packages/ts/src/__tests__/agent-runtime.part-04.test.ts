@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { batch } from "../batch/batch.js";
 import type { DataIssue } from "../data/index.js";
 import { graph } from "../graph/graph.js";
 import {
@@ -311,11 +312,11 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 4", () => {
 			}
 		});
 
-		inputs.down([["DATA", ready]]);
-		runRequests.down([
-			["DATA", requestToolProviderAdapterRun(ready, { runId: "run-once", attempt: 1 })],
-			["DATA", requestToolProviderAdapterRun(ready, { runId: "run-twice", attempt: 1 })],
-		]);
+		inputs.set(ready);
+		batch(() => {
+			runRequests.set(requestToolProviderAdapterRun(ready, { runId: "run-once", attempt: 1 }));
+			runRequests.set(requestToolProviderAdapterRun(ready, { runId: "run-twice", attempt: 1 }));
+		});
 
 		expect(calls).toEqual(["run-once"]);
 		expect(issues).toEqual(
@@ -409,13 +410,15 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 4", () => {
 			}
 		});
 
-		inputs.down([["DATA", ready]]);
-		runRequests.down([
-			["DATA", requestToolProviderAdapterRun(ready, { runId: "coord-keep-1", attempt: 1 })],
-			["DATA", requestToolProviderAdapterRun(ready, { runId: "coord-trim-2", attempt: 2 })],
-			["DATA", requestToolProviderAdapterRun(ready, { runId: "coord-keep-3", attempt: 3 })],
-			["DATA", requestToolProviderAdapterRun(ready, { runId: "coord-duplicate-1", attempt: 1 })],
-		]);
+		inputs.set(ready);
+		batch(() => {
+			runRequests.set(requestToolProviderAdapterRun(ready, { runId: "coord-keep-1", attempt: 1 }));
+			runRequests.set(requestToolProviderAdapterRun(ready, { runId: "coord-trim-2", attempt: 2 }));
+			runRequests.set(requestToolProviderAdapterRun(ready, { runId: "coord-keep-3", attempt: 3 }));
+			runRequests.set(
+				requestToolProviderAdapterRun(ready, { runId: "coord-duplicate-1", attempt: 1 }),
+			);
+		});
 
 		expect(calls).toEqual(["coord-keep-1:1", "coord-trim-2:2", "coord-keep-3:3"]);
 		expect(runtimeStatus).toEqual(
@@ -507,27 +510,34 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 4", () => {
 			}
 		});
 
-		inputs.down([
-			["DATA", first],
-			["DATA", second],
-		]);
-		runRequests.down([
-			["DATA", requestToolProviderAdapterRun(first, { runId: "evidence-first", attempt: 1 })],
-			["DATA", requestToolProviderAdapterRun(first, { runId: "evidence-first", attempt: 2 })],
-			["DATA", requestToolProviderAdapterRun(second, { runId: "evidence-second", attempt: 1 })],
-			["DATA", requestToolProviderAdapterRun(second, { runId: "evidence-second", attempt: 2 })],
-			["DATA", requestToolProviderAdapterRun(first, { runId: "evidence-replay", attempt: 1 })],
-		]);
-		inputs.down([["DATA", first]]);
-		runRequests.down([
-			[
-				"DATA",
-				requestToolProviderAdapterRun(first, {
-					runId: "evidence-replay-after-input-reemit",
-					attempt: 1,
-				}),
-			],
-		]);
+		batch(() => {
+			inputs.set(first);
+			inputs.set(second);
+		});
+		batch(() => {
+			runRequests.set(
+				requestToolProviderAdapterRun(first, { runId: "evidence-first", attempt: 1 }),
+			);
+			runRequests.set(
+				requestToolProviderAdapterRun(first, { runId: "evidence-first", attempt: 2 }),
+			);
+			runRequests.set(
+				requestToolProviderAdapterRun(second, { runId: "evidence-second", attempt: 1 }),
+			);
+			runRequests.set(
+				requestToolProviderAdapterRun(second, { runId: "evidence-second", attempt: 2 }),
+			);
+			runRequests.set(
+				requestToolProviderAdapterRun(first, { runId: "evidence-replay", attempt: 1 }),
+			);
+		});
+		inputs.set(first);
+		runRequests.set(
+			requestToolProviderAdapterRun(first, {
+				runId: "evidence-replay-after-input-reemit",
+				attempt: 1,
+			}),
+		);
 
 		expect(calls).toEqual([
 			`${first.adapterInputId}:1`,
@@ -670,18 +680,12 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 4", () => {
 			}
 		});
 
-		inputs.down([["DATA", first]]);
-		runRequests.down([
-			["DATA", requestToolProviderAdapterRun(first, { runId: "global-a-2", attempt: 2 })],
-		]);
-		inputs.down([["DATA", second]]);
-		runRequests.down([
-			["DATA", requestToolProviderAdapterRun(second, { runId: "global-b-2", attempt: 2 })],
-		]);
-		inputs.down([["DATA", third]]);
-		runRequests.down([
-			["DATA", requestToolProviderAdapterRun(third, { runId: "global-c-2", attempt: 2 })],
-		]);
+		inputs.set(first);
+		runRequests.set(requestToolProviderAdapterRun(first, { runId: "global-a-2", attempt: 2 }));
+		inputs.set(second);
+		runRequests.set(requestToolProviderAdapterRun(second, { runId: "global-b-2", attempt: 2 }));
+		inputs.set(third);
+		runRequests.set(requestToolProviderAdapterRun(third, { runId: "global-c-2", attempt: 2 }));
 
 		expect(runtimeStatus).toEqual(
 			expect.arrayContaining([
@@ -711,10 +715,8 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 4", () => {
 			]),
 		);
 
-		inputs.down([["DATA", freshAfterGlobal]]);
-		runRequests.down([
-			["DATA", requestToolProviderAdapterRun(first, { runId: "global-a-3", attempt: 3 })],
-		]);
+		inputs.set(freshAfterGlobal);
+		runRequests.set(requestToolProviderAdapterRun(first, { runId: "global-a-3", attempt: 3 }));
 
 		expect(calls).toEqual([
 			`${first.adapterInputId}:1`,
@@ -824,18 +826,17 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 4", () => {
 			}
 		});
 
-		inputs.down([["DATA", ready]]);
-		runRequests.down([
-			[
-				"DATA",
+		inputs.set(ready);
+		batch(() => {
+			runRequests.set(
 				requestToolProviderAdapterRun(ready, {
 					runId: "drop-run",
 					attempt: 1,
 					metadata: { rawResponse: "RAW_SHOULD_NOT_REACH_SCORER" },
 				}),
-			],
-			["DATA", requestToolProviderAdapterRun(ready, { runId: "keep-run", attempt: 2 })],
-		]);
+			);
+			runRequests.set(requestToolProviderAdapterRun(ready, { runId: "keep-run", attempt: 2 }));
+		});
 
 		expect(runtimeStatus).toEqual(
 			expect.arrayContaining([

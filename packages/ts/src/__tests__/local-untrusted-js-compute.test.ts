@@ -640,10 +640,10 @@ describe("D667 local untrusted JS compute Graph-visible runtime", () => {
 			},
 		};
 		const publishAuthority = () => {
-			inputNode.down([["DATA", adapterInput()]]);
-			admissionNode.down([["DATA", runAdmission()]]);
-			manifestNode.down([["DATA", manifest()]]);
-			readinessNode.down([["DATA", readiness()]]);
+			inputNode.set(adapterInput());
+			admissionNode.set(runAdmission());
+			manifestNode.set(manifest());
+			readinessNode.set(readiness());
 		};
 		return {
 			graph,
@@ -698,7 +698,7 @@ describe("D667 local untrusted JS compute Graph-visible runtime", () => {
 			}),
 		];
 		fixture.publishAuthority();
-		fixture.requestNode.down([["DATA", fixture.request]]);
+		fixture.requestNode.set(fixture.request);
 		await eventually(() => outcomesSeen.length === 1);
 		expect(statuses.map((entry) => entry.status)).toEqual(["requested", "started", "result"]);
 		expect(lifecycleStates).toEqual([
@@ -740,7 +740,7 @@ describe("D667 local untrusted JS compute Graph-visible runtime", () => {
 		]);
 		expect(audits.map((entry) => entry.kind)).toContain("local-untrusted-js-compute-settled");
 
-		fixture.requestNode.down([["DATA", fixture.request]]);
+		fixture.requestNode.set(fixture.request);
 		await eventually(() => statuses.some((entry) => entry.status === "stale-request"));
 		expect(driver.execute).toHaveBeenCalledTimes(1);
 
@@ -798,7 +798,7 @@ describe("D667 local untrusted JS compute Graph-visible runtime", () => {
 			}),
 		];
 		fixture.publishAuthority();
-		fixture.requestNode.down([["DATA", fixture.request]]);
+		fixture.requestNode.set(fixture.request);
 		await eventually(() => statuses.some((entry) => entry.status === "started"));
 		const exactCancellation: LocalUntrustedJsComputeCancellationAdmission = {
 			kind: "local-untrusted-js-compute-cancellation-admission",
@@ -820,12 +820,12 @@ describe("D667 local untrusted JS compute Graph-visible runtime", () => {
 			hostBindingDigest: readiness().hostBindingDigest,
 			sourceRefs: [{ kind: "local-cancellation-decision", id: "cancel-decision:1" }],
 		};
-		fixture.cancellationNode.down([["DATA", { ...exactCancellation, epoch: "epoch:stale" }]]);
+		fixture.cancellationNode.set({ ...exactCancellation, epoch: "epoch:stale" });
 		await eventually(() => cancellationsSeen.length === 1);
 		expect(cancellationsSeen[0]).toMatchObject({ state: "rejected" });
 		expect(outcomesSeen).toHaveLength(0);
 
-		fixture.cancellationNode.down([["DATA", exactCancellation]]);
+		fixture.cancellationNode.set(exactCancellation);
 		await eventually(() => outcomesSeen.length === 1);
 		expect(cancellationsSeen[1]).toMatchObject({
 			state: "accepted",
@@ -879,7 +879,7 @@ describe("D667 local untrusted JS compute Graph-visible runtime", () => {
 			}
 		});
 		fixture.publishAuthority();
-		fixture.requestNode.down([["DATA", fixture.request]]);
+		fixture.requestNode.set(fixture.request);
 		await eventually(() => statuses.some((entry) => entry.status === "started"));
 		await driverEntered;
 		unsubscribe();

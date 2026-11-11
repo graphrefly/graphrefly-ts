@@ -612,7 +612,7 @@ export function httpToolProviderRuntime(
 	}
 
 	function publishIssue(nextIssue: DataIssue): void {
-		issues.down([["DATA", nextIssue]]);
+		issues.set(nextIssue);
 	}
 
 	function publishAudit(
@@ -622,18 +622,13 @@ export function httpToolProviderRuntime(
 		issueCode?: string,
 	): void {
 		auditSeq += 1;
-		audit.down([
-			[
-				"DATA",
-				{
-					id: compoundTupleKey("tool-provider-adapter-audit", [name, String(auditSeq)]),
-					kind,
-					subjectId,
-					...(issueCode === undefined ? {} : { issueCode }),
-					...(metadata === undefined ? {} : { metadata }),
-				} satisfies AgentRuntimeAuditRecord,
-			],
-		]);
+		audit.set({
+			id: compoundTupleKey("tool-provider-adapter-audit", [name, String(auditSeq)]),
+			kind,
+			subjectId,
+			...(issueCode === undefined ? {} : { issueCode }),
+			...(metadata === undefined ? {} : { metadata }),
+		} satisfies AgentRuntimeAuditRecord);
 	}
 
 	function publishRunStatus(
@@ -647,24 +642,19 @@ export function httpToolProviderRuntime(
 		const statusKey = canonicalTupleKey([request.runId, nextStatus]);
 		if (forwardedRunStatusKeys.has(statusKey)) return;
 		forwardedRunStatusKeys.add(statusKey);
-		runStatus.down([
-			[
-				"DATA",
-				{
-					kind: "tool-provider-adapter-run-status",
-					runId: request.runId,
-					adapterInputId: request.adapterInputId,
-					requestId: request.requestId,
-					operationId: request.operationId,
-					status: nextStatus,
-					attempt: request.attempt,
-					...(outcomeId === undefined ? {} : { outcomeId }),
-					...(statusIssues === undefined ? {} : { issues: statusIssues }),
-					sourceRefs: request.sourceRefs,
-					metadata: Object.freeze({ providerId, reason: request.reason }),
-				} satisfies ToolProviderAdapterRunStatus,
-			],
-		]);
+		runStatus.set({
+			kind: "tool-provider-adapter-run-status",
+			runId: request.runId,
+			adapterInputId: request.adapterInputId,
+			requestId: request.requestId,
+			operationId: request.operationId,
+			status: nextStatus,
+			attempt: request.attempt,
+			...(outcomeId === undefined ? {} : { outcomeId }),
+			...(statusIssues === undefined ? {} : { issues: statusIssues }),
+			sourceRefs: request.sourceRefs,
+			metadata: Object.freeze({ providerId, reason: request.reason }),
+		} satisfies ToolProviderAdapterRunStatus);
 	}
 
 	function publishRequestStatus(
@@ -673,25 +663,20 @@ export function httpToolProviderRuntime(
 		statusIssues?: readonly DataIssue[],
 	): void {
 		if (input.effectRunId === undefined) return;
-		status.down([
-			[
-				"DATA",
-				{
-					kind: "status",
-					requestId: input.requestId,
-					operationId: input.operationId,
-					effectRunId: input.effectRunId,
-					status: nextStatus,
-					sourceRefs: defaultEvidenceRefs(input),
-					...(statusIssues === undefined ? {} : { issues: statusIssues }),
-					metadata: Object.freeze({
-						adapterInputId: input.adapterInputId,
-						providerId: input.providerId,
-						toolName: input.toolName,
-					}),
-				} satisfies AgentRequestStatusChanged,
-			],
-		]);
+		status.set({
+			kind: "status",
+			requestId: input.requestId,
+			operationId: input.operationId,
+			effectRunId: input.effectRunId,
+			status: nextStatus,
+			sourceRefs: defaultEvidenceRefs(input),
+			...(statusIssues === undefined ? {} : { issues: statusIssues }),
+			metadata: Object.freeze({
+				adapterInputId: input.adapterInputId,
+				providerId: input.providerId,
+				toolName: input.toolName,
+			}),
+		} satisfies AgentRequestStatusChanged);
 	}
 
 	function publishOutcome(
@@ -705,7 +690,7 @@ export function httpToolProviderRuntime(
 			occurredAtMs: nowMs(),
 			publicText: opts.publicText,
 		});
-		outcomes.down([["DATA", outcome]]);
+		outcomes.set(outcome);
 		const statusIssues = outcomeIssues(outcome);
 		for (const statusIssue of statusIssues) publishIssue(statusIssue);
 		publishRequestStatus(input, agentStatusForOutcome(outcome), statusIssues);
@@ -856,7 +841,7 @@ export function httpToolProviderRuntime(
 				continue;
 			}
 			forwardedRunStatusKeys.add(statusKey);
-			runStatus.down([["DATA", nextStatus]]);
+			runStatus.set(nextStatus);
 		}
 	});
 	const unsubscribeRunIssues = runProjector.issues.subscribe((incoming) => {
@@ -866,7 +851,7 @@ export function httpToolProviderRuntime(
 	});
 	const unsubscribeRunAudit = runProjector.audit.subscribe((incoming) => {
 		for (const msg of incoming) {
-			if (msg[0] === "DATA") audit.down([["DATA", msg[1] as AgentRuntimeAuditRecord]]);
+			if (msg[0] === "DATA") audit.set(msg[1] as AgentRuntimeAuditRecord);
 		}
 	});
 	const unsubscribeRunRequests = runProjector.requests.subscribe((incoming) => {

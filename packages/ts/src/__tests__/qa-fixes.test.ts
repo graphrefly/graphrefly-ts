@@ -17,21 +17,29 @@ describe("QA fixes", () => {
 	it("EC1: rejects bare/undefined DATA payload (R-data-payload)", () => {
 		const s = node<number>([], null, { initial: 1 });
 		collect(s);
-		expect(() => s.down([["DATA", undefined as unknown as number]])).toThrow(/non-SENTINEL/);
+		expect(() => s.set(undefined as unknown as number)).toThrow(/non-SENTINEL/);
 	});
 
 	it("EC2: rejects RESOLVED in node output; only the kernel sends it (R-wave@2)", () => {
-		const s = node<number>([], null, { initial: 1 });
+		const t = node<number>([], null, { initial: 1 });
+		let rejected: unknown;
+		const s = node<number>([t], (ctx) => {
+			try {
+				ctx.down([["DATA", 2], ["RESOLVED"]]);
+			} catch (error) {
+				rejected = error;
+			}
+		});
 		collect(s);
-		expect(() => s.down([["DATA", 2], ["RESOLVED"]])).toThrow(/kernel/);
+		expect(String(rejected)).toMatch(/kernel/);
 	});
 
 	it("BH6: INVALIDATE clears the replay buffer (no stale replay)", () => {
 		const s = node<number>([], null, { replayBuffer: 3 });
 		collect(s);
-		s.down([["DATA", 1]]);
-		s.down([["DATA", 2]]);
-		s.down([["INVALIDATE"]]);
+		s.set(1);
+		s.set(2);
+		s.invalidate();
 		const { msgs } = collect(s); // late subscriber
 		expect(types(msgs)).toEqual(["START"]); // no stale DATA replayed
 	});
@@ -50,7 +58,7 @@ describe("QA fixes", () => {
 		const pass = node<number>([dep], null); // passthrough wire (_handle === null)
 		const { msgs } = collect(pass);
 		msgs.length = 0;
-		src.down([["DATA", 1]]); // dep settles with no value → PENDING then RESOLVED to the passthrough
+		src.set(1); // dep settles with no value → PENDING then RESOLVED to the passthrough
 		expect(types(msgs)).toEqual(["PENDING", "RESOLVED"]); // balanced, not a dangling ["PENDING"]
 		expect(pass.status.cache).not.toBe("stale"); // un-wedged
 	});

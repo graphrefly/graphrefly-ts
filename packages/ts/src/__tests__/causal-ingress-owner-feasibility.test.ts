@@ -22,7 +22,7 @@ it("an outer batch can produce completion after the wrapped source call has retu
 	);
 	const stop = guard.subscribe(() => {});
 	const ingress = (value: number) => {
-		source.down([["DATA", value]]);
+		source.set(value);
 		trace.push("wrapped-return");
 		delivered.push(...pending.splice(0));
 	};

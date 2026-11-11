@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { batch } from "../batch/batch.js";
 import type { CqrsStatus } from "../cqrs/index.js";
 import {
 	type CqrsQueuedCommandPayload,
@@ -20,25 +21,22 @@ describe("CQRS workQueue recipe (D350/D352/D353)", () => {
 		const dispatches = collectData(recipe.dispatches);
 		const commands = collectData(recipe.commands);
 
-		records.down([
-			["DATA", admittedRecord()],
-			[
-				"DATA",
-				{
-					kind: "work-claimed",
-					recordSeq: 2,
-					queueId: "q",
-					workId: "work-1",
-					leaseId: "lease-1",
-					attempt: 1,
-					workerId: "worker-1",
-					claimedAtMs: 110,
-					leaseExpiresAtMs: 210,
-					recordedAtMs: 110,
-				} satisfies WorkQueueRecord<CqrsQueuedCommandPayload>,
-			],
-		]);
-		status.down([["DATA", statusFact("accepted", 2)]]);
+		batch(() => {
+			records.set(admittedRecord());
+			records.set({
+				kind: "work-claimed",
+				recordSeq: 2,
+				queueId: "q",
+				workId: "work-1",
+				leaseId: "lease-1",
+				attempt: 1,
+				workerId: "worker-1",
+				claimedAtMs: 110,
+				leaseExpiresAtMs: 210,
+				recordedAtMs: 110,
+			} satisfies WorkQueueRecord<CqrsQueuedCommandPayload>);
+		});
+		status.set(statusFact("accepted", 2));
 
 		expect(dispatches.at(-1)).toEqual(payload().command);
 		expect(commands.at(-1)).toEqual(
@@ -108,13 +106,13 @@ describe("CQRS workQueue recipe (D350/D352/D353)", () => {
 		const recipe = cqrsWorkQueueRecipe(g, { records, status });
 		const commands = collectData(recipe.commands);
 
-		records.down([
-			["DATA", admittedRecord()],
-			["DATA", claimedRecord(2, "lease-1", 1)],
-		]);
-		status.down([["DATA", statusFact("rejected", 0, "handler-threw")]]);
-		records.down([["DATA", claimedRecord(4, "lease-2", 2)]]);
-		status.down([["DATA", statusFact("accepted", 1)]]);
+		batch(() => {
+			records.set(admittedRecord());
+			records.set(claimedRecord(2, "lease-1", 1));
+		});
+		status.set(statusFact("rejected", 0, "handler-threw"));
+		records.set(claimedRecord(4, "lease-2", 2));
+		status.set(statusFact("accepted", 1));
 
 		expect(commands).toEqual([
 			expect.objectContaining({ kind: "fail", leaseId: "lease-1", retryable: true }),
@@ -133,18 +131,18 @@ describe("CQRS workQueue recipe (D350/D352/D353)", () => {
 		const commands = collectData(recipe.commands);
 		const issues = collectData(recipe.issues);
 
-		status.down([["DATA", statusFact("accepted", 1)]]);
-		records.down([
-			["DATA", admittedRecord()],
-			["DATA", claimedRecord(2, "lease-1", 1)],
-		]);
+		status.set(statusFact("accepted", 1));
+		batch(() => {
+			records.set(admittedRecord());
+			records.set(claimedRecord(2, "lease-1", 1));
+		});
 
 		expect(commands).toEqual([]);
 		expect(issues.at(-1)).toEqual(
 			expect.objectContaining({ code: "cqrs-status-without-active-queue-claim" }),
 		);
 
-		status.down([["DATA", statusFact("accepted", 1)]]);
+		status.set(statusFact("accepted", 1));
 
 		expect(commands.at(-1)).toEqual(
 			expect.objectContaining({ kind: "complete", workId: "work-1", leaseId: "lease-1" }),
@@ -160,13 +158,13 @@ describe("CQRS workQueue recipe (D350/D352/D353)", () => {
 		const recipe = cqrsWorkQueueRecipe(g, { records, status });
 		const commands = collectData(recipe.commands);
 
-		records.down([
-			["DATA", admittedRecord()],
-			["DATA", claimedRecord(2, "lease-1", 1)],
-		]);
-		status.down([["DATA", statusFact("rejected", 0, "handler-threw")]]);
-		records.down([["DATA", claimedRecord(4, "lease-2", 2)]]);
-		status.down([["DATA", statusFact("rejected", 0, "handler-threw")]]);
+		batch(() => {
+			records.set(admittedRecord());
+			records.set(claimedRecord(2, "lease-1", 1));
+		});
+		status.set(statusFact("rejected", 0, "handler-threw"));
+		records.set(claimedRecord(4, "lease-2", 2));
+		status.set(statusFact("rejected", 0, "handler-threw"));
 
 		expect(commands).toEqual([
 			expect.objectContaining({
@@ -192,7 +190,7 @@ describe("CQRS workQueue recipe (D350/D352/D353)", () => {
 		const commands = collectData(recipe.commands);
 		const issues = collectData(recipe.issues);
 
-		records.down([["DATA", claimedRecord(1, "lease-missing", 1)]]);
+		records.set(claimedRecord(1, "lease-missing", 1));
 
 		expect(issues.at(-1)).toEqual(expect.objectContaining({ code: "cqrs-claim-without-payload" }));
 		expect(commands.at(-1)).toEqual(

@@ -6,6 +6,7 @@ import {
 	evaluationPack,
 	policyFacts,
 } from "../../../../scripts/fixtures/spending-preset-harness.js";
+import type { StateNode } from "../node/node.js";
 
 for (const mode of ["off", "summary"] as const) {
 	it(`${mode}: revocation after submission retains obligation until the exact completion`, async () => {
@@ -62,16 +63,15 @@ for (const mode of ["off", "summary"] as const) {
 					evaluationRefs: [e.evaluationRef],
 				});
 			};
-			const original = run.host.source.down.bind(run.host.source);
+			const source = run.host.source as StateNode<unknown>;
+			const original = source.set.bind(source);
 			let injected = false;
 			const snapshots: string[][] = [];
-			// Execute after the actual source wave returns, still within host delivery.
+			// Execute after the actual source write returns, still within host delivery.
 			// This hook does not fabricate an outcome: the second actual resource call throws.
-			spy = vi.spyOn(run.host.source, "down").mockImplementation((messages) => {
-				original(messages);
-				const data = messages.find((m) => m[0] === "DATA");
-				if (!data) return;
-				const frame = data[1] as { outcomes: { state: string }[] };
+			spy = vi.spyOn(source, "set").mockImplementation((value) => {
+				original(value);
+				const frame = value as { outcomes: { state: string }[] };
 				snapshots.push(frame.outcomes.map((o) => o.state));
 				if (!injected && frame.outcomes.some((o) => o.state === "succeeded")) {
 					injected = true;

@@ -252,7 +252,7 @@ export function processBundle<
 		errors,
 		cursor,
 		dispatch(next) {
-			dispatchInput.down([["DATA", next]]);
+			dispatchInput.set(next);
 			return next;
 		},
 		release() {

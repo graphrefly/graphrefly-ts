@@ -33,7 +33,7 @@
 
 import { type Ctx, depBatch, depLiveBatch } from "../../ctx/types.js";
 import type { Dispatcher } from "../../dispatcher/index.js";
-import { Node, releaseRuntimeOfNode } from "../../node/node.js";
+import { Node, releaseRuntimeOfNode, StateNode } from "../../node/node.js";
 import { oneArrayPerRun } from "../../node/one-array-per-run.js";
 import { errorPayload } from "../../protocol/messages.js";
 import { type GraphCheckpointJson, registerBackendStateContributor } from "../checkpoint.js";
@@ -200,7 +200,7 @@ export function lightReactiveView<C, S>(
 				name: name ? `${name}.request` : undefined,
 				meta: { kind: "collection_view_request", factory },
 			})
-		: new Node<true>([], null, {
+		: new StateNode<true>([], null, {
 				...base,
 				factory: `${factory}.request`,
 				name: name ? `${name}.request` : undefined,
@@ -273,7 +273,7 @@ export function collectionCore<S, C>(
 				meta: { kind: "collection_delta", collection: factory },
 				...(restore ? { restore: { ref: restore.deltaRef, config: restore.config } } : {}),
 			})
-		: new Node<C>([], null, {
+		: new StateNode<C>([], null, {
 				...base,
 				factory: `${factory}.delta`,
 				name: name ? `${name}.delta` : undefined,
@@ -287,7 +287,7 @@ export function collectionCore<S, C>(
 				meta: { kind: "collection_request", collection: factory },
 				...(restore ? { restore: { ref: restore.requestRef, config: restore.config } } : {}),
 			})
-		: new Node<true>([], null, {
+		: new StateNode<true>([], null, {
 				...base,
 				factory: `${factory}.request`,
 				name: name ? `${name}.request` : undefined,
@@ -326,7 +326,7 @@ export function collectionCore<S, C>(
 
 	function emit(change: C): void {
 		// External value emit → the kernel sends PENDING first; the quiet snapshot node absorbs it.
-		delta.down([["DATA", change]]);
+		delta.set(change);
 	}
 
 	function bindSource<V>(src: Node<V>, apply: (value: V) => void): () => void {
