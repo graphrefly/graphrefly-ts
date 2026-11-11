@@ -622,6 +622,7 @@ describe("B111.6 inspection and injected-authority evidence", () => {
 				"authority/admission/cursor",
 				"authority/admission/denials",
 				"authority/admission/issues",
+				"authority/admission/ledger",
 				"authority/admission/runtime",
 				"authority/admission/status",
 				"authority/authority-requests",

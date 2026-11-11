@@ -553,11 +553,18 @@ export function keyedRateLimitAdmissionBundle(
 	const deps: Node<unknown>[] = correlated
 		? [correlationFacts as Node<unknown>]
 		: [opts.requests as Node<unknown>, opts.outcomes as Node<unknown>];
+	// D649: correlation state persists across ordinary deactivate/resubscribe transitions of the
+	// same live bundle, so a retained correlation is not admitted twice. Private state lasts one
+	// lifetime (R-lifetime), so the ledger lives in a state node the gate owns; the runtime updates
+	// it in place, since nothing subscribes to it and it carries no wave.
+	const ledger = graph.state<KeyedRateLimitRuntimeState>(initialRuntimeState(), {
+		name: `${name}/ledger`,
+		factory: "keyedRateLimitLedger",
+	});
 	const runtime = graph.node<KeyedRateLimitRuntimeFact>(
 		deps,
 		(ctx) => {
-			const state = ctx.state.get<KeyedRateLimitRuntimeState>() ?? initialRuntimeState();
-			ctx.state.set(state);
+			const state = ledger.cache as KeyedRateLimitRuntimeState;
 			const facts: KeyedRateLimitRuntimeFact[] = [];
 			if (correlated) {
 				for (const raw of depBatch(ctx, 0) ?? []) {

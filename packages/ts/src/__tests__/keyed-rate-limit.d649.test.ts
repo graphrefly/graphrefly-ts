@@ -341,7 +341,7 @@ describe("D648/D649 bounded admission and exact correlation", () => {
 		t.release();
 	});
 
-	it("keeps replay suppression for one lifetime: a resubscribe re-derives from cached input (R-lifetime)", () => {
+	it("retains replay suppression across deactivate and resubscribe of the same live gate", () => {
 		const t = setup();
 		const req = request("reactivate");
 		t.requests.down([["DATA", req]]);
@@ -349,10 +349,8 @@ describe("D648/D649 bounded admission and exact correlation", () => {
 		expect(t.admissions.values).toHaveLength(1);
 		t.release();
 
-		// The gate's correlation ledger is private state, dropped when its lifetime closed, so the
-		// new lifetime sees the cached request and outcome as new input.
 		const replayedAdmissions = capture(t.bundle.admissions);
-		expect(replayedAdmissions.values.map((item) => item.requestId)).toEqual([req.requestId]);
+		expect(replayedAdmissions.values).toEqual([]);
 		replayedAdmissions.release();
 	});
 
