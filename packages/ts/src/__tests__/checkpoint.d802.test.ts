@@ -60,7 +60,8 @@ const privateStateOf = (n: Node<unknown> | undefined) =>
 /** The C-38 topology, with counters for what ran. */
 function c38() {
 	const counts = { p: 0, ended: 0, rew: 0, tick: 0, timersStarted: 0, timersStopped: 0 };
-	const pInputs: { waves: unknown[] | undefined; terminal: unknown; invalidated: boolean }[] = [];
+	const pInputs: { waves: readonly unknown[] | null; terminal: unknown; invalidated: boolean }[] =
+		[];
 	// p over a, with private state counting its runs; a value of 0 sends nothing.
 	const pFn: NodeFn = (ctx) => {
 		counts.p++;
@@ -274,7 +275,7 @@ describe("C-38 restore keeps the saved state, refreshes once on a changed input,
 		const { checkpoint } = captured();
 		const text = JSON.stringify(checkpoint);
 		expect(text).not.toMatch(/"version"|"revision"|"cid"|"configVersion"/);
-		expect(checkpoint.format).toBe("graphrefly.checkpoint.v2");
+		expect(checkpoint.format).toBe("graphrefly-ts/checkpoint@1");
 	});
 
 	it("captures inside a wave or a batch body are refused", () => {
@@ -344,11 +345,15 @@ describe("C-38 restore keeps the saved state, refreshes once on a changed input,
 			/node 'derived' is local-only/,
 		);
 
-		const earlier = {
-			...checkpoint,
-			format: "graphrefly.checkpoint.v1",
-		} as unknown as typeof checkpoint;
-		expect(() => f.restore(earlier)).toThrow(/earlier format/);
+		// The user's Q5: the tag names the package; any other tag is refused and not migrated.
+		for (const format of [
+			"graphrefly.checkpoint.v1",
+			"graphrefly.checkpoint.v2",
+			"graphrefly-rs/checkpoint@1",
+		]) {
+			const other = { ...checkpoint, format } as unknown as typeof checkpoint;
+			expect(() => f.restore(other), format).toThrow(/format/);
+		}
 		const noReceived = structuredClone(checkpoint);
 		const p = noReceived.nodes.find((n) => n.id === "p");
 		if (p?.lifetime === undefined) throw new Error("p has no lifetime");

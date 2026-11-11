@@ -11,7 +11,7 @@ import { type StrictJsonValue, strictJsonCodec } from "../json/codec.js";
 import type { Node } from "../node/node.js";
 import { nodeBackendContributor, setNodeBackendContributor } from "../node/runtime-accessors.js";
 
-export const GRAPH_CHECKPOINT_FORMAT = "graphrefly.checkpoint.v2" as const;
+export const GRAPH_CHECKPOINT_FORMAT = "graphrefly-ts/checkpoint@1" as const;
 
 export type GraphCheckpointFormat = typeof GRAPH_CHECKPOINT_FORMAT;
 

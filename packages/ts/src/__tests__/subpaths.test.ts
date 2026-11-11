@@ -94,6 +94,7 @@ import type {
 	AgenticMemoryRecordApplicationPriorEvidence,
 	AgenticMemoryRecordApplicationPriorEvidenceBundleOptions,
 	AgenticMemoryRecordApplicationPriorEvidenceProjection,
+	AgenticMemoryRecordApplicationReasonCode,
 	AgenticMemoryRecordCandidateMaterial,
 	AgenticMemoryRecordFrame,
 	AgenticMemoryRecordMaterializationIntent,
@@ -114,9 +115,9 @@ import type {
 	AgenticWorkItemMemoryRecordCandidate,
 	CapacityPolicy,
 	GraphCheckpoint,
+	GraphCheckpointFormat,
 	KnowledgeAssertion,
 	KnowledgeGraphReducerBundleOptions,
-	MemoryFragment,
 	OrderedCapacityPolicy,
 	ReactiveIndexCapacityOrder,
 	ReactiveIndexCapacityPolicy,
@@ -139,9 +140,14 @@ import type {
 import * as rootPackage from "../index.js";
 import * as boundaryInspection from "../inspection/boundary.js";
 import * as memory from "../memory/index.js";
+import type { MemoryFragment } from "../memory/semantic/index.js";
 import * as semanticMemory from "../memory/semantic/index.js";
 import * as messaging from "../messaging/index.js";
+import type { Node } from "../node/node.js";
 import * as operators from "../operators/index.js";
+// TODO(review-2.21): ToolProviderAdapterRunResult is used by public adapter signatures but no public
+// module exports it, so the surface check reads it from its defining module.
+import type { ToolProviderAdapterRunResult } from "../orchestration/agent-runtime-types-tool.js";
 import type {
 	ExecutorArtifactMaterial,
 	ScheduledReadinessBundle,
@@ -155,7 +161,6 @@ import type {
 	ToolProviderAdapterInputStatus,
 	ToolProviderAdapterRunBundle,
 	ToolProviderAdapterRunRequested,
-	ToolProviderAdapterRunResult,
 	ToolProviderAdapterRunStatus,
 	ToolProviderExecutionPolicy,
 	ToolProviderPublicTextPolicy,
@@ -223,6 +228,13 @@ import * as testing from "../testing/index.js";
 import * as productionEvaluationMemoryPersistence from "../testing/production-evaluation-memory-persistence.js";
 import * as sharedControlPanelMemoryPersistence from "../testing/shared-control-panel-memory-persistence.js";
 import * as workQueueModule from "../work-queue/index.js";
+
+/** The input a solution bundle reads from its `occurrences` node. */
+type OccurrenceInput<O> = O extends { readonly occurrences: Node<infer Occurrence> }
+	? Occurrence extends { readonly value: infer Input }
+		? Input
+		: never
+	: never;
 
 const packageJsonPath = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "package.json");
 const exportsJson = JSON.parse(readFileSync(packageJsonPath, "utf8")) as {
@@ -1438,7 +1450,7 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		);
 		expectTypeOf<AgenticMemoryRecordApplicationDecision>()
 			.toHaveProperty("reasonCode")
-			.toEqualTypeOf<string>();
+			.toEqualTypeOf<AgenticMemoryRecordApplicationReasonCode>();
 		expectTypeOf<AgenticMemoryRecordApplicationDecision>().toHaveProperty("materialIdentity");
 		expectTypeOf<AgenticMemoryRecordApplicationDecision>()
 			.toHaveProperty("operation")
@@ -1457,7 +1469,10 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 			"applicationDecisions",
 		);
 		expectTypeOf<AgenticMemoryRecordApplicationOptions>().toHaveProperty("priorEvidence");
-		expectTypeOf<AgenticMemoryRecordApplicationBundleOptions>().toHaveProperty("priorEvidence");
+		expectTypeOf<AgenticMemoryRecordApplicationBundleOptions>().toHaveProperty("occurrences");
+		expectTypeOf<OccurrenceInput<AgenticMemoryRecordApplicationBundleOptions>>().toHaveProperty(
+			"priorEvidence",
+		);
 		expectTypeOf<AgenticMemoryRecordMaterializationIntent>().toHaveProperty("intentId");
 		expectTypeOf<AgenticMemoryRecordMaterializationIntent>()
 			.toHaveProperty("operation")
@@ -1518,9 +1533,9 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expectTypeOf<AgenticMemoryRecordAdmissionPolicySourceBundleOptions>().toHaveProperty(
 			"policySources",
 		);
-		expectTypeOf<AgenticMemoryConsolidationApplicationBundleOptions>().toHaveProperty(
-			"applicationPriorEvidence",
-		);
+		expectTypeOf<
+			OccurrenceInput<AgenticMemoryConsolidationApplicationBundleOptions>
+		>().toHaveProperty("applicationPriorEvidence");
 		expectTypeOf<AgenticMemoryConsolidationApplicationBundle>().toHaveProperty("application");
 		expectTypeOf<AgenticMemoryConsolidationApplicationBundle>().toHaveProperty(
 			"applicationOperationStatuses",
@@ -1544,9 +1559,9 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expectTypeOf<AgenticWorkItemMemoryBridgeStatus>().toHaveProperty("cursor");
 		expectTypeOf<AgenticWorkItemMemoryBridgeCursor>().toHaveProperty("candidateConflicts");
 		expectTypeOf<AgenticWorkItemMemoryApplicationRecipeResult>().toHaveProperty("bridge");
-		expectTypeOf<AgenticWorkItemMemoryApplicationRecipeBundleOptions>().toHaveProperty(
-			"applicationPolicy",
-		);
+		expectTypeOf<
+			OccurrenceInput<AgenticWorkItemMemoryApplicationRecipeBundleOptions>
+		>().toHaveProperty("applicationPolicy");
 		expect(Object.hasOwn(agenticMemory, "workItemAuthoringProjector")).toBe(false);
 		expect(typeof agenticWorkItemMemory.mapAgenticWorkItemMemoryBridge).toBe("function");
 		expect(typeof agenticWorkItemMemory.agenticWorkItemMemoryBridgeBundle).toBe("function");
@@ -1867,9 +1882,7 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 			release(opts?: TopologyGroupReleaseOptions): void;
 		}>();
 		expectTypeOf<TopologyGroupOptions>().toEqualTypeOf<{ name?: string }>();
-		expectTypeOf<GraphCheckpoint>()
-			.toHaveProperty("version")
-			.toEqualTypeOf<"graphrefly.checkpoint.v1">();
+		expectTypeOf<GraphCheckpoint>().toHaveProperty("format").toEqualTypeOf<GraphCheckpointFormat>();
 		expectTypeOf<ImageSizeLookup>().toMatchTypeOf<{
 			get(src: string): unknown;
 		}>();
@@ -1893,7 +1906,7 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expectTypeOf<AgenticMemoryRetentionBundleOptions>()
 			.toHaveProperty("commands")
 			.toMatchTypeOf<unknown>();
-		expectTypeOf<AgenticMemoryConsolidationBundleOptions>()
+		expectTypeOf<OccurrenceInput<AgenticMemoryConsolidationBundleOptions>>()
 			.toHaveProperty("outcomes")
 			.toMatchTypeOf<unknown>();
 		expectTypeOf<AgenticMemoryConsolidationBundle>()

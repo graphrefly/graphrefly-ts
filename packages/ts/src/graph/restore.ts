@@ -889,7 +889,7 @@ function constructPrepared(
 /**
  * Restore a new graph from a checkpoint and a registry of recipes (R-checkpoint).
  *
- * @param checkpoint - A `graphrefly.checkpoint.v2` checkpoint.
+ * @param checkpoint - A `graphrefly-ts/checkpoint@1` checkpoint.
  * @param options - The registry of recipe factories, restore extensions and named definitions,
  *   and optional dispatcher and versioning overrides.
  * @returns A new graph with no subscribers; no recipe function has run.
