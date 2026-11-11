@@ -537,7 +537,8 @@ export class Graph {
 		if (typeof (result as { then?: unknown } | null | undefined)?.then === "function")
 			this._core.report?.({
 				source: "batch",
-				error: "batch body returned a promise; writes after its first suspension are separate waves",
+				error:
+					"batch body returned a promise; writes after its first suspension are separate waves",
 			});
 		return result;
 	}
