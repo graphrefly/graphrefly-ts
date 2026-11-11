@@ -166,12 +166,6 @@ export function attachKeyedRateLimitAuthority(
 				} satisfies KeyedRateLimitAuthorityAdapterRuntimeState);
 			state.active = true;
 			ctx.state.set(state);
-			ctx.onDeactivation(() => {
-				state.active = false;
-				for (const cancel of state.cancels.values()) runCancel(cancel);
-				state.cancels.clear();
-				state.inFlight.clear();
-			});
 			for (const raw of depBatch(ctx, 0) ?? []) {
 				if (!state.active) break;
 				let request: KeyedRateLimitRequest;
@@ -298,6 +292,16 @@ export function attachKeyedRateLimitAuthority(
 			name: `${name}/events`,
 			factory: "attachKeyedRateLimitAuthority",
 			terminal: { complete: "manual", error: "manual" },
+			// R-lifetime: closing the lifetime cancels in-flight requests; the cleanup still reads the
+			// private state, which is dropped after it.
+			setup: (ctx) => () => {
+				const state = ctx.state.get<KeyedRateLimitAuthorityAdapterRuntimeState>();
+				if (state === undefined) return;
+				state.active = false;
+				for (const cancel of state.cancels.values()) runCancel(cancel);
+				state.cancels.clear();
+				state.inFlight.clear();
+			},
 		},
 	);
 	const correlationFacts = adapterProjection(

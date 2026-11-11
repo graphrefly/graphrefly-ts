@@ -200,7 +200,7 @@ describe("B49 core-slot migration", () => {
 			"values",
 			"waves",
 			"privateStates",
-			"hooks",
+			"lifetimes",
 			"syncCtxs",
 			"versionStates",
 		].map((k) => occupied(c[k] as unknown[]));
@@ -242,7 +242,7 @@ describe("B49 core-slot migration", () => {
 			"activated",
 			"dep",
 			"privateState",
-			"hooks",
+			"lifetimes",
 			"syncCtx",
 			"version",
 		]) {
@@ -270,7 +270,7 @@ describe("B49 core-slot migration", () => {
 			"values",
 			"waves",
 			"privateStates",
-			"hooks",
+			"lifetimes",
 			"syncCtxs",
 			"versionStates",
 		]) {
@@ -294,7 +294,7 @@ describe("B49 core-slot migration", () => {
 			"lifecycles",
 			"depStates",
 			"privateStates",
-			"hooks",
+			"lifetimes",
 			"syncCtxs",
 			"versionStates",
 			"boundary",

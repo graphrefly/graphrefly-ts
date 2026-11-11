@@ -1184,10 +1184,14 @@ function initBridgeState<TPayload>(ctx: Ctx): BridgeState<TPayload> {
 	}
 	if (!state.cleanupInstalled) {
 		state.cleanupInstalled = true;
-		ctx.onDeactivation(() => {
-			state.cleanupInstalled = false;
-			state.pending.clear();
-		});
+		ctx.signal.addEventListener(
+			"abort",
+			() => {
+				state.cleanupInstalled = false;
+				state.pending.clear();
+			},
+			{ once: true },
+		);
 	}
 	return state;
 }

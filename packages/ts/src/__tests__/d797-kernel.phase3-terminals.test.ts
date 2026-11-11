@@ -207,9 +207,13 @@ describe("C-34: terminal fanout, the ended node's lifetime closing, and acquirin
 			[t],
 			(ctx) => {
 				runs++;
-				ctx.onDeactivation(() => {
-					cleanups++;
-				});
+				ctx.signal.addEventListener(
+					"abort",
+					() => {
+						cleanups++;
+					},
+					{ once: true },
+				);
 				if (depLatest(ctx, 0) === 1) ctx.down([["DATA", 1], ["COMPLETE"]]);
 			},
 			{ name: "s" },

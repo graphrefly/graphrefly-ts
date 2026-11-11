@@ -149,10 +149,14 @@ export function spendingAlertsGraph(opts: SpendingAlertsOptions = {}): SpendingA
 		(ctx: Ctx) => {
 			pushTxn = (txn) => ctx.down([["DATA", txn]]);
 			status = "active";
-			ctx.onDeactivation(() => {
-				pushTxn = null;
-				status = "deactivated";
-			});
+			ctx.signal.addEventListener(
+				"abort",
+				() => {
+					pushTxn = null;
+					status = "deactivated";
+				},
+				{ once: true },
+			);
 		},
 		{ name: "txFeed" },
 	);

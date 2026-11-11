@@ -20,9 +20,9 @@ import { defaultDispatcher, type Handle } from "../dispatcher/index.js";
 import { EnvironmentDrivers } from "../graph/environment.js";
 import { type Message, SENTINEL, type Wave } from "../protocol/messages.js";
 import {
-	type CleanupHooks,
 	type DepBookkeeping,
 	type LifecycleState,
+	type LifetimeState,
 	makeDepBookkeeping,
 	NodeCore,
 	type NodeId,
@@ -134,7 +134,7 @@ export class Node<T = unknown> {
 	private readonly _lifecycle: LifecycleState;
 	// biome-ignore lint/correctness/noUnusedPrivateClassMembers: used by the issued runtime host.
 	private readonly _privateState: PrivateState;
-	private readonly _hooks: CleanupHooks;
+	private readonly _lifetime: LifetimeState;
 	private readonly _syncCtxState: SyncCtxState;
 	private readonly _version: VersionState;
 	private _restoredActivationPending = false;
@@ -150,7 +150,7 @@ export class Node<T = unknown> {
 
 	private static _retainIndirectRuntimeMethods(node: Node<unknown>): void {
 		void node._dep;
-		void node._hooks;
+		void node._lifetime;
 		void node._restoredActivationPending;
 		void node._requestRewireNext;
 		void node._applyRewireNext;
@@ -226,6 +226,7 @@ export class Node<T = unknown> {
 					errorPolicy: opts.terminal?.error ?? "auto",
 					invalidatePolicy: opts.invalidate ?? "auto",
 					quiet: opts.quiet ?? false,
+					setup: opts.setup,
 					dynamic: opts.dynamic ?? false,
 					name: opts.name,
 					factory: opts.factory,
@@ -246,7 +247,7 @@ export class Node<T = unknown> {
 						rewireRunPending: false,
 					},
 					privateState: { value: SENTINEL, persist: false },
-					hooks: { onDeactivation: [], onInvalidate: [] },
+					lifetime: { controller: null, cleanup: undefined, setupDone: false },
 					syncCtx: { value: null },
 					version: {
 						policy: versioning,
@@ -268,7 +269,7 @@ export class Node<T = unknown> {
 			this._wave = this._core.getWave(this._id);
 			this._lifecycle = this._core.getLifecycle(this._id);
 			this._privateState = this._core.getPrivateState(this._id);
-			this._hooks = this._core.getHooks(this._id);
+			this._lifetime = this._core.getLifetime(this._id);
 			this._syncCtxState = this._core.getSyncCtx(this._id);
 			this._version = this._core.getVersion(this._id);
 			Node._retainIndirectRuntimeMethods(this as Node<unknown>);

@@ -1,9 +1,9 @@
 import type { Ctx, CtxState, DeliveryMeta, NodeFn } from "../ctx/types.js";
 import type { Message, Wave } from "../protocol/messages.js";
 import type {
-	CleanupHooks,
 	DepBookkeeping,
 	LifecycleState,
+	LifetimeState,
 	NodeCore,
 	NodeId,
 	NodeSlot,
@@ -27,7 +27,7 @@ export interface NodeRuntimeHost<T = unknown> {
 	_wave: WaveState;
 	_lifecycle: LifecycleState;
 	_privateState: PrivateState;
-	_hooks: CleanupHooks;
+	_lifetime: LifetimeState;
 	_syncCtxState: SyncCtxState;
 	_version: VersionState;
 	_syncCtx: Ctx | null;

@@ -6145,7 +6145,7 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 				if (state.timer !== undefined) clearTimeout(state.timer);
 				state.timer = undefined;
 			};
-			ctx.onDeactivation(cancel);
+			ctx.signal.addEventListener("abort", cancel, { once: true });
 			for (const raw of depBatch(ctx, 0) ?? []) {
 				const event = raw as EvalProviderStartSpacingReadiness;
 				if (state.cancelled) {
@@ -6362,10 +6362,14 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 				if (state.timer !== undefined) clearTimeout(state.timer);
 				state.timer = undefined;
 			};
-			ctx.onDeactivation(() => {
-				state.deactivated = true;
-				clearCurrentTimer();
-			});
+			ctx.signal.addEventListener(
+				"abort",
+				() => {
+					state.deactivated = true;
+					clearCurrentTimer();
+				},
+				{ once: true },
+			);
 			const emit = (value: EvalProgressLeaseState) => {
 				assertProgressLeaseRuntimeShape(value, "admission progress lease");
 				ctx.down([["DATA", value]]);

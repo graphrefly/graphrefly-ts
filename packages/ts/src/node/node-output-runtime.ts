@@ -4,6 +4,7 @@ import type { Sink } from "../ctx/types.js";
 import type { Message, Wave } from "../protocol/messages.js";
 import { isTerminal, SENTINEL } from "../protocol/messages.js";
 import type { Subscriber } from "./core.js";
+import { nodeCloseLifetime } from "./node-lifecycle-runtime.js";
 import type { NodeRuntimeHost } from "./node-runtime-host.js";
 import { validateDownPayloads } from "./protocol-guards.js";
 import {
@@ -119,7 +120,6 @@ export function nodePublish<T>(self: NodeRuntimeHost<T>, arrays: readonly Messag
 				self._value.hasData = false;
 				self._value.lastArray = [];
 				self._value.status = "sentinel";
-				for (const fn of self._hooks.onInvalidate) fn();
 				kept.push(m);
 				continue;
 			}
@@ -161,16 +161,8 @@ export function nodePublish<T>(self: NodeRuntimeHost<T>, arrays: readonly Messag
  * keeps its values, terminal and subscribers, and its function never runs again.
  */
 export function nodeCloseEndedLifetime<T>(self: NodeRuntimeHost<T>): void {
-	const unsubs = self._dep.unsubs;
-	self._dep.unsubs = [];
-	self._dep.idxBoxes = [];
-	for (const u of unsubs) u?.();
-	const cleanups = self._hooks.onDeactivation;
-	self._hooks.onDeactivation = [];
-	self._hooks.onInvalidate = [];
-	for (const fn of cleanups) fn();
+	nodeCloseLifetime(self);
 	self._resetDepState();
-	self._privateState.value = SENTINEL;
 }
 
 /** R-wave: the kernel's pending mark, sent ahead of the values to dependents only. */

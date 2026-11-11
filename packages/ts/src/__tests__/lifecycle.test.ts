@@ -92,14 +92,22 @@ describe("terminal (R-terminal, R-deps-terminal)", () => {
 	});
 });
 
-describe("INVALIDATE (R-invalidate-idempotent, R-cleanup-hooks)", () => {
-	it("clears cache, fires onInvalidate, cascades — and is idempotent", () => {
+describe("INVALIDATE (R-invalidation)", () => {
+	it("under the manual policy the function flushes and sends the INVALIDATE; idempotent", () => {
 		const a = node<number>([], null, { initial: 5 });
 		let flushed = 0;
-		const d = node<number>([a], (ctx: Ctx) => {
-			ctx.onInvalidate(() => flushed++);
-			ctx.down([["DATA", (depLatest(ctx, 0) as number) * 2]]);
-		});
+		const d = node<number>(
+			[a],
+			(ctx: Ctx) => {
+				if (ctx.invalidated[0]) {
+					flushed++;
+					ctx.down([["INVALIDATE"]]);
+					return;
+				}
+				ctx.down([["DATA", (depLatest(ctx, 0) as number) * 2]]);
+			},
+			{ invalidate: "manual" },
+		);
 		const { msgs } = collect(d);
 		expect(d.cache).toBe(10);
 		msgs.length = 0;
@@ -145,12 +153,13 @@ describe("same-wave merge (R-same-wave-merge)", () => {
 });
 
 describe("ROM/RAM + cleanup (R-rom-ram, R-cleanup-hooks)", () => {
-	it("compute node clears cache on deactivation and fires onDeactivation", () => {
+	it("compute node clears cache on deactivation and runs its setup's cleanup", () => {
 		const a = node<number>([], null, { initial: 1 });
 		let cleaned = 0;
-		const d = node<number>([a], (ctx: Ctx) => {
-			ctx.onDeactivation(() => cleaned++);
-			ctx.down([["DATA", 1]]);
+		const d = node<number>([a], (ctx: Ctx) => ctx.down([["DATA", 1]]), {
+			setup: () => () => {
+				cleaned++;
+			},
 		});
 		const { unsub } = collect(d);
 		expect(d.cache).toBe(1);

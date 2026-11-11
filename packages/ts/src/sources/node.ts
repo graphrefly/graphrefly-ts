@@ -100,13 +100,9 @@ function source<T>(
 	factory: string,
 	setup: (ctx: Ctx) => undefined | (() => void),
 ): Operator<never, T> {
-	return {
-		factory,
-		body: (ctx) => {
-			const cleanup = setup(ctx);
-			if (typeof cleanup === "function") ctx.onDeactivation(cleanup);
-		},
-	};
+	// R-lifetime: a source's work is its lifetime's setup, run once just before the first run in the
+	// lifetime; what it returns is the lifetime's cleanup.
+	return { factory, opts: { setup }, body: () => {} };
 }
 
 function normalizePath(path: string): string {

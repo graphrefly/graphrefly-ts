@@ -83,12 +83,12 @@ describe("D167 issued runtime identity and lifecycle", () => {
 		const g = new Graph();
 		const input = g.state(2, { name: "input" });
 		let hookRan = false;
-		nodeRuntimeHost(input)._hooks.onDeactivation.push(() => {
+		nodeRuntimeHost(input)._lifetime.cleanup = () => {
 			hookRan = true;
 			expect(checkpointStateOfNode(input).cache).toBe(2);
 			expect(() => g.node([input], null, { name: "invalid" })).toThrow("has been released");
 			expect(g.find("invalid")).toBeUndefined();
-		});
+		};
 		releaseGraphNodes(g, [input]);
 		expect(hookRan).toBe(true);
 		expect(() => assertGraphLocalNode(g, input, "dep")).toThrow("has been released");
@@ -119,10 +119,10 @@ describe("D167 issued runtime identity and lifecycle", () => {
 			observations.push("backend");
 			return 4;
 		});
-		nodeRuntimeHost(n)._hooks.onDeactivation.push(() => {
+		nodeRuntimeHost(n)._lifetime.cleanup = () => {
 			observations.push(isNodeRuntimeReleased(n), checkpointStateOfNode(n).hasData);
 			releaseRuntimeOfNode(n); // reentrant release is inert
-		});
+		};
 		releaseRuntimeOfNode(n);
 		expect(checkpointBackendStateOfNode(n, "backend")).toBeUndefined();
 		expect(observations).toEqual([true, false]);
@@ -382,9 +382,13 @@ describe("D167 exact command binding and existing D110 batch fate", () => {
 		const a = f.graph.producer(
 			(ctx) => {
 				activations.push("add");
-				ctx.onDeactivation(() => {
-					activations.push("remove");
-				});
+				ctx.signal.addEventListener(
+					"abort",
+					() => {
+						activations.push("remove");
+					},
+					{ once: true },
+				);
 			},
 			{ name: "active" },
 		);

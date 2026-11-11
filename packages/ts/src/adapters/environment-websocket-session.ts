@@ -92,23 +92,27 @@ function initWebSocketSessionState(ctx: Ctx): WebSocketSessionState {
 	state.active = true;
 	if (!state.cleanupInstalled) {
 		state.cleanupInstalled = true;
-		ctx.onDeactivation(() => {
-			const sendCancels = [...state.sendCancels.values()];
-			const timers = [...state.timers.values()];
-			const session = state.currentSession;
-			state.active = false;
-			state.cleanupInstalled = false;
-			state.connected = false;
-			state.currentAttempt = 0;
-			state.currentSession = undefined;
-			state.sendCancels.clear();
-			state.liveSends.clear();
-			state.pendingOutbound = [];
-			state.timers.clear();
-			for (const cancel of sendCancels) runCancel(cancel);
-			for (const timer of timers) clearTimeout(timer);
-			session?.cancel();
-		});
+		ctx.signal.addEventListener(
+			"abort",
+			() => {
+				const sendCancels = [...state.sendCancels.values()];
+				const timers = [...state.timers.values()];
+				const session = state.currentSession;
+				state.active = false;
+				state.cleanupInstalled = false;
+				state.connected = false;
+				state.currentAttempt = 0;
+				state.currentSession = undefined;
+				state.sendCancels.clear();
+				state.liveSends.clear();
+				state.pendingOutbound = [];
+				state.timers.clear();
+				for (const cancel of sendCancels) runCancel(cancel);
+				for (const timer of timers) clearTimeout(timer);
+				session?.cancel();
+			},
+			{ once: true },
+		);
 	}
 	return state;
 }

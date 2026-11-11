@@ -253,20 +253,24 @@ function nodeInvoke<T>(self: NodeRuntimeHost<T>): Message[][] {
 			"synchronous feedback cycle: node fn re-entered its own wave (R-reentrancy / D37)",
 		);
 	self._wave.hasCalledFnOnce = true;
-	// R-cleanup-hooks per-run lifecycle (D28 clarification): clear BOTH hook lists
-	// before the fn runs; the fn body re-registers the current run's hooks.
-	self._hooks.onInvalidate = [];
-	self._hooks.onDeactivation = [];
 	const ctx = self._buildCtx();
+	// R-lifetime: the setup runs once per lifetime, just before the function's first run in it,
+	// with that run's ctx; what it sends is that run's output and a throw in it is the node's ERROR.
+	const lifetime = self._lifetime;
+	const setup = lifetime.setupDone ? undefined : self._slot.setup;
+	lifetime.setupDone = true;
 	self._wave.emittedSettleThisWave = false;
 	self._wave.runOutput = [];
 	self._wave.insideRunWave = true;
 	let thrown: { readonly error: unknown } | undefined;
 	try {
+		if (setup !== undefined) {
+			const cleanup = setup(ctx);
+			if (typeof cleanup === "function") lifetime.cleanup = cleanup;
+		}
 		self._slot.dispatcher.invoke(self._slot.handle as Handle, ctx);
 	} catch (error) {
 		thrown = { error };
-		if (process.env.DBG) console.log("THROW", self._slot.name, (error as Error)?.message);
 	} finally {
 		self._wave.insideRunWave = false;
 	}

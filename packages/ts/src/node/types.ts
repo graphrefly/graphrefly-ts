@@ -1,4 +1,4 @@
-import type { NodeFn } from "../ctx/types.js";
+import type { Ctx, NodeFn } from "../ctx/types.js";
 import type { Dispatcher, Handle } from "../dispatcher/index.js";
 import type { Node } from "./node.js";
 import type { NodeVersion, NodeVersioningPolicy } from "./versioning.js";
@@ -45,6 +45,14 @@ export interface NodeOptions<T = unknown> {
 	 * that sends nothing sends nothing below (no RESOLVED). Default false.
 	 */
 	quiet?: boolean;
+	/**
+	 * R-lifetime: runs once per lifetime, just before the function's first run in it, with that
+	 * run's ctx. What it sends is part of that run's output, a throw ends the node as a throw of the
+	 * function does, and a function it returns is the lifetime's cleanup, run when the lifetime
+	 * closes (deactivation or end), after its signal is aborted and its dependencies released.
+	 */
+	// biome-ignore lint/suspicious/noConfusingVoidType: a setup returns its cleanup or nothing.
+	setup?: (ctx: Ctx) => (() => void) | undefined | void;
 	/**
 	 * D109 node runtime versioning policy. Default is nodev0 (`{level:0,counter}`); `false`
 	 * disables runtime version metadata for this node.

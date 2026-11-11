@@ -166,11 +166,15 @@ export interface Ctx {
 	 * run for an INVALIDATE.
 	 */
 	invalidated: readonly boolean[];
+	/** Private state for the current lifetime (R-invocation, R-lifetime). */
 	state: CtxState;
-	/** Release external resources on deactivation (R-cleanup-hooks). */
-	onDeactivation(fn: () => void): void;
-	/** Flush on INVALIDATE (R-cleanup-hooks). */
-	onInvalidate(fn: () => void): void;
+	/**
+	 * R-lifetime: the current lifetime's abort signal, aborted when the lifetime closes
+	 * (deactivation or end), not by INVALIDATE or a rerun. A function registers no cleanup; what
+	 * must last for the lifetime is opened by the node's `setup`, and work started from a run can
+	 * stop on this signal.
+	 */
+	signal: AbortSignal;
 	/** Graph-owned environment drivers for source/adapter boundaries (D130/D131). */
 	environment(): EnvironmentDrivers;
 	/**

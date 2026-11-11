@@ -49,9 +49,13 @@ function subject() {
 	const n = node<number>([], (ctx) => {
 		ctxRef = ctx;
 		activated = true;
-		ctx.onDeactivation(() => {
-			deactivated = true;
-		});
+		ctx.signal.addEventListener(
+			"abort",
+			() => {
+				deactivated = true;
+			},
+			{ once: true },
+		);
 	});
 	return {
 		node: n,

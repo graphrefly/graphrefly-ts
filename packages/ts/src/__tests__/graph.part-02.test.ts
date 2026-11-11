@@ -279,21 +279,21 @@ describe("Graph.observeTopology — read-only topology egress (D145)", () => {
 		const later = g.state(2, { name: "later" });
 		const panicInternals = panic as unknown as {
 			_lifecycle: { activated: boolean };
-			_hooks: { onDeactivation: Array<() => void> };
+			_lifetime: { cleanup: (() => void) | undefined };
 		};
 		const laterInternals = later as unknown as {
 			_lifecycle: { activated: boolean };
-			_hooks: { onDeactivation: Array<() => void> };
+			_lifetime: { cleanup: (() => void) | undefined };
 		};
 		let laterCleanupRan = false;
 		panicInternals._lifecycle.activated = true;
-		panicInternals._hooks.onDeactivation.push(() => {
+		panicInternals._lifetime.cleanup = () => {
 			throw new Error("cleanup boom");
-		});
+		};
 		laterInternals._lifecycle.activated = true;
-		laterInternals._hooks.onDeactivation.push(() => {
+		laterInternals._lifetime.cleanup = () => {
 			laterCleanupRan = true;
-		});
+		};
 		const events: TopologyEvent[] = [];
 		const unsub = g.observeTopology().subscribe((event) => events.push(event));
 

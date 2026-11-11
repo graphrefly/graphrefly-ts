@@ -202,9 +202,13 @@ function retainedLifecycleProbe(nodes = 2_500, payloadBytes = 4_096): string {
 		const src = node<number>([], null, { initial: i });
 		const payload = new Uint8Array(payloadBytes);
 		const d = node<number>([src], (ctx) => {
-			ctx.onDeactivation(() => {
-				cleanupBytes += payload.byteLength;
-			});
+			ctx.signal.addEventListener(
+				"abort",
+				() => {
+					cleanupBytes += payload.byteLength;
+				},
+				{ once: true },
+			);
 			ctx.down([["DATA", depLatest(ctx, 0)]]);
 		});
 		const unsubscribe = d.subscribe(() => {});

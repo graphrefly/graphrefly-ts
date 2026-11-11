@@ -36,40 +36,6 @@ function collect(n: { subscribe(s: (m: Message) => void): () => void }) {
 	return { msgs, unsub };
 }
 
-describe("C-14 cleanup hooks are per-run (cleared + re-registered each fn run) (R-cleanup-hooks / D28)", () => {
-	it("after K runs, onInvalidate + onDeactivation fire ONCE (the latest run's), not K times", () => {
-		let flush = 0;
-		let cleanup = 0;
-		const s = node<number>([], null, { initial: 0 });
-		const d = node<number>([s], (ctx: Ctx) => {
-			ctx.onInvalidate(() => flush++);
-			ctx.onDeactivation(() => cleanup++);
-			ctx.down([["DATA", depLatest(ctx, 0) as number]]);
-		});
-		const { unsub } = collect(d); // run 1 (activation, s=0)
-		s.down([["DATA", 1]]); // run 2 — re-registers (prior run's hooks cleared)
-		s.down([["DATA", 2]]); // run 3 — re-registers (D has now run 3×)
-
-		s.down([["INVALIDATE"]]); // fires onInvalidate ONCE (run-3's), not 3× (the accumulation bug)
-		expect(flush).toBe(1);
-
-		unsub(); // D deactivates → fires onDeactivation ONCE (run-3's), not 3×
-		expect(cleanup).toBe(1);
-	});
-
-	it("a single-run node keeps its one registration (no re-run → no clear)", () => {
-		let cleanup = 0;
-		const s = node<number>([], null, { initial: 5 });
-		const d = node<number>([s], (ctx: Ctx) => {
-			ctx.onDeactivation(() => cleanup++);
-			ctx.down([["DATA", depLatest(ctx, 0) as number]]);
-		});
-		const { unsub } = collect(d); // run 1 only
-		unsub();
-		expect(cleanup).toBe(1);
-	});
-});
-
 // C-15 (R-terminal-settles-dirty / B35): a dep's terminal (COMPLETE/ERROR) releases its
 // outstanding in-wave PENDING contribution — the exactly-one-settle invariant — exactly as
 // DATA/RESOLVED/INVALIDATE do, so a PENDING-then-terminal-without-DATA dep never strands the

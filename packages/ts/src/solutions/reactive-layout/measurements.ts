@@ -333,17 +333,24 @@ export function textMeasurementProvider(opts: TextMeasurementProviderOptions): N
 	const source = opts.source ?? name;
 	const cache = new Map<string, Map<string, number>>();
 	let activeAdapter: MeasurementAdapter | null = null;
+	// R-lifetime: the cache is flushed when a lifetime closes (the setup's cleanup) and on INVALIDATE.
+	const flushFor = (_ctx: Ctx) => () => {
+		cache.clear();
+		activeAdapter?.clearCache?.();
+	};
 	return opts.graph.node<Measurements>(
 		opts.segmentAdapter
 			? [opts.text, opts.font, opts.adapter, opts.segmentAdapter]
 			: [opts.text, opts.font, opts.adapter],
 		(ctx: Ctx) => {
-			const flush = () => {
-				cache.clear();
-				activeAdapter?.clearCache?.();
-			};
-			ctx.onDeactivation(flush);
-			ctx.onInvalidate(flush);
+			const flush = flushFor(ctx);
+			// R-invalidation, manual policy: an input's INVALIDATE flushes the measurement cache and
+			// invalidates this node; the run goes on only if a value came after it in the wave.
+			if (ctx.invalidated.some(Boolean)) {
+				flush();
+				ctx.down([["INVALIDATE"]]);
+				if (ctx.waveData.every((waves) => waves.length === 0)) return;
+			}
 			const text = depLatest(ctx, 0) as string;
 			const font = depLatest(ctx, 1) as string;
 			const adapter = depLatest(ctx, 2) as MeasurementAdapter;
@@ -362,7 +369,7 @@ export function textMeasurementProvider(opts: TextMeasurementProviderOptions): N
 				],
 			]);
 		},
-		{ name },
+		{ name, invalidate: "manual", setup: (ctx: Ctx) => flushFor(ctx) },
 	);
 }
 
@@ -496,15 +503,22 @@ export function readinessTextMeasurements(
 	const deps = opts.segmentAdapter
 		? [opts.text, opts.font, opts.adapter, opts.readiness, opts.segmentAdapter]
 		: [opts.text, opts.font, opts.adapter, opts.readiness];
+	// R-lifetime: the cache is flushed when a lifetime closes (the setup's cleanup) and on INVALIDATE.
+	const flushFor = (ctx: Ctx) => () => {
+		cache.clear();
+		(depLatest(ctx, 2) as MeasurementAdapter | undefined)?.clearCache?.();
+	};
 	return opts.graph.node<Measurements>(
 		deps,
 		(ctx: Ctx) => {
-			const flush = () => {
-				cache.clear();
-				(depLatest(ctx, 2) as MeasurementAdapter).clearCache?.();
-			};
-			ctx.onDeactivation(flush);
-			ctx.onInvalidate(flush);
+			const flush = flushFor(ctx);
+			// R-invalidation, manual policy: an input's INVALIDATE flushes the measurement cache and
+			// invalidates this node; the run goes on only if a value came after it in the wave.
+			if (ctx.invalidated.some(Boolean)) {
+				flush();
+				ctx.down([["INVALIDATE"]]);
+				if (ctx.waveData.every((waves) => waves.length === 0)) return;
+			}
 			const text = depLatest(ctx, 0) as string;
 			const font = depLatest(ctx, 1) as string;
 			const adapter = depLatest(ctx, 2) as MeasurementAdapter;
@@ -550,7 +564,7 @@ export function readinessTextMeasurements(
 				],
 			]);
 		},
-		{ name },
+		{ name, invalidate: "manual", setup: (ctx: Ctx) => flushFor(ctx) },
 	);
 }
 
@@ -816,16 +830,22 @@ export function blockMeasurementProvider(
 	if (opts.font) deps.push(opts.font);
 	if (opts.lineHeight) deps.push(opts.lineHeight);
 	if (opts.segmentAdapter) deps.push(opts.segmentAdapter);
+	// R-lifetime: the cache is flushed when a lifetime closes (the setup's cleanup) and on INVALIDATE.
+	const flushFor = (ctx: Ctx) => () => {
+		cache.clear();
+		(depLatest(ctx, 2) as BlockAdapters | undefined)?.text?.clearCache?.();
+	};
 	return opts.graph.node<Measurements>(
 		deps,
 		(ctx: Ctx) => {
-			const flush = () => {
-				cache.clear();
-				const adapters = depLatest(ctx, 2) as BlockAdapters;
-				adapters.text?.clearCache?.();
-			};
-			ctx.onDeactivation(flush);
-			ctx.onInvalidate(flush);
+			const flush = flushFor(ctx);
+			// R-invalidation, manual policy: an input's INVALIDATE flushes the measurement cache and
+			// invalidates this node; the run goes on only if a value came after it in the wave.
+			if (ctx.invalidated.some(Boolean)) {
+				flush();
+				ctx.down([["INVALIDATE"]]);
+				if (ctx.waveData.every((waves) => waves.length === 0)) return;
+			}
 			try {
 				const blocks = depLatest(ctx, 0) as readonly ContentBlock[];
 				const maxWidth = nonNegativeFinite(depLatest(ctx, 1) as number, 0);
@@ -932,6 +952,6 @@ export function blockMeasurementProvider(
 				]);
 			}
 		},
-		{ name },
+		{ name, invalidate: "manual", setup: (ctx: Ctx) => flushFor(ctx) },
 	);
 }

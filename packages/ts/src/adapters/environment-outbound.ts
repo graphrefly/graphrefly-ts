@@ -55,14 +55,18 @@ function initSendState(ctx: Ctx): SendState {
 	state.active = true;
 	if (!state.cleanupInstalled) {
 		state.cleanupInstalled = true;
-		ctx.onDeactivation(() => {
-			state.active = false;
-			state.cleanupInstalled = false;
-			for (const cancel of state.cancels.values()) runCancel(cancel);
-			for (const timer of state.timers.values()) clearTimeout(timer);
-			state.cancels.clear();
-			state.timers.clear();
-		});
+		ctx.signal.addEventListener(
+			"abort",
+			() => {
+				state.active = false;
+				state.cleanupInstalled = false;
+				for (const cancel of state.cancels.values()) runCancel(cancel);
+				for (const timer of state.timers.values()) clearTimeout(timer);
+				state.cancels.clear();
+				state.timers.clear();
+			},
+			{ once: true },
+		);
 	}
 	return state;
 }

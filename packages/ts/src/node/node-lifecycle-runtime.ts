@@ -85,14 +85,63 @@ export function nodeSeedRestoredDepAt<T>(
 	self._dep.invalidated[idx] = false;
 }
 
-export function nodeDeactivate<T>(self: NodeRuntimeHost<T>): void {
-	self._lifecycle.activated = false;
-	for (const u of self._dep.unsubs) if (u) u();
+/**
+ * R-lifetime@2: closing a lifetime aborts its signal, releases its dependencies, runs its cleanup
+ * (which may still read the private state), and then drops the private state. `onError` collects
+ * failures instead of throwing (graph release).
+ */
+export function nodeCloseLifetime<T>(
+	self: NodeRuntimeHost<T>,
+	onError?: (error: unknown, resource: "subscription" | "deactivation") => void,
+): void {
+	const lifetime = self._lifetime;
+	const controller = lifetime.controller;
+	const cleanup = lifetime.cleanup;
+	lifetime.controller = null;
+	lifetime.cleanup = undefined;
+	lifetime.setupDone = false;
+	self._syncCtx = null;
+	const run = (fn: () => void, resource: "subscription" | "deactivation"): void => {
+		if (onError === undefined) {
+			fn();
+			return;
+		}
+		try {
+			fn();
+		} catch (error) {
+			onError(error, resource);
+		}
+	};
+	if (controller !== null) run(() => controller.abort(), "deactivation");
+	const unsubs = self._dep.unsubs;
 	self._dep.unsubs = [];
 	self._dep.idxBoxes = [];
-	for (const fn of self._hooks.onDeactivation) fn();
-	self._hooks.onDeactivation = [];
-	self._hooks.onInvalidate = [];
+	for (const u of unsubs) if (u) run(u, "subscription");
+	if (cleanup !== undefined) {
+		if (onError !== undefined) run(cleanup, "deactivation");
+		else {
+			// R-failure: a cleanup that throws has no node to end; its failure goes to the graph's
+			// host reporter and the close completes.
+			try {
+				cleanup();
+			} catch (error) {
+				try {
+					self._core.report?.({ source: `cleanup of ${self._slot.name ?? "node"}`, error });
+				} catch {
+					// a reporter that throws is ignored
+				}
+			}
+		}
+	}
+	// ctx.state.persist keeps private state across deactivation until its replacement is settled
+	// (open with the alignment session); an ended node always drops it.
+	if (!self._privateState.persist || self._value.terminal !== undefined)
+		self._privateState.value = SENTINEL;
+}
+
+export function nodeDeactivate<T>(self: NodeRuntimeHost<T>): void {
+	self._lifecycle.activated = false;
+	nodeCloseLifetime(self);
 
 	// R-lifetime: deactivation drops a computed node's retained values unless it has ended.
 	const isCompute = self._slot.handle !== null || self._slot.deps.length > 0;
@@ -105,7 +154,6 @@ export function nodeDeactivate<T>(self: NodeRuntimeHost<T>): void {
 	}
 	self._resetDepState();
 	self._wave.hasCalledFnOnce = false;
-	if (!self._privateState.persist) self._privateState.value = SENTINEL;
 }
 
 export function nodeSubscriberCount<T>(self: NodeRuntimeHost<T>): number {
@@ -142,24 +190,9 @@ export function nodeReleaseRuntime<T>(self: NodeRuntimeHost<T>): void {
 		});
 	};
 	self._lifecycle.activated = false;
-	for (const u of self._dep.unsubs) {
-		try {
-			u?.();
-		} catch (error) {
-			recordReleaseError(error, "subscription");
-			// D124 release is graph-owned and atomic; user cleanup must not split commit.
-		}
-	}
-	for (const fn of self._hooks.onDeactivation) {
-		try {
-			fn();
-		} catch (error) {
-			recordReleaseError(error, "deactivation");
-			// D124 release cleans runtime without synthesizing protocol ERROR/COMPLETE.
-		}
-	}
-	self._dep.unsubs = [];
-	self._dep.idxBoxes = [];
+	// D124 release is graph-owned and atomic: subscription and cleanup failures are collected, not
+	// thrown mid-release, and no protocol ERROR/COMPLETE is synthesized.
+	nodeCloseLifetime(self, (error, resource) => recordReleaseError(error, resource));
 	self._lifecycle.subscribers.clear();
 	if (self._slot.handle !== null) {
 		const handle = self._slot.handle;
@@ -190,8 +223,6 @@ export function nodeReleaseRuntime<T>(self: NodeRuntimeHost<T>): void {
 	self._privateState.persist = false;
 	self._syncCtx = null;
 	self._resetDepState();
-	self._hooks.onDeactivation = [];
-	self._hooks.onInvalidate = [];
 	self._restoredActivationPending = false;
 	closeNodeRegistration(node);
 	try {

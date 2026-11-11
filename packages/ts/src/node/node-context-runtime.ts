@@ -44,12 +44,15 @@ export function nodeMakeCtx<T>(
 		latest: unknown[];
 	},
 ): Ctx {
+	// R-lifetime: every ctx belongs to exactly one lifetime; output through a ctx whose lifetime has
+	// closed is dropped.
+	const signal = nodeLifetimeSignal(self);
 	const ctx: Ctx = {
 		// Wave-owner boundary (D47): a SYNC fn's emit nests under the public entry that drove
 		// it (cheap inc/dec, no early drain); an ASYNC-pool fn re-enters here from its stashed
 		// ctx at depth 0, so this is the boundary that drains any rewireNext it issued.
 		down: (msgs) => {
-			if (self._released) return;
+			if (self._released || signal.aborted) return;
 			validateNodeOutput(msgs);
 			if (self._slot.quiet && self._wave.insideRunWave) {
 				// R-wave: a quiet node's output during its run goes out after the current wave
@@ -68,14 +71,7 @@ export function nodeMakeCtx<T>(
 		terminal: snapshot?.terminal ?? self._dep.terminalInput.map(terminalView),
 		invalidated: snapshot?.invalidated ?? nodeInvalidatedView(self),
 		state: self._makeState(),
-		onDeactivation: (fn) => {
-			if (self._released) return;
-			self._hooks.onDeactivation.push(fn);
-		},
-		onInvalidate: (fn) => {
-			if (self._released) return;
-			self._hooks.onInvalidate.push(fn);
-		},
+		signal,
 		environment: () => self._slot.environment,
 		// R-rewire-deferred (D47): defer a self-dep-set mutation to the committed boundary.
 		rewireNext: {
@@ -98,6 +94,12 @@ export function nodeMakeCtx<T>(
 		ctx.track = (i: number) => ctx[CTX_DEP_CACHE]?.latest[i];
 	}
 	return ctx;
+}
+
+/** The current lifetime's signal, opening the lifetime if none is open (R-lifetime). */
+export function nodeLifetimeSignal<T>(self: NodeRuntimeHost<T>): AbortSignal {
+	self._lifetime.controller ??= new AbortController();
+	return self._lifetime.controller.signal;
 }
 
 export function nodeRefreshCtx<T>(self: NodeRuntimeHost<T>, ctx: Ctx): void {

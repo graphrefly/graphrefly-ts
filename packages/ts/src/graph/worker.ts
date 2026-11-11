@@ -100,10 +100,6 @@ export function workerDerived<TInput, TResult>(
 			cancel = undefined;
 		};
 		cancelActive = cancelThis;
-		ctx.onDeactivation(() => {
-			cancelThis();
-			if (cancelActive === cancelThis) cancelActive = undefined;
-		});
 		const assertNotSynchronousCompletion = (): void => {
 			if (submitting) {
 				synchronousSettlementError = new Error(
@@ -169,6 +165,11 @@ export function workerDerived<TInput, TResult>(
 		factory: "workerDerived",
 		pool: "async",
 		terminal: { complete: "manual", error: "manual" },
+		// R-lifetime: closing the lifetime cancels the run still in flight.
+		setup: () => () => {
+			cancelActive?.();
+			cancelActive = undefined;
+		},
 	});
 }
 

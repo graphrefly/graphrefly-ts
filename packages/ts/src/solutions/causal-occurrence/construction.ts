@@ -260,18 +260,23 @@ export function buildCausalNodes<T>(
 				seen = slot;
 				ctx.state.set(slot);
 			}
-			// R-cleanup-hooks replaces hooks each invocation; INVALIDATE must clear dedup too.
-			const slot = seen;
-			ctx.onInvalidate(() => {
-				slot.view = undefined;
-			});
+			// R-invalidation, manual policy: an INVALIDATE clears the dedup slot and invalidates this
+			// view, so the next committed view is sent again.
+			if (ctx.invalidated[0]) {
+				seen.view = undefined;
+				ctx.down([["INVALIDATE"]]);
+			}
 			for (const emission of (depBatch(ctx, 0) ?? []) as AuthorityEmission<T>[]) {
 				if (seen.view === emission.committedEffects) continue;
 				seen.view = emission.committedEffects;
 				ctx.down([["DATA", seen.view]]);
 			}
 		},
-		{ name: `${opts.name}/committed-effects`, factory: "causalCommittedEffectsProjection" },
+		{
+			name: `${opts.name}/committed-effects`,
+			factory: "causalCommittedEffectsProjection",
+			invalidate: "manual",
+		},
 	);
 	assertCausalOccurrenceTopology(graph.readIncoming(), opts.name);
 	const full = createCausalCapabilities(ownerGraph, graph, opts.name, result, binding);

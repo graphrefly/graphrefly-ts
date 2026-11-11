@@ -59,9 +59,17 @@ export interface PrivateState {
 	persist: boolean;
 }
 
-export interface CleanupHooks {
-	onDeactivation: Array<() => void>;
-	onInvalidate: Array<() => void>;
+/**
+ * R-lifetime: what the current lifetime of a computed node holds. A lifetime opens at the first
+ * run after activation and closes at deactivation or when the node ends.
+ */
+export interface LifetimeState {
+	/** The lifetime's abort controller (ctx.signal); null while no lifetime is open. */
+	controller: AbortController | null;
+	/** The cleanup the node's setup returned for this lifetime. */
+	cleanup: (() => void) | undefined;
+	/** The setup has run in this lifetime. */
+	setupDone: boolean;
 }
 
 export interface SyncCtxState {
@@ -101,6 +109,8 @@ export interface NodeSlot<_T> {
 	errorPolicy: "auto" | "manual";
 	invalidatePolicy: "auto" | "manual";
 	quiet: boolean;
+	/** R-lifetime: runs once per lifetime, before its first run; may return the lifetime's cleanup. */
+	setup: ((ctx: Ctx) => (() => void) | undefined | void) | undefined;
 	dynamic: boolean;
 	name?: string;
 	factory?: string;
@@ -113,7 +123,7 @@ export interface NodeState<T> {
 	version: VersionState;
 	wave: WaveState;
 	privateState: PrivateState;
-	hooks: CleanupHooks;
+	lifetime: LifetimeState;
 	syncCtx: SyncCtxState;
 }
 
@@ -127,7 +137,7 @@ export class NodeCore {
 	private readonly lifecycles: Array<LifecycleState | undefined> = [];
 	private readonly depStates: Array<DepBookkeeping | undefined> = [];
 	private readonly privateStates: Array<PrivateState | undefined> = [];
-	private readonly hooks: Array<CleanupHooks | undefined> = [];
+	private readonly lifetimes: Array<LifetimeState | undefined> = [];
 	private readonly syncCtxs: Array<SyncCtxState | undefined> = [];
 	private readonly versionStates: Array<VersionState | undefined> = [];
 	private readonly boundary: BoundaryState = { queue: [], head: 0 };
@@ -149,7 +159,7 @@ export class NodeCore {
 		this.values[id] = state.value as ValueState<unknown>;
 		this.waves[id] = state.wave;
 		this.privateStates[id] = state.privateState;
-		this.hooks[id] = state.hooks;
+		this.lifetimes[id] = state.lifetime;
 		this.syncCtxs[id] = state.syncCtx;
 		this.versionStates[id] = state.version;
 		return { id, slot: full };
@@ -191,10 +201,10 @@ export class NodeCore {
 		return state;
 	}
 
-	getHooks(id: NodeId): CleanupHooks {
-		const hooks = this.hooks[id];
-		if (hooks === undefined) throw new Error("NodeCore: unknown node cleanup hooks");
-		return hooks;
+	getLifetime(id: NodeId): LifetimeState {
+		const lifetime = this.lifetimes[id];
+		if (lifetime === undefined) throw new Error("NodeCore: unknown node lifetime");
+		return lifetime;
 	}
 
 	getSyncCtx(id: NodeId): SyncCtxState {
@@ -217,7 +227,7 @@ export class NodeCore {
 		this.values[id] = undefined;
 		this.waves[id] = undefined;
 		this.privateStates[id] = undefined;
-		this.hooks[id] = undefined;
+		this.lifetimes[id] = undefined;
 		this.syncCtxs[id] = undefined;
 		this.versionStates[id] = undefined;
 	}

@@ -36,19 +36,25 @@ function collect(n: { subscribe(s: (m: Message) => void): () => void }) {
 	return { msgs, unsub };
 }
 
-describe("C-3 INVALIDATE × ctx.state × onInvalidate (R-invalidate-idempotent, R-ctx-state)", () => {
-	it("cascades once, fires onInvalidate, preserves ctx.state, resets dep cached latest", () => {
+describe("C-3 INVALIDATE × ctx.state, manual INVALIDATE policy (R-invalidation)", () => {
+	it("cascades once, runs the function under the manual policy, preserves ctx.state, resets dep cached latest", () => {
 		const statesAtRun: unknown[] = [];
 		let onInv = 0;
 		const s = node<number>([], null, { initial: 1 });
-		const d = node<number>([s], (ctx: Ctx) => {
-			statesAtRun.push(ctx.state.get()); // prior state visible at run time
-			ctx.state.set("kept");
-			ctx.onInvalidate(() => {
-				onInv++;
-			});
-			ctx.down([["DATA", (depLatest(ctx, 0) as number) * 2]]);
-		});
+		const d = node<number>(
+			[s],
+			(ctx: Ctx) => {
+				if (ctx.invalidated[0]) {
+					onInv++;
+					ctx.down([["INVALIDATE"]]);
+					return;
+				}
+				statesAtRun.push(ctx.state.get()); // prior state visible at run time
+				ctx.state.set("kept");
+				ctx.down([["DATA", (depLatest(ctx, 0) as number) * 2]]);
+			},
+			{ invalidate: "manual" },
+		);
 		const { msgs } = collect(d);
 		expect(d.cache).toBe(2);
 		expect(statesAtRun).toEqual([undefined]); // first run: fresh state
@@ -205,9 +211,13 @@ describe("C-11 higher-order inner rewire at the wave boundary (R-rewire-deferred
 		const n = node<number>([], (ctx) => {
 			ictx = ctx;
 			activated = true;
-			ctx.onDeactivation(() => {
-				deactivated = true;
-			});
+			ctx.signal.addEventListener(
+				"abort",
+				() => {
+					deactivated = true;
+				},
+				{ once: true },
+			);
 			if (seed !== undefined) ctx.down([["DATA", seed]]);
 		});
 		return {

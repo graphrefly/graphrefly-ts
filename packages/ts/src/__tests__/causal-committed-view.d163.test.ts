@@ -355,7 +355,9 @@ describe("D163 committed effects through ordinary DATA", () => {
 		const out = collect(f.built.committedEffects);
 		const before = out.values.at(-1);
 		f.send("effectAdmissions", a.admission);
-		f.built.committedEffects.down([["INVALIDATE"]]);
+		// The INVALIDATE reaches the projection as input from the authority (R-invalidation); under
+		// its manual policy the projection clears its dedup slot and invalidates itself.
+		f.graph.find("causal/authority")!.down([["INVALIDATE"]]);
 		f.send("effectOutcomes", { ...a.outcome, admissionRef: { kind: "admission", id: "wrong" } });
 		expect(out.values).toHaveLength(2);
 		expect(out.values.at(-1)).toBe(before);

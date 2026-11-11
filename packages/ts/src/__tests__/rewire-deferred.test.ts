@@ -41,9 +41,13 @@ function makeInner(seed?: number) {
 	const n = node<number>([], (ctx) => {
 		ictx = ctx;
 		activated = true;
-		ctx.onDeactivation(() => {
-			deactivated = true;
-		});
+		ctx.signal.addEventListener(
+			"abort",
+			() => {
+				deactivated = true;
+			},
+			{ once: true },
+		);
 		if (seed !== undefined) ctx.down([["DATA", seed]]);
 	});
 	return {

@@ -56,9 +56,10 @@ export interface SingleFromAnyOptions<K> {
 }
 
 /**
- * Internal: build a depless source spec. `setup` runs once on activation; its returned fn (if
- * any) is registered as the deactivation cleanup (clear timers / abort). `setup` schedules the
- * async work and emits via `ctx.down` — synchronously (sync sources) or later (async sources).
+ * Internal: build a depless source spec. `setup` is the node's lifetime setup (R-lifetime): it runs
+ * once per lifetime and its returned fn (if any) is the lifetime's cleanup (clear timers / abort).
+ * `setup` schedules the work and emits via `ctx.down`, during the run (part of the first run's
+ * output) or later (a new wave).
  */
 function source<T>(
 	factory: string,
@@ -66,21 +67,9 @@ function source<T>(
 	setup: (ctx: Ctx) => void | (() => void),
 	opts?: Partial<NodeOptions<T>>,
 ): Operator<never, T> {
-	return {
-		factory,
-		opts,
-		body: (ctx) => {
-			let cleanup: undefined | (() => void);
-			let deactivated = false;
-			ctx.onDeactivation(() => {
-				deactivated = true;
-				if (typeof cleanup === "function") cleanup();
-			});
-			const maybeCleanup = setup(ctx);
-			cleanup = typeof maybeCleanup === "function" ? maybeCleanup : undefined;
-			if (deactivated && typeof cleanup === "function") cleanup();
-		},
-	};
+	// R-lifetime: a source's work is its lifetime's setup, run once just before the first run in the
+	// lifetime; what it returns is the lifetime's cleanup.
+	return { factory, opts: { ...opts, setup }, body: () => {} };
 }
 
 function assertNonEmptyString(value: string, label: string): void {
@@ -1077,7 +1066,16 @@ export function fromIter<T>(iterable: Iterable<T>): Operator<never, T> {
 	return source<T>(
 		"fromIter",
 		(ctx) => {
-			for (const v of iterable) ctx.down([["DATA", v]]);
+			// A throwing iterator is this source's ERROR after the values it gave (a throw out of the
+			// setup would drop them, R-failure).
+			try {
+				for (const v of iterable) ctx.down([["DATA", v]]);
+			} catch (error) {
+				ctx.down([
+					["ERROR", errorPayload(error, "fromIter iterator threw without a valid error payload")],
+				]);
+				return;
+			}
 			ctx.down([["COMPLETE"]]);
 		},
 		{ pool: "sync" },

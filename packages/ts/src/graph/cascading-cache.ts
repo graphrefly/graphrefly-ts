@@ -149,6 +149,14 @@ export function reactiveCascadingCache<K extends string, V>(
 		meta,
 		partial: true,
 		pool: "async",
+		// R-lifetime: closing the lifetime drops every in-flight load's result.
+		setup: (ctx) => () => {
+			const st = ctx.state.get<DriverState<K>>();
+			if (st === undefined) return;
+			st.active = false;
+			st.seq += 1;
+			st.dropBeforeSeq = st.seq;
+		},
 	};
 	const events = g.node<CascadingCacheEvent<K, V>>(
 		eventDeps,
@@ -159,11 +167,6 @@ export function reactiveCascadingCache<K extends string, V>(
 				dropBeforeSeq: 0,
 			};
 			st.active = true;
-			ctx.onDeactivation(() => {
-				st.active = false;
-				st.seq += 1;
-				st.dropBeforeSeq = st.seq;
-			});
 			const requestBatch = depBatch(ctx, 0) as readonly K[] | null;
 			const invalidateBatch =
 				invalidateIndex === -1 ? null : (depBatch(ctx, invalidateIndex) as readonly K[] | null);

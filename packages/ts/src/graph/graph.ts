@@ -483,31 +483,39 @@ export class Graph {
 		);
 	}
 
-	/** value-level sink: deps → effect; return value (a fn) becomes onDeactivation (D28). */
+	/** value-level sink: deps → effect; the latest run's returned fn runs when the lifetime closes (R-lifetime). */
 	effect<const D extends readonly Node<unknown>[]>(
 		deps: D,
 		fn: EffectFn<D>,
 		opts: SugarOpts<void> = {},
 	): Node<void> {
 		this._assertDepsLocal(deps, `dep of '${opts.name ?? "effect"}'`);
-		// effect cleanup = deactivation-only (D28 / Flag 3): the LATEST returned cleanup
-		// fires ONCE when the effect deactivates (not between re-runs — onRerun was cut).
-		// R-cleanup-hooks per-run lifecycle (D28 clarification / C-14): the substrate clears
-		// the hook list before EACH fn run, so the effect re-registers its returned cleanup
-		// every run — only the latest run's registration is live (or none, if the latest run
-		// returned void). No st.registered/ctx.state bookkeeping; re-registering every run is
-		// safe (the per-run clear prevents accumulation).
+		// R-lifetime: the latest run's returned cleanup is kept in the effect's private state, and the
+		// lifetime's cleanup (installed by setup) runs it once when the lifetime closes. A run that
+		// returns nothing clears it; a rerun replaces it without running it.
+		type EffectState = { readonly cleanup: (() => void) | undefined };
 		const ctxFn: NodeFn = (ctx: Ctx) => {
 			try {
 				const args = Array.from({ length: depCount(ctx) }, (_, i) =>
 					depLatest(ctx, i),
 				) as DepValues<D>;
 				const cleanup = fn(...args);
-				if (typeof cleanup === "function") ctx.onDeactivation(cleanup);
+				ctx.state.set<EffectState>({
+					cleanup: typeof cleanup === "function" ? cleanup : undefined,
+				});
 			} catch (e) {
 				ctx.down([["ERROR", errorPayload(e, "effect threw without a valid error payload")]]);
 			}
 		};
+		const userSetup = opts.setup;
+		const setup = (ctx: Ctx): (() => void) => {
+			const userCleanup = userSetup?.(ctx);
+			return () => {
+				ctx.state.get<EffectState>()?.cleanup?.();
+				if (typeof userCleanup === "function") userCleanup();
+			};
+		};
+		opts = { ...opts, setup };
 		return this._createRegistered(
 			"effect",
 			deps,
