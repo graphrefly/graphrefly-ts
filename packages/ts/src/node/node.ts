@@ -267,7 +267,13 @@ export class Node<T = unknown> {
 						rewireRunPending: false,
 					},
 					privateState: { value: SENTINEL },
-					lifetime: { controller: null, cleanup: undefined, setupDone: false, closing: false },
+					lifetime: {
+						controller: null,
+						cleanup: undefined,
+						setupDone: false,
+						closing: false,
+						closingSignal: null,
+					},
 					syncCtx: { value: null },
 					version: {
 						policy: versioning,
@@ -609,8 +615,8 @@ export class Node<T = unknown> {
 		nodeRefreshCtx(nodeRuntimeHost(this), ctx);
 	}
 
-	private _makeState(): CtxState {
-		return nodeMakeState(nodeRuntimeHost(this));
+	private _makeState(signal: AbortSignal): CtxState {
+		return nodeMakeState(nodeRuntimeHost(this), signal);
 	}
 
 	// ── downstream emission pipeline (the unified waist) ──

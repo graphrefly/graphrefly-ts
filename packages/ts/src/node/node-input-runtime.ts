@@ -245,7 +245,7 @@ function nodeSettleOutput<T>(
 ): void {
 	if (self._slot.quiet) {
 		if (now.length > 0) self._publish(now);
-		for (const array of rest) nodeDeferQuietOutput(self, array);
+		if (rest.length > 0) nodeDeferQuietOutput(self, rest);
 		return;
 	}
 	const out = [...now, ...rest];
@@ -256,14 +256,8 @@ function nodeSettleOutput<T>(
 
 /** One run of the node's function; returns the arrays it sent (R-invocation, R-failure). */
 function nodeInvoke<T>(self: NodeRuntimeHost<T>): Message[][] {
-	// R-reentrancy (D37): a fn that re-drives its own dep mid-wave re-enters here while
-	// _insideRunWave is still set — a synchronous feedback cycle. Reject (throw); the graph
-	// layer catches it and converts to [[ERROR, e]] (D30). The try/finally resets the flag
-	// on every frame as the throw unwinds, leaving the graph clean for the catch.
-	if (self._wave.insideRunWave)
-		throw new Error(
-			"synchronous feedback cycle: node fn re-entered its own wave (R-reentrancy / D37)",
-		);
+	// R-invocation@2: a running function is never reentered. Every way back into this node during
+	// its run (a host input, a late ctx.down, a subscribe) is a request that waits for the wave.
 	self._wave.hasCalledFnOnce = true;
 	const ctx = self._buildCtx();
 	// R-lifetime: the setup runs once per lifetime, just before the function's first run in it,

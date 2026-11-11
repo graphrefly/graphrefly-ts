@@ -207,6 +207,7 @@ export function nodeCloseLifetime<T>(
 		notifyTopologyDepsChanged(self as unknown as Node<unknown>, prev, self._slot.deps);
 	}
 	lifetime.closing = true;
+	lifetime.closingSignal = controller?.signal ?? null;
 	if (cleanup !== undefined) {
 		if (onError !== undefined) run(cleanup, "deactivation");
 		else {
@@ -224,6 +225,7 @@ export function nodeCloseLifetime<T>(
 		}
 	}
 	lifetime.closing = false;
+	lifetime.closingSignal = null;
 	self._privateState.value = SENTINEL;
 }
 

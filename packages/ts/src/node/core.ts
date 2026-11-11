@@ -65,6 +65,8 @@ export interface PrivateState {
 export interface LifetimeState {
 	/** The lifetime's cleanup is running (status lifecycle "closing"). */
 	closing: boolean;
+	/** The signal of the lifetime whose cleanup is running; its ctx may still read its state. */
+	closingSignal: AbortSignal | null;
 	/** The lifetime's abort controller (ctx.signal); null while no lifetime is open. */
 	controller: AbortController | null;
 	/** The cleanup the node's setup returned for this lifetime. */

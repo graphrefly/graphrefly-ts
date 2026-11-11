@@ -69,7 +69,7 @@ export interface NodeRuntimeHost<T = unknown> {
 		latest: unknown[];
 	}): Ctx;
 	_refreshCtx(ctx: Ctx): void;
-	_makeState(): CtxState;
+	_makeState(signal: AbortSignal): CtxState;
 	_down(msgs: Wave): void;
 	_markDependents(): void;
 	_publish(arrays: readonly Message[][]): void;

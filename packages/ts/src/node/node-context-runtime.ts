@@ -1,5 +1,11 @@
-import { type BatchTarget, currentBoundaryBatchToken, noteBatchLifetime } from "../batch/batch.js";
-import { deferRequest, enterWave, exitWave } from "../batch/boundary.js";
+import {
+	type BatchTarget,
+	currentBatch,
+	currentBoundaryBatchToken,
+	noteBatchLifetime,
+	request,
+} from "../batch/batch.js";
+import { deferRequest } from "../batch/boundary.js";
 import {
 	CTX_DEP_CACHE,
 	CTX_NODE_BINDING,
@@ -9,8 +15,9 @@ import {
 	type TerminalData,
 	type WaveData,
 } from "../ctx/types.js";
-import type { Wave } from "../protocol/messages.js";
+import type { Message, Wave } from "../protocol/messages.js";
 import type { Node } from "./node.js";
+import { prepareArrays } from "./node-output-runtime.js";
 import {
 	nodeApplyRewireDiff,
 	nodeRequestRewire,
@@ -59,24 +66,28 @@ export function nodeMakeCtx<T>(
 		down: (msgs) => {
 			if (self._released || signal.aborted) return;
 			validateNodeOutput(msgs);
+			// R-failure: an invalid array throws from ctx.down, before anything is accepted.
+			prepareArrays(msgs);
 			noteBatchLifetime(self._core, self as unknown as BatchTarget, signal);
-			if (self._slot.quiet && self._wave.insideRunWave) {
-				// R-wave: a quiet node's output during its run goes out after the current wave
-				// as a new wave of its own, so nothing below it waits for it in this wave.
-				nodeDeferQuietOutput(self, msgs);
+			// R-wave: during the node's run its arrays are its run's output, published after it returns.
+			// Inside a batch body they are staged for the commit (R-request-order).
+			if (self._wave.insideRunWave || currentBatch(self._core)) {
+				self._down(msgs);
 				return;
 			}
-			enterWave(self._core);
-			try {
-				self._down(msgs);
-			} finally {
-				exitWave(self._core);
-			}
+			// R-wave / R-request-order: output after the function returned starts a wave of its own,
+			// as a request: during another wave it waits for it, and it is dropped if this ctx's
+			// lifetime has closed (or the node got a new instance) before it runs.
+			const array: Wave = [...msgs];
+			request(self._core, () => {
+				if (!nodeLifetimeIsCurrent(self, signal)) return;
+				self._down(array);
+			});
 		},
 		waveData: snapshot?.waveData ?? self._dep.waveData,
 		terminal: snapshot?.terminal ?? self._dep.terminalInput.map(terminalView),
 		invalidated: snapshot?.invalidated ?? nodeInvalidatedView(self),
-		state: self._makeState(),
+		state: self._makeState(signal),
 		signal,
 		environment: () => self._slot.environment,
 		rewire: (deps) => nodeRequestRewire(self, signal, [...deps]),
@@ -121,32 +132,47 @@ function nodeInvalidatedView<T>(self: NodeRuntimeHost<T>): boolean[] {
 		: self._dep.invalidated.map(() => false);
 }
 
-export function nodeMakeState<T>(self: NodeRuntimeHost<T>): CtxState {
+/** R-lifetime: whether `signal` is the node's current lifetime (also while its cleanup runs). */
+export function nodeLifetimeIsCurrent<T>(self: NodeRuntimeHost<T>, signal: AbortSignal): boolean {
+	return !self._released && !signal.aborted && self._lifetime.controller?.signal === signal;
+}
+
+/**
+ * R-lifetime@2: a ctx's private state is its lifetime's. Once that lifetime has closed (its cleanup
+ * done), the ctx reads nothing and writes nothing, so it cannot reach the next lifetime's state.
+ */
+export function nodeMakeState<T>(self: NodeRuntimeHost<T>, signal: AbortSignal): CtxState {
+	const own = () =>
+		self._lifetime.controller?.signal === signal || self._lifetime.closingSignal === signal;
 	return {
-		get: <S>() => self._privateState.value as S | undefined,
+		get: <S>() => (own() ? (self._privateState.value as S | undefined) : undefined),
 		set: <S>(v: S) => {
-			self._privateState.value = v;
+			if (own()) self._privateState.value = v;
 		},
 	};
 }
 
 /**
- * Queue one array a quiet node sent during its run; it is published at the wave boundary as an
- * external emit of this node, with the kernel's PENDING before its values (R-wave). Each
- * ctx.down call stays its own array, in call order.
+ * R-wave: a quiet node's run output goes out after the current wave as one wave of its own, its
+ * arrays kept apart and in order, with the kernel's PENDING before them. It is a request of the
+ * node's graph and is dropped if the run's lifetime has closed or the node has ended first.
  */
-export function nodeDeferQuietOutput<T>(self: NodeRuntimeHost<T>, msgs: Wave): void {
-	const array: Wave = [...msgs];
+export function nodeDeferQuietOutput<T>(self: NodeRuntimeHost<T>, arrays: Message[][]): void {
+	const signal = self._lifetime.controller?.signal;
+	const out = arrays.map((a) => [...a]);
 	deferRequest(
 		self._core,
 		() => {
-			if (self._released) return;
-			enterWave(self._core);
-			try {
-				self._down(array);
-			} finally {
-				exitWave(self._core);
-			}
+			// A node that has not run has no lifetime (an auto terminal from a dependency); its
+			// output stands while it is still active.
+			if (
+				signal === undefined
+					? self._released || !self._lifecycle.activated
+					: !nodeLifetimeIsCurrent(self, signal)
+			)
+				return;
+			if (self._value.terminal !== undefined) return;
+			self._publish(out);
 		},
 		{ batchToken: currentBoundaryBatchToken(self._core) },
 	);
