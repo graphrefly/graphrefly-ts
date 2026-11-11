@@ -104,7 +104,7 @@ const input = (
 	providerId: "managed-untrusted-js-compute",
 	executorId: "executor:e2b:1",
 	profileId: "profile:js-compute:1",
-	toolCall: { toolName: "managed-untrusted-js-compute", arguments: args() },
+	toolCall: { kind: "tool-call", toolName: "managed-untrusted-js-compute", arguments: args() },
 	sourceRefs: [ref("query-result", "trusted-connector-output:1")],
 	...patch,
 });
@@ -188,9 +188,7 @@ function decideCancellation(
 	});
 }
 
-const collect = <T>(node: {
-	subscribe(cb: (m: readonly [string, unknown]) => void): () => void;
-}) => {
+const collect = <T>(node: Node<T>) => {
 	const values: T[] = [];
 	node.subscribe((incoming) => {
 		for (const m of incoming) {
@@ -449,8 +447,122 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 		);
 	});
 
-	it("rechecks dispose authority after uploading and running lifecycle publication", async () => {
-		for (const state of ["uploading", "running"] as const) {
+	it("publishes admitted lifecycle before a reentrant pre-allocation cancellation", async () => {
+		const g = graph({ name: "managed-js-compute-reentrant-cancel" });
+		const inputs = g.node<ToolProviderAdapterInput<ManagedUntrustedJsComputeArguments>>([], null);
+		const admitted = g.node<ToolProviderAdapterRunRequested>([], null);
+		const manifests = g.node<ManagedUntrustedJsComputeManifest>([], null);
+		const postures = g.node<ManagedUntrustedJsComputeReadiness>([], null);
+		const cancellations = g.node<ManagedUntrustedJsComputeCancellationRequested>([], null);
+		const decisions = g.node<ManagedUntrustedJsComputeCancellationDecision>([], null);
+		const driverEvents: string[] = [];
+		const runtime = managedUntrustedJsComputeRuntime(g, {
+			inputs,
+			admittedRunRequests: [admitted],
+			manifests: [manifests],
+			readiness: [postures],
+			cancellationRequests: [cancellations],
+			cancellationDecisions: [decisions],
+			driver: {
+				compatibility: MANAGED_UNTRUSTED_JS_COMPUTE_COMPATIBILITY,
+				...defaultDriverFence,
+				createSandbox() {
+					driverEvents.push("create-unexpected");
+					return {};
+				},
+				upload() {
+					driverEvents.push("upload-unexpected");
+				},
+				run() {
+					driverEvents.push("run-unexpected");
+					return { outcome: "canceled" };
+				},
+				kill() {
+					driverEvents.push("kill-unexpected");
+				},
+				destroy() {
+					driverEvents.push("destroy-unexpected");
+					return "succeeded";
+				},
+			},
+			now: () => 10,
+		});
+		const proposals = collect(runtime.cancellationProposals);
+		const lifecycle = collect<ManagedUntrustedJsComputeLifecycleFact>(runtime.lifecycle);
+		const admissions = collect(runtime.cancellationAdmissions);
+		const acknowledgements = collect(runtime.cancellations);
+		const outcomes = collect<ExecutorOutcome>(runtime.outcomes);
+		const issues = collect<{ code: string }>(runtime.issues);
+		const unsubscribeAdmission = runtime.cancellationAdmissions.subscribe((incoming) => {
+			for (const message of incoming)
+				if (message[0] === "DATA" && (message[1] as { state?: string }).state === "admitted")
+					cancellations.set(cancellation({ cancellationId: "cancel:js-compute:reentrant-second" }));
+		});
+		// The user's Q10: a cancellation decided in a sink of the admission wave runs before any
+		// allocation starts, so it is accepted before allocation and no driver method is called.
+		// Each write from a sink is a request of the graph; the proposal's sink admits it.
+		const unsubscribeProposal = runtime.cancellationProposals.subscribe((incoming) => {
+			for (const message of incoming) {
+				if (message[0] !== "DATA" || message[1].proposalId === undefined) continue;
+				if (decided) continue;
+				decided = true;
+				const proposal = message[1];
+				decisions.set({
+					...proposal,
+					kind: "managed-untrusted-js-compute-cancellation-decision",
+					decisionId: `decision:${proposal.cancellationId}`,
+					proposalId: proposal.proposalId,
+					outcome: "admit",
+					sourceRefs: [ref("authorization", `authorization:${proposal.cancellationId}`)],
+				});
+			}
+		});
+		let decided = false;
+		const unsubscribe = runtime.admittedRunRequests.subscribe((incoming) => {
+			for (const message of incoming)
+				if (message[0] === "DATA" && message[1] !== undefined) cancellations.set(cancellation());
+		});
+		inputs.set(input());
+		manifests.set(manifest());
+		postures.set(readiness());
+		admitted.set(run());
+		await settle();
+		expect(lifecycle.slice(0, 2).map((fact) => fact.state)).toEqual([
+			"admitted",
+			"cancel-requested",
+		]);
+		expect(admissions).toEqual([expect.objectContaining({ state: "admitted" })]);
+		expect(acknowledgements).toEqual([
+			expect.objectContaining({ state: "accepted-before-allocation" }),
+		]);
+		expect(outcomes).toEqual([
+			expect.objectContaining({
+				kind: "canceled",
+				evidenceRefs: expect.arrayContaining([
+					expect.objectContaining({
+						kind: "managed-untrusted-js-compute-cancellation-admission",
+					}),
+				]),
+			}),
+		]);
+		expect(proposals).toHaveLength(1);
+		expect(admissions).toHaveLength(1);
+		expect(issues).toContainEqual(
+			expect.objectContaining({
+				code: "managed-untrusted-js-compute-cancellation-proposal-outstanding",
+			}),
+		);
+		expect(driverEvents).toHaveLength(0);
+		unsubscribeAdmission();
+		unsubscribeProposal();
+		unsubscribe();
+		await runtime.dispose();
+	});
+
+	it("rechecks dispose authority after admitted, creating, uploading and running lifecycle publication", async () => {
+		// The user's Q10: the currentness check between admission and execution applies again, so a
+		// dispose seen at "admitted" or "creating" creates no sandbox and produces no outcome.
+		for (const state of ["admitted", "creating", "uploading", "running"] as const) {
 			const g = graph({ name: `managed-js-compute-${state}-dispose-reentrancy` });
 			const inputs = g.node<ToolProviderAdapterInput<ManagedUntrustedJsComputeArguments>>([], null);
 			const admitted = g.node<ToolProviderAdapterRunRequested>([], null);
@@ -486,10 +598,15 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 				},
 				now: () => 10,
 			});
+			const outcomes = collect<ExecutorOutcome>(runtime.outcomes);
 			let disposed: Promise<void> | undefined;
 			const unsubscribe = runtime.lifecycle.subscribe((incoming) => {
 				for (const message of incoming) {
-					if (message[0] === "DATA" && message[1].state === state) disposed = runtime.dispose();
+					if (
+						message[0] === "DATA" &&
+						(message[1] as ManagedUntrustedJsComputeLifecycleFact).state === state
+					)
+						disposed = runtime.dispose();
 				}
 			});
 			inputs.set(input());
@@ -498,11 +615,14 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 			admitted.set(run());
 			await settle();
 			await disposed;
-			expect(events).toEqual(
-				state === "uploading"
-					? ["create", "kill", "destroy"]
-					: ["create", "upload", "kill", "destroy"],
+			expect(events, state).toEqual(
+				state === "admitted" || state === "creating"
+					? []
+					: state === "uploading"
+						? ["create", "kill", "destroy"]
+						: ["create", "upload", "kill", "destroy"],
 			);
+			if (state === "admitted" || state === "creating") expect(outcomes, state).toEqual([]);
 			unsubscribe();
 			await runtime.dispose();
 		}
@@ -1921,7 +2041,7 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 						events.push("kill-start");
 						if (phase === "kill") await new Promise(() => {});
 					},
-					async destroy() {
+					async destroy(): Promise<"succeeded"> {
 						events.push("destroy-start");
 						if (phase === "destroy") await new Promise(() => {});
 						return "succeeded";
@@ -2472,7 +2592,7 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 				kill() {
 					events.push("kill-unexpected");
 				},
-				async destroy() {
+				async destroy(): Promise<"succeeded"> {
 					events.push("destroy-start");
 					await new Promise<void>((resolve) => {
 						releaseDestroy = resolve;

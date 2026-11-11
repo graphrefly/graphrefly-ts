@@ -771,6 +771,11 @@ export function managedUntrustedJsComputeRuntime(
 						if (disposed) return;
 						emit(admittedRunRequests, request);
 						if (disposed) return;
+						// The user's Q10: allocation waits for the admission wave and the requests it
+						// started (the admitted fact, a cancellation decided in its sinks) to run; they
+						// are graph requests, so they have all run once this task resumes.
+						await Promise.resolve();
+						if (disposed) return;
 						await execute(activeRecord);
 					}, "managed-untrusted-js-compute-driver-failed");
 				}
@@ -1008,6 +1013,7 @@ export function managedUntrustedJsComputeRuntime(
 			if (record.input.toolCall?.arguments === undefined)
 				throw new TypeError("Managed untrusted JS compute arguments are missing.");
 			const args = managedUntrustedJsComputeArguments(record.input.toolCall.arguments);
+			assertCurrent();
 			emitLifecycle("creating", record);
 			assertCurrent();
 			allocating.add(record);
