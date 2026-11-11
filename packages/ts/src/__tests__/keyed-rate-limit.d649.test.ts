@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import { attachKeyedRateLimitAuthority, type KeyedRateLimitAuthority } from "../adapters/index.js";
 import { graph } from "../graph/index.js";
 import { strictCanonicalJsonBytes, strictJsonCodec } from "../json/codec.js";
-import { eachMessage } from "../node/each-message.js";
 import type { Node } from "../node/node.js";
 import {
 	assertKeyedRateLimitOutcome,
@@ -60,11 +59,11 @@ function outcome(
 
 function capture<T>(node: Node<T>) {
 	const values: T[] = [];
-	const release = node.subscribe(
-		eachMessage((msg) => {
+	const release = node.subscribe((incoming) => {
+		for (const msg of incoming) {
 			if (msg[0] === "DATA") values.push(msg[1] as T);
-		}),
-	);
+		}
+	});
 	return { values, release };
 }
 
@@ -664,11 +663,11 @@ describe("D648/D649 host authority adapter and topology", () => {
 			},
 		});
 		let release = () => {};
-		release = adapter.status.subscribe(
-			eachMessage((msg) => {
+		release = adapter.status.subscribe((incoming) => {
+			for (const msg of incoming) {
 				if (msg[0] === "DATA" && msg[1].state === "requested") release();
-			}),
-		);
+			}
+		});
 
 		// The run's arrays reach subscribers after it returned, so the unsubscribe a sink makes on
 		// "requested" cannot cancel work that run already started.
@@ -685,11 +684,11 @@ describe("D648/D649 host authority adapter and topology", () => {
 				complete(outcome(req, "allowed"));
 			},
 		});
-		const release = adapter.outcomes.subscribe(
-			eachMessage((msg) => {
+		const release = adapter.outcomes.subscribe((incoming) => {
+			for (const msg of incoming) {
 				if (msg[0] === "DATA") throw new Error("downstream delivery failed");
-			}),
-		);
+			}
+		});
 
 		// R-failure@3: a sink that throws has no node to end; its failure goes to the reporter.
 		expect(() => requests.down([["DATA", request("delivery-error")]])).not.toThrow();
@@ -712,11 +711,11 @@ describe("D648/D649 host authority adapter and topology", () => {
 				}
 			},
 		});
-		const release = adapter.outcomes.subscribe(
-			eachMessage((msg) => {
+		const release = adapter.outcomes.subscribe((incoming) => {
+			for (const msg of incoming) {
 				if (msg[0] === "DATA") throw new Error("caught delivery failed");
-			}),
-		);
+			}
+		});
 
 		expect(() => requests.down([["DATA", request("caught-delivery-error")]])).not.toThrow();
 		expect(reported.map((e) => String((e as Error).message))).toContain("caught delivery failed");

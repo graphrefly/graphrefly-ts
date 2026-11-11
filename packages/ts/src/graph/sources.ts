@@ -14,7 +14,6 @@
  */
 
 import type { Ctx } from "../ctx/types.js";
-import { eachMessage } from "../node/each-message.js";
 import type { Node, NodeOptions } from "../node/node.js";
 import { errorPayload, type Message } from "../protocol/messages.js";
 import { toCheckpointJson } from "./checkpoint.js";
@@ -1301,8 +1300,8 @@ export function firstValueFrom<T>(source: Node<T>): Promise<T> {
 				shouldUnsub = true;
 			}
 		};
-		unsub = source.subscribe(
-			eachMessage((msg) => {
+		unsub = source.subscribe((incoming) => {
+			for (const msg of incoming) {
 				if (msg[0] === "DATA") {
 					finish(() => resolve(msg[1] as T));
 				} else if (msg[0] === "ERROR") {
@@ -1310,8 +1309,8 @@ export function firstValueFrom<T>(source: Node<T>): Promise<T> {
 				} else if (msg[0] === "COMPLETE") {
 					finish(() => reject(new Error("firstValueFrom: completed without DATA")));
 				}
-			}),
-		);
+			}
+		});
 		if (shouldUnsub) {
 			unsub?.();
 			unsub = undefined;

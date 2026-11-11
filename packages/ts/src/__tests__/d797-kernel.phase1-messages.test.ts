@@ -9,7 +9,6 @@
 import { describe, expect, it } from "vitest";
 import type { Ctx, Message, Wave } from "../index.js";
 import { node } from "../index.js";
-import { eachMessage } from "../node/each-message.js";
 
 const types = (msgs: readonly Message[]) => msgs.map((m) => m[0]);
 
@@ -38,7 +37,9 @@ describe("C-26: the message set is closed: PULL, PAUSE, RESUME and TEARDOWN are 
 			ctx.down([["DATA", 99]]);
 		});
 		const s = recorder();
-		n.subscribe(eachMessage(s.sink));
+		n.subscribe((incoming) => {
+			for (const message of incoming) s.sink(message);
+		});
 
 		expect(runs).toBe(1);
 		expect(n.status.output).toBe("errored");
@@ -82,7 +83,9 @@ describe("C-42: the message set is closed and nothing travels upstream", () => {
 			ctx.down([["DATA", 42]]);
 		});
 		const s = recorder();
-		n.subscribe(eachMessage(s.sink));
+		n.subscribe((incoming) => {
+			for (const message of incoming) s.sink(message);
+		});
 
 		expect(rejected).toEqual([
 			"PULL",
@@ -107,7 +110,9 @@ describe("C-42: the message set is closed and nothing travels upstream", () => {
 			ctx.down([["PENDING"]]);
 		});
 		const s = recorder();
-		n.subscribe(eachMessage(s.sink));
+		n.subscribe((incoming) => {
+			for (const message of incoming) s.sink(message);
+		});
 		expect(n.status.output).toBe("errored");
 		expect(types(s.msgs).at(-1)).toBe("ERROR");
 		expect(types(s.msgs).filter((t) => t === "ERROR")).toHaveLength(1);
@@ -152,8 +157,12 @@ describe("C-12 (c): RESOLVED is the kernel's alone", () => {
 		});
 		const s = recorder();
 		const ds = recorder();
-		n.subscribe(eachMessage(s.sink));
-		d.subscribe(eachMessage(ds.sink));
+		n.subscribe((incoming) => {
+			for (const message of incoming) s.sink(message);
+		});
+		d.subscribe((incoming) => {
+			for (const message of incoming) ds.sink(message);
+		});
 		s.msgs.length = 0;
 		a.down([["DATA", 2]]);
 		expect(n.status.output).toBe("errored");
@@ -168,7 +177,9 @@ describe("C-12 (c): RESOLVED is the kernel's alone", () => {
 		const a = node<number>([], null, { initial: 1 });
 		const n = node<number>([a], () => {});
 		const s = recorder();
-		n.subscribe(eachMessage(s.sink));
+		n.subscribe((incoming) => {
+			for (const message of incoming) s.sink(message);
+		});
 		s.msgs.length = 0;
 		a.down([["DATA", 2]]);
 		expect(types(s.msgs)).toEqual(["PENDING", "RESOLVED"]);

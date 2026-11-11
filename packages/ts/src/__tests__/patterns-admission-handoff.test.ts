@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { graph, type Message, type Node } from "../index.js";
-import { eachMessage } from "../node/each-message.js";
 import {
 	type AdmissionHandoffCandidate,
 	type AdmissionHandoffDecision,
@@ -15,7 +14,11 @@ type DecisionReason = { readonly policy: string };
 
 function collect<T>(node: Node<T>): Message[] {
 	const messages: Message[] = [];
-	node.subscribe(eachMessage((message) => messages.push(message)));
+	node.subscribe((incoming) => {
+		for (const message of incoming) {
+			messages.push(message);
+		}
+	});
 	return messages;
 }
 

@@ -8,7 +8,6 @@ import {
 import type { Graph } from "../graph/graph.js";
 import { compoundTupleKey } from "../identity.js";
 import { strictCanonicalJsonBytes } from "../json/codec.js";
-import { eachMessage } from "../node/each-message.js";
 import type { Node } from "../node/node.js";
 import type {
 	AgentRuntimeAuditRecord,
@@ -649,40 +648,46 @@ export function localUntrustedJsComputeRuntime(
 		terminal.add(runtimeAttemptKey(record.request));
 	};
 	const unsubscribes = [
-		opts.inputs.subscribe(
-			eachMessage((message) => {
-				if (message[0] !== "DATA" || disposed) return;
+		opts.inputs.subscribe((incoming) => {
+			for (const message of incoming) {
+				if (message[0] !== "DATA" || disposed) {
+					continue;
+				}
 				const value = message[1] as ToolProviderAdapterInput<LocalUntrustedJsComputeArguments>;
 				if (!plain(value) || value.kind !== "tool-provider-adapter-input") {
 					emitIssue(
 						"local-untrusted-js-compute-input-invalid",
 						"Local untrusted JS compute input is invalid.",
 					);
-					return;
+					continue;
 				}
 				inputs.set(value.adapterInputId, value);
-			}),
-		),
+			}
+		}),
 		...opts.runAdmissions.map((node) =>
-			node.subscribe(
-				eachMessage((message) => {
-					if (message[0] !== "DATA" || disposed) return;
+			node.subscribe((incoming) => {
+				for (const message of incoming) {
+					if (message[0] !== "DATA" || disposed) {
+						continue;
+					}
 					const value = message[1] as ToolProviderRunAdmission;
 					if (!plain(value) || value.kind !== "tool-provider-run-admission") {
 						emitIssue(
 							"local-untrusted-js-compute-run-admission-invalid",
 							"Local untrusted JS compute run admission is invalid.",
 						);
-						return;
+						continue;
 					}
 					admissions.set(value.admissionId, value);
-				}),
-			),
+				}
+			}),
 		),
 		...opts.manifests.map((node) =>
-			node.subscribe(
-				eachMessage((message) => {
-					if (message[0] !== "DATA" || disposed) return;
+			node.subscribe((incoming) => {
+				for (const message of incoming) {
+					if (message[0] !== "DATA" || disposed) {
+						continue;
+					}
 					try {
 						const value = localUntrustedJsComputeManifest(
 							message[1] as LocalUntrustedJsComputeManifest,
@@ -694,29 +699,33 @@ export function localUntrustedJsComputeRuntime(
 							"Local untrusted JS compute manifest is invalid.",
 						);
 					}
-				}),
-			),
+				}
+			}),
 		),
 		...opts.readiness.map((node) =>
-			node.subscribe(
-				eachMessage((message) => {
-					if (message[0] !== "DATA" || disposed) return;
+			node.subscribe((incoming) => {
+				for (const message of incoming) {
+					if (message[0] !== "DATA" || disposed) {
+						continue;
+					}
 					const raw = message[1] as LocalUntrustedJsComputeReadiness;
 					if (!plain(raw) || typeof raw.manifestFingerprint !== "string") {
 						emitIssue(
 							"local-untrusted-js-compute-readiness-invalid",
 							"Local untrusted JS compute readiness is invalid.",
 						);
-						return;
+						continue;
 					}
 					readiness.set(raw.manifestFingerprint, raw);
-				}),
-			),
+				}
+			}),
 		),
 		...opts.admittedRunRequests.map((node) =>
-			node.subscribe(
-				eachMessage((message) => {
-					if (message[0] !== "DATA" || disposed) return;
+			node.subscribe((incoming) => {
+				for (const message of incoming) {
+					if (message[0] !== "DATA" || disposed) {
+						continue;
+					}
 					const request = message[1] as ToolProviderAdapterRunRequested;
 					const work = Promise.resolve().then(async () => {
 						if (!plain(request) || request.kind !== "tool-provider-adapter-run-requested") {
@@ -791,13 +800,15 @@ export function localUntrustedJsComputeRuntime(
 						}
 					});
 					track(work);
-				}),
-			),
+				}
+			}),
 		),
 		...(opts.cancellationAdmissions ?? []).map((node) =>
-			node.subscribe(
-				eachMessage((message) => {
-					if (message[0] !== "DATA" || disposed) return;
+			node.subscribe((incoming) => {
+				for (const message of incoming) {
+					if (message[0] !== "DATA" || disposed) {
+						continue;
+					}
 					const admission = message[1] as LocalUntrustedJsComputeCancellationAdmission;
 					const reject = (code: string) => {
 						const cancellationId =
@@ -834,7 +845,7 @@ export function localUntrustedJsComputeRuntime(
 						admission.kind !== "local-untrusted-js-compute-cancellation-admission"
 					) {
 						reject("local-untrusted-js-compute-cancellation-invalid");
-						return;
+						continue;
 					}
 					const record = active.get(runtimeAttemptKey(admission));
 					if (
@@ -846,7 +857,7 @@ export function localUntrustedJsComputeRuntime(
 						!cancellationMatchesLocalAttempt(admission, record)
 					) {
 						reject("local-untrusted-js-compute-cancellation-coordinate-mismatch");
-						return;
+						continue;
 					}
 					record.cancelled = true;
 					consumedCancellationAdmissions.add(admission.admissionId);
@@ -873,8 +884,8 @@ export function localUntrustedJsComputeRuntime(
 							runAdmissionId: admission.runAdmissionId,
 						},
 					});
-				}),
-			),
+				}
+			}),
 		),
 	];
 	return {

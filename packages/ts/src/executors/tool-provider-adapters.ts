@@ -13,7 +13,6 @@ import { isAbsolute, relative, resolve } from "node:path";
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
 import { canonicalTupleKey, compoundTupleKey } from "../identity.js";
-import { eachMessage } from "../node/each-message.js";
 import type { Node } from "../node/node.js";
 import {
 	type AgentRequestStatusChanged,
@@ -828,13 +827,15 @@ export function httpToolProviderRuntime(
 		);
 	}
 
-	const unsubscribeInputs = opts.inputs.subscribe(
-		eachMessage((msg) => {
-			if (msg[0] !== "DATA") return;
+	const unsubscribeInputs = opts.inputs.subscribe((incoming) => {
+		for (const msg of incoming) {
+			if (msg[0] !== "DATA") {
+				continue;
+			}
 			const input = msg[1] as ToolProviderAdapterInput<HttpToolArguments>;
 			if (input.providerId === providerId) inputs.set(input.adapterInputId, input);
-		}),
-	);
+		}
+	});
 	const autoRunReadyInputs =
 		opts.autoRunReadyInputs ?? (opts.runRequests === undefined || opts.runRequests.length === 0);
 	const runProjector = toolProviderAdapterRunProjector(graph, {
@@ -844,31 +845,35 @@ export function httpToolProviderRuntime(
 		autoRunReadyInputs,
 		now: opts.now,
 	});
-	const unsubscribeRunStatus = runProjector.status.subscribe(
-		eachMessage((msg) => {
-			if (msg[0] !== "DATA") return;
+	const unsubscribeRunStatus = runProjector.status.subscribe((incoming) => {
+		for (const msg of incoming) {
+			if (msg[0] !== "DATA") {
+				continue;
+			}
 			const nextStatus = msg[1] as ToolProviderAdapterRunStatus;
 			const statusKey = canonicalTupleKey([nextStatus.runId, nextStatus.status]);
-			if (forwardedRunStatusKeys.has(statusKey)) return;
+			if (forwardedRunStatusKeys.has(statusKey)) {
+				continue;
+			}
 			forwardedRunStatusKeys.add(statusKey);
 			runStatus.down([["DATA", nextStatus]]);
-		}),
-	);
-	const unsubscribeRunIssues = runProjector.issues.subscribe(
-		eachMessage((msg) => {
+		}
+	});
+	const unsubscribeRunIssues = runProjector.issues.subscribe((incoming) => {
+		for (const msg of incoming) {
 			if (msg[0] === "DATA") publishIssue(msg[1] as DataIssue);
-		}),
-	);
-	const unsubscribeRunAudit = runProjector.audit.subscribe(
-		eachMessage((msg) => {
+		}
+	});
+	const unsubscribeRunAudit = runProjector.audit.subscribe((incoming) => {
+		for (const msg of incoming) {
 			if (msg[0] === "DATA") audit.down([["DATA", msg[1] as AgentRuntimeAuditRecord]]);
-		}),
-	);
-	const unsubscribeRunRequests = runProjector.requests.subscribe(
-		eachMessage((msg) => {
+		}
+	});
+	const unsubscribeRunRequests = runProjector.requests.subscribe((incoming) => {
+		for (const msg of incoming) {
 			if (msg[0] === "DATA") execute(msg[1] as ToolProviderAdapterRunRequested);
-		}),
-	);
+		}
+	});
 	return Object.freeze({
 		catalogs: Object.freeze([catalog]),
 		runRequests: runProjector.requests,

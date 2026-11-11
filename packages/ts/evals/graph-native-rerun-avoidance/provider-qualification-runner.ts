@@ -24,7 +24,6 @@ import { parseRootEvalLiveProviderResponse, parseRootEvalUniqueJson } from "./ro
 
 export const QUALIFICATION_ENDPOINT = CURRENT_ROOT_EVAL_PROVIDER_ROUTE.chatCompletionsEndpoint;
 
-import { eachMessage } from "../../src/node/each-message.js";
 import {
 	qualificationExamples as examples,
 	QUALIFICATION_PRICING,
@@ -182,11 +181,11 @@ async function runExclusive(input: Parameters<typeof run>[0]) {
 		envelopes.push(envelope);
 	});
 	let graphFailed = false;
-	const stop = topology.state.subscribe(
-		eachMessage((message) => {
+	const stop = topology.state.subscribe((incoming) => {
+		for (const message of incoming) {
 			if (message[0] === "ERROR") graphFailed = true;
-		}),
-	);
+		}
+	});
 	try {
 		await saveExclusive(
 			join(input.privateRoot, "describe.json"),

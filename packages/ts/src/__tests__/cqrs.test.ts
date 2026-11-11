@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import { cqrs, cqrsCommandHandler, cqrsProjection } from "../cqrs/index.js";
 import { graph } from "../graph/graph.js";
 import { compoundTupleKey } from "../identity.js";
-import { eachMessage } from "../node/each-message.js";
 
 const cqrsEventId = (commandId: string, seq: string) =>
 	compoundTupleKey("cqrs-event", [commandId, seq]);
@@ -12,11 +11,11 @@ function watchError(g: ReturnType<typeof graph>, path: string): () => string {
 	const n = g.find(path);
 	if (n === undefined) throw new Error(`missing ${path}`);
 	let error: unknown;
-	n.subscribe(
-		eachMessage((m) => {
+	n.subscribe((incoming) => {
+		for (const m of incoming) {
 			if (m[0] === "ERROR") error = m[1];
-		}),
-	);
+		}
+	});
 	return () => {
 		expect(n.status.output).toBe("errored");
 		return String((error as Error | undefined)?.message ?? error);
@@ -39,9 +38,21 @@ describe("CQRS application infrastructure (B63 / D125 / D129)", () => {
 		const commands: unknown[] = [];
 		const audit: unknown[] = [];
 		const status: unknown[] = [];
-		app.command.subscribe(eachMessage((msg) => commands.push(msg)));
-		app.audit.subscribe(eachMessage((msg) => audit.push(msg)));
-		app.status.subscribe(eachMessage((msg) => status.push(msg)));
+		app.command.subscribe((incoming) => {
+			for (const msg of incoming) {
+				commands.push(msg);
+			}
+		});
+		app.audit.subscribe((incoming) => {
+			for (const msg of incoming) {
+				audit.push(msg);
+			}
+		});
+		app.status.subscribe((incoming) => {
+			for (const msg of incoming) {
+				status.push(msg);
+			}
+		});
 
 		app.dispatch({ id: "cmd-1", type: "PlaceOrder", payload: { id: "o1" } });
 
@@ -92,10 +103,26 @@ describe("CQRS application infrastructure (B63 / D125 / D129)", () => {
 		const audit: unknown[] = [];
 		const status: unknown[] = [];
 		const cursor: unknown[] = [];
-		app.events.subscribe(eachMessage((msg) => events.push(msg)));
-		app.audit.subscribe(eachMessage((msg) => audit.push(msg)));
-		app.status.subscribe(eachMessage((msg) => status.push(msg)));
-		app.cursor.subscribe(eachMessage((msg) => cursor.push(msg)));
+		app.events.subscribe((incoming) => {
+			for (const msg of incoming) {
+				events.push(msg);
+			}
+		});
+		app.audit.subscribe((incoming) => {
+			for (const msg of incoming) {
+				audit.push(msg);
+			}
+		});
+		app.status.subscribe((incoming) => {
+			for (const msg of incoming) {
+				status.push(msg);
+			}
+		});
+		app.cursor.subscribe((incoming) => {
+			for (const msg of incoming) {
+				cursor.push(msg);
+			}
+		});
 
 		expect(events.at(-1)).toEqual([
 			"DATA",
@@ -135,8 +162,16 @@ describe("CQRS application infrastructure (B63 / D125 / D129)", () => {
 		});
 		const events: unknown[] = [];
 		const cursor: unknown[] = [];
-		app.events.subscribe(eachMessage((msg) => events.push(msg)));
-		app.cursor.subscribe(eachMessage((msg) => cursor.push(msg)));
+		app.events.subscribe((incoming) => {
+			for (const msg of incoming) {
+				events.push(msg);
+			}
+		});
+		app.cursor.subscribe((incoming) => {
+			for (const msg of incoming) {
+				cursor.push(msg);
+			}
+		});
 
 		app.dispatch({ id: "cmd-1", type: "PlaceOrder", payload: { id: "o1" } });
 
@@ -196,8 +231,16 @@ describe("CQRS application infrastructure (B63 / D125 / D129)", () => {
 		});
 		const errors: unknown[] = [];
 		const events: unknown[] = [];
-		app.errors.subscribe(eachMessage((msg) => errors.push(msg)));
-		app.events.subscribe(eachMessage((msg) => events.push(msg)));
+		app.errors.subscribe((incoming) => {
+			for (const msg of incoming) {
+				errors.push(msg);
+			}
+		});
+		app.events.subscribe((incoming) => {
+			for (const msg of incoming) {
+				events.push(msg);
+			}
+		});
 
 		app.dispatch({ id: "cmd-1", type: "Missing", payload: {} });
 		app.dispatch({ id: "cmd-1", type: "Missing", payload: {} });
@@ -252,9 +295,21 @@ describe("CQRS application infrastructure (B63 / D125 / D129)", () => {
 		const events: unknown[] = [];
 		const errors: unknown[] = [];
 		const cursor: unknown[] = [];
-		app.events.subscribe(eachMessage((msg) => events.push(msg)));
-		app.errors.subscribe(eachMessage((msg) => errors.push(msg)));
-		app.cursor.subscribe(eachMessage((msg) => cursor.push(msg)));
+		app.events.subscribe((incoming) => {
+			for (const msg of incoming) {
+				events.push(msg);
+			}
+		});
+		app.errors.subscribe((incoming) => {
+			for (const msg of incoming) {
+				errors.push(msg);
+			}
+		});
+		app.cursor.subscribe((incoming) => {
+			for (const msg of incoming) {
+				cursor.push(msg);
+			}
+		});
 
 		app.dispatch({ id: "cmd-1", type: "PlaceOrder", payload: { eventId: "event-1" } });
 		app.dispatch({ id: "cmd-2", type: "PlaceOrder", payload: { eventId: "event-2" } });
@@ -308,9 +363,21 @@ describe("CQRS application infrastructure (B63 / D125 / D129)", () => {
 		const events: unknown[] = [];
 		const errors: unknown[] = [];
 		const cursor: unknown[] = [];
-		app.events.subscribe(eachMessage((msg) => events.push(msg)));
-		app.errors.subscribe(eachMessage((msg) => errors.push(msg)));
-		app.cursor.subscribe(eachMessage((msg) => cursor.push(msg)));
+		app.events.subscribe((incoming) => {
+			for (const msg of incoming) {
+				events.push(msg);
+			}
+		});
+		app.errors.subscribe((incoming) => {
+			for (const msg of incoming) {
+				errors.push(msg);
+			}
+		});
+		app.cursor.subscribe((incoming) => {
+			for (const msg of incoming) {
+				cursor.push(msg);
+			}
+		});
 
 		app.dispatch({ id: "cmd-1", type: "PlaceOrder", payload: { eventId: "event-1" } });
 		app.dispatch({ id: "cmd-2", type: "PlaceOrder", payload: { eventId: "event-2" } });
@@ -342,8 +409,16 @@ describe("CQRS application infrastructure (B63 / D125 / D129)", () => {
 		});
 		const events: unknown[] = [];
 		const audit: unknown[] = [];
-		app.events.subscribe(eachMessage((msg) => events.push(msg)));
-		app.audit.subscribe(eachMessage((msg) => audit.push(msg)));
+		app.events.subscribe((incoming) => {
+			for (const msg of incoming) {
+				events.push(msg);
+			}
+		});
+		app.audit.subscribe((incoming) => {
+			for (const msg of incoming) {
+				audit.push(msg);
+			}
+		});
 
 		app.dispatch({ id: "cmd-1", type: "PlaceOrder", payload: {} });
 
@@ -377,9 +452,21 @@ describe("CQRS application infrastructure (B63 / D125 / D129)", () => {
 		const events: unknown[] = [];
 		const errors: unknown[] = [];
 		const audit: unknown[] = [];
-		app.events.subscribe(eachMessage((msg) => events.push(msg)));
-		app.errors.subscribe(eachMessage((msg) => errors.push(msg)));
-		app.audit.subscribe(eachMessage((msg) => audit.push(msg)));
+		app.events.subscribe((incoming) => {
+			for (const msg of incoming) {
+				events.push(msg);
+			}
+		});
+		app.errors.subscribe((incoming) => {
+			for (const msg of incoming) {
+				errors.push(msg);
+			}
+		});
+		app.audit.subscribe((incoming) => {
+			for (const msg of incoming) {
+				audit.push(msg);
+			}
+		});
 
 		app.dispatch({ id: "cmd-1", type: "PlaceOrder", payload: {} });
 
@@ -428,9 +515,21 @@ describe("CQRS application infrastructure (B63 / D125 / D129)", () => {
 		const values: unknown[] = [];
 		const projectionErrors: unknown[] = [];
 		const protocolErrors: unknown[] = [];
-		projection.value.subscribe(eachMessage((msg) => values.push(msg)));
-		projection.errors.subscribe(eachMessage((msg) => projectionErrors.push(msg)));
-		projection.frames.subscribe(eachMessage((msg) => protocolErrors.push(msg)));
+		projection.value.subscribe((incoming) => {
+			for (const msg of incoming) {
+				values.push(msg);
+			}
+		});
+		projection.errors.subscribe((incoming) => {
+			for (const msg of incoming) {
+				projectionErrors.push(msg);
+			}
+		});
+		projection.frames.subscribe((incoming) => {
+			for (const msg of incoming) {
+				protocolErrors.push(msg);
+			}
+		});
 
 		app.dispatch({ id: "cmd-1", type: "PlaceOrder", payload: { id: "o1" } });
 		app.dispatch({ id: "cmd-2", type: "PlaceOrder", payload: { id: "o2", fail: true } });
@@ -474,8 +573,16 @@ describe("CQRS application infrastructure (B63 / D125 / D129)", () => {
 		});
 		const values: unknown[] = [];
 		const errors: unknown[] = [];
-		projection.value.subscribe(eachMessage((msg) => values.push(msg)));
-		projection.errors.subscribe(eachMessage((msg) => errors.push(msg)));
+		projection.value.subscribe((incoming) => {
+			for (const msg of incoming) {
+				values.push(msg);
+			}
+		});
+		projection.errors.subscribe((incoming) => {
+			for (const msg of incoming) {
+				errors.push(msg);
+			}
+		});
 
 		app.dispatch({ id: "cmd-1", type: "PlaceOrder", payload: { id: "o1" } });
 
@@ -509,7 +616,11 @@ describe("CQRS application infrastructure (B63 / D125 / D129)", () => {
 			],
 		});
 		const errors: unknown[] = [];
-		app.errors.subscribe(eachMessage((msg) => errors.push(msg)));
+		app.errors.subscribe((incoming) => {
+			for (const msg of incoming) {
+				errors.push(msg);
+			}
+		});
 
 		app.dispatch({ id: "cmd-1", type: "PlaceOrder", payload: {} });
 		expect(g.find("orders/runtime")?.status.output).toBe("open");
@@ -531,7 +642,11 @@ describe("CQRS application infrastructure (B63 / D125 / D129)", () => {
 			],
 		});
 		const errors: unknown[] = [];
-		app.errors.subscribe(eachMessage((msg) => errors.push(msg)));
+		app.errors.subscribe((incoming) => {
+			for (const msg of incoming) {
+				errors.push(msg);
+			}
+		});
 
 		const runtimeError = watchError(g, "orders/runtime");
 		app.dispatch({ id: "cmd-1", type: "PlaceOrder", payload: {} });
@@ -564,7 +679,11 @@ describe("CQRS application infrastructure (B63 / D125 / D129)", () => {
 			},
 		});
 		const projectionErrors: unknown[] = [];
-		projection.errors.subscribe(eachMessage((msg) => projectionErrors.push(msg)));
+		projection.errors.subscribe((incoming) => {
+			for (const msg of incoming) {
+				projectionErrors.push(msg);
+			}
+		});
 
 		app.dispatch({ id: "cmd-1", type: "PlaceOrder", payload: {} });
 		expect(g.find("orders/count")?.status.output).toBe("open");

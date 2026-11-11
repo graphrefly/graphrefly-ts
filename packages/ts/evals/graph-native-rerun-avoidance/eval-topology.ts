@@ -1,7 +1,6 @@
 import { type Ctx, depBatch, depLatest } from "../../src/ctx/types.js";
 import { type Graph, graph } from "../../src/graph/graph.js";
 import type { ObserveEvent } from "../../src/graph/inspect.js";
-import { eachMessage } from "../../src/node/each-message.js";
 import type { Node } from "../../src/node/node.js";
 import { merge } from "../../src/operators/index.js";
 import type { AgentRequestIssued, EffectRunResult } from "../../src/orchestration/agent-runtime.js";
@@ -9440,16 +9439,16 @@ async function runRootEvalWithOutcomeInput(
 			});
 			resolve(result);
 		};
-		stopObservationRejections = topology.nodes.observationRejections.subscribe(
-			eachMessage((message) => {
+		stopObservationRejections = topology.nodes.observationRejections.subscribe((incoming) => {
+			for (const message of incoming) {
 				if (message[0] === "DATA")
 					abort(
 						new Error(
 							`root eval canonical observation rejected: ${(message[1] as EvalObservationRejection).code}; admitted work drained`,
 						),
 					);
-			}),
-		);
+			}
+		});
 		// R-failure@3 (graphrefly-ts:D172): a fail-closed check inside an eval node's function is that
 		// node's ERROR rather than a throw out of the write that drove it, so the run fails closed on
 		// the first ERROR anywhere in the root Graph, with that node's own error.
@@ -9483,47 +9482,59 @@ async function runRootEvalWithOutcomeInput(
 				maybeFinishGraphStop();
 			}
 		});
-		stopFinding = topology.nodes.findings.subscribe(
-			eachMessage((message) => {
-				if (settled) return;
+		stopFinding = topology.nodes.findings.subscribe((incoming) => {
+			for (const message of incoming) {
+				if (settled) {
+					continue;
+				}
 				if (message[0] === "ERROR") {
 					abort(
 						message[1] instanceof Error
 							? message[1]
 							: new Error("root eval finding Graph path failed"),
 					);
-					return;
+					continue;
 				}
-				if (message[0] !== "DATA") return;
+				if (message[0] !== "DATA") {
+					continue;
+				}
 				finding = message[1] as EvalFinding;
 				if (terminalObservation !== undefined) finish(terminalObservation);
-			}),
-		);
-		stopTerminal = topology.nodes.campaignTerminal.subscribe(
-			eachMessage((message) => {
-				if (settled) return;
+			}
+		});
+		stopTerminal = topology.nodes.campaignTerminal.subscribe((incoming) => {
+			for (const message of incoming) {
+				if (settled) {
+					continue;
+				}
 				if (message[0] === "ERROR") {
 					abort(
 						message[1] instanceof Error
 							? message[1]
 							: new Error("root eval budget Graph path failed"),
 					);
-					return;
+					continue;
 				}
-				if (message[0] !== "DATA") return;
+				if (message[0] !== "DATA") {
+					continue;
+				}
 				graphTerminal = message[1] as EvalCampaignTerminal;
 				maybeFinishGraphStop();
-			}),
-		);
+			}
+		});
 		stopTerminalLifecycleConsistency = topology.nodes.terminalLifecycleConsistency.subscribe(
-			eachMessage((message) => {
-				if (message[0] !== "ERROR" || settled) return;
-				abort(
-					message[1] instanceof Error
-						? message[1]
-						: new Error("root eval terminal lifecycle consistency path failed"),
-				);
-			}),
+			(incoming) => {
+				for (const message of incoming) {
+					if (message[0] !== "ERROR" || settled) {
+						continue;
+					}
+					abort(
+						message[1] instanceof Error
+							? message[1]
+							: new Error("root eval terminal lifecycle consistency path failed"),
+					);
+				}
+			},
 		);
 		const abortProviderAdmissionError = (message: readonly unknown[]) => {
 			if (message[0] !== "ERROR" || settled) return;
@@ -9689,19 +9700,19 @@ async function runRootEvalWithOutcomeInput(
 			}
 		};
 		const executionStops = executionNodes.map((node) =>
-			(node as Node<EvalExecutableEffect>).subscribe(
-				eachMessage((message) => {
+			(node as Node<EvalExecutableEffect>).subscribe((incoming) => {
+				for (const message of incoming) {
 					if (message[0] === "ERROR") {
 						abort(
 							message[1] instanceof Error
 								? message[1]
 								: new Error("root eval admitted-effect gate failed"),
 						);
-						return;
+						continue;
 					}
 					if (message[0] === "DATA") scheduleEffects([message[1] as EvalExecutableEffect]);
-				}),
-			),
+				}
+			}),
 		);
 		stopEffects = () => {
 			for (const stop of executionStops) stop();

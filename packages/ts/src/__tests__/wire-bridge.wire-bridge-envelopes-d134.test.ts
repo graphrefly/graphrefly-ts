@@ -11,7 +11,6 @@ import { depBatch } from "../ctx/types.js";
 import { graph } from "../graph/graph.js";
 import { retryPolicy } from "../graph/resilience.js";
 import { canonicalTupleKey, compoundTupleKey } from "../identity.js";
-import { eachMessage } from "../node/each-message.js";
 
 const wireCauseId = (name: string, seq: number) =>
 	compoundTupleKey("wire-edge-group-cause", [name, String(seq)]);
@@ -192,8 +191,16 @@ describe("wire bridge envelopes (D134)", () => {
 		const bridge = wireBridge(g, { name: "bridge", sessionId: "session-a" });
 		const outbound: unknown[] = [];
 		const errors: unknown[] = [];
-		bridge.outbound.subscribe(eachMessage((msg) => outbound.push(msg)));
-		bridge.errors.subscribe(eachMessage((msg) => errors.push(msg)));
+		bridge.outbound.subscribe((incoming) => {
+			for (const msg of incoming) {
+				outbound.push(msg);
+			}
+		});
+		bridge.errors.subscribe((incoming) => {
+			for (const msg of incoming) {
+				errors.push(msg);
+			}
+		});
 
 		bridge.close();
 
@@ -212,8 +219,16 @@ describe("wire bridge envelopes (D134)", () => {
 		const bridge = wireBridge(g, { name: "bridge", sessionId: "session-a" });
 		const errors: unknown[] = [];
 		const outbound: unknown[] = [];
-		bridge.errors.subscribe(eachMessage((msg) => errors.push(msg)));
-		bridge.outbound.subscribe(eachMessage((msg) => outbound.push(msg)));
+		bridge.errors.subscribe((incoming) => {
+			for (const msg of incoming) {
+				errors.push(msg);
+			}
+		});
+		bridge.outbound.subscribe((incoming) => {
+			for (const msg of incoming) {
+				outbound.push(msg);
+			}
+		});
 
 		bridge.send({ socket: () => undefined });
 
@@ -238,10 +253,26 @@ describe("wire bridge envelopes (D134)", () => {
 		const acks: unknown[] = [];
 		const cursor: unknown[] = [];
 		const status: unknown[] = [];
-		bridge.outbound.subscribe(eachMessage((msg) => outbound.push(msg)));
-		bridge.acks.subscribe(eachMessage((msg) => acks.push(msg)));
-		bridge.cursor.subscribe(eachMessage((msg) => cursor.push(msg)));
-		bridge.status.subscribe(eachMessage((msg) => status.push(msg)));
+		bridge.outbound.subscribe((incoming) => {
+			for (const msg of incoming) {
+				outbound.push(msg);
+			}
+		});
+		bridge.acks.subscribe((incoming) => {
+			for (const msg of incoming) {
+				acks.push(msg);
+			}
+		});
+		bridge.cursor.subscribe((incoming) => {
+			for (const msg of incoming) {
+				cursor.push(msg);
+			}
+		});
+		bridge.status.subscribe((incoming) => {
+			for (const msg of incoming) {
+				status.push(msg);
+			}
+		});
 
 		bridge.send({ task: "compile" }, { requestId: "req-1" });
 		bridge.inbound.down([
@@ -327,11 +358,11 @@ describe("wire bridge envelopes (D134)", () => {
 		const g = graph();
 		const bridge = wireBridge(g, { name: "bridge", sessionId: "session-a" });
 		const commands: unknown[] = [];
-		bridge.command.subscribe(
-			eachMessage((msg) => {
+		bridge.command.subscribe((incoming) => {
+			for (const msg of incoming) {
 				if (msg[0] === "DATA") commands.push(msg);
-			}),
-		);
+			}
+		});
 
 		bridge.start();
 		bridge.send("hello", { idempotencyKey: "custom", requestId: "req-1" });
@@ -370,9 +401,21 @@ describe("wire bridge envelopes (D134)", () => {
 			const outbound: unknown[] = [];
 			const errors: unknown[] = [];
 			const status: unknown[] = [];
-			bridge.outbound.subscribe(eachMessage((msg) => outbound.push(msg)));
-			bridge.errors.subscribe(eachMessage((msg) => errors.push(msg)));
-			bridge.status.subscribe(eachMessage((msg) => status.push(msg)));
+			bridge.outbound.subscribe((incoming) => {
+				for (const msg of incoming) {
+					outbound.push(msg);
+				}
+			});
+			bridge.errors.subscribe((incoming) => {
+				for (const msg of incoming) {
+					errors.push(msg);
+				}
+			});
+			bridge.status.subscribe((incoming) => {
+				for (const msg of incoming) {
+					status.push(msg);
+				}
+			});
 
 			bridge.send("payload");
 			const beforeOutbound = [...outbound];
@@ -399,9 +442,21 @@ describe("wire bridge envelopes (D134)", () => {
 		const outbound: unknown[] = [];
 		const events: unknown[] = [];
 		const status: unknown[] = [];
-		bridge.outbound.subscribe(eachMessage((msg) => outbound.push(msg)));
-		bridge.events.subscribe(eachMessage((msg) => events.push(msg)));
-		bridge.status.subscribe(eachMessage((msg) => status.push(msg)));
+		bridge.outbound.subscribe((incoming) => {
+			for (const msg of incoming) {
+				outbound.push(msg);
+			}
+		});
+		bridge.events.subscribe((incoming) => {
+			for (const msg of incoming) {
+				events.push(msg);
+			}
+		});
+		bridge.status.subscribe((incoming) => {
+			for (const msg of incoming) {
+				status.push(msg);
+			}
+		});
 
 		bridge.send("payload");
 		bridge.command.down([["DATA", { kind: "ack-timeout", seq: 1, attempt: 2 }]]);
@@ -456,8 +511,16 @@ describe("wire bridge envelopes (D134)", () => {
 		});
 		const outbound: unknown[] = [];
 		const events: unknown[] = [];
-		bridge.outbound.subscribe(eachMessage((msg) => outbound.push(msg)));
-		bridge.events.subscribe(eachMessage((msg) => events.push(msg)));
+		bridge.outbound.subscribe((incoming) => {
+			for (const msg of incoming) {
+				outbound.push(msg);
+			}
+		});
+		bridge.events.subscribe((incoming) => {
+			for (const msg of incoming) {
+				events.push(msg);
+			}
+		});
 
 		bridge.send("payload");
 		bridge.inbound.down([
@@ -481,7 +544,11 @@ describe("wire bridge envelopes (D134)", () => {
 		const g = graph();
 		const bridge = wireBridge<string, unknown>(g, { name: "bridge", sessionId: "session-a" });
 		const errors: unknown[] = [];
-		bridge.errors.subscribe(eachMessage((msg) => errors.push(msg)));
+		bridge.errors.subscribe((incoming) => {
+			for (const msg of incoming) {
+				errors.push(msg);
+			}
+		});
 
 		bridge.command.down([["DATA", { kind: "ack-timeout", seq: 1, attempt: 0 } as never]]);
 
@@ -503,9 +570,21 @@ describe("wire bridge envelopes (D134)", () => {
 		const errors: unknown[] = [];
 		const status: unknown[] = [];
 		const events: unknown[] = [];
-		bridge.errors.subscribe(eachMessage((msg) => errors.push(msg)));
-		bridge.status.subscribe(eachMessage((msg) => status.push(msg)));
-		bridge.events.subscribe(eachMessage((msg) => events.push(msg)));
+		bridge.errors.subscribe((incoming) => {
+			for (const msg of incoming) {
+				errors.push(msg);
+			}
+		});
+		bridge.status.subscribe((incoming) => {
+			for (const msg of incoming) {
+				status.push(msg);
+			}
+		});
+		bridge.events.subscribe((incoming) => {
+			for (const msg of incoming) {
+				events.push(msg);
+			}
+		});
 
 		bridge.send("payload");
 		bridge.command.down([["DATA", { kind: "ack-timeout", seq: 1, attempt: 1 }]]);
@@ -538,9 +617,21 @@ describe("wire bridge envelopes (D134)", () => {
 		const commands: unknown[] = [];
 		const outbound: unknown[] = [];
 		const driverStatus: unknown[] = [];
-		driver.commands.subscribe(eachMessage((msg) => commands.push(msg)));
-		driver.status.subscribe(eachMessage((msg) => driverStatus.push(msg)));
-		bridge.outbound.subscribe(eachMessage((msg) => outbound.push(msg)));
+		driver.commands.subscribe((incoming) => {
+			for (const msg of incoming) {
+				commands.push(msg);
+			}
+		});
+		driver.status.subscribe((incoming) => {
+			for (const msg of incoming) {
+				driverStatus.push(msg);
+			}
+		});
+		bridge.outbound.subscribe((incoming) => {
+			for (const msg of incoming) {
+				outbound.push(msg);
+			}
+		});
 
 		clock.down([["DATA", 1000]]);
 		bridge.send("payload");
@@ -599,8 +690,16 @@ describe("wire bridge envelopes (D134)", () => {
 		const driver = wireBridgeAckDriver(g, bridge, { name: "ackDriver", clock, timeoutMs: 5 });
 		const commands: unknown[] = [];
 		const outbound: unknown[] = [];
-		driver.commands.subscribe(eachMessage((msg) => commands.push(msg)));
-		bridge.outbound.subscribe(eachMessage((msg) => outbound.push(msg)));
+		driver.commands.subscribe((incoming) => {
+			for (const msg of incoming) {
+				commands.push(msg);
+			}
+		});
+		bridge.outbound.subscribe((incoming) => {
+			for (const msg of incoming) {
+				outbound.push(msg);
+			}
+		});
 
 		clock.down([["DATA", 1000]]);
 		bridge.send("payload");
@@ -642,8 +741,16 @@ describe("wire bridge envelopes (D134)", () => {
 		const driver = wireBridgeAckDriver(g, bridge, { name: "ackDriver", clock, timeoutMs: 5 });
 		const outbound: unknown[] = [];
 		const commands: unknown[] = [];
-		const unsubscribe = driver.commands.subscribe(eachMessage((msg) => commands.push(msg)));
-		bridge.outbound.subscribe(eachMessage((msg) => outbound.push(msg)));
+		const unsubscribe = driver.commands.subscribe((incoming) => {
+			for (const msg of incoming) {
+				commands.push(msg);
+			}
+		});
+		bridge.outbound.subscribe((incoming) => {
+			for (const msg of incoming) {
+				outbound.push(msg);
+			}
+		});
 
 		clock.down([["DATA", 1000]]);
 		bridge.send("payload");
@@ -664,7 +771,11 @@ describe("wire bridge envelopes (D134)", () => {
 		const g = graph();
 		const bridge = wireBridge<string, unknown>(g, { name: "bridge", sessionId: "session-a" });
 		const status: unknown[] = [];
-		bridge.status.subscribe(eachMessage((msg) => status.push(msg)));
+		bridge.status.subscribe((incoming) => {
+			for (const msg of incoming) {
+				status.push(msg);
+			}
+		});
 
 		bridge.send("payload");
 		bridge.close("done");
@@ -718,9 +829,21 @@ describe("wire bridge envelopes (D134)", () => {
 		const errors: unknown[] = [];
 		const cursor: unknown[] = [];
 		const status: unknown[] = [];
-		bridge.errors.subscribe(eachMessage((msg) => errors.push(msg)));
-		bridge.cursor.subscribe(eachMessage((msg) => cursor.push(msg)));
-		bridge.status.subscribe(eachMessage((msg) => status.push(msg)));
+		bridge.errors.subscribe((incoming) => {
+			for (const msg of incoming) {
+				errors.push(msg);
+			}
+		});
+		bridge.cursor.subscribe((incoming) => {
+			for (const msg of incoming) {
+				cursor.push(msg);
+			}
+		});
+		bridge.status.subscribe((incoming) => {
+			for (const msg of incoming) {
+				status.push(msg);
+			}
+		});
 
 		bridge.inbound.down([
 			[
@@ -771,8 +894,16 @@ describe("wire bridge envelopes (D134)", () => {
 		const bridge = wireBridge(g, { name: "bridge", sessionId: "session-a" });
 		const errors: unknown[] = [];
 		const cursor: unknown[] = [];
-		bridge.errors.subscribe(eachMessage((msg) => errors.push(msg)));
-		bridge.cursor.subscribe(eachMessage((msg) => cursor.push(msg)));
+		bridge.errors.subscribe((incoming) => {
+			for (const msg of incoming) {
+				errors.push(msg);
+			}
+		});
+		bridge.cursor.subscribe((incoming) => {
+			for (const msg of incoming) {
+				cursor.push(msg);
+			}
+		});
 
 		bridge.inbound.down([
 			[
@@ -815,8 +946,16 @@ describe("wire bridge envelopes (D134)", () => {
 		const bridge = wireBridge(g, { name: "bridge", sessionId: "session-a" });
 		const errors: unknown[] = [];
 		const cursor: unknown[] = [];
-		bridge.errors.subscribe(eachMessage((msg) => errors.push(msg)));
-		bridge.cursor.subscribe(eachMessage((msg) => cursor.push(msg)));
+		bridge.errors.subscribe((incoming) => {
+			for (const msg of incoming) {
+				errors.push(msg);
+			}
+		});
+		bridge.cursor.subscribe((incoming) => {
+			for (const msg of incoming) {
+				cursor.push(msg);
+			}
+		});
 
 		bridge.inbound.down([["ERROR", "remote protocol error"]]);
 		bridge.inbound.down([
@@ -846,9 +985,21 @@ describe("wire bridge envelopes (D134)", () => {
 		const events: unknown[] = [];
 		const errors: unknown[] = [];
 		const status: unknown[] = [];
-		bridge.events.subscribe(eachMessage((msg) => events.push(msg)));
-		bridge.errors.subscribe(eachMessage((msg) => errors.push(msg)));
-		bridge.status.subscribe(eachMessage((msg) => status.push(msg)));
+		bridge.events.subscribe((incoming) => {
+			for (const msg of incoming) {
+				events.push(msg);
+			}
+		});
+		bridge.errors.subscribe((incoming) => {
+			for (const msg of incoming) {
+				errors.push(msg);
+			}
+		});
+		bridge.status.subscribe((incoming) => {
+			for (const msg of incoming) {
+				status.push(msg);
+			}
+		});
 
 		bridge.inbound.down([
 			[
@@ -899,8 +1050,16 @@ describe("wire bridge envelopes (D134)", () => {
 		const bridge = wireBridge<string, unknown>(g, { name: "bridge", sessionId: "session-a" });
 		const errors: unknown[] = [];
 		const cursor: unknown[] = [];
-		bridge.errors.subscribe(eachMessage((msg) => errors.push(msg)));
-		bridge.cursor.subscribe(eachMessage((msg) => cursor.push(msg)));
+		bridge.errors.subscribe((incoming) => {
+			for (const msg of incoming) {
+				errors.push(msg);
+			}
+		});
+		bridge.cursor.subscribe((incoming) => {
+			for (const msg of incoming) {
+				cursor.push(msg);
+			}
+		});
 
 		bridge.send("payload");
 		bridge.inbound.down([
@@ -942,10 +1101,26 @@ describe("wire bridge envelopes (D134)", () => {
 		const acks: unknown[] = [];
 		const cursor: unknown[] = [];
 		const status: unknown[] = [];
-		bridge.events.subscribe(eachMessage((msg) => events.push(msg)));
-		bridge.acks.subscribe(eachMessage((msg) => acks.push(msg)));
-		bridge.cursor.subscribe(eachMessage((msg) => cursor.push(msg)));
-		bridge.status.subscribe(eachMessage((msg) => status.push(msg)));
+		bridge.events.subscribe((incoming) => {
+			for (const msg of incoming) {
+				events.push(msg);
+			}
+		});
+		bridge.acks.subscribe((incoming) => {
+			for (const msg of incoming) {
+				acks.push(msg);
+			}
+		});
+		bridge.cursor.subscribe((incoming) => {
+			for (const msg of incoming) {
+				cursor.push(msg);
+			}
+		});
+		bridge.status.subscribe((incoming) => {
+			for (const msg of incoming) {
+				status.push(msg);
+			}
+		});
 
 		bridge.send("first", { idempotencyKey: "same-key" });
 		bridge.send("second", { idempotencyKey: "same-key" });
@@ -1021,8 +1196,16 @@ describe("wire bridge envelopes (D134)", () => {
 		const bridge = wireBridge(g, { name: "bridge", sessionId: "session-a" });
 		const errors: unknown[] = [];
 		const cursor: unknown[] = [];
-		bridge.errors.subscribe(eachMessage((msg) => errors.push(msg)));
-		bridge.cursor.subscribe(eachMessage((msg) => cursor.push(msg)));
+		bridge.errors.subscribe((incoming) => {
+			for (const msg of incoming) {
+				errors.push(msg);
+			}
+		});
+		bridge.cursor.subscribe((incoming) => {
+			for (const msg of incoming) {
+				cursor.push(msg);
+			}
+		});
 
 		bridge.inbound.down([
 			[
@@ -1058,8 +1241,16 @@ describe("wire bridge envelopes (D134)", () => {
 		const bridge = wireBridge(g, { name: "bridge", sessionId: "session-a" });
 		const errors: unknown[] = [];
 		const status: unknown[] = [];
-		bridge.errors.subscribe(eachMessage((msg) => errors.push(msg)));
-		bridge.status.subscribe(eachMessage((msg) => status.push(msg)));
+		bridge.errors.subscribe((incoming) => {
+			for (const msg of incoming) {
+				errors.push(msg);
+			}
+		});
+		bridge.status.subscribe((incoming) => {
+			for (const msg of incoming) {
+				status.push(msg);
+			}
+		});
 
 		bridge.inbound.down([
 			[
@@ -1097,8 +1288,16 @@ describe("wire bridge envelopes (D134)", () => {
 		const bridge = wireBridge(g, { name: "bridge", sessionId: "session-a" });
 		const outbound: unknown[] = [];
 		const errors: unknown[] = [];
-		bridge.outbound.subscribe(eachMessage((msg) => outbound.push(msg)));
-		bridge.errors.subscribe(eachMessage((msg) => errors.push(msg)));
+		bridge.outbound.subscribe((incoming) => {
+			for (const msg of incoming) {
+				outbound.push(msg);
+			}
+		});
+		bridge.errors.subscribe((incoming) => {
+			for (const msg of incoming) {
+				errors.push(msg);
+			}
+		});
 
 		bridge.command.down([["DATA", { kind: "wat" } as never]]);
 		bridge.command.down([["DATA", { kind: "ack", ackForSeq: 0 } as never]]);
@@ -1152,7 +1351,11 @@ describe("wire bridge envelopes (D134)", () => {
 			],
 		});
 		const outbound: unknown[][] = [];
-		bridge.outbound.subscribe(eachMessage((msg) => outbound.push(msg as unknown[])));
+		bridge.outbound.subscribe((incoming) => {
+			for (const msg of incoming) {
+				outbound.push(msg as unknown[]);
+			}
+		});
 		batch(() => {
 			sourceA.down([["DATA", bytes(1)]]);
 			sourceB.down([["DATA", bytes(2)]]);
@@ -1172,9 +1375,21 @@ describe("wire bridge envelopes (D134)", () => {
 		const inbound: unknown[][] = [];
 		const issues: unknown[][] = [];
 		const status: unknown[][] = [];
-		inboundA?.subscribe(eachMessage((msg) => inbound.push(msg as unknown[])));
-		group.issues.subscribe(eachMessage((msg) => issues.push(msg as unknown[])));
-		group.status.subscribe(eachMessage((msg) => status.push(msg as unknown[])));
+		inboundA?.subscribe((incoming) => {
+			for (const msg of incoming) {
+				inbound.push(msg as unknown[]);
+			}
+		});
+		group.issues.subscribe((incoming) => {
+			for (const msg of incoming) {
+				issues.push(msg as unknown[]);
+			}
+		});
+		group.status.subscribe((incoming) => {
+			for (const msg of incoming) {
+				status.push(msg as unknown[]);
+			}
+		});
 		const edgeEnvelope = (seq: number, frame: Record<string, unknown>) =>
 			wireBridgeEnvelope({
 				sessionId: "session-a",
@@ -1320,7 +1535,11 @@ describe("wire bridge envelopes (D134)", () => {
 			],
 		});
 		const outbound: unknown[][] = [];
-		bridge.outbound.subscribe(eachMessage((msg) => outbound.push(msg as unknown[])));
+		bridge.outbound.subscribe((incoming) => {
+			for (const msg of incoming) {
+				outbound.push(msg as unknown[]);
+			}
+		});
 
 		sourceA.down([["DATA", bytes(1)]]);
 		expect(frames(outbound)).toEqual([]);
@@ -1390,9 +1609,11 @@ describe("wire bridge envelopes (D134)", () => {
 			],
 		});
 		const first: unknown[][] = [];
-		const unsubscribe = bridge.outbound.subscribe(
-			eachMessage((msg) => first.push(msg as unknown[])),
-		);
+		const unsubscribe = bridge.outbound.subscribe((incoming) => {
+			for (const msg of incoming) {
+				first.push(msg as unknown[]);
+			}
+		});
 		batch(() => {
 			sourceA.down([["DATA", bytes(1)]]);
 			sourceB.down([["DATA", bytes(2)]]);
@@ -1401,7 +1622,11 @@ describe("wire bridge envelopes (D134)", () => {
 
 		unsubscribe();
 		const replayOnly: unknown[][] = [];
-		bridge.outbound.subscribe(eachMessage((msg) => replayOnly.push(msg as unknown[])));
+		bridge.outbound.subscribe((incoming) => {
+			for (const msg of incoming) {
+				replayOnly.push(msg as unknown[]);
+			}
+		});
 
 		expect(frameCauseIds(replayOnly)).not.toContain(wireCauseId("replayFreshGroup", 2));
 	});
@@ -1432,10 +1657,26 @@ describe("wire bridge envelopes (D134)", () => {
 		const joinMessages: unknown[][] = [];
 		const status: unknown[][] = [];
 		const issues: unknown[][] = [];
-		inboundA.subscribe(eachMessage((msg) => inboundMessages.push(msg as unknown[])));
-		join.subscribe(eachMessage((msg) => joinMessages.push(msg as unknown[])));
-		group.status.subscribe(eachMessage((msg) => status.push(msg as unknown[])));
-		group.issues.subscribe(eachMessage((msg) => issues.push(msg as unknown[])));
+		inboundA.subscribe((incoming) => {
+			for (const msg of incoming) {
+				inboundMessages.push(msg as unknown[]);
+			}
+		});
+		join.subscribe((incoming) => {
+			for (const msg of incoming) {
+				joinMessages.push(msg as unknown[]);
+			}
+		});
+		group.status.subscribe((incoming) => {
+			for (const msg of incoming) {
+				status.push(msg as unknown[]);
+			}
+		});
+		group.issues.subscribe((incoming) => {
+			for (const msg of incoming) {
+				issues.push(msg as unknown[]);
+			}
+		});
 		const envelope = (seq: number, frame: Record<string, unknown>) =>
 			wireBridgeEnvelope({
 				sessionId: "session-a",
@@ -1487,8 +1728,16 @@ describe("wire bridge envelopes (D134)", () => {
 		if (inboundA === undefined || inboundB === undefined) throw new Error("missing inbound edge");
 		const status: unknown[][] = [];
 		const issues: unknown[][] = [];
-		group.status.subscribe(eachMessage((msg) => status.push(msg as unknown[])));
-		group.issues.subscribe(eachMessage((msg) => issues.push(msg as unknown[])));
+		group.status.subscribe((incoming) => {
+			for (const msg of incoming) {
+				status.push(msg as unknown[]);
+			}
+		});
+		group.issues.subscribe((incoming) => {
+			for (const msg of incoming) {
+				issues.push(msg as unknown[]);
+			}
+		});
 		const envelope = (seq: number, frame: Record<string, unknown>) =>
 			wireBridgeEnvelope({
 				sessionId: "session-a",
@@ -1531,9 +1780,21 @@ describe("wire bridge envelopes (D134)", () => {
 			const inbound: unknown[][] = [];
 			const issues: unknown[][] = [];
 			const status: unknown[][] = [];
-			group.inbound.get("a")?.subscribe(eachMessage((msg) => inbound.push(msg as unknown[])));
-			group.issues.subscribe(eachMessage((msg) => issues.push(msg as unknown[])));
-			group.status.subscribe(eachMessage((msg) => status.push(msg as unknown[])));
+			group.inbound.get("a")?.subscribe((incoming) => {
+				for (const msg of incoming) {
+					inbound.push(msg as unknown[]);
+				}
+			});
+			group.issues.subscribe((incoming) => {
+				for (const msg of incoming) {
+					issues.push(msg as unknown[]);
+				}
+			});
+			group.status.subscribe((incoming) => {
+				for (const msg of incoming) {
+					status.push(msg as unknown[]);
+				}
+			});
 			const envelope = (seq: number, frame: Record<string, unknown>) =>
 				wireBridgeEnvelope({
 					sessionId: "session-a",
@@ -1618,8 +1879,16 @@ describe("wire bridge envelopes (D134)", () => {
 		});
 		const inbound: unknown[][] = [];
 		const issues: unknown[][] = [];
-		group.inbound.get("a")?.subscribe(eachMessage((msg) => inbound.push(msg as unknown[])));
-		group.issues.subscribe(eachMessage((msg) => issues.push(msg as unknown[])));
+		group.inbound.get("a")?.subscribe((incoming) => {
+			for (const msg of incoming) {
+				inbound.push(msg as unknown[]);
+			}
+		});
+		group.issues.subscribe((incoming) => {
+			for (const msg of incoming) {
+				issues.push(msg as unknown[]);
+			}
+		});
 		let seq = 1;
 		const envelope = (causeId: string, kind: "pending" | "data", value?: Uint8Array) =>
 			wireBridgeEnvelope({
@@ -1674,9 +1943,21 @@ describe("wire bridge envelopes (D134)", () => {
 		const issues: unknown[][] = [];
 		const status: unknown[][] = [];
 		const inbound: unknown[][] = [];
-		group.status.subscribe(eachMessage((msg) => status.push(msg as unknown[])));
-		group.issues.subscribe(eachMessage((msg) => issues.push(msg as unknown[])));
-		group.inbound.get("a")?.subscribe(eachMessage((msg) => inbound.push(msg as unknown[])));
+		group.status.subscribe((incoming) => {
+			for (const msg of incoming) {
+				status.push(msg as unknown[]);
+			}
+		});
+		group.issues.subscribe((incoming) => {
+			for (const msg of incoming) {
+				issues.push(msg as unknown[]);
+			}
+		});
+		group.inbound.get("a")?.subscribe((incoming) => {
+			for (const msg of incoming) {
+				inbound.push(msg as unknown[]);
+			}
+		});
 		const envelope = (seq: number, frame: Record<string, unknown>) =>
 			wireBridgeEnvelope({
 				sessionId: "session-a",

@@ -6,7 +6,6 @@ import type {
 } from "../executors/tool-provider-runtime.js";
 import { attachToolProviderAdapterRuntime } from "../executors/tool-provider-runtime.js";
 import { type Graph, graph } from "../graph/graph.js";
-import { eachMessage } from "../node/each-message.js";
 import type { Node } from "../node/node.js";
 import {
 	type AgentRequestFact,
@@ -219,25 +218,31 @@ function visibleOutcomeResultCandidates(
 		}
 	}
 	const unsubscribes = [
-		opts.outcomes.subscribe(
-			eachMessage((msg) => {
-				if (msg[0] !== "DATA") return;
+		opts.outcomes.subscribe((incoming) => {
+			for (const msg of incoming) {
+				if (msg[0] !== "DATA") {
+					continue;
+				}
 				const outcome = msg[1] as ExecutorOutcome;
 				state.outcomes.set(outcome.outcomeId, outcome);
 				tryEmit();
-			}),
-		),
-		opts.requestStatus.subscribe(
-			eachMessage((msg) => {
-				if (msg[0] !== "DATA") return;
+			}
+		}),
+		opts.requestStatus.subscribe((incoming) => {
+			for (const msg of incoming) {
+				if (msg[0] !== "DATA") {
+					continue;
+				}
 				const status = msg[1] as AgentRequestStatusChanged;
 				state.statusByRequest.set(status.requestId, status);
 				tryEmit();
-			}),
-		),
-		opts.issues.subscribe(
-			eachMessage((msg) => {
-				if (msg[0] !== "DATA") return;
+			}
+		}),
+		opts.issues.subscribe((incoming) => {
+			for (const msg of incoming) {
+				if (msg[0] !== "DATA") {
+					continue;
+				}
 				const issue = msg[1] as DataIssue;
 				if (issue.subjectId !== undefined) {
 					const bucket = state.issuesByRequest.get(issue.subjectId) ?? [];
@@ -245,11 +250,13 @@ function visibleOutcomeResultCandidates(
 					state.issuesByRequest.set(issue.subjectId, bucket);
 				}
 				tryEmit();
-			}),
-		),
-		opts.audit.subscribe(
-			eachMessage((msg) => {
-				if (msg[0] !== "DATA") return;
+			}
+		}),
+		opts.audit.subscribe((incoming) => {
+			for (const msg of incoming) {
+				if (msg[0] !== "DATA") {
+					continue;
+				}
 				const audit = msg[1] as AgentRuntimeAuditRecord;
 				if (audit.subjectId !== undefined) {
 					const bucket = state.auditByRequest.get(audit.subjectId) ?? [];
@@ -263,8 +270,8 @@ function visibleOutcomeResultCandidates(
 					state.auditByOutcome.set(outcomeId, bucket);
 				}
 				tryEmit();
-			}),
-		),
+			}
+		}),
 	];
 	return {
 		candidates,
@@ -385,32 +392,56 @@ function createDogfoodHarness(
 		evidence: [] as WorkItemEvidenceRecorded[],
 	};
 	const unsubscribes = [
-		adapterInputs.inputs.subscribe(
-			eachMessage((msg) => msg[0] === "DATA" && seen.inputs.push(msg[1])),
-		),
-		runtime.outcomes.subscribe(
-			eachMessage((msg) => msg[0] === "DATA" && seen.outcomes.push(msg[1])),
-		),
-		runtime.status.subscribe(
-			eachMessage((msg) => msg[0] === "DATA" && seen.agentStatus.push(msg[1])),
-		),
-		runtime.runStatus.subscribe(
-			eachMessage((msg) => msg[0] === "DATA" && seen.runStatus.push(msg[1])),
-		),
-		runtime.runtimeStatus.subscribe(
-			eachMessage((msg) => msg[0] === "DATA" && seen.runtimeStatus.push(msg[1])),
-		),
-		runtime.issues.subscribe(eachMessage((msg) => msg[0] === "DATA" && seen.issues.push(msg[1]))),
-		runtime.audit.subscribe(eachMessage((msg) => msg[0] === "DATA" && seen.audit.push(msg[1]))),
-		resultCandidates.candidates.subscribe(
-			eachMessage((msg) => msg[0] === "DATA" && seen.resultCandidates.push(msg[1])),
-		),
-		completion.results.subscribe(
-			eachMessage((msg) => msg[0] === "DATA" && seen.results.push(msg[1])),
-		),
-		evidenceMapper.evidence.subscribe(
-			eachMessage((msg) => msg[0] === "DATA" && seen.evidence.push(msg[1])),
-		),
+		adapterInputs.inputs.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && seen.inputs.push(msg[1]);
+			}
+		}),
+		runtime.outcomes.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && seen.outcomes.push(msg[1]);
+			}
+		}),
+		runtime.status.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && seen.agentStatus.push(msg[1]);
+			}
+		}),
+		runtime.runStatus.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && seen.runStatus.push(msg[1]);
+			}
+		}),
+		runtime.runtimeStatus.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && seen.runtimeStatus.push(msg[1]);
+			}
+		}),
+		runtime.issues.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && seen.issues.push(msg[1]);
+			}
+		}),
+		runtime.audit.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && seen.audit.push(msg[1]);
+			}
+		}),
+		resultCandidates.candidates.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && seen.resultCandidates.push(msg[1]);
+			}
+		}),
+		completion.results.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && seen.results.push(msg[1]);
+			}
+		}),
+		evidenceMapper.evidence.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && seen.evidence.push(msg[1]);
+			}
+		}),
 		evidenceMapper.views.subscribe(() => {}),
 	];
 	let disposed = false;

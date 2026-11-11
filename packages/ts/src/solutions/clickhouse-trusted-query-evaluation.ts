@@ -2,7 +2,6 @@
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
 import { canonicalTupleKey, compoundTupleKey } from "../identity.js";
-import { eachMessage } from "../node/each-message.js";
 import type { Node } from "../node/node.js";
 import type {
 	AgentRequestStatusChanged,
@@ -1008,13 +1007,17 @@ export function clickHouseTrustedQueryRuntime(
 	}
 
 	const unsubscribers = [
-		opts.inputs.subscribe(
-			eachMessage((message) => {
-				if (message[0] !== "DATA") return;
+		opts.inputs.subscribe((incoming) => {
+			for (const message of incoming) {
+				if (message[0] !== "DATA") {
+					continue;
+				}
 				const input = snapshotClickHouseInput(
 					message[1] as ToolProviderAdapterInput<ClickHouseTrustedQueryExecutionArguments>,
 				);
-				if (input === undefined) return;
+				if (input === undefined) {
+					continue;
+				}
 				const fingerprint = productionEvaluationCanonical(input);
 				const prior = inputFingerprints.get(input.adapterInputId);
 				if (prior !== undefined && prior !== fingerprint) {
@@ -1024,36 +1027,36 @@ export function clickHouseTrustedQueryRuntime(
 							"ClickHouse adapter input id was reused with different immutable coordinates.",
 						),
 					);
-					return;
+					continue;
 				}
 				if (prior === undefined) {
 					inputFingerprints.set(input.adapterInputId, fingerprint);
 					inputs.set(input.adapterInputId, input);
 				}
+			}
+		}),
+		...opts.admittedRunRequests.map((node) =>
+			node.subscribe((incoming) => {
+				for (const message of incoming) {
+					if (message[0] === "DATA") execute(message[1] as ToolProviderAdapterRunRequested);
+				}
 			}),
 		),
-		...opts.admittedRunRequests.map((node) =>
-			node.subscribe(
-				eachMessage((message) => {
-					if (message[0] === "DATA") execute(message[1] as ToolProviderAdapterRunRequested);
-				}),
-			),
-		),
 		...(opts.cancellationRequests ?? []).map((node) =>
-			node.subscribe(
-				eachMessage((message) => {
+			node.subscribe((incoming) => {
+				for (const message of incoming) {
 					if (message[0] === "DATA")
 						requestCancellation(message[1] as ClickHouseTrustedQueryCancellationRequested);
-				}),
-			),
+				}
+			}),
 		),
 		...(opts.cancellationDecisions ?? []).map((node) =>
-			node.subscribe(
-				eachMessage((message) => {
+			node.subscribe((incoming) => {
+				for (const message of incoming) {
 					if (message[0] === "DATA")
 						decideCancellation(message[1] as ClickHouseTrustedQueryCancellationDecision);
-				}),
-			),
+				}
+			}),
 		),
 	];
 

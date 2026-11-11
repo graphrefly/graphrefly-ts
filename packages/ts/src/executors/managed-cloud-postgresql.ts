@@ -2,7 +2,6 @@
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
 import { canonicalTupleKey, parseCanonicalTupleKey } from "../identity.js";
-import { eachMessage } from "../node/each-message.js";
 import type { Node } from "../node/node.js";
 import type {
 	AgentRuntimeAuditRecord,
@@ -1344,19 +1343,19 @@ export function managedCloudPostgresqlRuntime(
 			),
 		);
 	unsubscribes.push(
-		opts.inputs.subscribe(
-			eachMessage((m) => {
+		opts.inputs.subscribe((incoming) => {
+			for (const m of incoming) {
 				if (m[0] === "DATA") {
 					const input = m[1] as ToolProviderAdapterInput<PostgresqlQueryToolArguments>;
 					if (typeof input.adapterInputId === "string") inputs.set(input.adapterInputId, input);
 				}
-			}),
-		),
+			}
+		}),
 	);
 	for (const node of opts.manifests)
 		unsubscribes.push(
-			node.subscribe(
-				eachMessage((m) => {
+			node.subscribe((incoming) => {
+				for (const m of incoming) {
 					if (m[0] === "DATA") {
 						try {
 							manifest = managedCloudPostgresqlManifest(m[1] as ManagedCloudPostgresqlManifest);
@@ -1364,13 +1363,13 @@ export function managedCloudPostgresqlRuntime(
 							issue("managed-cloud-manifest-invalid", "Managed-cloud manifest is invalid.");
 						}
 					}
-				}),
-			),
+				}
+			}),
 		);
 	for (const node of opts.readiness)
 		unsubscribes.push(
-			node.subscribe(
-				eachMessage((m) => {
+			node.subscribe((incoming) => {
+				for (const m of incoming) {
 					if (m[0] === "DATA") {
 						try {
 							posture = managedCloudPostgresqlReadiness(m[1] as ManagedCloudPostgresqlReadiness);
@@ -1378,14 +1377,16 @@ export function managedCloudPostgresqlRuntime(
 							issue("managed-cloud-readiness-invalid", "Managed-cloud readiness is invalid.");
 						}
 					}
-				}),
-			),
+				}
+			}),
 		);
 	for (const node of opts.admittedRunRequests)
 		unsubscribes.push(
-			node.subscribe(
-				eachMessage((m) => {
-					if (m[0] !== "DATA") return;
+			node.subscribe((incoming) => {
+				for (const m of incoming) {
+					if (m[0] !== "DATA") {
+						continue;
+					}
 					const request = m[1] as ToolProviderAdapterRunRequested;
 					runAsync(async () => {
 						const current = readyManifest(request, manifest, posture, now());
@@ -1429,21 +1430,23 @@ export function managedCloudPostgresqlRuntime(
 							metadata: { queuePosture: "queued" },
 						});
 					}, "managed-cloud-admission-driver-failed");
-				}),
-			),
+				}
+			}),
 		);
 	for (const node of opts.cancellationRequests ?? [])
 		unsubscribes.push(
-			node.subscribe(
-				eachMessage((m) => {
-					if (m[0] !== "DATA") return;
+			node.subscribe((incoming) => {
+				for (const m of incoming) {
+					if (m[0] !== "DATA") {
+						continue;
+					}
 					const request = snapshotCancellation(m[1]);
 					if (request === undefined) {
 						issue(
 							"managed-cloud-cancellation-invalid",
 							"Managed-cloud cancellation pins are invalid.",
 						);
-						return;
+						continue;
 					}
 					runAsync(async () => {
 						const result = snapshotStoreResult(
@@ -1486,8 +1489,8 @@ export function managedCloudPostgresqlRuntime(
 							state: "dispatched-unconfirmed",
 						});
 					}, "managed-cloud-cancellation-driver-failed");
-				}),
-			),
+				}
+			}),
 		);
 	const onMessage = (raw: unknown) => {
 		if (disposed) return;

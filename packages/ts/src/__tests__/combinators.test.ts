@@ -14,7 +14,6 @@ import {
 	withLatestFrom,
 	zip,
 } from "../index.js";
-import { eachMessage } from "../node/each-message.js";
 
 const data = (msgs: Message[]) =>
 	msgs.filter((m) => m[0] === "DATA").map((m) => (m as ["DATA", unknown])[1]);
@@ -29,7 +28,11 @@ describe("Slice 2 — multi-source combinators (CSP-2.7 / D45)", () => {
 		const b = g.state("x");
 		const c = g.initNode(combine<[number, string]>(), [a, b]);
 		const msgs: Message[] = [];
-		c.subscribe(eachMessage((m) => msgs.push(m)));
+		c.subscribe((incoming) => {
+			for (const m of incoming) {
+				msgs.push(m);
+			}
+		});
 		expect(data(msgs)).toEqual([[1, "x"]]);
 		a.set(2);
 		b.set("y");
@@ -50,7 +53,11 @@ describe("Slice 2 — multi-source combinators (CSP-2.7 / D45)", () => {
 		const s = g.state("a");
 		const w = g.initNode(withLatestFrom<number, string>(), [p, s]);
 		const msgs: Message[] = [];
-		w.subscribe(eachMessage((m) => msgs.push(m)));
+		w.subscribe((incoming) => {
+			for (const m of incoming) {
+				msgs.push(m);
+			}
+		});
 		expect(data(msgs)).toEqual([[1, "a"]]); // W1 fix — initial pair emitted
 		p.set(2);
 		s.set("b"); // secondary-only → no emit
@@ -68,7 +75,11 @@ describe("Slice 2 — multi-source combinators (CSP-2.7 / D45)", () => {
 		const secondary = completeCase.state("a");
 		const paired = completeCase.initNode(withLatestFrom<number, string>(), [primary, secondary]);
 		const completeMsgs: Message[] = [];
-		paired.subscribe(eachMessage((m) => completeMsgs.push(m)));
+		paired.subscribe((incoming) => {
+			for (const m of incoming) {
+				completeMsgs.push(m);
+			}
+		});
 
 		secondary.down([["COMPLETE"]]);
 		primary.set(2);
@@ -83,7 +94,11 @@ describe("Slice 2 — multi-source combinators (CSP-2.7 / D45)", () => {
 		const secondary2 = errorCase.state("a");
 		const paired2 = errorCase.initNode(withLatestFrom<number, string>(), [primary2, secondary2]);
 		const errorMsgs: Message[] = [];
-		paired2.subscribe(eachMessage((m) => errorMsgs.push(m)));
+		paired2.subscribe((incoming) => {
+			for (const m of incoming) {
+				errorMsgs.push(m);
+			}
+		});
 		const err = new Error("secondary boom");
 		secondary2.down([["ERROR", err]]);
 		expect(errorMsgs.at(-1)).toEqual(["ERROR", err]);
@@ -96,7 +111,11 @@ describe("Slice 2 — multi-source combinators (CSP-2.7 / D45)", () => {
 		const secondary = g.state("a");
 		const paired = g.initNode(withLatestFrom<number, string>(), [primary, secondary]);
 		const msgs: Message[] = [];
-		paired.subscribe(eachMessage((m) => msgs.push(m)));
+		paired.subscribe((incoming) => {
+			for (const m of incoming) {
+				msgs.push(m);
+			}
+		});
 
 		secondary.set("b");
 		expect(paired.status.output).not.toBe("completed");
@@ -113,7 +132,11 @@ describe("Slice 2 — multi-source combinators (CSP-2.7 / D45)", () => {
 		const b = g.initNode(fromIter(["a", "b"]), []);
 		const z = g.initNode(zip<[number, string]>(), [a, b]);
 		const msgs: Message[] = [];
-		z.subscribe(eachMessage((m) => msgs.push(m)));
+		z.subscribe((incoming) => {
+			for (const m of incoming) {
+				msgs.push(m);
+			}
+		});
 		expect(data(msgs)).toEqual([
 			[1, "a"],
 			[2, "b"],
@@ -125,7 +148,11 @@ describe("Slice 2 — multi-source combinators (CSP-2.7 / D45)", () => {
 		const g = graph();
 		const z = g.initNode(zip<[]>(), []);
 		const msgs: Message[] = [];
-		z.subscribe(eachMessage((m) => msgs.push(m)));
+		z.subscribe((incoming) => {
+			for (const m of incoming) {
+				msgs.push(m);
+			}
+		});
 		expect(data(msgs)).toEqual([]);
 		expect(lastType(msgs)).toBe("COMPLETE");
 		expect(z.status.output).toBe("completed");
@@ -137,7 +164,11 @@ describe("Slice 2 — multi-source combinators (CSP-2.7 / D45)", () => {
 		const b = g.initNode(fromIter([3, 4]), []);
 		const c = g.initNode(concat<number>(), [a, b]);
 		const msgs: Message[] = [];
-		c.subscribe(eachMessage((m) => msgs.push(m)));
+		c.subscribe((incoming) => {
+			for (const m of incoming) {
+				msgs.push(m);
+			}
+		});
 		expect(data(msgs)).toEqual([1, 2, 3, 4]);
 		expect(lastType(msgs)).toBe("COMPLETE");
 	});
@@ -148,7 +179,11 @@ describe("Slice 2 — multi-source combinators (CSP-2.7 / D45)", () => {
 		const b = g.initNode(fromIter([10, 20]), []);
 		const r = g.initNode(race<number>(), [a, b]);
 		const msgs: Message[] = [];
-		r.subscribe(eachMessage((m) => msgs.push(m)));
+		r.subscribe((incoming) => {
+			for (const m of incoming) {
+				msgs.push(m);
+			}
+		});
 		expect(data(msgs)).toEqual([1, 2]); // a subscribed first → wins; b ignored
 		expect(lastType(msgs)).toBe("COMPLETE");
 	});
@@ -162,7 +197,11 @@ describe("Slice 2 — multi-source combinators (CSP-2.7 / D45)", () => {
 		const c = g.node<number>([], null);
 		const r = g.initNode(race<number>(), [a, b, c]);
 		const msgs: Message[] = [];
-		r.subscribe(eachMessage((m) => msgs.push(m)));
+		r.subscribe((incoming) => {
+			for (const m of incoming) {
+				msgs.push(m);
+			}
+		});
 		a.down([["COMPLETE"]]); // 1 terminal
 		b.down([["COMPLETE"]]); // 2 terminal — OLD code: 1+2=3>=n → premature COMPLETE
 		expect(r.status.output).not.toBe("completed"); // c still live → race open
@@ -180,7 +219,11 @@ describe("Slice 2 — multi-source combinators (CSP-2.7 / D45)", () => {
 		const c = g.node<number>([], null);
 		const r = g.initNode(race<number>(), [a, b, c]);
 		const msgs: Message[] = [];
-		r.subscribe(eachMessage((m) => msgs.push(m)));
+		r.subscribe((incoming) => {
+			for (const m of incoming) {
+				msgs.push(m);
+			}
+		});
 		a.down([["COMPLETE"]]);
 		b.down([["COMPLETE"]]);
 		expect(r.status.output).not.toBe("completed");
@@ -197,7 +240,11 @@ describe("Slice 2 — notifier-driven (D46 first-cut)", () => {
 		const notify = g.state(false);
 		const b = g.initNode(buffer<number>(), [src, notify]);
 		const msgs: Message[] = [];
-		b.subscribe(eachMessage((m) => msgs.push(m)));
+		b.subscribe((incoming) => {
+			for (const m of incoming) {
+				msgs.push(m);
+			}
+		});
 		expect(data(msgs)).toEqual([[1]]); // notifier's initial flushes [1]
 		src.set(2);
 		src.set(3);
@@ -210,7 +257,11 @@ describe("Slice 2 — notifier-driven (D46 first-cut)", () => {
 		const src = g.initNode(fromIter([1, 2, 3, 4, 5]), []);
 		const b = g.initNode(bufferCount<number>(2), [src]);
 		const msgs: Message[] = [];
-		b.subscribe(eachMessage((m) => msgs.push(m)));
+		b.subscribe((incoming) => {
+			for (const m of incoming) {
+				msgs.push(m);
+			}
+		});
 		expect(data(msgs)).toEqual([[1, 2], [3, 4], [5]]);
 		expect(lastType(msgs)).toBe("COMPLETE");
 	});
@@ -221,7 +272,11 @@ describe("Slice 2 — notifier-driven (D46 first-cut)", () => {
 		const notify = g.state(false);
 		const s = g.initNode(sample<number>(), [src, notify]);
 		const msgs: Message[] = [];
-		s.subscribe(eachMessage((m) => msgs.push(m)));
+		s.subscribe((incoming) => {
+			for (const m of incoming) {
+				msgs.push(m);
+			}
+		});
 		expect(data(msgs)).toEqual([1]); // notifier initial samples the latest source (1)
 		src.set(2);
 		notify.set(true);
@@ -234,7 +289,11 @@ describe("Slice 2 — notifier-driven (D46 first-cut)", () => {
 		const notify = g.node<boolean>([]);
 		const sampled = g.initNode(sample<number>(), [src, notify]);
 		const msgs: Message[] = [];
-		sampled.subscribe(eachMessage((m) => msgs.push(m)));
+		sampled.subscribe((incoming) => {
+			for (const m of incoming) {
+				msgs.push(m);
+			}
+		});
 
 		src.set(2);
 		src.down([["COMPLETE"]]);
@@ -252,7 +311,11 @@ describe("Slice 2 — notifier-driven (D46 first-cut)", () => {
 		const notify = sourceCase.node<boolean>([]);
 		const sampled = sourceCase.initNode(sample<number>(), [src, notify]);
 		const sourceMsgs: Message[] = [];
-		sampled.subscribe(eachMessage((m) => sourceMsgs.push(m)));
+		sampled.subscribe((incoming) => {
+			for (const m of incoming) {
+				sourceMsgs.push(m);
+			}
+		});
 		const sourceErr = new Error("source boom");
 		src.down([["ERROR", sourceErr]]);
 		expect(sourceMsgs.at(-1)).toEqual(["ERROR", sourceErr]);
@@ -263,7 +326,11 @@ describe("Slice 2 — notifier-driven (D46 first-cut)", () => {
 		const notify2 = notifierCase.node<boolean>([]);
 		const sampled2 = notifierCase.initNode(sample<number>(), [src2, notify2]);
 		const notifierMsgs: Message[] = [];
-		sampled2.subscribe(eachMessage((m) => notifierMsgs.push(m)));
+		sampled2.subscribe((incoming) => {
+			for (const m of incoming) {
+				notifierMsgs.push(m);
+			}
+		});
 		const notifierErr = new Error("notifier boom");
 		notify2.down([["ERROR", notifierErr]]);
 		expect(notifierMsgs.at(-1)).toEqual(["ERROR", notifierErr]);
@@ -276,7 +343,11 @@ describe("Slice 2 — notifier-driven (D46 first-cut)", () => {
 		const stop = g.node<boolean>([]); // silent until .down (no initial → SENTINEL)
 		const tu = g.initNode(takeUntil<number>(), [src, stop]);
 		const msgs: Message[] = [];
-		tu.subscribe(eachMessage((m) => msgs.push(m)));
+		tu.subscribe((incoming) => {
+			for (const m of incoming) {
+				msgs.push(m);
+			}
+		});
 		src.set(2);
 		stop.down([["DATA", true]]); // notifier fires → stop
 		src.set(3); // terminated, ignored
@@ -290,7 +361,11 @@ describe("Slice 2 — notifier-driven (D46 first-cut)", () => {
 		const stop = g.node<boolean>([]);
 		const tu = g.initNode(takeUntil<number>(), [src, stop]);
 		const msgs: Message[] = [];
-		tu.subscribe(eachMessage((m) => msgs.push(m)));
+		tu.subscribe((incoming) => {
+			for (const m of incoming) {
+				msgs.push(m);
+			}
+		});
 
 		stop.down([["COMPLETE"]]);
 		src.set(2);

@@ -3,7 +3,6 @@ import { depBatch } from "../ctx/types.js";
 import { graph } from "../graph/graph.js";
 import * as packageRoot from "../index.js";
 import { strictCanonicalJsonBytes } from "../json/codec.js";
-import { eachMessage } from "../node/each-message.js";
 import type { Node } from "../node/node.js";
 import type { MemoryFragment } from "../patterns/semantic-memory.js";
 import type { Message } from "../protocol/messages.js";
@@ -99,11 +98,11 @@ function collect<T>(node: Node<T>): {
 	readonly unsubscribe: () => void;
 } {
 	const values: T[] = [];
-	const unsubscribe = node.subscribe(
-		eachMessage((messages: Message) => {
+	const unsubscribe = node.subscribe((incoming: readonly Message[]) => {
+		for (const messages of incoming) {
 			if (messages[0] === "DATA") values.push(messages[1] as T);
-		}),
-	);
+		}
+	});
 	return { values, unsubscribe };
 }
 
@@ -1041,9 +1040,11 @@ describe("AgenticMemory D789 real keyed exact-use lifecycle", () => {
 		const input = g.node<AgenticMemoryRecordUseOccurrence<string>>([], null);
 		const gate = agenticMemoryRecordUseGateBundle(g, { occurrences: input, maxOccurrences: 2 });
 		const messages: Message[] = [];
-		const unsubscribe = gate.allowedRecords.subscribe(
-			eachMessage((message) => messages.push(message)),
-		);
+		const unsubscribe = gate.allowedRecords.subscribe((incoming) => {
+			for (const message of incoming) {
+				messages.push(message);
+			}
+		});
 		const a = useOccurrence("a", 2);
 		input.down([["DATA", a]]);
 		const bad =
@@ -1077,11 +1078,11 @@ describe("AgenticMemory D789 real keyed exact-use lifecycle", () => {
 		const releases = Object.entries(gate)
 			.filter(([key]) => key !== "input")
 			.map(([key, node]) =>
-				node.subscribe(
-					eachMessage((message: Message) => {
+				node.subscribe((incoming: readonly Message[]) => {
+					for (const message of incoming) {
 						if (message[0] === "ERROR") terminals.push(key);
-					}),
-				),
+					}
+				}),
 			);
 		const allowed = collect(gate.allowedRecords);
 		expect(allowed.values).toEqual([]);

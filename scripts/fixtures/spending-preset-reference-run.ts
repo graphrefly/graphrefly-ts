@@ -10,7 +10,6 @@ import {
 	startConstruction,
 } from "../../packages/ts/src/graph/construction-scope.js";
 import { Graph } from "../../packages/ts/src/graph/graph.js";
-import { eachMessage } from "../../packages/ts/src/node/each-message.js";
 import { checkpointStateOfNode } from "../../packages/ts/src/node/runtime-accessors.js";
 import { causalColdNodeNames } from "../../packages/ts/src/solutions/causal-occurrence/construction.js";
 import type { RuntimeState } from "../../packages/ts/src/solutions/causal-occurrence/contracts.js";
@@ -75,26 +74,26 @@ export function referenceRun(
 		if (stops.length) return;
 		for (const [name, node] of Object.entries(built.view))
 			stops.push(
-				node.subscribe(
-					eachMessage((m) => {
+				node.subscribe((incoming) => {
+					for (const m of incoming) {
 						if (m[0] === "DATA") events[name].push(m[1]);
-					}),
-				),
+					}
+				}),
 			);
 		stops.push(
-			built.capabilities.execution.conservation.subscribe(
-				eachMessage((m) => {
+			built.capabilities.execution.conservation.subscribe((incoming) => {
+				for (const m of incoming) {
 					if (m[0] === "DATA") events.conservation.push(m[1]);
-				}),
-			),
+				}
+			}),
 		);
 		if (built.summary)
 			stops.push(
-				built.summary.subscribe(
-					eachMessage((m) => {
+				built.summary.subscribe((incoming) => {
+					for (const m of incoming) {
 						if (m[0] === "DATA") events.summary.push(m[1]);
-					}),
-				),
+					}
+				}),
 			);
 	};
 	const disconnect = () => {

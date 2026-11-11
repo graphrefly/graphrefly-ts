@@ -26,7 +26,6 @@ import {
 	postgresql16CustomerHostedControlStore,
 } from "../executors/customer-hosted-postgresql.js";
 import { Graph } from "../graph/index.js";
-import { eachMessage } from "../node/each-message.js";
 import type {
 	ExecutorOutcome,
 	ToolProviderAdapterInput,
@@ -791,16 +790,16 @@ describe("D606 customer-hosted PostgreSQL", () => {
 		});
 		const issues: unknown[] = [],
 			outcomes: unknown[] = [];
-		const unsubscribeIssues = runtime.issues.subscribe(
-			eachMessage((m) => {
+		const unsubscribeIssues = runtime.issues.subscribe((incoming) => {
+			for (const m of incoming) {
 				if (m[0] === "DATA") issues.push(m[1]);
-			}),
-		);
-		const unsubscribeOutcomes = runtime.outcomes.subscribe(
-			eachMessage((m) => {
+			}
+		});
+		const unsubscribeOutcomes = runtime.outcomes.subscribe((incoming) => {
+			for (const m of incoming) {
 				if (m[0] === "DATA") outcomes.push(m[1]);
-			}),
-		);
+			}
+		});
 		inputs.down([["DATA", input]]);
 		approvedRuns.down([["DATA", approved]]);
 		await tick();

@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { DataIssue } from "../data/index.js";
 import { graph } from "../graph/graph.js";
-import { eachMessage } from "../node/each-message.js";
 import {
 	type AgentDecision,
 	type AgentRequestFact,
@@ -283,10 +282,16 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 9", () => {
 		});
 		const results: EffectRunResult[] = [];
 		const issues: unknown[] = [];
-		completion.results.subscribe(
-			eachMessage((msg) => msg[0] === "DATA" && results.push(msg[1] as EffectRunResult)),
-		);
-		completion.issues.subscribe(eachMessage((msg) => msg[0] === "DATA" && issues.push(msg[1])));
+		completion.results.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && results.push(msg[1] as EffectRunResult);
+			}
+		});
+		completion.issues.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && issues.push(msg[1]);
+			}
+		});
 
 		effectRuns.down([["DATA", effectRun({ effectRunId: "run-1", goal: { kind: "test" } })]]);
 		requestFacts.down([
@@ -329,10 +334,16 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 9", () => {
 		const interpreter = structuredAgentDecisionInterpreter(g, outcomes);
 		const decisions: unknown[] = [];
 		const issues: unknown[] = [];
-		interpreter.decisions.subscribe(
-			eachMessage((msg) => msg[0] === "DATA" && decisions.push(msg[1])),
-		);
-		interpreter.issues.subscribe(eachMessage((msg) => msg[0] === "DATA" && issues.push(msg[1])));
+		interpreter.decisions.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && decisions.push(msg[1]);
+			}
+		});
+		interpreter.issues.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && issues.push(msg[1]);
+			}
+		});
 		const base = {
 			requestId: "request-1",
 			operationId: "op-1",
@@ -388,11 +399,21 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 9", () => {
 		const decisions: unknown[] = [];
 		const results: unknown[] = [];
 		const issues: unknown[] = [];
-		interpreter.decisions.subscribe(
-			eachMessage((msg) => msg[0] === "DATA" && decisions.push(msg[1])),
-		);
-		interpreter.issues.subscribe(eachMessage((msg) => msg[0] === "DATA" && issues.push(msg[1])));
-		completion.results.subscribe(eachMessage((msg) => msg[0] === "DATA" && results.push(msg[1])));
+		interpreter.decisions.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && decisions.push(msg[1]);
+			}
+		});
+		interpreter.issues.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && issues.push(msg[1]);
+			}
+		});
+		completion.results.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && results.push(msg[1]);
+			}
+		});
 		effectRuns.down([["DATA", effectRun({ effectRunId: "run-1", goal: { kind: "test" } })]]);
 		requestFacts.down([["DATA", issued("request-1", "op-1", "executor", "llm-call")]]);
 		outcomes.down([
@@ -443,10 +464,16 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 9", () => {
 		});
 		const decisions: unknown[] = [];
 		const issues: unknown[] = [];
-		interpreter.decisions.subscribe(
-			eachMessage((msg) => msg[0] === "DATA" && decisions.push(msg[1])),
-		);
-		interpreter.issues.subscribe(eachMessage((msg) => msg[0] === "DATA" && issues.push(msg[1])));
+		interpreter.decisions.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && decisions.push(msg[1]);
+			}
+		});
+		interpreter.issues.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && issues.push(msg[1]);
+			}
+		});
 		requestFacts.down([["DATA", issued("request-1", "op-1", "executor", "llm-call")]]);
 
 		outcomes.down([
@@ -499,7 +526,11 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 9", () => {
 		const requestFacts = g.node<AgentRequestFact>([], null, { name: "requestFacts" });
 		const ledger = agentRequestLedgerViews(g, requestFacts);
 		const views: unknown[] = [];
-		ledger.views.subscribe(eachMessage((msg) => msg[0] === "DATA" && views.push(msg[1])));
+		ledger.views.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && views.push(msg[1]);
+			}
+		});
 
 		requestFacts.down([
 			["DATA", issued("request-1", "op-1", "executor", "llm-call")],
@@ -553,12 +584,16 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 9", () => {
 		const ledger = agentRequestLedgerViews(g, requestFacts);
 		const views: AgentRequestViews[] = [];
 		const issues: DataIssue[] = [];
-		ledger.views.subscribe(
-			eachMessage((msg) => msg[0] === "DATA" && views.push(msg[1] as AgentRequestViews)),
-		);
-		ledger.issues.subscribe(
-			eachMessage((msg) => msg[0] === "DATA" && issues.push(msg[1] as DataIssue)),
-		);
+		ledger.views.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && views.push(msg[1] as AgentRequestViews);
+			}
+		});
+		ledger.issues.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && issues.push(msg[1] as DataIssue);
+			}
+		});
 
 		requestFacts.down([
 			["DATA", issued("request-raw-issue", "op-raw-issue", "executor", "tool-call")],
@@ -676,12 +711,26 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 9", () => {
 		const statuses: unknown[] = [];
 		const issues: unknown[] = [];
 		const audit: unknown[] = [];
-		mapper.evidence.subscribe(
-			eachMessage((msg) => msg[0] === "DATA" && evidence.push(msg[1] as WorkItemEvidenceRecorded)),
-		);
-		mapper.status.subscribe(eachMessage((msg) => msg[0] === "DATA" && statuses.push(msg[1])));
-		mapper.issues.subscribe(eachMessage((msg) => msg[0] === "DATA" && issues.push(msg[1])));
-		mapper.audit.subscribe(eachMessage((msg) => msg[0] === "DATA" && audit.push(msg[1])));
+		mapper.evidence.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && evidence.push(msg[1] as WorkItemEvidenceRecorded);
+			}
+		});
+		mapper.status.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && statuses.push(msg[1]);
+			}
+		});
+		mapper.issues.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && issues.push(msg[1]);
+			}
+		});
+		mapper.audit.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && audit.push(msg[1]);
+			}
+		});
 		workItems.down([["DATA", workItemSeed("wi-1")]]);
 
 		const terminalResults: EffectRunResult[] = [
@@ -778,9 +827,11 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 9", () => {
 			now: () => 901,
 		});
 		const evidence: WorkItemEvidenceRecorded[] = [];
-		mapper.evidence.subscribe(
-			eachMessage((msg) => msg[0] === "DATA" && evidence.push(msg[1] as WorkItemEvidenceRecorded)),
-		);
+		mapper.evidence.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && evidence.push(msg[1] as WorkItemEvidenceRecorded);
+			}
+		});
 		mapper.issues.subscribe(() => {});
 		workItems.down([["DATA", workItemSeed("wi-1")]]);
 		for (const runId of ["run-oversized", "run-mutable"]) {
@@ -878,8 +929,16 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 9", () => {
 		});
 		const evidence: unknown[] = [];
 		const issues: unknown[] = [];
-		mapper.evidence.subscribe(eachMessage((msg) => msg[0] === "DATA" && evidence.push(msg[1])));
-		mapper.issues.subscribe(eachMessage((msg) => msg[0] === "DATA" && issues.push(msg[1])));
+		mapper.evidence.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && evidence.push(msg[1]);
+			}
+		});
+		mapper.issues.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && issues.push(msg[1]);
+			}
+		});
 		workItems.down([["DATA", workItemSeed("wi-1")]]);
 		effectRuns.down([
 			[
@@ -974,8 +1033,16 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 9", () => {
 		});
 		const evidence: unknown[] = [];
 		const issues: unknown[] = [];
-		mapper.evidence.subscribe(eachMessage((msg) => msg[0] === "DATA" && evidence.push(msg[1])));
-		mapper.issues.subscribe(eachMessage((msg) => msg[0] === "DATA" && issues.push(msg[1])));
+		mapper.evidence.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && evidence.push(msg[1]);
+			}
+		});
+		mapper.issues.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && issues.push(msg[1]);
+			}
+		});
 		workItems.down([["DATA", workItemSeed("wi-other")]]);
 		effectRuns.down([
 			[

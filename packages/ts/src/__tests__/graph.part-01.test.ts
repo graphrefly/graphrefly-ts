@@ -19,12 +19,15 @@ import {
 	withBlueprintHash,
 	withBlueprintProvenance,
 } from "../index.js";
-import { eachMessage } from "../node/each-message.js";
 import { rewireOwnedNode } from "./helpers/owned-rewire.js";
 
 function collect(n: { subscribe(s: (m: Message) => void): () => void }) {
 	const msgs: Message[] = [];
-	n.subscribe(eachMessage((m) => msgs.push(m)));
+	n.subscribe((incoming) => {
+		for (const m of incoming) {
+			msgs.push(m);
+		}
+	});
 	return msgs;
 }
 const types = (msgs: Message[]) => msgs.map((m) => m[0]);

@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { graph } from "../graph/graph.js";
 import { compoundTupleKey } from "../identity.js";
-import { eachMessage } from "../node/each-message.js";
 import {
 	type AgentRequestIssued,
 	buildToolProviderAdapterInputs,
@@ -275,9 +274,21 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 10", () => {
 		const evidence: unknown[] = [];
 		const issues: unknown[] = [];
 		const audit: unknown[] = [];
-		mapper.evidence.subscribe(eachMessage((msg) => msg[0] === "DATA" && evidence.push(msg[1])));
-		mapper.issues.subscribe(eachMessage((msg) => msg[0] === "DATA" && issues.push(msg[1])));
-		mapper.audit.subscribe(eachMessage((msg) => msg[0] === "DATA" && audit.push(msg[1])));
+		mapper.evidence.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && evidence.push(msg[1]);
+			}
+		});
+		mapper.issues.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && issues.push(msg[1]);
+			}
+		});
+		mapper.audit.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && audit.push(msg[1]);
+			}
+		});
 		workItems.down([["DATA", workItemSeed("wi-1")]]);
 		effectRuns.down([
 			[
@@ -323,10 +334,16 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 10", () => {
 		});
 		const evidence: WorkItemEvidenceRecorded[] = [];
 		const issues: unknown[] = [];
-		mapper.evidence.subscribe(
-			eachMessage((msg) => msg[0] === "DATA" && evidence.push(msg[1] as WorkItemEvidenceRecorded)),
-		);
-		mapper.issues.subscribe(eachMessage((msg) => msg[0] === "DATA" && issues.push(msg[1])));
+		mapper.evidence.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && evidence.push(msg[1] as WorkItemEvidenceRecorded);
+			}
+		});
+		mapper.issues.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && issues.push(msg[1]);
+			}
+		});
 		workItems.down([["DATA", workItemSeed("wi-1")]]);
 		policies.down([
 			[
@@ -406,9 +423,21 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 10", () => {
 		const evidence: unknown[] = [];
 		const issues: unknown[] = [];
 		const views: unknown[] = [];
-		mapper.evidence.subscribe(eachMessage((msg) => msg[0] === "DATA" && evidence.push(msg[1])));
-		mapper.issues.subscribe(eachMessage((msg) => msg[0] === "DATA" && issues.push(msg[1])));
-		mapper.views.subscribe(eachMessage((msg) => msg[0] === "DATA" && views.push(msg[1])));
+		mapper.evidence.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && evidence.push(msg[1]);
+			}
+		});
+		mapper.issues.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && issues.push(msg[1]);
+			}
+		});
+		mapper.views.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && views.push(msg[1]);
+			}
+		});
 		workItems.down([["DATA", workItemSeed("wi-1")]]);
 		policies.down([
 			[
@@ -485,9 +514,21 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 10", () => {
 		const evidence: unknown[] = [];
 		const statuses: unknown[] = [];
 		const issues: unknown[] = [];
-		mapper.evidence.subscribe(eachMessage((msg) => msg[0] === "DATA" && evidence.push(msg[1])));
-		mapper.status.subscribe(eachMessage((msg) => msg[0] === "DATA" && statuses.push(msg[1])));
-		mapper.issues.subscribe(eachMessage((msg) => msg[0] === "DATA" && issues.push(msg[1])));
+		mapper.evidence.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && evidence.push(msg[1]);
+			}
+		});
+		mapper.status.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && statuses.push(msg[1]);
+			}
+		});
+		mapper.issues.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && issues.push(msg[1]);
+			}
+		});
 		workItems.down([["DATA", workItemSeed("wi-1")]]);
 		policies.down([
 			[
@@ -558,8 +599,16 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 10", () => {
 		});
 		const evidence: unknown[] = [];
 		const issues: unknown[] = [];
-		mapper.evidence.subscribe(eachMessage((msg) => msg[0] === "DATA" && evidence.push(msg[1])));
-		mapper.issues.subscribe(eachMessage((msg) => msg[0] === "DATA" && issues.push(msg[1])));
+		mapper.evidence.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && evidence.push(msg[1]);
+			}
+		});
+		mapper.issues.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && issues.push(msg[1]);
+			}
+		});
 		workItems.down([["DATA", workItemSeed("wi-1")]]);
 		policies.down([
 			[
@@ -619,9 +668,21 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 10", () => {
 		const evidence: unknown[] = [];
 		const issues: unknown[] = [];
 		const views: unknown[] = [];
-		mapper.evidence.subscribe(eachMessage((msg) => msg[0] === "DATA" && evidence.push(msg[1])));
-		mapper.issues.subscribe(eachMessage((msg) => msg[0] === "DATA" && issues.push(msg[1])));
-		mapper.views.subscribe(eachMessage((msg) => msg[0] === "DATA" && views.push(msg[1])));
+		mapper.evidence.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && evidence.push(msg[1]);
+			}
+		});
+		mapper.issues.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && issues.push(msg[1]);
+			}
+		});
+		mapper.views.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && views.push(msg[1]);
+			}
+		});
 		workItems.down([["DATA", workItemSeed("wi-1")]]);
 		effectRequests.down([
 			[
@@ -698,8 +759,16 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 10", () => {
 		});
 		const evidence: unknown[] = [];
 		const issues: unknown[] = [];
-		mapper.evidence.subscribe(eachMessage((msg) => msg[0] === "DATA" && evidence.push(msg[1])));
-		mapper.issues.subscribe(eachMessage((msg) => msg[0] === "DATA" && issues.push(msg[1])));
+		mapper.evidence.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && evidence.push(msg[1]);
+			}
+		});
+		mapper.issues.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && issues.push(msg[1]);
+			}
+		});
 		workItems.down([["DATA", workItemSeed("wi-1")]]);
 		policies.down([
 			[
@@ -777,14 +846,26 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 10", () => {
 		const issues: unknown[] = [];
 		const views: unknown[] = [];
 		mapper.evidence.subscribe(() => {});
-		proposals.proposals.subscribe(
-			eachMessage(
-				(msg) => msg[0] === "DATA" && emitted.push(msg[1] as WorkItemDomainActionProposal),
-			),
-		);
-		proposals.status.subscribe(eachMessage((msg) => msg[0] === "DATA" && statuses.push(msg[1])));
-		proposals.issues.subscribe(eachMessage((msg) => msg[0] === "DATA" && issues.push(msg[1])));
-		proposals.views.subscribe(eachMessage((msg) => msg[0] === "DATA" && views.push(msg[1])));
+		proposals.proposals.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && emitted.push(msg[1] as WorkItemDomainActionProposal);
+			}
+		});
+		proposals.status.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && statuses.push(msg[1]);
+			}
+		});
+		proposals.issues.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && issues.push(msg[1]);
+			}
+		});
+		proposals.views.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && views.push(msg[1]);
+			}
+		});
 		workItems.down([["DATA", workItemSeed("wi-1")]]);
 		policies.down([
 			[

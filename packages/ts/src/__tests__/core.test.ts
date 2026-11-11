@@ -13,12 +13,15 @@ import {
 	strictCanonicalJsonBytes,
 	strictJsonCodec,
 } from "../index.js";
-import { eachMessage } from "../node/each-message.js";
 import { addOwnedNodeDep } from "./helpers/owned-rewire.js";
 
 function collect(n: { subscribe(s: (m: Message) => void): () => void }) {
 	const msgs: Message[] = [];
-	const unsub = n.subscribe(eachMessage((m) => msgs.push(m)));
+	const unsub = n.subscribe((incoming) => {
+		for (const m of incoming) {
+			msgs.push(m);
+		}
+	});
 	return { msgs, unsub };
 }
 
@@ -342,11 +345,11 @@ describe("B49 core-slot migration", () => {
 		expect(coreOf(a)).not.toBe(coreOf(bareOp));
 
 		const seen: number[] = [];
-		c.subscribe(
-			eachMessage((msg) => {
+		c.subscribe((incoming) => {
+			for (const msg of incoming) {
 				if (msg[0] === "DATA") seen.push(msg[1] as number);
-			}),
-		);
+			}
+		});
 		a.set(2);
 		expect(seen.at(-1)).toBe(3);
 	});

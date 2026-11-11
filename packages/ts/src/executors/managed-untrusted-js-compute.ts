@@ -2,7 +2,6 @@
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
 import { compoundTupleKey } from "../identity.js";
-import { eachMessage } from "../node/each-message.js";
 import type { Node } from "../node/node.js";
 import {
 	type AgentOutputEnvelope,
@@ -691,33 +690,39 @@ export function managedUntrustedJsComputeRuntime(
 			metadata,
 		});
 	const unsubscribes = [
-		opts.inputs.subscribe(
-			eachMessage((m) => {
-				if (m[0] !== "DATA") return;
+		opts.inputs.subscribe((incoming) => {
+			for (const m of incoming) {
+				if (m[0] !== "DATA") {
+					continue;
+				}
 				const input = snapshotInput(m[1]);
 				if (input === undefined) {
 					issue("managed-untrusted-js-compute-input-invalid", "Compute input is invalid.");
-					return;
+					continue;
 				}
 				inputs.set(input.adapterInputId, input);
-			}),
-		),
+			}
+		}),
 		...opts.manifests.map((node) =>
-			node.subscribe(
-				eachMessage((m) => {
-					if (m[0] !== "DATA") return;
+			node.subscribe((incoming) => {
+				for (const m of incoming) {
+					if (m[0] !== "DATA") {
+						continue;
+					}
 					try {
 						manifest = managedUntrustedJsComputeManifest(m[1] as ManagedUntrustedJsComputeManifest);
 					} catch {
 						issue("managed-untrusted-js-compute-manifest-invalid", "Compute manifest is invalid.");
 					}
-				}),
-			),
+				}
+			}),
 		),
 		...opts.readiness.map((node) =>
-			node.subscribe(
-				eachMessage((m) => {
-					if (m[0] !== "DATA") return;
+			node.subscribe((incoming) => {
+				for (const m of incoming) {
+					if (m[0] !== "DATA") {
+						continue;
+					}
 					try {
 						posture = managedUntrustedJsComputeReadiness(
 							m[1] as ManagedUntrustedJsComputeReadiness,
@@ -728,13 +733,15 @@ export function managedUntrustedJsComputeRuntime(
 							"Compute readiness is invalid.",
 						);
 					}
-				}),
-			),
+				}
+			}),
 		),
 		...opts.admittedRunRequests.map((node) =>
-			node.subscribe(
-				eachMessage((m) => {
-					if (m[0] !== "DATA" || disposed) return;
+			node.subscribe((incoming) => {
+				for (const m of incoming) {
+					if (m[0] !== "DATA" || disposed) {
+						continue;
+					}
 					const request = m[1] as ToolProviderAdapterRunRequested;
 					runAsync(async () => {
 						const key = activeKey(request);
@@ -765,17 +772,19 @@ export function managedUntrustedJsComputeRuntime(
 						if (disposed) return;
 						await execute(activeRecord);
 					}, "managed-untrusted-js-compute-driver-failed");
-				}),
-			),
+				}
+			}),
 		),
 		...(opts.cancellationRequests ?? []).map((node) =>
-			node.subscribe(
-				eachMessage((m) => {
-					if (m[0] !== "DATA" || disposed) return;
+			node.subscribe((incoming) => {
+				for (const m of incoming) {
+					if (m[0] !== "DATA" || disposed) {
+						continue;
+					}
 					const request = snapshotCancellation(m[1]);
 					if (request === undefined) {
 						issue("managed-untrusted-js-compute-cancellation-invalid", "Cancellation is invalid.");
-						return;
+						continue;
 					}
 					const record = active.get(activeKey(request));
 					if (
@@ -787,7 +796,7 @@ export function managedUntrustedJsComputeRuntime(
 							"managed-untrusted-js-compute-cancellation-coordinate-mismatch",
 							"Cancellation did not exactly match the active managed compute attempt.",
 						);
-						return;
+						continue;
 					}
 					if (
 						record.pendingCancellationProposalId !== undefined ||
@@ -798,7 +807,7 @@ export function managedUntrustedJsComputeRuntime(
 							"managed-untrusted-js-compute-cancellation-proposal-outstanding",
 							"The managed compute attempt already has an outstanding or admitted cancellation.",
 						);
-						return;
+						continue;
 					}
 					const priorProposalId = record.cancellationIds.get(request.cancellationId);
 					if (priorProposalId !== undefined) {
@@ -806,14 +815,14 @@ export function managedUntrustedJsComputeRuntime(
 							"managed-untrusted-js-compute-cancellation-duplicate",
 							"Cancellation identity was already proposed.",
 						);
-						return;
+						continue;
 					}
 					if (record.cancellationIds.size >= MAX_CANCELLATIONS_PER_ATTEMPT) {
 						issue(
 							"managed-untrusted-js-compute-cancellation-capacity-exceeded",
 							"The managed compute attempt exceeded its bounded cancellation intent capacity.",
 						);
-						return;
+						continue;
 					}
 					const proposalId = compoundTupleKey(
 						"managed-untrusted-js-compute-cancellation-proposal",
@@ -839,7 +848,7 @@ export function managedUntrustedJsComputeRuntime(
 							"managed-untrusted-js-compute-cancellation-identity-too-large",
 							"Cancellation coordinates exceeded the bounded canonical identity envelope.",
 						);
-						return;
+						continue;
 					}
 					const proposal: ManagedUntrustedJsComputeCancellationProposal = Object.freeze({
 						...request,
@@ -858,20 +867,22 @@ export function managedUntrustedJsComputeRuntime(
 						},
 					);
 					emit(cancellationProposals, proposal);
-				}),
-			),
+				}
+			}),
 		),
 		...(opts.cancellationDecisions ?? []).map((node) =>
-			node.subscribe(
-				eachMessage((m) => {
-					if (m[0] !== "DATA" || disposed) return;
+			node.subscribe((incoming) => {
+				for (const m of incoming) {
+					if (m[0] !== "DATA" || disposed) {
+						continue;
+					}
 					const decision = snapshotCancellationDecision(m[1]);
 					if (decision === undefined) {
 						issue(
 							"managed-untrusted-js-compute-cancellation-decision-invalid",
 							"Cancellation decision is invalid.",
 						);
-						return;
+						continue;
 					}
 					const proposal = cancellationProposalsById.get(decision.proposalId);
 					if (proposal === undefined) {
@@ -879,14 +890,14 @@ export function managedUntrustedJsComputeRuntime(
 							"managed-untrusted-js-compute-cancellation-decision-missing-proposal",
 							"Cancellation decision had no current proposal.",
 						);
-						return;
+						continue;
 					}
 					if (!cancellationCoordinatesMatch(decision, proposal)) {
 						issue(
 							"managed-untrusted-js-compute-cancellation-decision-coordinate-mismatch",
 							"Cancellation decision did not exactly match its proposal.",
 						);
-						return;
+						continue;
 					}
 					const record = active.get(activeKey(proposal));
 					const priorDecisionProposalId = record?.cancellationDecisionIds.get(decision.decisionId);
@@ -897,7 +908,7 @@ export function managedUntrustedJsComputeRuntime(
 								: "managed-untrusted-js-compute-cancellation-decision-conflict",
 							"Cancellation decision identity was already consumed.",
 						);
-						return;
+						continue;
 					}
 					if (
 						record !== undefined &&
@@ -907,7 +918,7 @@ export function managedUntrustedJsComputeRuntime(
 							"managed-untrusted-js-compute-cancellation-decision-capacity-exceeded",
 							"The managed compute attempt exceeded its bounded cancellation decision capacity.",
 						);
-						return;
+						continue;
 					}
 					const admissionId = compoundTupleKey(
 						"managed-untrusted-js-compute-cancellation-admission",
@@ -918,7 +929,7 @@ export function managedUntrustedJsComputeRuntime(
 							"managed-untrusted-js-compute-cancellation-identity-too-large",
 							"Cancellation admission exceeded the bounded canonical identity envelope.",
 						);
-						return;
+						continue;
 					}
 					record?.cancellationDecisionIds.set(decision.decisionId, decision.proposalId);
 					cancellationProposalsById.delete(decision.proposalId);
@@ -969,8 +980,8 @@ export function managedUntrustedJsComputeRuntime(
 							() => deliverCancellation(record, admission),
 							"managed-untrusted-js-compute-cancellation-delivery-failed",
 						);
-				}),
-			),
+				}
+			}),
 		),
 	];
 	const execute = async (record: Active) => {

@@ -16,12 +16,15 @@ import {
 	restoreGraph,
 	strictJsonCodec,
 } from "../index.js";
-import { eachMessage } from "../node/each-message.js";
 import { rewireOwnedNode } from "./helpers/owned-rewire.js";
 
 function collect(n: { subscribe(s: (m: Message) => void): () => void }) {
 	const msgs: Message[] = [];
-	n.subscribe(eachMessage((m) => msgs.push(m)));
+	n.subscribe((incoming) => {
+		for (const m of incoming) {
+			msgs.push(m);
+		}
+	});
 	return msgs;
 }
 function demand(request: Node<true>): void {
@@ -688,7 +691,11 @@ describe("Graph release-local subscriber accounting — D122/D124", () => {
 		const right = group.derived([a, b], (x, y) => x * y, { name: "right" });
 		const join = group.derived([left, right], (x, y) => x + y, { name: "join" });
 		const messages: Message[] = [];
-		const disconnect = join.subscribe(eachMessage((m) => messages.push(m)));
+		const disconnect = join.subscribe((incoming) => {
+			for (const m of incoming) {
+				messages.push(m);
+			}
+		});
 		expect(messages).toContainEqual(["DATA", 11]);
 		const before = g.describe();
 		const events: TopologyEvent[] = [];

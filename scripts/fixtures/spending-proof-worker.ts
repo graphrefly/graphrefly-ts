@@ -14,7 +14,6 @@ import {
 } from "../../examples/spending-alerts/causal-resource.js";
 import { batch } from "../../packages/ts/src/batch/batch.js";
 import { Graph } from "../../packages/ts/src/graph/graph.js";
-import { eachMessage } from "../../packages/ts/src/node/each-message.js";
 import type {
 	CausalQuiescence,
 	CommittedEffectsView,
@@ -70,40 +69,40 @@ try {
 	const obligations = new Map<string, CausalQuiescence>();
 	if (host) {
 		subscriptions.push(
-			host.built.publication.causal.committedEffects.subscribe(
-				eachMessage((m) => {
+			host.built.publication.causal.committedEffects.subscribe((incoming) => {
+				for (const m of incoming) {
 					if (m[0] === "DATA") effects = (m[1] as CommittedEffectsView).effects;
-				}),
-			),
+				}
+			}),
 		);
 		subscriptions.push(
-			host.built.publication.causal.ports.quiescence.subscribe(
-				eachMessage((m) => {
+			host.built.publication.causal.ports.quiescence.subscribe((incoming) => {
+				for (const m of incoming) {
 					if (m[0] === "DATA") {
 						const q = m[1] as CausalQuiescence;
 						obligations.set(q.revisionDomain, q);
 					}
-				}),
-			),
+				}
+			}),
 		);
 		subscriptions.push(
-			host.built.business.assessment.subscribe(
-				eachMessage((m) => {
+			host.built.business.assessment.subscribe((incoming) => {
+				for (const m of incoming) {
 					if (m[0] === "DATA")
 						for (const row of (m[1] as BusinessFrame<unknown>).rows)
 							business.set(row.evaluation.evaluationRef, row.value);
-				}),
-			),
+				}
+			}),
 		);
 		subscriptions.push(
-			host.built.materials.requestMaterials.subscribe(
-				eachMessage((m) => {
+			host.built.materials.requestMaterials.subscribe((incoming) => {
+				for (const m of incoming) {
 					if (m[0] === "DATA")
 						for (const row of (m[1] as BusinessFrame<MaterialResult>).rows)
 							if (row.value.kind === "retained")
 								materials.set(row.evaluation.evaluationRef, row.value.material);
-				}),
-			),
+				}
+			}),
 		);
 	}
 	async function drain() {

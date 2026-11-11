@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Ctx } from "../index.js";
 import { depLatest, node } from "../index.js";
-import { eachMessage } from "../node/each-message.js";
 
 const plus1 = (ctx: Ctx) => ctx.down([["DATA", (depLatest(ctx, 0) as number) + 1]]);
 

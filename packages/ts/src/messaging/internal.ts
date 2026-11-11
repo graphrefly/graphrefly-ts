@@ -2,7 +2,6 @@ import { deferAfterBatchForTarget } from "../batch/batch.js";
 import type { NodeFn } from "../ctx/types.js";
 import type { Graph } from "../graph/graph.js";
 import type { AttachableInput } from "../node/attachable-input.js";
-import { eachMessage } from "../node/each-message.js";
 import type { Node } from "../node/node.js";
 import { validateNodeRewire } from "../node/node-rewire-runtime.js";
 import { nodeRuntimeHost } from "../node/node-runtime-host.js";
@@ -53,14 +52,16 @@ export function attachMessageBusDeferredCommandSink(
 	const boundary = commands as Node<MessageBusCommand> & {
 		__deferBoundary?: (fn: () => void) => void;
 	};
-	const unsubscribe = commands.subscribe(
-		eachMessage((msg) => {
-			if (msg[0] !== "DATA") return;
+	const unsubscribe = commands.subscribe((incoming) => {
+		for (const msg of incoming) {
+			if (msg[0] !== "DATA") {
+				continue;
+			}
 			const command = msg[1] as MessageBusCommand;
 			const send = () => busCommands.down([["DATA", command]]);
 			if (boundary.__deferBoundary === undefined) send();
 			else boundary.__deferBoundary(send);
-		}),
-	);
+		}
+	});
 	return unsubscribe;
 }

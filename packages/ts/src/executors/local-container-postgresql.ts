@@ -2,7 +2,6 @@
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
 import { canonicalTupleKey } from "../identity.js";
-import { eachMessage } from "../node/each-message.js";
 import type { Node } from "../node/node.js";
 import type {
 	AgentRuntimeAuditRecord,
@@ -1547,8 +1546,8 @@ export function localContainerPostgresqlRuntime(
 		}
 	};
 	const unsubs = [
-		opts.inputs.subscribe(
-			eachMessage((m) => {
+		opts.inputs.subscribe((incoming) => {
+			for (const m of incoming) {
 				if (m[0] === "DATA") {
 					try {
 						const v = snapshotInput(m[1] as ToolProviderAdapterInput<PostgresqlQueryToolArguments>);
@@ -1560,11 +1559,11 @@ export function localContainerPostgresqlRuntime(
 						);
 					}
 				}
-			}),
-		),
+			}
+		}),
 		...opts.manifests.map((n) =>
-			n.subscribe(
-				eachMessage((m) => {
+			n.subscribe((incoming) => {
+				for (const m of incoming) {
 					if (m[0] === "DATA") {
 						try {
 							const v = localContainerPostgresqlManifest(m[1] as LocalContainerPostgresqlManifest);
@@ -1574,19 +1573,19 @@ export function localContainerPostgresqlRuntime(
 									"local-container-manifest-conflict",
 									"Manifest fingerprint was reused with different immutable content.",
 								);
-								return;
+								continue;
 							}
 							manifests.set(v.fingerprint, v);
 						} catch {
 							emitIssue("local-container-manifest-invalid", "Manifest was invalid.");
 						}
 					}
-				}),
-			),
+				}
+			}),
 		),
 		...opts.readiness.map((n) =>
-			n.subscribe(
-				eachMessage((m) => {
+			n.subscribe((incoming) => {
+				for (const m of incoming) {
 					if (m[0] === "DATA") {
 						try {
 							const v = localContainerPostgresqlReadiness(
@@ -1597,29 +1596,29 @@ export function localContainerPostgresqlRuntime(
 							emitIssue("local-container-readiness-invalid", "Readiness was invalid.");
 						}
 					}
-				}),
-			),
+				}
+			}),
 		),
 		...opts.admittedRunRequests.map((n) =>
-			n.subscribe(
-				eachMessage((m) => {
+			n.subscribe((incoming) => {
+				for (const m of incoming) {
 					if (m[0] === "DATA") execute(m[1] as ToolProviderAdapterRunRequested);
-				}),
-			),
+				}
+			}),
 		),
 		...(opts.cancellationRequests ?? []).map((n) =>
-			n.subscribe(
-				eachMessage((m) => {
+			n.subscribe((incoming) => {
+				for (const m of incoming) {
 					if (m[0] === "DATA") requestCancel(m[1] as LocalContainerPostgresqlCancellationRequested);
-				}),
-			),
+				}
+			}),
 		),
 		...(opts.cancellationDecisions ?? []).map((n) =>
-			n.subscribe(
-				eachMessage((m) => {
+			n.subscribe((incoming) => {
+				for (const m of incoming) {
 					if (m[0] === "DATA") decideCancel(m[1] as LocalContainerPostgresqlCancellationDecision);
-				}),
-			),
+				}
+			}),
 		),
 	];
 	return Object.freeze({

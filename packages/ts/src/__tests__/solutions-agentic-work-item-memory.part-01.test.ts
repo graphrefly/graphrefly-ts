@@ -2,7 +2,6 @@ import { describe, expect, expectTypeOf, it } from "vitest";
 import { graph } from "../graph/graph.js";
 import { canonicalTupleKey, compoundTupleKey } from "../identity.js";
 import { stableJsonString } from "../json/codec.js";
-import { eachMessage } from "../node/each-message.js";
 import type { Message } from "../protocol/messages.js";
 import type { ScoreSignal } from "../scoring/index.js";
 import type {
@@ -32,7 +31,11 @@ const sourceCoordinate = (refs: readonly { kind: string; id: string; metadata?: 
 
 function collect(node: { subscribe(sink: (messages: Message) => void): () => void }) {
 	const messages: Message[] = [];
-	const unsubscribe = node.subscribe(eachMessage((message) => messages.push(message)));
+	const unsubscribe = node.subscribe((incoming) => {
+		for (const message of incoming) {
+			messages.push(message);
+		}
+	});
 	return { messages, unsubscribe };
 }
 

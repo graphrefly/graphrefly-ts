@@ -11,7 +11,6 @@
 import { describe, expect, it } from "vitest";
 import type { Ctx, Message } from "../index.js";
 import { depLatest, dynamicNode, fromPromise, graph, node } from "../index.js";
-import { eachMessage } from "../node/each-message.js";
 
 const types = (msgs: Message[]) => msgs.map((m) => m[0]);
 const _data = (msgs: Message[]) =>
@@ -19,7 +18,11 @@ const _data = (msgs: Message[]) =>
 const flush = () => new Promise((r) => setTimeout(r, 0));
 function collect(n: { subscribe(s: (m: Message) => void): () => void }) {
 	const msgs: Message[] = [];
-	const unsub = n.subscribe(eachMessage((m) => msgs.push(m)));
+	const unsub = n.subscribe((incoming) => {
+		for (const m of incoming) {
+			msgs.push(m);
+		}
+	});
 	return { msgs, unsub };
 }
 
@@ -198,7 +201,11 @@ describe("C-23 raw ctx waveData is the only dep-value input (R-fn-contract / R-c
 	it("rejects boolean ERROR payloads at the protocol boundary and coerces host-source failures", async () => {
 		const s = node<number>([], null);
 		const msgs: Message[] = [];
-		s.subscribe(eachMessage((m) => msgs.push(m)));
+		s.subscribe((incoming) => {
+			for (const m of incoming) {
+				msgs.push(m);
+			}
+		});
 		msgs.length = 0;
 		expect(() => s.down([["ERROR", undefined]])).toThrow(/non-SENTINEL/);
 		expect(() => s.down([["ERROR", false]])).toThrow(/non-boolean/);
@@ -215,7 +222,11 @@ describe("C-23 raw ctx waveData is the only dep-value input (R-fn-contract / R-c
 		for (const reason of [undefined, false, true]) {
 			const n = g.initNode(fromPromise(Promise.reject(reason)), []);
 			const msgs: Message[] = [];
-			n.subscribe(eachMessage((m) => msgs.push(m)));
+			n.subscribe((incoming) => {
+				for (const m of incoming) {
+					msgs.push(m);
+				}
+			});
 			await flush();
 			const last = msgs.at(-1);
 			expect(last?.[0]).toBe("ERROR");

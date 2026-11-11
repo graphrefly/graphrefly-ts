@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { graph } from "../graph/graph.js";
-import { eachMessage } from "../node/each-message.js";
 import type {
 	WorkItemEffectRequested,
 	WorkItemEvidenceRecorded,
@@ -22,11 +21,11 @@ function collectData<T>(node: {
 	subscribe(sink: (msg: readonly [string, unknown?]) => void): unknown;
 }): T[] {
 	const out: T[] = [];
-	node.subscribe(
-		eachMessage((msg) => {
+	node.subscribe((incoming) => {
+		for (const msg of incoming) {
 			if (msg[0] === "DATA") out.push(msg[1] as T);
-		}),
-	);
+		}
+	});
 	return out;
 }
 

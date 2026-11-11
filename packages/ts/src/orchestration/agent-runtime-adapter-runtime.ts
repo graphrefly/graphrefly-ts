@@ -2,7 +2,6 @@ import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
 import type { RetentionPolicy } from "../graph/policies/types.js";
 import { canonicalTupleKey, compoundTupleKey } from "../identity.js";
-import { eachMessage } from "../node/each-message.js";
 import type {
 	EffectiveRuntimeRetentionPolicy,
 	ReplayEvidenceClassification,
@@ -920,19 +919,21 @@ export function attachToolProviderAdapterRuntime<TArguments = unknown, TResult =
 		);
 	}
 
-	const unsubscribeRetentionPolicy = retentionPolicy.subscribe(
-		eachMessage((msg) => {
+	const unsubscribeRetentionPolicy = retentionPolicy.subscribe((incoming) => {
+		for (const msg of incoming) {
 			if (msg[0] === "DATA") applyRetentionPolicyFact(msg[1] as RuntimeRetentionPolicyFact);
-		}),
-	);
-	const unsubscribeInputs = opts.inputs.subscribe(
-		eachMessage((msg) => {
-			if (msg[0] !== "DATA") return;
+		}
+	});
+	const unsubscribeInputs = opts.inputs.subscribe((incoming) => {
+		for (const msg of incoming) {
+			if (msg[0] !== "DATA") {
+				continue;
+			}
 			const input = msg[1] as ToolProviderAdapterInput<TArguments>;
 			if (isRetentionEvidenceClosed(input.adapterInputId)) {
 				adapterInputs.delete(input.adapterInputId);
 				dropProjectorInput(input.adapterInputId);
-				return;
+				continue;
 			}
 			if (trimmedAdapterInputIds.delete(input.adapterInputId)) {
 				retentionEvidence.delete(`adapter-input-trimmed:${input.adapterInputId}`);
@@ -944,8 +945,8 @@ export function attachToolProviderAdapterRuntime<TArguments = unknown, TResult =
 				input,
 			);
 			trimAdapterInputs();
-		}),
-	);
+		}
+	});
 	const runProjector = toolProviderAdapterRunProjectorInternal(graph, {
 		name: `${name}/runs`,
 		inputs: opts.inputs,
@@ -977,31 +978,33 @@ export function attachToolProviderAdapterRuntime<TArguments = unknown, TResult =
 			classifyRetainedRunRequestReplayEvidence,
 		},
 	});
-	const unsubscribeRunProjectorStatus = runProjector.status.subscribe(
-		eachMessage((msg) => {
+	const unsubscribeRunProjectorStatus = runProjector.status.subscribe((incoming) => {
+		for (const msg of incoming) {
 			if (msg[0] === "DATA") {
 				const statusFact = msg[1] as ToolProviderAdapterRunStatus;
 				runStatus.down([["DATA", statusFact]]);
 			}
-		}),
-	);
-	const unsubscribeRunProjectorIssues = runProjector.issues.subscribe(
-		eachMessage((msg) => {
+		}
+	});
+	const unsubscribeRunProjectorIssues = runProjector.issues.subscribe((incoming) => {
+		for (const msg of incoming) {
 			if (msg[0] === "DATA") publishIssue(msg[1] as DataIssue, false);
-		}),
-	);
-	const unsubscribeRunProjectorAudit = runProjector.audit.subscribe(
-		eachMessage((msg) => {
+		}
+	});
+	const unsubscribeRunProjectorAudit = runProjector.audit.subscribe((incoming) => {
+		for (const msg of incoming) {
 			if (msg[0] === "DATA") audit.down([["DATA", msg[1] as AgentRuntimeAuditRecord]]);
-		}),
-	);
-	const unsubscribeRunRequests = runProjector.requests.subscribe(
-		eachMessage((msg) => {
-			if (msg[0] !== "DATA") return;
+		}
+	});
+	const unsubscribeRunRequests = runProjector.requests.subscribe((incoming) => {
+		for (const msg of incoming) {
+			if (msg[0] !== "DATA") {
+				continue;
+			}
 			const request = msg[1] as ToolProviderAdapterRunRequested;
 			runRequest(request);
-		}),
-	);
+		}
+	});
 
 	return {
 		runRequests: runProjector.requests,

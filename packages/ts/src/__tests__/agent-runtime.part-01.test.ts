@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { graph } from "../graph/graph.js";
-import { eachMessage } from "../node/each-message.js";
 import {
 	type AgentDecisionContinue,
 	type AgentRequestFact,
@@ -288,9 +287,21 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 1", () => {
 		const projected: unknown[] = [];
 		const issues: unknown[] = [];
 		const audit: unknown[] = [];
-		views.views.subscribe(eachMessage((msg) => msg[0] === "DATA" && projected.push(msg[1])));
-		views.issues.subscribe(eachMessage((msg) => msg[0] === "DATA" && issues.push(msg[1])));
-		views.audit.subscribe(eachMessage((msg) => msg[0] === "DATA" && audit.push(msg[1])));
+		views.views.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && projected.push(msg[1]);
+			}
+		});
+		views.issues.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && issues.push(msg[1]);
+			}
+		});
+		views.audit.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && audit.push(msg[1]);
+			}
+		});
 
 		outcomes.down([
 			[
@@ -380,15 +391,23 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 1", () => {
 		const seededRuns: EffectRun[] = [];
 		const evidence: WorkItemEvidenceRecorded[] = [];
 		const views: unknown[] = [];
-		workItemRuns.effectRuns.subscribe(
-			eachMessage((msg) => msg[0] === "DATA" && seededRuns.push(msg[1] as EffectRun)),
-		);
+		workItemRuns.effectRuns.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && seededRuns.push(msg[1] as EffectRun);
+			}
+		});
 		interpreter.decisions.subscribe(() => {});
 		completion.results.subscribe(() => {});
-		mapper.evidence.subscribe(
-			eachMessage((msg) => msg[0] === "DATA" && evidence.push(msg[1] as WorkItemEvidenceRecorded)),
-		);
-		mapper.views.subscribe(eachMessage((msg) => msg[0] === "DATA" && views.push(msg[1])));
+		mapper.evidence.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && evidence.push(msg[1] as WorkItemEvidenceRecorded);
+			}
+		});
+		mapper.views.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && views.push(msg[1]);
+			}
+		});
 
 		workItems.down([
 			[
@@ -569,13 +588,17 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 1", () => {
 		});
 		const statuses: AgentRequestStatusChanged[] = [];
 		const results: EffectRunResult[] = [];
-		satisfaction.status.subscribe(
-			eachMessage((msg) => msg[0] === "DATA" && statuses.push(msg[1] as AgentRequestStatusChanged)),
-		);
+		satisfaction.status.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && statuses.push(msg[1] as AgentRequestStatusChanged);
+			}
+		});
 		interpreter.decisions.subscribe(() => {});
-		completion.results.subscribe(
-			eachMessage((msg) => msg[0] === "DATA" && results.push(msg[1] as EffectRunResult)),
-		);
+		completion.results.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && results.push(msg[1] as EffectRunResult);
+			}
+		});
 
 		effectRuns.down([
 			[
@@ -707,9 +730,11 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 1", () => {
 			executorOutcomes: [outcomes],
 		});
 		const statuses: AgentRequestStatusChanged[] = [];
-		satisfaction.status.subscribe(
-			eachMessage((msg) => msg[0] === "DATA" && statuses.push(msg[1] as AgentRequestStatusChanged)),
-		);
+		satisfaction.status.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && statuses.push(msg[1] as AgentRequestStatusChanged);
+			}
+		});
 		const contextReq = issued("context-1", "ctx-op", "context");
 		const promptReq = issued("prompt-1", "prompt-op", "prompt");
 		const executorReq = issued("exec-1", "exec-op", "executor", "tool-call");
@@ -798,9 +823,11 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 1", () => {
 			executorOutcomes: [outcomes],
 		});
 		const statuses: AgentRequestStatusChanged[] = [];
-		satisfaction.status.subscribe(
-			eachMessage((msg) => msg[0] === "DATA" && statuses.push(msg[1] as AgentRequestStatusChanged)),
-		);
+		satisfaction.status.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && statuses.push(msg[1] as AgentRequestStatusChanged);
+			}
+		});
 		const catalog = localBuiltinToolProviderCatalog({
 			providerId: "local",
 			limits: { timeoutMs: 1000 },

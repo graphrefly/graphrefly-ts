@@ -30,7 +30,6 @@ import {
 import { postgresqlToolProviderInputFromIntent } from "../executors/postgresql-tool-provider.js";
 import { graph } from "../graph/graph.js";
 import { compoundTupleKey } from "../identity.js";
-import { eachMessage } from "../node/each-message.js";
 import type { ExecutorOutcome, ToolProviderAdapterRunRequested } from "../orchestration/index.js";
 
 const manifest = (
@@ -441,11 +440,11 @@ const collect = <T>(node: {
 	subscribe(cb: (m: readonly [string, unknown]) => void): () => void;
 }) => {
 	const values: T[] = [];
-	node.subscribe(
-		eachMessage((m) => {
+	node.subscribe((incoming) => {
+		for (const m of incoming) {
 			if (m[0] === "DATA") values.push(m[1] as T);
-		}),
-	);
+		}
+	});
 	return values;
 };
 const settle = async () => {
@@ -2433,11 +2432,11 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 		});
 		const { runtime, transport, g } = await activeRuntime(store);
 		const issues: Array<{ code: string }> = [];
-		const unsubscribeIssues = runtime.issues.subscribe(
-			eachMessage((message) => {
+		const unsubscribeIssues = runtime.issues.subscribe((incoming) => {
+			for (const message of incoming) {
 				if (message[0] === "DATA") issues.push(message[1] as { code: string });
-			}),
-		);
+			}
+		});
 		transport.onMessage?.({
 			kind: "claim",
 			messageId: "message:malicious:claim",

@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { graph } from "../graph/graph.js";
-import { eachMessage } from "../node/each-message.js";
 import {
 	type AgentRequestIssued,
 	buildToolProviderAdapterInputs,
@@ -270,12 +269,16 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 12", () => {
 		});
 		const admissions: WorkItemDomainActionAdmission[] = [];
 		const issues: unknown[] = [];
-		projector.admissions.subscribe(
-			eachMessage(
-				(msg) => msg[0] === "DATA" && admissions.push(msg[1] as WorkItemDomainActionAdmission),
-			),
-		);
-		projector.issues.subscribe(eachMessage((msg) => msg[0] === "DATA" && issues.push(msg[1])));
+		projector.admissions.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && admissions.push(msg[1] as WorkItemDomainActionAdmission);
+			}
+		});
+		projector.issues.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && issues.push(msg[1]);
+			}
+		});
 		policies.down([
 			[
 				"DATA",
@@ -378,12 +381,16 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 12", () => {
 		});
 		const admissions: WorkItemDomainActionAdmission[] = [];
 		const issues: unknown[] = [];
-		projector.admissions.subscribe(
-			eachMessage(
-				(msg) => msg[0] === "DATA" && admissions.push(msg[1] as WorkItemDomainActionAdmission),
-			),
-		);
-		projector.issues.subscribe(eachMessage((msg) => msg[0] === "DATA" && issues.push(msg[1])));
+		projector.admissions.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && admissions.push(msg[1] as WorkItemDomainActionAdmission);
+			}
+		});
+		projector.issues.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && issues.push(msg[1]);
+			}
+		});
 		proposals.down([
 			["DATA", workItemActionProposal("proposal-1", "mark-ready")],
 			["DATA", workItemActionProposal("proposal-2", "mark-ready")],
@@ -452,12 +459,16 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 12", () => {
 		});
 		const admissions: WorkItemDomainActionAdmission[] = [];
 		const issues: unknown[] = [];
-		projector.admissions.subscribe(
-			eachMessage(
-				(msg) => msg[0] === "DATA" && admissions.push(msg[1] as WorkItemDomainActionAdmission),
-			),
-		);
-		projector.issues.subscribe(eachMessage((msg) => msg[0] === "DATA" && issues.push(msg[1])));
+		projector.admissions.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && admissions.push(msg[1] as WorkItemDomainActionAdmission);
+			}
+		});
+		projector.issues.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && issues.push(msg[1]);
+			}
+		});
 
 		decisions.down([
 			[

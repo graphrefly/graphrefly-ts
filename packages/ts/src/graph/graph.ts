@@ -17,7 +17,6 @@ import { type BatchCtx, batch as batchRun } from "../batch/batch.js";
 import { type Ctx, depCount, depLatest, type NodeFn } from "../ctx/types.js";
 import { type Dispatcher, defaultDispatcher } from "../dispatcher/index.js";
 import { NodeCore } from "../node/core.js";
-import { eachMessage } from "../node/each-message.js";
 import {
 	checkpointStateOfNode,
 	getNodeOwner,
@@ -795,11 +794,11 @@ export class Graph {
 		return {
 			subscribe: (sink) => {
 				const unsubs = targets.map(([id, n]) =>
-					n.subscribe(
-						eachMessage((msg) => {
+					n.subscribe((incoming) => {
+						for (const msg of incoming) {
 							sink({ path: id, msg, tier: messageTier(msg[0]), seq: this._clock++ });
-						}),
-					),
+						}
+					}),
 				);
 				return () => {
 					for (const u of unsubs) u();

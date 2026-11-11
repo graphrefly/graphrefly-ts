@@ -35,7 +35,6 @@ import {
 	startConstruction,
 } from "../graph/construction-scope.js";
 import { Graph } from "../graph/graph.js";
-import { eachMessage } from "../node/each-message.js";
 import type { Node } from "../node/node.js";
 import { checkpointStateOfNode } from "../node/runtime-accessors.js";
 import type { CausalBinding } from "../solutions/causal-occurrence/capabilities.js";
@@ -127,12 +126,12 @@ function facts(id = "A", message = `Message ${id}`) {
 function collect<T>(n: Node<T>) {
 	const values: T[] = [];
 	const messages: unknown[] = [];
-	const stop = n.subscribe(
-		eachMessage((m) => {
+	const stop = n.subscribe((incoming) => {
+		for (const m of incoming) {
 			messages.push(m);
 			if (m[0] === "DATA") values.push(m[1] as T);
-		}),
-	);
+		}
+	});
 	stops.push(stop);
 	return { values, messages, stop, last: () => values.at(-1)! };
 }
@@ -430,11 +429,11 @@ describe("private publication material-v1", () => {
 			dailyRatioThreshold: 5,
 		});
 		const messages: string[] = [];
-		const stop = legacy.graph.find("alertMessage")!.subscribe(
-			eachMessage((m) => {
+		const stop = legacy.graph.find("alertMessage")!.subscribe((incoming) => {
+			for (const m of incoming) {
 				if (m[0] === "DATA") messages.push(m[1] as string);
-			}),
-		);
+			}
+		});
 		try {
 			for (const [i, n] of [100, amount].entries())
 				legacy.feed({

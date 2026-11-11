@@ -24,7 +24,6 @@ import type { NodeFn } from "../ctx/types.js";
 import { Dispatcher, type Handle } from "../dispatcher/index.js";
 import { ColdConstructionError, ConstructionScope } from "../graph/construction-scope.js";
 import { Graph } from "../graph/graph.js";
-import { eachMessage } from "../node/each-message.js";
 import { removeOwnedNodeDep } from "./helpers/owned-rewire.js";
 
 it("scheduler failure before write retains known no-submit without executing", async () => {
@@ -99,11 +98,11 @@ it("a throwing source observer is isolated: the record completes and the host ke
 		run.drive([evaluationFixture()]);
 		await drain();
 		let armed = false;
-		stop = run.host.source.subscribe(
-			eachMessage((m) => {
+		stop = run.host.source.subscribe((incoming) => {
+			for (const m of incoming) {
 				if (armed && m[0] === "DATA") throw new Error("delivery observer fault");
-			}),
-		);
+			}
+		});
 		armed = true;
 		run.pending.resolve({ bytesWritten: Buffer.byteLength(run.calls[0]) });
 		await drain();
@@ -152,11 +151,11 @@ it("64-request burst retains bounded outcomes but reports pending overload and c
 			[...run.state().effects.values()].filter((r) => r.outcome?.state === "succeeded"),
 		).toHaveLength(1);
 		const issues: unknown[] = [];
-		const stopIssues = run.host.consume.view.issues.subscribe(
-			eachMessage((m) => {
+		const stopIssues = run.host.consume.view.issues.subscribe((incoming) => {
+			for (const m of incoming) {
 				if (m[0] === "DATA") issues.push(m[1]);
-			}),
-		);
+			}
+		});
 		expect(issues).toContainEqual(
 			expect.objectContaining({ code: "causal-occurrence/terminal-pending-bound" }),
 		);

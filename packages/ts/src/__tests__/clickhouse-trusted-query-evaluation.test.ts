@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { graph } from "../graph/graph.js";
 import { compoundTupleKey } from "../identity.js";
-import { eachMessage } from "../node/each-message.js";
 import type {
 	ExecutorOutcome,
 	ToolProviderAdapterRunRequested,
@@ -102,11 +101,11 @@ function collect<T>(node: {
 	subscribe(callback: (message: readonly [string, unknown]) => void): () => void;
 }): { readonly values: T[]; readonly unsubscribe: () => void } {
 	const values: T[] = [];
-	const unsubscribe = node.subscribe(
-		eachMessage((message) => {
+	const unsubscribe = node.subscribe((incoming) => {
+		for (const message of incoming) {
 			if (message[0] === "DATA") values.push(message[1] as T);
-		}),
-	);
+		}
+	});
 	return { values, unsubscribe };
 }
 

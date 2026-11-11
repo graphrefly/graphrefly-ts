@@ -25,7 +25,6 @@ import {
 	node,
 	take,
 } from "../index.js";
-import { eachMessage } from "../node/each-message.js";
 import { addOwnedNodeDep, removeOwnedNodeDep, rewireOwnedNode } from "./helpers/owned-rewire.js";
 
 const types = (msgs: Message[]) => msgs.map((m) => m[0]);
@@ -34,7 +33,11 @@ const data = (msgs: Message[]) =>
 const _flush = () => new Promise((r) => setTimeout(r, 0));
 function collect(n: { subscribe(s: (m: Message) => void): () => void }) {
 	const msgs: Message[] = [];
-	const unsub = n.subscribe(eachMessage((m) => msgs.push(m)));
+	const unsub = n.subscribe((incoming) => {
+		for (const m of incoming) {
+			msgs.push(m);
+		}
+	});
 	return { msgs, unsub };
 }
 
@@ -97,7 +100,11 @@ describe("C-4 a sync leg and an async leg: the async result is a later wave, not
 			},
 			{ pool: "async" },
 		);
-		c.subscribe(eachMessage((m) => cOut.push(m)));
+		c.subscribe((incoming) => {
+			for (const m of incoming) {
+				cOut.push(m);
+			}
+		});
 		const d = node<number>([b, c], (ctx: Ctx) => {
 			dRuns++;
 			ctx.down([["DATA", (depLatest(ctx, 0) as number) + (depLatest(ctx, 1) as number)]]);

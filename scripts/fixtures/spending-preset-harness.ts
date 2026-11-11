@@ -22,7 +22,6 @@ import {
 	startConstruction,
 } from "../../packages/ts/src/graph/construction-scope.js";
 import { Graph } from "../../packages/ts/src/graph/graph.js";
-import { eachMessage } from "../../packages/ts/src/node/each-message.js";
 import type { Node } from "../../packages/ts/src/node/node.js";
 import { checkpointStateOfNode } from "../../packages/ts/src/node/runtime-accessors.js";
 import type {
@@ -234,26 +233,26 @@ export function presetRun(
 		if (stops.length) return;
 		for (const [name, node] of Object.entries(built.consume.view))
 			stops.push(
-				node.subscribe(
-					eachMessage((m) => {
+				node.subscribe((incoming) => {
+					for (const m of incoming) {
 						if (m[0] === "DATA") events[name].push(m[1]);
-					}),
-				),
+					}
+				}),
 			);
 		stops.push(
-			built.consume.capabilities.execution.conservation.subscribe(
-				eachMessage((m) => {
+			built.consume.capabilities.execution.conservation.subscribe((incoming) => {
+				for (const m of incoming) {
 					if (m[0] === "DATA") events.conservation.push(m[1]);
-				}),
-			),
+				}
+			}),
 		);
 		if (built.diagnosticSummary)
 			stops.push(
-				built.diagnosticSummary.subscribe(
-					eachMessage((m) => {
+				built.diagnosticSummary.subscribe((incoming) => {
+					for (const m of incoming) {
 						if (m[0] === "DATA") events.summary.push(m[1]);
-					}),
-				),
+					}
+				}),
 			);
 	};
 	const disconnect = () => {

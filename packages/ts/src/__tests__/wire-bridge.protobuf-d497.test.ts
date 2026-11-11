@@ -15,7 +15,6 @@ import {
 import { batch } from "../batch/batch.js";
 import { depBatch } from "../ctx/types.js";
 import { graph } from "../graph/graph.js";
-import { eachMessage } from "../node/each-message.js";
 
 interface VectorRecord {
 	readonly schema: "graphrefly.protobuf.golden.v1";
@@ -291,9 +290,21 @@ describe("D498 wireBridgeProtobuf focused helper", () => {
 		const inbound: unknown[] = [];
 		const issues: unknown[] = [];
 		const status: unknown[] = [];
-		bridge.inbound.subscribe(eachMessage((msg) => inbound.push(msg)));
-		protobuf.issues.subscribe(eachMessage((msg) => issues.push(msg)));
-		protobuf.status.subscribe(eachMessage((msg) => status.push(msg)));
+		bridge.inbound.subscribe((incoming) => {
+			for (const msg of incoming) {
+				inbound.push(msg);
+			}
+		});
+		protobuf.issues.subscribe((incoming) => {
+			for (const msg of incoming) {
+				issues.push(msg);
+			}
+		});
+		protobuf.status.subscribe((incoming) => {
+			for (const msg of incoming) {
+				status.push(msg);
+			}
+		});
 
 		protobuf.inboundBytes.down([["DATA", canonicalInboundBytes()]]);
 
@@ -320,7 +331,11 @@ describe("D498 wireBridgeProtobuf focused helper", () => {
 		});
 		const protobuf = wireBridgeProtobuf(g, bridge, { name: "bridge/protobuf" });
 		const status: unknown[] = [];
-		protobuf.status.subscribe(eachMessage((msg) => status.push(msg)));
+		protobuf.status.subscribe((incoming) => {
+			for (const msg of incoming) {
+				status.push(msg);
+			}
+		});
 
 		protobuf.inboundBytes.down([
 			["DATA", canonicalInboundBytes()],
@@ -354,7 +369,11 @@ describe("D498 wireBridgeProtobuf focused helper", () => {
 		});
 		const protobuf = wireBridgeProtobuf(g, bridge, { name: "bridge/protobuf" });
 		const status: unknown[] = [];
-		protobuf.status.subscribe(eachMessage((msg) => status.push(msg)));
+		protobuf.status.subscribe((incoming) => {
+			for (const msg of incoming) {
+				status.push(msg);
+			}
+		});
 
 		bridge.inbound.down([
 			[
@@ -382,10 +401,26 @@ describe("D498 wireBridgeProtobuf focused helper", () => {
 		const bridgeEvents: unknown[] = [];
 		const issues: unknown[] = [];
 		const status: unknown[] = [];
-		bridge.errors.subscribe(eachMessage((msg) => bridgeErrors.push(msg)));
-		bridge.events.subscribe(eachMessage((msg) => bridgeEvents.push(msg)));
-		protobuf.issues.subscribe(eachMessage((msg) => issues.push(msg)));
-		protobuf.status.subscribe(eachMessage((msg) => status.push(msg)));
+		bridge.errors.subscribe((incoming) => {
+			for (const msg of incoming) {
+				bridgeErrors.push(msg);
+			}
+		});
+		bridge.events.subscribe((incoming) => {
+			for (const msg of incoming) {
+				bridgeEvents.push(msg);
+			}
+		});
+		protobuf.issues.subscribe((incoming) => {
+			for (const msg of incoming) {
+				issues.push(msg);
+			}
+		});
+		protobuf.status.subscribe((incoming) => {
+			for (const msg of incoming) {
+				status.push(msg);
+			}
+		});
 
 		protobuf.inboundBytes.down([["DATA", malformedInboundBytes()]]);
 
@@ -433,9 +468,21 @@ describe("D498 wireBridgeProtobuf focused helper", () => {
 		const inbound: unknown[] = [];
 		const issues: unknown[] = [];
 		const status: unknown[] = [];
-		bridge.inbound.subscribe(eachMessage((msg) => inbound.push(msg)));
-		protobuf.issues.subscribe(eachMessage((msg) => issues.push(msg)));
-		protobuf.status.subscribe(eachMessage((msg) => status.push(msg)));
+		bridge.inbound.subscribe((incoming) => {
+			for (const msg of incoming) {
+				inbound.push(msg);
+			}
+		});
+		protobuf.issues.subscribe((incoming) => {
+			for (const msg of incoming) {
+				issues.push(msg);
+			}
+		});
+		protobuf.status.subscribe((incoming) => {
+			for (const msg of incoming) {
+				status.push(msg);
+			}
+		});
 
 		protobuf.inboundBytes.down([["DATA", malformedInboundBytes()]]);
 
@@ -463,9 +510,21 @@ describe("D498 wireBridgeProtobuf focused helper", () => {
 		const inbound: unknown[] = [];
 		const issues: unknown[] = [];
 		const status: unknown[] = [];
-		protobuf.issues.subscribe(eachMessage((msg) => issues.push(msg)));
-		protobuf.status.subscribe(eachMessage((msg) => status.push(msg)));
-		bridge.inbound.subscribe(eachMessage((msg) => inbound.push(msg)));
+		protobuf.issues.subscribe((incoming) => {
+			for (const msg of incoming) {
+				issues.push(msg);
+			}
+		});
+		protobuf.status.subscribe((incoming) => {
+			for (const msg of incoming) {
+				status.push(msg);
+			}
+		});
+		bridge.inbound.subscribe((incoming) => {
+			for (const msg of incoming) {
+				inbound.push(msg);
+			}
+		});
 
 		protobuf.inboundBytes.down([["DATA", malformedInboundBytes()]]);
 
@@ -492,8 +551,16 @@ describe("D498 wireBridgeProtobuf focused helper", () => {
 		const protobuf = wireBridgeProtobuf(g, bridge, { name: "bridge/protobuf" });
 		const issues: unknown[] = [];
 		const status: unknown[] = [];
-		protobuf.issues.subscribe(eachMessage((msg) => issues.push(msg)));
-		protobuf.status.subscribe(eachMessage((msg) => status.push(msg)));
+		protobuf.issues.subscribe((incoming) => {
+			for (const msg of incoming) {
+				issues.push(msg);
+			}
+		});
+		protobuf.status.subscribe((incoming) => {
+			for (const msg of incoming) {
+				status.push(msg);
+			}
+		});
 
 		protobuf.inboundBytes.down([["DATA", malformedInboundBytes()]]);
 
@@ -517,8 +584,16 @@ describe("D498 wireBridgeProtobuf focused helper", () => {
 		const protobuf = wireBridgeProtobuf(g, bridge, { name: "bridge/protobuf" });
 		const outboundBytes: unknown[] = [];
 		const issues: unknown[] = [];
-		protobuf.outboundBytes.subscribe(eachMessage((msg) => outboundBytes.push(msg)));
-		protobuf.issues.subscribe(eachMessage((msg) => issues.push(msg)));
+		protobuf.outboundBytes.subscribe((incoming) => {
+			for (const msg of incoming) {
+				outboundBytes.push(msg);
+			}
+		});
+		protobuf.issues.subscribe((incoming) => {
+			for (const msg of incoming) {
+				issues.push(msg);
+			}
+		});
 
 		bridge.send(new Uint8Array(), { requestId: "req-empty" });
 
@@ -540,7 +615,11 @@ describe("D498 wireBridgeProtobuf focused helper", () => {
 		});
 		const protobuf = wireBridgeProtobuf(g, bridge, { name: "bridge/protobuf" });
 		const outboundBytes: unknown[] = [];
-		protobuf.outboundBytes.subscribe(eachMessage((msg) => outboundBytes.push(msg)));
+		protobuf.outboundBytes.subscribe((incoming) => {
+			for (const msg of incoming) {
+				outboundBytes.push(msg);
+			}
+		});
 
 		bridge.send({
 			kind: "wire_edge",
@@ -574,9 +653,21 @@ describe("D498 wireBridgeProtobuf focused helper", () => {
 		const outboundBytes: unknown[] = [];
 		const issues: unknown[] = [];
 		const status: unknown[] = [];
-		protobuf.outboundBytes.subscribe(eachMessage((msg) => outboundBytes.push(msg)));
-		protobuf.issues.subscribe(eachMessage((msg) => issues.push(msg)));
-		protobuf.status.subscribe(eachMessage((msg) => status.push(msg)));
+		protobuf.outboundBytes.subscribe((incoming) => {
+			for (const msg of incoming) {
+				outboundBytes.push(msg);
+			}
+		});
+		protobuf.issues.subscribe((incoming) => {
+			for (const msg of incoming) {
+				issues.push(msg);
+			}
+		});
+		protobuf.status.subscribe((incoming) => {
+			for (const msg of incoming) {
+				status.push(msg);
+			}
+		});
 
 		bridge.send({ unsafe: true } as never);
 
@@ -903,11 +994,31 @@ describe("D498 wireBridgeProtobuf focused helper", () => {
 		const g2InboundStatus: unknown[] = [];
 		const g1InboundStatus: unknown[] = [];
 		const dMessages: unknown[] = [];
-		g1ToG2Bytes.outboundBytes.subscribe(eachMessage((msg) => g1ToG2Out.push(msg)));
-		g2ToG1Bytes.outboundBytes.subscribe(eachMessage((msg) => g2ToG1Out.push(msg)));
-		g2Inbound.status.subscribe(eachMessage((msg) => g2InboundStatus.push(msg)));
-		g1Inbound.status.subscribe(eachMessage((msg) => g1InboundStatus.push(msg)));
-		d.subscribe(eachMessage((msg) => dMessages.push(msg)));
+		g1ToG2Bytes.outboundBytes.subscribe((incoming) => {
+			for (const msg of incoming) {
+				g1ToG2Out.push(msg);
+			}
+		});
+		g2ToG1Bytes.outboundBytes.subscribe((incoming) => {
+			for (const msg of incoming) {
+				g2ToG1Out.push(msg);
+			}
+		});
+		g2Inbound.status.subscribe((incoming) => {
+			for (const msg of incoming) {
+				g2InboundStatus.push(msg);
+			}
+		});
+		g1Inbound.status.subscribe((incoming) => {
+			for (const msg of incoming) {
+				g1InboundStatus.push(msg);
+			}
+		});
+		d.subscribe((incoming) => {
+			for (const msg of incoming) {
+				dMessages.push(msg);
+			}
+		});
 
 		a.down([["DATA", bytes("a0")]]);
 		captureBytes(g1ToG2Out, g1ToG2Queue);
@@ -1004,7 +1115,11 @@ describe("D498 wireBridgeProtobuf focused helper", () => {
 		});
 		const protobuf = wireBridgeProtobuf(g, bridge, { name: "bridge/protobuf" });
 		const inbound: unknown[] = [];
-		bridge.inbound.subscribe(eachMessage((msg) => inbound.push(msg)));
+		bridge.inbound.subscribe((incoming) => {
+			for (const msg of incoming) {
+				inbound.push(msg);
+			}
+		});
 
 		protobuf.inboundBytes.down([["DATA", canonicalInboundBytes()]]);
 		expect(dataMessages(inbound)).toContainEqual([

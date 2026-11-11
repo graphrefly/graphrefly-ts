@@ -20,7 +20,6 @@ import {
 	node,
 	type StateNode,
 } from "../index.js";
-import { eachMessage } from "../node/each-message.js";
 
 interface ProbeResult {
 	name: string;
@@ -79,12 +78,12 @@ function subscribeCounts(n: Node<unknown>): {
 } {
 	let dataCount = 0;
 	let invalidateCount = 0;
-	const unsubscribe = n.subscribe(
-		eachMessage((m: Message) => {
+	const unsubscribe = n.subscribe((incoming: readonly Message[]) => {
+		for (const m of incoming) {
 			if (m[0] === "DATA") dataCount++;
 			if (m[0] === "INVALIDATE") invalidateCount++;
-		}),
-	);
+		}
+	});
 	return { dataCount: () => dataCount, invalidateCount: () => invalidateCount, unsubscribe };
 }
 
@@ -115,11 +114,11 @@ function invalidateSetOnlyProbe(fanout = 256, waves = 2_000): string {
 function invalidateSetPlusInvalidateProbe(fanout = 256, waves = 2_000): string {
 	const { src, sinks } = makeInvalidateTopology(fanout);
 	let invalidates = 0;
-	const invalidateSink = src.subscribe(
-		eachMessage((m) => {
+	const invalidateSink = src.subscribe((incoming) => {
+		for (const m of incoming) {
 			if (m[0] === "INVALIDATE") invalidates++;
-		}),
-	);
+		}
+	});
 	for (let i = 1; i <= waves; i++) {
 		src.set(i);
 		src.down([["INVALIDATE"]]);

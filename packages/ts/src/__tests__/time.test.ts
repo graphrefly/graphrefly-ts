@@ -14,7 +14,6 @@ import {
 	throttleTime,
 	timeout,
 } from "../index.js";
-import { eachMessage } from "../node/each-message.js";
 
 const data = (msgs: Message[]) =>
 	msgs.filter((m) => m[0] === "DATA").map((m) => (m as ["DATA", unknown])[1]);
@@ -32,7 +31,11 @@ describe("Slice 4 — wall-clock time operators (D52, *Map + timer)", () => {
 		const s = g.node<number>([], null); // manual source
 		const d = g.initNode(delay<number>(100), [s]);
 		const msgs: Message[] = [];
-		d.subscribe(eachMessage((m) => msgs.push(m)));
+		d.subscribe((incoming) => {
+			for (const m of incoming) {
+				msgs.push(m);
+			}
+		});
 		s.down([["DATA", 1]]);
 		s.down([["DATA", 2]]);
 		expect(data(msgs)).toEqual([]); // nothing yet — both delayed
@@ -45,7 +48,11 @@ describe("Slice 4 — wall-clock time operators (D52, *Map + timer)", () => {
 		const s = g.node<number>([], null);
 		const d = g.initNode(debounce<number>(100), [s]);
 		const msgs: Message[] = [];
-		d.subscribe(eachMessage((m) => msgs.push(m)));
+		d.subscribe((incoming) => {
+			for (const m of incoming) {
+				msgs.push(m);
+			}
+		});
 		s.down([["DATA", 1]]);
 		vi.advanceTimersByTime(50); // 1's timer not yet fired
 		s.down([["DATA", 2]]); // cancels 1's timer (onDeactivation clearTimeout), restarts
@@ -68,7 +75,11 @@ describe("Slice 4 — wall-clock time operators (D52, *Map + timer)", () => {
 		const s = g.node<number>([], null);
 		const t = g.initNode(throttle<number>(100), [s]);
 		const msgs: Message[] = [];
-		t.subscribe(eachMessage((m) => msgs.push(m)));
+		t.subscribe((incoming) => {
+			for (const m of incoming) {
+				msgs.push(m);
+			}
+		});
 		s.down([["DATA", 1]]); // leading edge → emit 1 immediately
 		s.down([["DATA", 2]]); // within the window → dropped
 		expect(data(msgs)).toEqual([1]);
@@ -96,7 +107,11 @@ describe("B41 tail — audit / auditTime / timeout / bufferTime", () => {
 		const s = g.node<number>([], null);
 		const a = g.initNode(auditTime<number>(100), [s]);
 		const msgs: Message[] = [];
-		a.subscribe(eachMessage((m) => msgs.push(m)));
+		a.subscribe((incoming) => {
+			for (const m of incoming) {
+				msgs.push(m);
+			}
+		});
 		s.down([["DATA", 1]]); // opens a 100ms window (latest=1)
 		s.down([["DATA", 2]]); // window open → latest=2 (no emit)
 		s.down([["DATA", 3]]); // latest=3
@@ -113,7 +128,11 @@ describe("B41 tail — audit / auditTime / timeout / bufferTime", () => {
 		const s = g.node<number>([], null);
 		const a = g.initNode(auditTime<number>(100), [s]);
 		const msgs: Message[] = [];
-		a.subscribe(eachMessage((m) => msgs.push(m)));
+		a.subscribe((incoming) => {
+			for (const m of incoming) {
+				msgs.push(m);
+			}
+		});
 		s.down([["DATA", 1]]); // opens a window (latest=1)
 		s.down([["DATA", 2]]); // latest=2 (window still open)
 		s.down([["COMPLETE"]]); // source completes mid-window → flush latest=2, then COMPLETE
@@ -126,7 +145,11 @@ describe("B41 tail — audit / auditTime / timeout / bufferTime", () => {
 		const s = g.node<number>([], null);
 		const a = g.initNode(auditTime<number>(100), [s]);
 		const msgs: Message[] = [];
-		a.subscribe(eachMessage((m) => msgs.push(m)));
+		a.subscribe((incoming) => {
+			for (const m of incoming) {
+				msgs.push(m);
+			}
+		});
 		s.down([["DATA", 1]]); // opens a live timer notifier
 		expect(timerCount()).toBe(1);
 		s.down([["ERROR", new Error("boom")]]);
@@ -147,7 +170,11 @@ describe("B41 tail — audit / auditTime / timeout / bufferTime", () => {
 			[s],
 		);
 		const msgs: Message[] = [];
-		a.subscribe(eachMessage((m) => msgs.push(m)));
+		a.subscribe((incoming) => {
+			for (const m of incoming) {
+				msgs.push(m);
+			}
+		});
 		s.down([["DATA", 1]]); // opens a window, selector mints `gate`
 		s.down([["DATA", 2]]); // latest=2 (still open)
 		expect(data(msgs)).toEqual([]);
@@ -168,7 +195,11 @@ describe("B41 tail — audit / auditTime / timeout / bufferTime", () => {
 		const s = g.node<number>([], null);
 		const t = timeout<number>(s, 100);
 		const msgs: Message[] = [];
-		t.subscribe(eachMessage((m) => msgs.push(m)));
+		t.subscribe((incoming) => {
+			for (const m of incoming) {
+				msgs.push(m);
+			}
+		});
 		expect(types(msgs)).not.toContain("ERROR"); // armed at subscribe, not yet fired
 		vi.advanceTimersByTime(100); // 100ms with no value at all → timeout ERROR
 		expect(types(msgs)).toContain("ERROR");
@@ -179,7 +210,11 @@ describe("B41 tail — audit / auditTime / timeout / bufferTime", () => {
 		const s = g.node<number>([], null);
 		const t = timeout<number>(s, 100);
 		const msgs: Message[] = [];
-		t.subscribe(eachMessage((m) => msgs.push(m)));
+		t.subscribe((incoming) => {
+			for (const m of incoming) {
+				msgs.push(m);
+			}
+		});
 		vi.advanceTimersByTime(50); // 50/100 of the initial window
 		s.down([["DATA", 1]]); // forward 1 + RESET the idle timer
 		vi.advanceTimersByTime(50); // 50ms since value 1 — fine
@@ -196,7 +231,11 @@ describe("B41 tail — audit / auditTime / timeout / bufferTime", () => {
 		const s = g.node<number>([], null);
 		const t = timeout<number>(s, 100);
 		const msgs: Message[] = [];
-		t.subscribe(eachMessage((m) => msgs.push(m)));
+		t.subscribe((incoming) => {
+			for (const m of incoming) {
+				msgs.push(m);
+			}
+		});
 		s.down([["DATA", 1]]);
 		expect(timerCount()).toBe(1);
 		s.down([["COMPLETE"]]); // source ends → forward COMPLETE
@@ -212,7 +251,11 @@ describe("B41 tail — audit / auditTime / timeout / bufferTime", () => {
 		const s = g.node<number>([], null);
 		const t = timeout<number>(s, 100);
 		const msgs: Message[] = [];
-		t.subscribe(eachMessage((m) => msgs.push(m)));
+		t.subscribe((incoming) => {
+			for (const m of incoming) {
+				msgs.push(m);
+			}
+		});
 		expect(timerCount()).toBe(1);
 		s.down([["ERROR", new Error("source failed")]]);
 		expect(types(msgs)).toContain("ERROR");
@@ -224,7 +267,11 @@ describe("B41 tail — audit / auditTime / timeout / bufferTime", () => {
 		const s = g.node<number>([], null);
 		const b = bufferTime<number>(s, 100);
 		const msgs: Message[] = [];
-		b.subscribe(eachMessage((m) => msgs.push(m)));
+		b.subscribe((incoming) => {
+			for (const m of incoming) {
+				msgs.push(m);
+			}
+		});
 		s.down([["DATA", 1]]);
 		s.down([["DATA", 2]]);
 		vi.advanceTimersByTime(100); // interval ticks → flush [1,2]
@@ -242,7 +289,11 @@ describe("B41 tail — audit / auditTime / timeout / bufferTime", () => {
 		const s = g.node<number>([], null);
 		const b = bufferTime<number>(s, 100);
 		const msgs: Message[] = [];
-		b.subscribe(eachMessage((m) => msgs.push(m)));
+		b.subscribe((incoming) => {
+			for (const m of incoming) {
+				msgs.push(m);
+			}
+		});
 		expect(timerCount()).toBe(1);
 		s.down([["DATA", 1]]);
 		s.down([["ERROR", new Error("source failed")]]);
@@ -269,7 +320,11 @@ describe("B41 tail — audit / auditTime / timeout / bufferTime", () => {
 		);
 		const msgs: Message[] = [];
 
-		watch.subscribe(eachMessage((m) => msgs.push(m)));
+		watch.subscribe((incoming) => {
+			for (const m of incoming) {
+				msgs.push(m);
+			}
+		});
 		const armed = g.describe();
 		expect(armed.nodes.some((node) => node.factory === "timeout")).toBe(true);
 		expect(armed.nodes.some((node) => node.factory === "timer")).toBe(true);

@@ -19,7 +19,6 @@ import {
 } from "../executors/managed-untrusted-js-compute.js";
 import { graph } from "../graph/graph.js";
 import { compoundTupleKey } from "../identity.js";
-import { eachMessage } from "../node/each-message.js";
 import type { Node } from "../node/node.js";
 import type {
 	ExecutorOutcome,
@@ -197,11 +196,11 @@ const collect = <T>(node: {
 	subscribe(cb: (m: readonly [string, unknown]) => void): () => void;
 }) => {
 	const values: T[] = [];
-	node.subscribe(
-		eachMessage((m) => {
+	node.subscribe((incoming) => {
+		for (const m of incoming) {
 			if (m[0] === "DATA") values.push(m[1] as T);
-		}),
-	);
+		}
+	});
 	return values;
 };
 
@@ -492,11 +491,11 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 				now: () => 10,
 			});
 			let disposed: Promise<void> | undefined;
-			const unsubscribe = runtime.lifecycle.subscribe(
-				eachMessage((message) => {
+			const unsubscribe = runtime.lifecycle.subscribe((incoming) => {
+				for (const message of incoming) {
 					if (message[0] === "DATA" && message[1].state === state) disposed = runtime.dispose();
-				}),
-			);
+				}
+			});
 			inputs.down([["DATA", input()]]);
 			manifests.down([["DATA", manifest()]]);
 			postures.down([["DATA", readiness()]]);
@@ -1264,8 +1263,8 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 		const outcomes = collect<ExecutorOutcome>(runtime.outcomes);
 		const cleanup = collect<ManagedUntrustedJsComputeCleanupStatus>(runtime.cleanup);
 		const cleanupSucceeded = new Promise<void>((resolve) => {
-			const unsubscribe = runtime.cleanup.subscribe(
-				eachMessage((message) => {
+			const unsubscribe = runtime.cleanup.subscribe((incoming) => {
+				for (const message of incoming) {
 					if (
 						message[0] === "DATA" &&
 						(message[1] as ManagedUntrustedJsComputeCleanupStatus).state === "succeeded"
@@ -1273,8 +1272,8 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 						unsubscribe();
 						resolve();
 					}
-				}),
-			);
+				}
+			});
 		});
 		inputs.down([["DATA", input()]]);
 		manifests.down([["DATA", manifest({ executionTimeoutMs: 100, cleanupTimeoutMs: 10 })]]);
@@ -1784,11 +1783,11 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 			now: () => 10,
 		});
 		let reentrantDispose: Promise<void> | undefined;
-		runtime.outcomes.subscribe(
-			eachMessage((message) => {
+		runtime.outcomes.subscribe((incoming) => {
+			for (const message of incoming) {
 				if (message[0] === "DATA") reentrantDispose = runtime.dispose();
-			}),
-		);
+			}
+		});
 		inputs.down([["DATA", input()]]);
 		manifests.down([["DATA", manifest()]]);
 		postures.down([["DATA", readiness()]]);

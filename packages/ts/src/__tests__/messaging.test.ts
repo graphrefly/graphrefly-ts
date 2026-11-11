@@ -15,7 +15,6 @@ import {
 	type TopicMessage,
 	toTopic,
 } from "../messaging/index.js";
-import { eachMessage } from "../node/each-message.js";
 
 describe("messaging passive vocabulary (D125/D132)", () => {
 	it("exports standard topic constants and a passive topic message envelope", () => {
@@ -59,7 +58,11 @@ describe("messageBus clean-slate retained topic log (D279/D282/D284/D285/D325)",
 		const g = graph();
 		const bus = messageBus(g, { topics: ["orders"], name: "bus", now: () => 20 });
 		const issues: unknown[] = [];
-		bus.issues.subscribe(eachMessage((msg) => issues.push(msg)));
+		bus.issues.subscribe((incoming) => {
+			for (const msg of incoming) {
+				issues.push(msg);
+			}
+		});
 
 		bus.publish("missing", { id: "x" }, { commandId: "cmd-1" });
 
@@ -81,7 +84,11 @@ describe("messageBus clean-slate retained topic log (D279/D282/D284/D285/D325)",
 		const g = graph();
 		const bus = messageBus(g, { topics: ["orders"], name: "bus", now: () => 25 });
 		const issues: unknown[] = [];
-		bus.issues.subscribe(eachMessage((msg) => issues.push(msg)));
+		bus.issues.subscribe((incoming) => {
+			for (const msg of incoming) {
+				issues.push(msg);
+			}
+		});
 
 		expect(() =>
 			bus.commands.down([
@@ -106,8 +113,16 @@ describe("messageBus clean-slate retained topic log (D279/D282/D284/D285/D325)",
 		const bus = messageBus(g, { topics: ["orders"], name: "bus", now: () => 27 });
 		const messages: unknown[] = [];
 		const status: unknown[] = [];
-		bus.messages.subscribe(eachMessage((msg) => messages.push(msg)));
-		bus.status.subscribe(eachMessage((msg) => status.push(msg)));
+		bus.messages.subscribe((incoming) => {
+			for (const msg of incoming) {
+				messages.push(msg);
+			}
+		});
+		bus.status.subscribe((incoming) => {
+			for (const msg of incoming) {
+				status.push(msg);
+			}
+		});
 
 		bus.publish("orders", { id: "o1" }, { commandId: "cmd-1", idempotencyKey: "idem-1" });
 		bus.publish("orders", { id: "o2" }, { commandId: "cmd-2", idempotencyKey: "idem-1" });
@@ -137,8 +152,16 @@ describe("messageBus clean-slate retained topic log (D279/D282/D284/D285/D325)",
 		});
 		const commands: unknown[] = [];
 		const messages: unknown[] = [];
-		sink.commands.subscribe(eachMessage((msg) => commands.push(msg)));
-		bus.messages.subscribe(eachMessage((msg) => messages.push(msg)));
+		sink.commands.subscribe((incoming) => {
+			for (const msg of incoming) {
+				commands.push(msg);
+			}
+		});
+		bus.messages.subscribe((incoming) => {
+			for (const msg of incoming) {
+				messages.push(msg);
+			}
+		});
 
 		source.down([["DATA", { id: "o1" }]]);
 
@@ -161,7 +184,11 @@ describe("messageBus clean-slate retained topic log (D279/D282/D284/D285/D325)",
 		const source = g.node<{ id: string }>([], null, { name: "source" });
 		const sink = toTopic(g, source, bus, "orders", { name: "orders/out" });
 		const messages: unknown[] = [];
-		bus.messages.subscribe(eachMessage((msg) => messages.push(msg)));
+		bus.messages.subscribe((incoming) => {
+			for (const msg of incoming) {
+				messages.push(msg);
+			}
+		});
 
 		source.down([["DATA", { id: "o1" }]]);
 		sink.release();
@@ -187,9 +214,21 @@ describe("messageBus clean-slate retained topic log (D279/D282/D284/D285/D325)",
 		const catalogMsgs: unknown[] = [];
 		const topicMsgs: unknown[] = [];
 		const deadMsgs: unknown[] = [];
-		catalog.snapshot.subscribe(eachMessage((msg) => catalogMsgs.push(msg)));
-		topic.snapshot.subscribe(eachMessage((msg) => topicMsgs.push(msg)));
-		dead.snapshot.subscribe(eachMessage((msg) => deadMsgs.push(msg)));
+		catalog.snapshot.subscribe((incoming) => {
+			for (const msg of incoming) {
+				catalogMsgs.push(msg);
+			}
+		});
+		topic.snapshot.subscribe((incoming) => {
+			for (const msg of incoming) {
+				topicMsgs.push(msg);
+			}
+		});
+		dead.snapshot.subscribe((incoming) => {
+			for (const msg of incoming) {
+				deadMsgs.push(msg);
+			}
+		});
 
 		catalog.snapshotRequest.down([["DATA", { limit: 1 }]]);
 		topic.snapshotRequest.down([["DATA", { limit: 1 }]]);
@@ -227,8 +266,16 @@ describe("messageBus clean-slate retained topic log (D279/D282/D284/D285/D325)",
 		});
 		const available: unknown[] = [];
 		const cursor: unknown[] = [];
-		sub.available.subscribe(eachMessage((msg) => available.push(msg)));
-		sub.cursor.subscribe(eachMessage((msg) => cursor.push(msg)));
+		sub.available.subscribe((incoming) => {
+			for (const msg of incoming) {
+				available.push(msg);
+			}
+		});
+		sub.cursor.subscribe((incoming) => {
+			for (const msg of incoming) {
+				cursor.push(msg);
+			}
+		});
 
 		sub.availableRequest.down([["DATA", { limit: 1 }]]);
 		expect(available.at(-1)).toEqual([
@@ -276,8 +323,16 @@ describe("messageBus clean-slate retained topic log (D279/D282/D284/D285/D325)",
 		const sub = bus.subscription({ topic: "orders", subscriptionId: "s1" });
 		const issues: unknown[] = [];
 		const cursor: unknown[] = [];
-		bus.issues.subscribe(eachMessage((msg) => issues.push(msg)));
-		sub.cursor.subscribe(eachMessage((msg) => cursor.push(msg)));
+		bus.issues.subscribe((incoming) => {
+			for (const msg of incoming) {
+				issues.push(msg);
+			}
+		});
+		sub.cursor.subscribe((incoming) => {
+			for (const msg of incoming) {
+				cursor.push(msg);
+			}
+		});
 
 		bus.publish("orders", "a");
 		bus.publish("orders", "b");
@@ -314,7 +369,11 @@ describe("messageBus clean-slate retained topic log (D279/D282/D284/D285/D325)",
 		const g = graph();
 		const bus = messageBus(g, { topics: ["orders"], name: "bus", now: () => 65 });
 		const issues: unknown[] = [];
-		bus.issues.subscribe(eachMessage((msg) => issues.push(msg)));
+		bus.issues.subscribe((incoming) => {
+			for (const msg of incoming) {
+				issues.push(msg);
+			}
+		});
 		bus.publish("orders", "a");
 
 		bus.commands.down([
@@ -347,7 +406,11 @@ describe("messageBus clean-slate retained topic log (D279/D282/D284/D285/D325)",
 		});
 		const sub = bus.subscription({ topic: "orders", subscriptionId: "s1" });
 		const issues: unknown[] = [];
-		bus.issues.subscribe(eachMessage((msg) => issues.push(msg)));
+		bus.issues.subscribe((incoming) => {
+			for (const msg of incoming) {
+				issues.push(msg);
+			}
+		});
 
 		sub.close();
 		bus.publish("orders", "a");
@@ -364,7 +427,11 @@ describe("messageBus topic projection request (graphrefly-ts:D172)", () => {
 		bus.publish("orders", { id: "o1" });
 		const topic = bus.topic<{ id: string }>("orders");
 		const msgs: unknown[] = [];
-		topic.snapshot.subscribe(eachMessage((msg) => msgs.push(msg)));
+		topic.snapshot.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msgs.push(msg);
+			}
+		});
 		expect(msgs).toEqual([["START"]]);
 
 		topic.snapshotRequest.down([["DATA", {}]]);

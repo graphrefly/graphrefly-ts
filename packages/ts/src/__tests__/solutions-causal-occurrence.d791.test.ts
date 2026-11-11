@@ -5,7 +5,6 @@ import type { DataIssue, DataResult } from "../data/index.js";
 import { constructionOf } from "../graph/construction-scope.js";
 import { Graph } from "../graph/graph.js";
 import { stableJsonString } from "../json/codec.js";
-import { eachMessage } from "../node/each-message.js";
 import type { Node } from "../node/node.js";
 import type { Message } from "../protocol/messages.js";
 import {
@@ -153,7 +152,13 @@ function fixture(
 		for (const [name, node] of Object.entries(bundle)) {
 			const values: Message[] = [];
 			messages.set(name, values);
-			stops.push(node.subscribe(eachMessage((message) => values.push(message))));
+			stops.push(
+				node.subscribe((incoming) => {
+					for (const message of incoming) {
+						values.push(message);
+					}
+				}),
+			);
 		}
 	};
 	subscribeOutputs();

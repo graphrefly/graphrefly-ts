@@ -4,7 +4,6 @@ import {
 	httpToolProviderRuntime,
 } from "../../src/executors/tool-provider-adapters.js";
 import type { Graph } from "../../src/graph/graph.js";
-import { eachMessage } from "../../src/node/each-message.js";
 import type {
 	ToolProviderAdapterInput,
 	ToolProviderAdapterRunRequested,
@@ -88,21 +87,27 @@ export function createRootEvalHttpTransportLeaf<T>(
 			},
 		},
 	});
-	const stopOutcome = runtime.outcomes.subscribe(
-		eachMessage((message) => {
-			if (message[0] !== "DATA") return;
+	const stopOutcome = runtime.outcomes.subscribe((incoming) => {
+		for (const message of incoming) {
+			if (message[0] !== "DATA") {
+				continue;
+			}
 			const outcome = message[1] as { requestId: string; kind: string };
 			const operation = active.get(outcome.requestId);
-			if (operation === undefined) return;
+			if (operation === undefined) {
+				continue;
+			}
 			if (operation.error !== undefined) operation.reject(operation.error.value);
 			else if (operation.material !== undefined && outcome.kind === "result")
 				operation.resolve(operation.material.value);
 			else operation.reject(new TypeError("HTTP runtime rejected the admitted transport"));
-		}),
-	);
-	const stopStatus = runtime.runStatus.subscribe(
-		eachMessage((message) => {
-			if (message[0] !== "DATA") return;
+		}
+	});
+	const stopStatus = runtime.runStatus.subscribe((incoming) => {
+		for (const message of incoming) {
+			if (message[0] !== "DATA") {
+				continue;
+			}
 			const status = message[1] as { requestId?: string; status: string };
 			if (
 				["missing-request", "missing-input", "stale-request", "mismatched-request"].includes(
@@ -112,8 +117,8 @@ export function createRootEvalHttpTransportLeaf<T>(
 				active
 					.get(status.requestId ?? "")
 					?.reject(new TypeError("HTTP runtime rejected transport correlation"));
-		}),
-	);
+		}
+	});
 	return Object.freeze({
 		run(executionId: string, invoke: Operation["invoke"], signal: AbortSignal): Promise<T> {
 			if (closed || !executionId || used.has(executionId) || used.size >= options.maxExecutions)

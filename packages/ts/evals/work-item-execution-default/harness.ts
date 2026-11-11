@@ -1,5 +1,4 @@
 import { graph } from "../../src/graph/graph.js";
-import { eachMessage } from "../../src/node/each-message.js";
 import type { Node } from "../../src/node/node.js";
 import type {
 	AgentRequestFact,
@@ -23,11 +22,11 @@ import type {
 
 function collectData<T>(node: Node<T>): T[] {
 	const values: T[] = [];
-	node.subscribe(
-		eachMessage((message) => {
+	node.subscribe((incoming) => {
+		for (const message of incoming) {
 			if (message[0] === "DATA") values.push(message[1] as T);
-		}),
-	);
+		}
+	});
 	return values;
 }
 

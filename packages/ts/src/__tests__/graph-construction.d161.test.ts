@@ -11,7 +11,6 @@ import {
 } from "../graph/construction-scope.js";
 import { Graph } from "../graph/graph.js";
 import { NodeCore, type NodeId } from "../node/core.js";
-import { eachMessage } from "../node/each-message.js";
 import { Node } from "../node/node.js";
 import { nodeRuntimeHost } from "../node/node-runtime-host.js";
 import { checkpointStateOfNode, subscriberCountOfNode } from "../node/runtime-accessors.js";
@@ -354,11 +353,11 @@ describe("D161 graph construction ownership", () => {
 	it("retains failed deep dependency leases without disturbing a shared existing subscriber", () => {
 		const f = simple();
 		const values: unknown[] = [];
-		f.a.subscribe(
-			eachMessage((m) => {
+		f.a.subscribe((incoming) => {
+			for (const m of incoming) {
 				if (m[0] === "DATA") values.push(m[1]);
-			}),
-		);
+			}
+		});
 		const original = nodeRuntimeHost(f.b)._subscribeOwned.bind(nodeRuntimeHost(f.b));
 		vi.spyOn(nodeRuntimeHost(f.b), "_subscribeOwned").mockImplementation((sink, acquisition) =>
 			original((m, d) => {
@@ -411,14 +410,14 @@ describe("D161 graph construction ownership", () => {
 		const owner = f.scope.seal(f.startup, [f.join]);
 		f.scope.transferToGraph(owner);
 		// An external observer is installed after handoff, before the native start driver.
-		f.startup.subscribe(
-			eachMessage((m) => {
+		f.startup.subscribe((incoming) => {
+			for (const m of incoming) {
 				if (m[0] === "DATA") {
 					seen.push(m[1]);
 					if ((m[1] as { state: string }).state === "started") throw new Error("delivery");
 				}
-			}),
-		);
+			}
+		});
 		startConstruction(f.graph, owner);
 		expect(owner.phase).toBe("started");
 		// R-failure@3: the consumer's throw is caught per sink and goes to the host reporter.
@@ -450,7 +449,11 @@ describe("D161 graph construction ownership", () => {
 		// R-terminals: an ended node can still be subscribed; its snapshot ends with its terminal,
 		// and nothing restarts it.
 		const late: unknown[] = [];
-		full.execution.conservation.subscribe(eachMessage((m) => late.push(m[0])));
+		full.execution.conservation.subscribe((incoming) => {
+			for (const m of incoming) {
+				late.push(m[0]);
+			}
+		});
 		expect(late.at(-1)).toBe("ERROR");
 		expect(authority.status.output).toBe("errored");
 		// R-lifetime: the ended authority dropped its private state when its lifetime closed.
@@ -471,11 +474,11 @@ describe("D161 graph construction ownership", () => {
 		expect(full.retained.execution).toBe(full.execution);
 		expect(Object.keys(full.identity)).toEqual(["released", "currentness", "issues"]);
 		const values: unknown[] = [];
-		full.execution.causalQuiescence.subscribe(
-			eachMessage((m) => {
+		full.execution.causalQuiescence.subscribe((incoming) => {
+			for (const m of incoming) {
 				if (m[0] === "DATA") values.push(m[1]);
-			}),
-		);
+			}
+		});
 		f.options.watermarks.down([["DATA", { revisionDomain: "d", revision: 2 }]]);
 		expect(values.length).toBeGreaterThan(0);
 		expect(values.every((v) => !("retainedEvidence" in (v as object)))).toBe(true);
@@ -727,11 +730,11 @@ describe("D161 graph construction ownership", () => {
 		const g = new Graph({ dispatcher: new CountingDispatcher() });
 		const source = g.state(1, { name: "source" });
 		const seen: unknown[] = [];
-		source.subscribe(
-			eachMessage((m) => {
+		source.subscribe((incoming) => {
+			for (const m of incoming) {
 				if (m[0] === "DATA") seen.push(m[1]);
-			}),
-		);
+			}
+		});
 		for (let i = 0; i < 20; i++) {
 			const name = `view-${i}`;
 			const scope = prepareConstruction(g, {
@@ -779,11 +782,11 @@ describe("D161 graph construction ownership", () => {
 			{ name: "test/guard" },
 		);
 		let calls = 0;
-		const stop = request.subscribe(
-			eachMessage((m) => {
+		const stop = request.subscribe((incoming) => {
+			for (const m of incoming) {
 				if (m[0] === "DATA" && m[1] === true) calls++;
-			}),
-		);
+			}
+		});
 		expect(calls).toBe(fault ? 0 : 1);
 		authorized.set({ instance: "causal", epoch: 2, admitted: true });
 		authorized.set({ instance: "other", epoch: 1, admitted: true });

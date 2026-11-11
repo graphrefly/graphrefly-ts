@@ -31,7 +31,6 @@ import {
 	type WebSocketDriverEvent,
 	type WebSocketRequest,
 } from "../index.js";
-import { eachMessage } from "../node/each-message.js";
 
 const data = (msgs: Message[]) =>
 	msgs.filter((m) => m[0] === "DATA").map((m) => (m as ["DATA", unknown])[1]);
@@ -196,7 +195,11 @@ describe("promise / iterable / coercion sources (D43)", () => {
 		const g = graph();
 		const n = g.initNode(fromPromise(Promise.resolve(7)), []);
 		const msgs: Message[] = [];
-		n.subscribe(eachMessage((x) => msgs.push(x)));
+		n.subscribe((incoming) => {
+			for (const x of incoming) {
+				msgs.push(x);
+			}
+		});
 		await flush();
 		expect(data(msgs)).toEqual([7]);
 		expect(msgs[msgs.length - 1][0]).toBe("COMPLETE");
@@ -210,7 +213,11 @@ describe("promise / iterable / coercion sources (D43)", () => {
 		});
 		const n = g.initNode(fromPromise(p), []);
 		const msgs: Message[] = [];
-		const unsub = n.subscribe(eachMessage((x) => msgs.push(x)));
+		const unsub = n.subscribe((incoming) => {
+			for (const x of incoming) {
+				msgs.push(x);
+			}
+		});
 
 		unsub();
 		resolve(7);
@@ -225,7 +232,11 @@ describe("promise / iterable / coercion sources (D43)", () => {
 		const boom = new Error("boom");
 		const n = g.initNode(fromPromise(Promise.reject(boom)), []);
 		const msgs: Message[] = [];
-		n.subscribe(eachMessage((x) => msgs.push(x)));
+		n.subscribe((incoming) => {
+			for (const x of incoming) {
+				msgs.push(x);
+			}
+		});
 		await flush();
 		const last = msgs[msgs.length - 1];
 		expect(last[0]).toBe("ERROR");
@@ -238,7 +249,11 @@ describe("promise / iterable / coercion sources (D43)", () => {
 		for (const reason of [undefined, false, true]) {
 			const n = g.initNode(fromPromise(Promise.reject(reason)), []);
 			const msgs: Message[] = [];
-			n.subscribe(eachMessage((x) => msgs.push(x)));
+			n.subscribe((incoming) => {
+				for (const x of incoming) {
+					msgs.push(x);
+				}
+			});
 			await flush();
 			const last = msgs[msgs.length - 1];
 			expect(last[0]).toBe("ERROR");
@@ -256,7 +271,11 @@ describe("promise / iterable / coercion sources (D43)", () => {
 		const g = graph();
 		const n = g.initNode(fromAsyncIter(gen()), []);
 		const msgs: Message[] = [];
-		n.subscribe(eachMessage((x) => msgs.push(x)));
+		n.subscribe((incoming) => {
+			for (const x of incoming) {
+				msgs.push(x);
+			}
+		});
 		await flush();
 		expect(data(msgs)).toEqual([1, 2, 3]);
 		expect(msgs[msgs.length - 1][0]).toBe("COMPLETE");
@@ -270,7 +289,11 @@ describe("promise / iterable / coercion sources (D43)", () => {
 		const g = graph();
 		const n = g.initNode(fromAsyncIter(throwingGen()), []);
 		const msgs: Message[] = [];
-		n.subscribe(eachMessage((x) => msgs.push(x)));
+		n.subscribe((incoming) => {
+			for (const x of incoming) {
+				msgs.push(x);
+			}
+		});
 		await flush();
 
 		expect(data(msgs)).toEqual([1]);
@@ -285,7 +308,11 @@ describe("promise / iterable / coercion sources (D43)", () => {
 		const g = graph();
 		const n = g.initNode(of(42), []);
 		const msgs: Message[] = [];
-		n.subscribe(eachMessage((x) => msgs.push(x)));
+		n.subscribe((incoming) => {
+			for (const x of incoming) {
+				msgs.push(x);
+			}
+		});
 		expect(data(msgs)).toEqual([42]);
 		expect(msgs[msgs.length - 1][0]).toBe("COMPLETE");
 	});
@@ -294,13 +321,21 @@ describe("promise / iterable / coercion sources (D43)", () => {
 		const g = graph();
 		const many = g.initNode(of(1, 2, 3), []);
 		const manyMsgs: Message[] = [];
-		many.subscribe(eachMessage((x) => manyMsgs.push(x)));
+		many.subscribe((incoming) => {
+			for (const x of incoming) {
+				manyMsgs.push(x);
+			}
+		});
 		expect(data(manyMsgs)).toEqual([1, 2, 3]);
 		expect(manyMsgs[manyMsgs.length - 1][0]).toBe("COMPLETE");
 
 		const none = g.initNode(of(), []);
 		const noneMsgs: Message[] = [];
-		none.subscribe(eachMessage((x) => noneMsgs.push(x)));
+		none.subscribe((incoming) => {
+			for (const x of incoming) {
+				noneMsgs.push(x);
+			}
+		});
 		expect(data(noneMsgs)).toEqual([]);
 		expect(noneMsgs[noneMsgs.length - 1][0]).toBe("COMPLETE");
 	});
@@ -309,11 +344,11 @@ describe("promise / iterable / coercion sources (D43)", () => {
 		const g = graph();
 		const n = g.initNode(fromIter([1, 2, 3]), []);
 		const vals: unknown[] = [];
-		n.subscribe(
-			eachMessage((m) => {
+		n.subscribe((incoming) => {
+			for (const m of incoming) {
 				if (m[0] === "DATA") vals.push(m[1]);
-			}),
-		);
+			}
+		});
 		expect(vals).toEqual([1, 2, 3]);
 	});
 
@@ -325,7 +360,11 @@ describe("promise / iterable / coercion sources (D43)", () => {
 		const g = graph();
 		const n = g.initNode(fromIter(throwingIter()), []);
 		const msgs: Message[] = [];
-		n.subscribe(eachMessage((x) => msgs.push(x)));
+		n.subscribe((incoming) => {
+			for (const x of incoming) {
+				msgs.push(x);
+			}
+		});
 
 		expect(data(msgs)).toEqual([1]);
 		const last = msgs[msgs.length - 1];
@@ -339,7 +378,11 @@ describe("promise / iterable / coercion sources (D43)", () => {
 		const g = graph();
 		const n = g.initNode(empty<number>(), []);
 		const msgs: Message[] = [];
-		n.subscribe(eachMessage((x) => msgs.push(x)));
+		n.subscribe((incoming) => {
+			for (const x of incoming) {
+				msgs.push(x);
+			}
+		});
 		expect(data(msgs)).toEqual([]);
 		expect(msgs[msgs.length - 1][0]).toBe("COMPLETE");
 		expect(n.status.output).toBe("completed");
@@ -349,7 +392,11 @@ describe("promise / iterable / coercion sources (D43)", () => {
 		const g = graph();
 		const n = g.initNode(never<number>(), []);
 		const msgs: Message[] = [];
-		const unsub = n.subscribe(eachMessage((x) => msgs.push(x)));
+		const unsub = n.subscribe((incoming) => {
+			for (const x of incoming) {
+				msgs.push(x);
+			}
+		});
 		expect(msgs).toEqual([["START"]]);
 		expect(n.status.cache).toBe("empty");
 		unsub();
@@ -360,7 +407,11 @@ describe("promise / iterable / coercion sources (D43)", () => {
 		for (const err of [undefined, false, true]) {
 			const n = g.initNode(throwError(err), []);
 			const msgs: Message[] = [];
-			n.subscribe(eachMessage((x) => msgs.push(x)));
+			n.subscribe((incoming) => {
+				for (const x of incoming) {
+					msgs.push(x);
+				}
+			});
 			const last = msgs[msgs.length - 1];
 			expect(last[0]).toBe("ERROR");
 			expect((last as ["ERROR", unknown])[1]).toBeInstanceOf(Error);
@@ -377,7 +428,11 @@ describe("promise / iterable / coercion sources (D43)", () => {
 	it("fromAny lifts a Promise via fromPromise", async () => {
 		const n = fromAny(Promise.resolve(9));
 		const msgs: Message[] = [];
-		n.subscribe(eachMessage((x) => msgs.push(x)));
+		n.subscribe((incoming) => {
+			for (const x of incoming) {
+				msgs.push(x);
+			}
+		});
 		await flush();
 		expect(data(msgs)).toEqual([9]);
 	});
@@ -389,7 +444,11 @@ describe("promise / iterable / coercion sources (D43)", () => {
 		}
 		const n = fromAny(gen());
 		const msgs: Message[] = [];
-		n.subscribe(eachMessage((x) => msgs.push(x)));
+		n.subscribe((incoming) => {
+			for (const x of incoming) {
+				msgs.push(x);
+			}
+		});
 		await flush();
 		expect(data(msgs)).toEqual([1, 2]);
 		expect(msgs[msgs.length - 1][0]).toBe("COMPLETE");
@@ -398,28 +457,32 @@ describe("promise / iterable / coercion sources (D43)", () => {
 	it("fromAny expands a sync iterable only with {iter:true}", () => {
 		const expanded = fromAny([1, 2, 3], { iter: true });
 		const vals: unknown[] = [];
-		expanded.subscribe(
-			eachMessage((m) => {
+		expanded.subscribe((incoming) => {
+			for (const m of incoming) {
 				if (m[0] === "DATA") vals.push(m[1]);
-			}),
-		);
+			}
+		});
 		expect(vals).toEqual([1, 2, 3]);
 
 		// default: the array is a single scalar DATA value (of)
 		const scalar = fromAny([1, 2, 3]);
 		const got: unknown[] = [];
-		scalar.subscribe(
-			eachMessage((m) => {
+		scalar.subscribe((incoming) => {
+			for (const m of incoming) {
 				if (m[0] === "DATA") got.push(m[1]);
-			}),
-		);
+			}
+		});
 		expect(got).toEqual([[1, 2, 3]]);
 	});
 
 	it("fromAny treats null as a valid scalar DATA value (R-data-payload)", () => {
 		const n = fromAny(null);
 		const msgs: Message[] = [];
-		n.subscribe(eachMessage((x) => msgs.push(x)));
+		n.subscribe((incoming) => {
+			for (const x of incoming) {
+				msgs.push(x);
+			}
+		});
 
 		expect(data(msgs)).toEqual([null]);
 		expect(msgs[msgs.length - 1][0]).toBe("COMPLETE");
@@ -429,7 +492,11 @@ describe("promise / iterable / coercion sources (D43)", () => {
 	it("fromAny rejects undefined as DATA because it is the protocol SENTINEL", () => {
 		const n = fromAny(undefined);
 		const msgs: Message[] = [];
-		n.subscribe(eachMessage((x) => msgs.push(x)));
+		n.subscribe((incoming) => {
+			for (const x of incoming) {
+				msgs.push(x);
+			}
+		});
 
 		expect(data(msgs)).toEqual([]);
 		const last = msgs[msgs.length - 1];
@@ -610,7 +677,11 @@ describe("external callback sources (D43)", () => {
 			name: "events",
 		});
 		const msgs: Message[] = [];
-		const unsubscribe = n.subscribe(eachMessage((x) => msgs.push(x)));
+		const unsubscribe = n.subscribe((incoming) => {
+			for (const x of incoming) {
+				msgs.push(x);
+			}
+		});
 
 		target.emit("message", { x: 1 });
 		target.emit("other", { x: 2 });
@@ -640,7 +711,11 @@ describe("external callback sources (D43)", () => {
 			{ name: "pushes" },
 		);
 		const msgs: Message[] = [];
-		const unsubscribe = n.subscribe(eachMessage((x) => msgs.push(x)));
+		const unsubscribe = n.subscribe((incoming) => {
+			for (const x of incoming) {
+				msgs.push(x);
+			}
+		});
 
 		deliver("a");
 		unsubscribe();

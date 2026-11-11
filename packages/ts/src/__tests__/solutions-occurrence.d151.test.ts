@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { graph } from "../graph/graph.js";
-import { eachMessage } from "../node/each-message.js";
 import type { Message } from "../protocol/messages.js";
 import {
 	type SolutionOccurrence,
@@ -46,7 +45,11 @@ function fixture(maxOccurrences = 2) {
 		project: (value) => Object.freeze({ selected: value.coordinate }),
 	});
 	const messages: Message[] = [];
-	const unsubscribe = projection.subscribe(eachMessage((message) => messages.push(message)));
+	const unsubscribe = projection.subscribe((incoming) => {
+		for (const message of incoming) {
+			messages.push(message);
+		}
+	});
 	return { input, messages, unsubscribe };
 }
 
@@ -144,7 +147,11 @@ describe("D151 exact solution occurrence join", () => {
 			project: (left, right) => [left.coordinate, right.coordinate],
 		});
 		const messages: Message[] = [];
-		const stop = output.subscribe(eachMessage((message) => messages.push(message)));
+		const stop = output.subscribe((incoming) => {
+			for (const message of incoming) {
+				messages.push(message);
+			}
+		});
 		expect(
 			messages
 				.filter((message) => message[0] === "DATA")
@@ -152,7 +159,11 @@ describe("D151 exact solution occurrence join", () => {
 		).toEqual([["one", "one"]]);
 		stop();
 		const later: Message[] = [];
-		const stopLater = output.subscribe(eachMessage((message) => later.push(message)));
+		const stopLater = output.subscribe((incoming) => {
+			for (const message of incoming) {
+				later.push(message);
+			}
+		});
 		expect(later.filter((message) => message[0] === "DATA")).toHaveLength(1);
 		stopLater();
 	});
@@ -179,7 +190,11 @@ describe("D151 exact solution occurrence join", () => {
 			},
 		);
 		const messages: Message[] = [];
-		const unsubscribe = output.subscribe(eachMessage((message) => messages.push(message)));
+		const unsubscribe = output.subscribe((incoming) => {
+			for (const message of incoming) {
+				messages.push(message);
+			}
+		});
 		return { owner, leftInput, rightInput, messages, unsubscribe };
 	}
 	it("pairs all DATA by identity, not wave or latest value; an absent sibling stays quiet", () => {

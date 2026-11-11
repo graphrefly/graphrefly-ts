@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { graph } from "../graph/graph.js";
-import { eachMessage } from "../node/each-message.js";
 import {
 	type AgentDecision,
 	type AgentRequestFact,
@@ -275,8 +274,16 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 8", () => {
 		});
 		const views: unknown[] = [];
 		const audit: unknown[] = [];
-		projector.views.subscribe(eachMessage((msg) => msg[0] === "DATA" && views.push(msg[1])));
-		projector.audit.subscribe(eachMessage((msg) => msg[0] === "DATA" && audit.push(msg[1])));
+		projector.views.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && views.push(msg[1]);
+			}
+		});
+		projector.audit.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && audit.push(msg[1]);
+			}
+		});
 
 		outcomes.down([
 			[
@@ -339,10 +346,16 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 8", () => {
 		});
 		const statuses: AgentRequestStatusChanged[] = [];
 		const issues: unknown[] = [];
-		satisfaction.status.subscribe(
-			eachMessage((msg) => msg[0] === "DATA" && statuses.push(msg[1] as AgentRequestStatusChanged)),
-		);
-		satisfaction.issues.subscribe(eachMessage((msg) => msg[0] === "DATA" && issues.push(msg[1])));
+		satisfaction.status.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && statuses.push(msg[1] as AgentRequestStatusChanged);
+			}
+		});
+		satisfaction.issues.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && issues.push(msg[1]);
+			}
+		});
 
 		requestFacts.down([["DATA", issued("request-1", "op-good", "executor", "llm-call")]]);
 		profiles.down([["DATA", { profileId: "profile-1", executorId: "exec-1", kind: "llm" }]]);
@@ -393,10 +406,16 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 8", () => {
 		});
 		const statuses: AgentRequestStatusChanged[] = [];
 		const issues: unknown[] = [];
-		satisfaction.status.subscribe(
-			eachMessage((msg) => msg[0] === "DATA" && statuses.push(msg[1] as AgentRequestStatusChanged)),
-		);
-		satisfaction.issues.subscribe(eachMessage((msg) => msg[0] === "DATA" && issues.push(msg[1])));
+		satisfaction.status.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && statuses.push(msg[1] as AgentRequestStatusChanged);
+			}
+		});
+		satisfaction.issues.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && issues.push(msg[1]);
+			}
+		});
 
 		requestFacts.down([["DATA", issued("request-1", "op-1", "executor", "llm-call")]]);
 		profiles.down([["DATA", { profileId: "profile-1", executorId: "exec-1", kind: "llm" }]]);
@@ -452,10 +471,16 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 8", () => {
 		});
 		const statuses: AgentRequestStatusChanged[] = [];
 		const issues: unknown[] = [];
-		satisfaction.status.subscribe(
-			eachMessage((msg) => msg[0] === "DATA" && statuses.push(msg[1] as AgentRequestStatusChanged)),
-		);
-		satisfaction.issues.subscribe(eachMessage((msg) => msg[0] === "DATA" && issues.push(msg[1])));
+		satisfaction.status.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && statuses.push(msg[1] as AgentRequestStatusChanged);
+			}
+		});
+		satisfaction.issues.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && issues.push(msg[1]);
+			}
+		});
 
 		requestFacts.down([["DATA", issued("request-1", "op-1", "executor", "llm-call")]]);
 		profiles.down([
@@ -528,10 +553,16 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 8", () => {
 		});
 		const statuses: AgentRequestStatusChanged[] = [];
 		const issues: unknown[] = [];
-		satisfaction.status.subscribe(
-			eachMessage((msg) => msg[0] === "DATA" && statuses.push(msg[1] as AgentRequestStatusChanged)),
-		);
-		satisfaction.issues.subscribe(eachMessage((msg) => msg[0] === "DATA" && issues.push(msg[1])));
+		satisfaction.status.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && statuses.push(msg[1] as AgentRequestStatusChanged);
+			}
+		});
+		satisfaction.issues.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && issues.push(msg[1]);
+			}
+		});
 
 		requestFacts.down([["DATA", issued("request-1", "op-1", "executor", "llm-call")]]);
 		profiles.down([
@@ -600,9 +631,11 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 8", () => {
 			executorOutcomes: [outcomes],
 		});
 		const statuses: AgentRequestStatusChanged[] = [];
-		satisfaction.status.subscribe(
-			eachMessage((msg) => msg[0] === "DATA" && statuses.push(msg[1] as AgentRequestStatusChanged)),
-		);
+		satisfaction.status.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && statuses.push(msg[1] as AgentRequestStatusChanged);
+			}
+		});
 
 		routes.down([
 			[
@@ -649,9 +682,11 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 8", () => {
 			promptBundles: [prompts],
 		});
 		const statuses: AgentRequestStatusChanged[] = [];
-		satisfaction.status.subscribe(
-			eachMessage((msg) => msg[0] === "DATA" && statuses.push(msg[1] as AgentRequestStatusChanged)),
-		);
+		satisfaction.status.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && statuses.push(msg[1] as AgentRequestStatusChanged);
+			}
+		});
 
 		requestFacts.down([["DATA", issued("prompt-1", "op-1", "prompt")]]);
 		prompts.down([
@@ -692,7 +727,11 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 8", () => {
 			requestFacts: [requestFacts],
 		});
 		const status: unknown[] = [];
-		completion.status.subscribe(eachMessage((msg) => msg[0] === "DATA" && status.push(msg[1])));
+		completion.status.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && status.push(msg[1]);
+			}
+		});
 		effectRuns.down([["DATA", effectRun({ effectRunId: "run-1", goal: { kind: "retry-test" } })]]);
 		requestFacts.down([
 			["DATA", issued("request-1", "op-1", "executor", "llm-call")],
@@ -723,9 +762,11 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 8", () => {
 			now: () => 1000,
 		});
 		const results: EffectRunResult[] = [];
-		completion.results.subscribe(
-			eachMessage((msg) => msg[0] === "DATA" && results.push(msg[1] as EffectRunResult)),
-		);
+		completion.results.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && results.push(msg[1] as EffectRunResult);
+			}
+		});
 
 		effectRuns.down([["DATA", effectRun({ effectRunId: "run-1", goal: { kind: "test" } })]]);
 		requestFacts.down([["DATA", issued("request-1", "op-1", "executor", "llm-call")]]);
@@ -776,10 +817,16 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 8", () => {
 		});
 		const results: EffectRunResult[] = [];
 		const issues: unknown[] = [];
-		completion.results.subscribe(
-			eachMessage((msg) => msg[0] === "DATA" && results.push(msg[1] as EffectRunResult)),
-		);
-		completion.issues.subscribe(eachMessage((msg) => msg[0] === "DATA" && issues.push(msg[1])));
+		completion.results.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && results.push(msg[1] as EffectRunResult);
+			}
+		});
+		completion.issues.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && issues.push(msg[1]);
+			}
+		});
 
 		effectRuns.down([["DATA", effectRun({ effectRunId: "run-1", goal: { kind: "test" } })]]);
 		requestFacts.down([
@@ -824,11 +871,21 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 8", () => {
 		const results: EffectRunResult[] = [];
 		const issues: unknown[] = [];
 		const audit: unknown[] = [];
-		completion.results.subscribe(
-			eachMessage((msg) => msg[0] === "DATA" && results.push(msg[1] as EffectRunResult)),
-		);
-		completion.issues.subscribe(eachMessage((msg) => msg[0] === "DATA" && issues.push(msg[1])));
-		completion.audit.subscribe(eachMessage((msg) => msg[0] === "DATA" && audit.push(msg[1])));
+		completion.results.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && results.push(msg[1] as EffectRunResult);
+			}
+		});
+		completion.issues.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && issues.push(msg[1]);
+			}
+		});
+		completion.audit.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && audit.push(msg[1]);
+			}
+		});
 		effectRuns.down([["DATA", effectRun({ effectRunId: "run-1", goal: { kind: "test" } })]]);
 		candidates.down([
 			[
@@ -868,10 +925,16 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 8", () => {
 		});
 		const results: EffectRunResult[] = [];
 		const issues: unknown[] = [];
-		completion.results.subscribe(
-			eachMessage((msg) => msg[0] === "DATA" && results.push(msg[1] as EffectRunResult)),
-		);
-		completion.issues.subscribe(eachMessage((msg) => msg[0] === "DATA" && issues.push(msg[1])));
+		completion.results.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && results.push(msg[1] as EffectRunResult);
+			}
+		});
+		completion.issues.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && issues.push(msg[1]);
+			}
+		});
 		effectRuns.down([["DATA", effectRun({ effectRunId: "run-1", goal: { kind: "test" } })]]);
 
 		candidates.down([

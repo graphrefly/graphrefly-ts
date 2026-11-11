@@ -1,7 +1,6 @@
 /** Concrete customer-hosted outbound PostgreSQL endpoint binding (D606). */
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
-import { eachMessage } from "../node/each-message.js";
 import type { Node } from "../node/node.js";
 import type {
 	AgentRuntimeAuditRecord,
@@ -783,21 +782,21 @@ export function customerHostedPostgresqlRuntime(
 		void p.catch(() => issue(code, "Customer-hosted runtime-private operation failed."));
 	for (const n of opts.releaseNodes)
 		unsubs.push(
-			n.subscribe(
-				eachMessage((m) => {
+			n.subscribe((incoming) => {
+				for (const m of incoming) {
 					if (m[0] === "DATA")
 						try {
 							release = customerHostedPostgresqlRelease(m[1] as CustomerHostedPostgresqlRelease);
 						} catch {
 							issue("customer-hosted-release-invalid", "Customer-hosted release is invalid.");
 						}
-				}),
-			),
+				}
+			}),
 		);
 	for (const n of opts.enrollmentNodes)
 		unsubs.push(
-			n.subscribe(
-				eachMessage((m) => {
+			n.subscribe((incoming) => {
+				for (const m of incoming) {
 					if (m[0] === "DATA")
 						try {
 							const next = customerHostedPostgresqlEnrollment(
@@ -830,13 +829,13 @@ export function customerHostedPostgresqlRuntime(
 						} catch {
 							issue("customer-hosted-enrollment-invalid", "Customer-hosted enrollment is invalid.");
 						}
-				}),
-			),
+				}
+			}),
 		);
 	for (const n of opts.readinessNodes)
 		unsubs.push(
-			n.subscribe(
-				eachMessage((m) => {
+			n.subscribe((incoming) => {
+				for (const m of incoming) {
 					if (m[0] === "DATA")
 						try {
 							readiness = customerHostedPostgresqlReadiness(
@@ -845,27 +844,31 @@ export function customerHostedPostgresqlRuntime(
 						} catch {
 							issue("customer-hosted-readiness-invalid", "Customer-hosted readiness is invalid.");
 						}
-				}),
-			),
+				}
+			}),
 		);
 	unsubs.push(
-		opts.inputs.subscribe(
-			eachMessage((m) => {
-				if (m[0] !== "DATA") return;
+		opts.inputs.subscribe((incoming) => {
+			for (const m of incoming) {
+				if (m[0] !== "DATA") {
+					continue;
+				}
 				const input = m[1] as ToolProviderAdapterInput;
 				if (
 					input.kind === "tool-provider-adapter-input" &&
 					typeof input.adapterInputId === "string"
 				)
 					inputs.set(input.adapterInputId, snapshot(input));
-			}),
-		),
+			}
+		}),
 	);
 	for (const n of opts.approvedRunRequestNodes)
 		unsubs.push(
-			n.subscribe(
-				eachMessage((m) => {
-					if (m[0] !== "DATA") return;
+			n.subscribe((incoming) => {
+				for (const m of incoming) {
+					if (m[0] !== "DATA") {
+						continue;
+					}
 					let envelope: CustomerHostedPostgresqlAdmittedEnvelope;
 					try {
 						const request = m[1] as ToolProviderAdapterRunRequested;
@@ -881,7 +884,7 @@ export function customerHostedPostgresqlRuntime(
 							"customer-hosted-admission-invalid",
 							"Customer-hosted admitted envelope is invalid.",
 						);
-						return;
+						continue;
 					}
 					run(
 						(async () => {
@@ -915,14 +918,16 @@ export function customerHostedPostgresqlRuntime(
 						})(),
 						"customer-hosted-admission-failed",
 					);
-				}),
-			),
+				}
+			}),
 		);
 	for (const n of opts.cancellationNodes ?? [])
 		unsubs.push(
-			n.subscribe(
-				eachMessage((m) => {
-					if (m[0] !== "DATA") return;
+			n.subscribe((incoming) => {
+				for (const m of incoming) {
+					if (m[0] !== "DATA") {
+						continue;
+					}
 					let r: CustomerHostedPostgresqlCancellationRequested;
 					try {
 						r = customerHostedPostgresqlCancellation(
@@ -933,7 +938,7 @@ export function customerHostedPostgresqlRuntime(
 							"customer-hosted-cancel-invalid",
 							"Customer-hosted cancellation pins are invalid.",
 						);
-						return;
+						continue;
 					}
 					run(
 						(async () => {
@@ -991,8 +996,8 @@ export function customerHostedPostgresqlRuntime(
 						})(),
 						"customer-hosted-cancel-failed",
 					);
-				}),
-			),
+				}
+			}),
 		);
 	const onMessage = (raw: unknown) => {
 		if (disposed) return;

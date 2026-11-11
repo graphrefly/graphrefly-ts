@@ -17,14 +17,17 @@ import {
 	stratifyBranch,
 	topologyDiff,
 } from "../index.js";
-import { eachMessage } from "../node/each-message.js";
 
 const data = <T>(msgs: Message[]): T[] =>
 	msgs.filter((x) => x[0] === "DATA").map((x) => (x as readonly ["DATA", T])[1]);
 
 function collect(n: { subscribe(s: (m: Message) => void): () => void }) {
 	const msgs: Message[] = [];
-	const unsub = n.subscribe(eachMessage((m) => msgs.push(m)));
+	const unsub = n.subscribe((incoming) => {
+		for (const m of incoming) {
+			msgs.push(m);
+		}
+	});
 	return { msgs, unsub };
 }
 

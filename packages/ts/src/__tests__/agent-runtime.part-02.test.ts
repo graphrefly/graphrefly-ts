@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { DataIssue } from "../data/index.js";
 import { graph } from "../graph/graph.js";
-import { eachMessage } from "../node/each-message.js";
 import {
 	type AgentDecisionContinue,
 	type AgentRequestIssued,
@@ -640,14 +639,26 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 2", () => {
 		const status: AgentRequestStatusChanged[] = [];
 		const issues: unknown[] = [];
 		const audit: unknown[] = [];
-		runtime.outcomes.subscribe(
-			eachMessage((msg) => msg[0] === "DATA" && outcomes.push(msg[1] as ExecutorOutcome)),
-		);
-		runtime.status.subscribe(
-			eachMessage((msg) => msg[0] === "DATA" && status.push(msg[1] as AgentRequestStatusChanged)),
-		);
-		runtime.issues.subscribe(eachMessage((msg) => msg[0] === "DATA" && issues.push(msg[1])));
-		runtime.audit.subscribe(eachMessage((msg) => msg[0] === "DATA" && audit.push(msg[1])));
+		runtime.outcomes.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && outcomes.push(msg[1] as ExecutorOutcome);
+			}
+		});
+		runtime.status.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && status.push(msg[1] as AgentRequestStatusChanged);
+			}
+		});
+		runtime.issues.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && issues.push(msg[1]);
+			}
+		});
+		runtime.audit.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && audit.push(msg[1]);
+			}
+		});
 
 		inputs.down([["DATA", { ...ready, status: "missing-policy" }]]);
 		inputs.down([["DATA", ready]]);
@@ -686,13 +697,21 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 2", () => {
 		const outcomes: ExecutorOutcome[] = [];
 		const status: AgentRequestStatusChanged[] = [];
 		const issues: unknown[] = [];
-		runtime.outcomes.subscribe(
-			eachMessage((msg) => msg[0] === "DATA" && outcomes.push(msg[1] as ExecutorOutcome)),
-		);
-		runtime.status.subscribe(
-			eachMessage((msg) => msg[0] === "DATA" && status.push(msg[1] as AgentRequestStatusChanged)),
-		);
-		runtime.issues.subscribe(eachMessage((msg) => msg[0] === "DATA" && issues.push(msg[1])));
+		runtime.outcomes.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && outcomes.push(msg[1] as ExecutorOutcome);
+			}
+		});
+		runtime.status.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && status.push(msg[1] as AgentRequestStatusChanged);
+			}
+		});
+		runtime.issues.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && issues.push(msg[1]);
+			}
+		});
 
 		inputs.down([["DATA", ready]]);
 
@@ -734,10 +753,16 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 2", () => {
 		});
 		const outcomes: ExecutorOutcome[] = [];
 		const issues: unknown[] = [];
-		runtime.outcomes.subscribe(
-			eachMessage((msg) => msg[0] === "DATA" && outcomes.push(msg[1] as ExecutorOutcome)),
-		);
-		runtime.issues.subscribe(eachMessage((msg) => msg[0] === "DATA" && issues.push(msg[1])));
+		runtime.outcomes.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && outcomes.push(msg[1] as ExecutorOutcome);
+			}
+		});
+		runtime.issues.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && issues.push(msg[1]);
+			}
+		});
 
 		inputs.down([["DATA", ready]]);
 
@@ -783,12 +808,16 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 2", () => {
 		});
 		const outcomes: ExecutorOutcome[] = [];
 		const issues: DataIssue[] = [];
-		runtime.outcomes.subscribe(
-			eachMessage((msg) => msg[0] === "DATA" && outcomes.push(msg[1] as ExecutorOutcome)),
-		);
-		runtime.issues.subscribe(
-			eachMessage((msg) => msg[0] === "DATA" && issues.push(msg[1] as DataIssue)),
-		);
+		runtime.outcomes.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && outcomes.push(msg[1] as ExecutorOutcome);
+			}
+		});
+		runtime.issues.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && issues.push(msg[1] as DataIssue);
+			}
+		});
 
 		inputs.down([["DATA", ready]]);
 
@@ -822,10 +851,16 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 2", () => {
 		});
 		const outcomes: ExecutorOutcome[] = [];
 		const issues: unknown[] = [];
-		runtime.outcomes.subscribe(
-			eachMessage((msg) => msg[0] === "DATA" && outcomes.push(msg[1] as ExecutorOutcome)),
-		);
-		runtime.issues.subscribe(eachMessage((msg) => msg[0] === "DATA" && issues.push(msg[1])));
+		runtime.outcomes.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && outcomes.push(msg[1] as ExecutorOutcome);
+			}
+		});
+		runtime.issues.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && issues.push(msg[1]);
+			}
+		});
 
 		inputs.down([["DATA", ready]]);
 
@@ -863,10 +898,16 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 2", () => {
 		});
 		const outcomes: ExecutorOutcome[] = [];
 		const issues: unknown[] = [];
-		runtime.outcomes.subscribe(
-			eachMessage((msg) => msg[0] === "DATA" && outcomes.push(msg[1] as ExecutorOutcome)),
-		);
-		runtime.issues.subscribe(eachMessage((msg) => msg[0] === "DATA" && issues.push(msg[1])));
+		runtime.outcomes.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && outcomes.push(msg[1] as ExecutorOutcome);
+			}
+		});
+		runtime.issues.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && issues.push(msg[1]);
+			}
+		});
 
 		inputs.down([["DATA", ready]]);
 
@@ -913,12 +954,16 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 2", () => {
 		});
 		const outcomes: ExecutorOutcome[] = [];
 		const issues: DataIssue[] = [];
-		runtime.outcomes.subscribe(
-			eachMessage((msg) => msg[0] === "DATA" && outcomes.push(msg[1] as ExecutorOutcome)),
-		);
-		runtime.issues.subscribe(
-			eachMessage((msg) => msg[0] === "DATA" && issues.push(msg[1] as DataIssue)),
-		);
+		runtime.outcomes.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && outcomes.push(msg[1] as ExecutorOutcome);
+			}
+		});
+		runtime.issues.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msg[0] === "DATA" && issues.push(msg[1] as DataIssue);
+			}
+		});
 
 		inputs.down([["DATA", ready]]);
 

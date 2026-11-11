@@ -6,7 +6,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toProcess } from "../adapters/index.js";
 import type { Message } from "../index.js";
 import { EnvironmentDrivers, fromProcess, graph } from "../index.js";
-import { eachMessage } from "../node/each-message.js";
 import {
 	type FSEvent,
 	fromFSWatch,
@@ -54,7 +53,11 @@ describe("node-only filesystem sources", () => {
 			{ name: "fs" },
 		);
 		const msgs: Message[] = [];
-		const unsubscribe = watched.subscribe(eachMessage((msg) => msgs.push(msg)));
+		const unsubscribe = watched.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msgs.push(msg);
+			}
+		});
 
 		await waitFor(() => data(msgs).length === 1);
 		unsubscribe();
@@ -81,7 +84,11 @@ describe("node-only process sources", () => {
 			[],
 		);
 		const msgs: Message[] = [];
-		n.subscribe(eachMessage((msg) => msgs.push(msg)));
+		n.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msgs.push(msg);
+			}
+		});
 
 		await waitFor(() => msgs.some((msg) => msg[0] === "COMPLETE"));
 
@@ -104,7 +111,11 @@ describe("node-only process sources", () => {
 			[],
 		);
 		const msgs: Message[] = [];
-		n.subscribe(eachMessage((msg) => msgs.push(msg)));
+		n.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msgs.push(msg);
+			}
+		});
 
 		await waitFor(() => msgs.some((msg) => msg[0] === "COMPLETE"));
 
@@ -126,7 +137,11 @@ describe("node-only process sources", () => {
 			{ name: "driver_process" },
 		);
 		const msgs: Message[] = [];
-		n.subscribe(eachMessage((msg) => msgs.push(msg)));
+		n.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msgs.push(msg);
+			}
+		});
 
 		await waitFor(() => msgs.some((msg) => msg[0] === "COMPLETE"));
 
@@ -154,8 +169,16 @@ describe("node-only process sources", () => {
 		);
 		const events: Message[] = [];
 		const statuses: Message[] = [];
-		bundle.events.subscribe(eachMessage((msg) => events.push(msg)));
-		bundle.status.subscribe(eachMessage((msg) => statuses.push(msg)));
+		bundle.events.subscribe((incoming) => {
+			for (const msg of incoming) {
+				events.push(msg);
+			}
+		});
+		bundle.status.subscribe((incoming) => {
+			for (const msg of incoming) {
+				statuses.push(msg);
+			}
+		});
 
 		source.down([["DATA", "adapter-out"]]);
 		await waitFor(() =>
@@ -274,7 +297,11 @@ describe("node-only process sources", () => {
 			[],
 		);
 		const msgs: Message[] = [];
-		const unsubscribe = n.subscribe(eachMessage((msg) => msgs.push(msg)));
+		const unsubscribe = n.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msgs.push(msg);
+			}
+		});
 
 		await waitFor(() =>
 			data<SpawnEvent>(msgs).some(
@@ -309,7 +336,11 @@ describe("node-only git sources", () => {
 			[],
 		);
 		const msgs: Message[] = [];
-		const unsubscribe = n.subscribe(eachMessage((msg) => msgs.push(msg)));
+		const unsubscribe = n.subscribe((incoming) => {
+			for (const msg of incoming) {
+				msgs.push(msg);
+			}
+		});
 		try {
 			expect(data<GitEvent>(msgs)).toEqual([]);
 

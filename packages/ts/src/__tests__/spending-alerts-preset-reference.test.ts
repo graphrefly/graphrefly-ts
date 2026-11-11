@@ -27,7 +27,6 @@ import {
 	profileScenario,
 	rebindEvaluation,
 } from "../../../../scripts/fixtures/spending-preset-scenarios.js";
-import { eachMessage } from "../node/each-message.js";
 import { removeOwnedNodeDep } from "./helpers/owned-rewire.js";
 
 type Mutable<T> = { -readonly [K in keyof T]: Mutable<T[K]> };
@@ -334,11 +333,11 @@ for (const name of ["score", "material", "store", "assessment", "evidence"] as c
 		calls!.mockRestore();
 		expect(fn).toBeTypeOf("function");
 		const errors: unknown[] = [];
-		const stop = node.subscribe(
-			eachMessage((m) => {
+		const stop = node.subscribe((incoming) => {
+			for (const m of incoming) {
 				if (m[0] === "ERROR") errors.push(m[1]);
-			}),
-		);
+			}
+		});
 		try {
 			removeOwnedNodeDep(node, node.deps[0], fn as import("../ctx/types.js").NodeFn);
 			const e = evaluationFixture(),
