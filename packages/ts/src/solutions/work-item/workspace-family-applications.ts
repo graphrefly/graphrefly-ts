@@ -3928,7 +3928,7 @@ export function workspaceProposalRepairActionDisplayPolicyAdvisoryProjector(
 						displayMessage: opts.displayMessage,
 						sourceRefs: opts.sourceRefs,
 						audit: opts.audit,
-						metadata: opts.metadata,
+						...(opts.metadata === undefined ? {} : { metadata: opts.metadata }),
 					})
 				) {
 					continue;
@@ -3945,7 +3945,7 @@ export function workspaceProposalRepairActionDisplayPolicyAdvisoryProjector(
 						displayMessage: opts.displayMessage,
 						sourceRefs: opts.sourceRefs,
 						audit: opts.audit,
-						metadata: opts.metadata,
+						...(opts.metadata === undefined ? {} : { metadata: opts.metadata }),
 					},
 				);
 				const validation = validateWorkspaceProposalRepairActionDisplayPolicyAdvisory(advisory, {

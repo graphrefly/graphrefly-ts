@@ -460,19 +460,19 @@ export class Graph {
 		opts: SugarOpts<void> = {},
 	): Node<void> {
 		this._assertDepsLocal(deps, `dep of '${opts.name ?? "effect"}'`);
-		// R-lifetime: the latest run's returned cleanup is kept in the effect's private state, and the
+		// R-lifetime: the latest run's returned cleanup belongs to the run's lifetime, and the
 		// lifetime's cleanup (installed by setup) runs it once when the lifetime closes. A run that
-		// returns nothing clears it; a rerun replaces it without running it.
-		type EffectState = { readonly cleanup: (() => void) | undefined };
+		// returns nothing clears it; a rerun replaces it without running it. It is kept by lifetime
+		// signal, not in private state, which a checkpoint saves as JSON (R-checkpoint@1).
+		const cleanups = new WeakMap<AbortSignal, () => void>();
 		const ctxFn: NodeFn = (ctx: Ctx) => {
 			try {
 				const args = Array.from({ length: depCount(ctx) }, (_, i) =>
 					depLatest(ctx, i),
 				) as DepValues<D>;
 				const cleanup = fn(...args);
-				ctx.state.set<EffectState>({
-					cleanup: typeof cleanup === "function" ? cleanup : undefined,
-				});
+				if (typeof cleanup === "function") cleanups.set(ctx.signal, cleanup);
+				else cleanups.delete(ctx.signal);
 			} catch (e) {
 				ctx.down([["ERROR", errorPayload(e, "effect threw without a valid error payload")]]);
 			}
@@ -480,8 +480,11 @@ export class Graph {
 		const userSetup = opts.setup;
 		const setup = (ctx: Ctx): (() => void) => {
 			const userCleanup = userSetup?.(ctx);
+			const signal = ctx.signal;
 			return () => {
-				ctx.state.get<EffectState>()?.cleanup?.();
+				const cleanup = cleanups.get(signal);
+				cleanups.delete(signal);
+				cleanup?.();
 				if (typeof userCleanup === "function") userCleanup();
 			};
 		};

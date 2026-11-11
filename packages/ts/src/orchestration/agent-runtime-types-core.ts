@@ -90,7 +90,7 @@ export function effectRun<TInput = unknown>(opts: EffectRunOptions<TInput>): Eff
 		limits: opts.limits,
 		createdBy: opts.createdBy,
 		createdAtMs: opts.createdAtMs,
-		metadata: opts.metadata,
+		...(opts.metadata === undefined ? {} : { metadata: opts.metadata }),
 	};
 }
 

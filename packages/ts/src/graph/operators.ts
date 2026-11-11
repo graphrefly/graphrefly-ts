@@ -830,7 +830,7 @@ export interface SettleOpts<S> {
 
 /** Internal settle accumulator state (per-node, R-ctx-state). */
 interface SettleState<S> {
-	last: S | undefined;
+	last?: S;
 	hasValue: boolean;
 	quiet: number;
 	waves: number;
@@ -862,8 +862,8 @@ export function settle<S>(opts: SettleOpts<S>): Operator<S, S> {
 	return {
 		factory: "settle",
 		body: (ctx) => {
+			// No `last` key until a value arrives: private state is strict JSON (R-checkpoint@1).
 			const st: SettleState<S> = ctx.state.get<SettleState<S>>() ?? {
-				last: undefined,
 				hasValue: false,
 				quiet: 0,
 				waves: 0,

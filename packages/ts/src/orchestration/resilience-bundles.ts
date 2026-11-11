@@ -88,7 +88,7 @@ export function retryStatusBundle(
 						state: "waiting",
 						attempt: event.attempt,
 						maxAttempts: policy.maxAttempts,
-						delayMs: event.delayMs,
+						...(event.delayMs === undefined ? {} : { delayMs: event.delayMs }),
 					};
 				} else if (event.kind === "success") {
 					next = {

@@ -36,7 +36,7 @@ export function workItemCreatedFromDraft<TInput = unknown>(
 		authorId: opts.authorId,
 		createdAtMs: opts.createdAtMs,
 		sourceRefs: opts.sourceRefs,
-		metadata: opts.metadata,
+		...(opts.metadata === undefined ? {} : { metadata: opts.metadata }),
 	};
 }
 
@@ -67,7 +67,7 @@ export function workItemSpawnProposed<TInput = unknown>(
 		proposedBy: opts.proposedBy,
 		idempotencyKey: opts.idempotencyKey,
 		sourceRefs: opts.sourceRefs,
-		metadata: opts.metadata,
+		...(opts.metadata === undefined ? {} : { metadata: opts.metadata }),
 	};
 }
 
@@ -101,7 +101,7 @@ export function acceptanceCriteriaChanged(
 		authorId: opts.authorId,
 		changedAtMs: opts.changedAtMs,
 		sourceRefs: opts.sourceRefs,
-		metadata: opts.metadata,
+		...(opts.metadata === undefined ? {} : { metadata: opts.metadata }),
 	};
 }
 
@@ -135,6 +135,6 @@ export function verificationPlanChanged<TInput = unknown>(
 		authorId: opts.authorId,
 		changedAtMs: opts.changedAtMs,
 		sourceRefs: opts.sourceRefs,
-		metadata: opts.metadata,
+		...(opts.metadata === undefined ? {} : { metadata: opts.metadata }),
 	};
 }

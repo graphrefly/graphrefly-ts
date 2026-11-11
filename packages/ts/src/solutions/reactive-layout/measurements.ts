@@ -87,8 +87,8 @@ export function measurementIssue(
 		source: opts.source,
 		subjectId: targetId,
 		measurementKind,
-		details: opts.details,
-		metadata: opts.metadata,
+		...(opts.details === undefined ? {} : { details: opts.details }),
+		...(opts.metadata === undefined ? {} : { metadata: opts.metadata }),
 	};
 }
 
@@ -118,7 +118,7 @@ export function measurementOk<T>(
 		measurementKind,
 		value,
 		source: opts.source,
-		metadata: opts.metadata,
+		...(opts.metadata === undefined ? {} : { metadata: opts.metadata }),
 	};
 }
 

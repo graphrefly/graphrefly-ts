@@ -41,7 +41,7 @@ export function workItemDomainActionProposal(
 		reason: opts.reason,
 		sourceRefs: opts.sourceRefs,
 		proposedAtMs: opts.proposedAtMs,
-		metadata: opts.metadata,
+		...(opts.metadata === undefined ? {} : { metadata: opts.metadata }),
 	};
 }
 
@@ -81,7 +81,7 @@ export function workItemDomainActionProposalIntake<TPayload = unknown>(
 		evidenceId: opts.evidenceId,
 		proposedAtMs: opts.proposedAtMs,
 		sourceRefs: opts.sourceRefs,
-		metadata: opts.metadata,
+		...(opts.metadata === undefined ? {} : { metadata: opts.metadata }),
 	};
 }
 
@@ -107,6 +107,6 @@ export function workItemDomainActionApplyPolicy(
 		actionKinds: opts.actionKinds,
 		patch: opts.patch,
 		spawn: opts.spawn,
-		metadata: opts.metadata,
+		...(opts.metadata === undefined ? {} : { metadata: opts.metadata }),
 	};
 }

@@ -355,7 +355,7 @@ export function bufferCount<S>(count: number): Operator<S, S[]> {
 
 /** Internal: latest sampled source value + whether the source has completed, for {@link sample}. */
 interface SampleState<S> {
-	last: { v: S } | undefined;
+	last?: { v: S };
 	sourceDone: boolean;
 }
 
@@ -385,8 +385,8 @@ export function sample<S>(): Operator<unknown, S> {
 			const notifierBatch = depBatch(ctx, 1);
 			const sourceTerminal = depTerminal(ctx, 0);
 			const notifierTerminal = depTerminal(ctx, 1);
+			// No `last` key until a value arrives: private state is strict JSON (R-checkpoint@1).
 			const st: SampleState<S> = ctx.state.get<SampleState<S>>() ?? {
-				last: undefined,
 				sourceDone: false,
 			};
 			// ERROR from either dep → terminate.
@@ -401,7 +401,7 @@ export function sample<S>(): Operator<unknown, S> {
 			if (sourceBatch) for (const v of sourceBatch) st.last = { v: v as S };
 			if (isTerminalComplete(sourceTerminal)) {
 				st.sourceDone = true;
-				st.last = undefined;
+				delete st.last;
 			}
 			if (isTerminalComplete(notifierTerminal)) {
 				ctx.state.set(st);

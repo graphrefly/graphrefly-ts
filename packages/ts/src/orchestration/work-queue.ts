@@ -208,7 +208,7 @@ export function processEffectSubmitCommand<TEffect>(
 		idempotencyKey: opts.idempotencyKey ?? effect.id,
 		sourceRefs: opts.sourceRefs,
 		policyRefs: opts.policyRefs,
-		metadata: opts.metadata,
+		...(opts.metadata === undefined ? {} : { metadata: opts.metadata }),
 	};
 	return {
 		kind: "submit",

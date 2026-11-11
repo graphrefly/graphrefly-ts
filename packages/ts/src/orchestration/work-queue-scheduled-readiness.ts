@@ -1034,7 +1034,7 @@ function emitHandoffAudit(
 				audit: Object.freeze({
 					id: `work-queue-readiness-handoff-audit-${state.auditSeq}`,
 					kind,
-					subjectId: opts.subjectId,
+					...(opts.subjectId === undefined ? {} : { subjectId: opts.subjectId }),
 					...(opts.sourceRefs === undefined
 						? {}
 						: { sourceRefs: canonicalPublicSourceRefs(opts.sourceRefs) }),
@@ -1602,7 +1602,7 @@ function emitAudit(
 				audit: Object.freeze({
 					id: `work-queue-scheduled-readiness-audit-${state.auditSeq}`,
 					kind,
-					subjectId: opts.subjectId,
+					...(opts.subjectId === undefined ? {} : { subjectId: opts.subjectId }),
 					...(opts.sourceRefs === undefined
 						? {}
 						: { sourceRefs: canonicalPublicSourceRefs(opts.sourceRefs) }),

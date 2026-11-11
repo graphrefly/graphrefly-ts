@@ -1,10 +1,11 @@
 /** D651 focused keyed rate-limit contracts and graph-visible admission correlation. */
-import { depBatch, depLatest } from "../ctx/types.js";
+import { type Ctx, depBatch, depLatest, type NodeFn } from "../ctx/types.js";
 import { eachInputArray } from "../graph/each-input-array.js";
 import type { Graph } from "../graph/graph.js";
+import type { GraphRecipeFactory } from "../graph/restore.js";
 import { compoundTupleKey } from "../identity.js";
 import { strictCanonicalJsonBytes, strictJsonCodec } from "../json/codec.js";
-import type { Node } from "../node/node.js";
+import { type Node, StateNode } from "../node/node.js";
 import { isNodeRuntimeReleased } from "../node/runtime-accessors.js";
 
 const textDecoder = new TextDecoder();
@@ -568,45 +569,17 @@ export function keyedRateLimitAdmissionBundle(
 		name: `${name}/ledger`,
 		factory: "keyedRateLimitLedger",
 	});
-	const ledgerIndex = deps.length;
+	const config: KeyedRateLimitRuntimeConfig = { name, maxPending, maxCompleted, correlated };
+	const built = keyedRateLimitRuntimeBuild(ledger, config);
 	const runtime = graph.node<KeyedRateLimitRuntimeFact>(
 		[...deps, ledger as Node<unknown>],
-		(ctx) => {
-			const state = ctx.state.get<KeyedRateLimitRuntimeState>() as KeyedRateLimitRuntimeState;
-			const facts: KeyedRateLimitRuntimeFact[] = [];
-			if (correlated) {
-				for (const raw of depBatch(ctx, 0) ?? []) {
-					processCorrelationFact(state, raw, maxPending, maxCompleted, facts);
-				}
-			} else {
-				for (const raw of depBatch(ctx, 0) ?? []) {
-					processRequest(state, raw, maxPending, facts);
-				}
-				for (const raw of depBatch(ctx, 1) ?? []) {
-					processOutcome(state, raw, maxCompleted, facts);
-				}
-			}
-			if (facts.length === 0) return;
-			facts.push(cursorFact(state));
-			ctx.down(facts.map((fact) => ["DATA", fact] as const));
-		},
+		built.fn,
 		{
 			name: `${name}/runtime`,
 			factory: "keyedRateLimitAdmission",
-			setup: (ctx) => {
-				ctx.state.set(
-					copyRuntimeState(
-						(depLatest(ctx, ledgerIndex) as KeyedRateLimitRuntimeState | undefined) ??
-							initialRuntimeState(),
-					),
-				);
-				return () => {
-					const state = ctx.state.get<KeyedRateLimitRuntimeState>();
-					// A ledger released with its graph has nothing to keep.
-					if (state !== undefined && !isNodeRuntimeReleased(ledger as Node<unknown>))
-						ledger.set(copyRuntimeState(state));
-				};
-			},
+			setup: built.setup,
+			// R-checkpoint@1: a module builds its nodes with their recipes, so it can be restored.
+			recipe: { ref: KEYED_RATE_LIMIT_RUNTIME_REF, config },
 			partial: true,
 			complete: "manual",
 			error: "manual",
@@ -625,42 +598,42 @@ export function keyedRateLimitAdmissionBundle(
 			runtime,
 			`${name}/admissions`,
 			"keyedRateLimitAdmissions",
-			(fact): fact is KeyedRateLimitAdmission => fact.kind === "keyed-rate-limit-admission",
+			"keyed-rate-limit-admission" as KeyedRateLimitAdmission["kind"],
 		),
 		denials: runtimeProjection(
 			graph,
 			runtime,
 			`${name}/denials`,
 			"keyedRateLimitDenials",
-			(fact): fact is KeyedRateLimitDenial => fact.kind === "keyed-rate-limit-denial",
+			"keyed-rate-limit-denial" as KeyedRateLimitDenial["kind"],
 		),
 		status: runtimeProjection(
 			graph,
 			runtime,
 			`${name}/status`,
 			"keyedRateLimitStatus",
-			(fact): fact is KeyedRateLimitStatus => fact.kind === "keyed-rate-limit-status",
+			"keyed-rate-limit-status" as KeyedRateLimitStatus["kind"],
 		),
 		issues: runtimeProjection(
 			graph,
 			runtime,
 			`${name}/issues`,
 			"keyedRateLimitIssues",
-			(fact): fact is KeyedRateLimitIssue => fact.kind === "keyed-rate-limit-issue",
+			"keyed-rate-limit-issue" as KeyedRateLimitIssue["kind"],
 		),
 		audit: runtimeProjection(
 			graph,
 			runtime,
 			`${name}/audit`,
 			"keyedRateLimitAudit",
-			(fact): fact is KeyedRateLimitAuditEntry => fact.kind === "keyed-rate-limit-audit",
+			"keyed-rate-limit-audit" as KeyedRateLimitAuditEntry["kind"],
 		),
 		cursor: runtimeProjection(
 			graph,
 			runtime,
 			`${name}/cursor`,
 			"keyedRateLimitCursor",
-			(fact): fact is KeyedRateLimitCursor => fact.kind === "keyed-rate-limit-cursor",
+			"keyed-rate-limit-cursor" as KeyedRateLimitCursor["kind"],
 		),
 	};
 }
@@ -1030,23 +1003,143 @@ function runtimeProjection<TFact extends KeyedRateLimitRuntimeFact>(
 	runtime: Node<KeyedRateLimitRuntimeFact>,
 	name: string,
 	factory: string,
-	predicate: (fact: KeyedRateLimitRuntimeFact) => fact is TFact,
+	kind: TFact["kind"],
 ): Node<TFact> {
-	return graph.node<TFact>(
-		[runtime],
-		(ctx) => {
-			eachInputArray<KeyedRateLimitRuntimeFact>(ctx, 0, (fact, out) => {
-				if (predicate(fact)) out.push(["DATA", fact]);
-			});
-		},
-		{
-			name,
-			factory,
-			complete: "manual",
-			error: "manual",
-		},
-	);
+	return graph.node<TFact>([runtime], projectionFn(kind), {
+		name,
+		factory,
+		recipe: { ref: KEYED_RATE_LIMIT_PROJECTION_REF, config: { kind } },
+		complete: "manual",
+		error: "manual",
+	});
 }
+
+function projectionFn(kind: string): NodeFn {
+	return (ctx) => {
+		eachInputArray<KeyedRateLimitRuntimeFact>(ctx, 0, (fact, out) => {
+			if (fact.kind === kind) out.push(["DATA", fact]);
+		});
+	};
+}
+
+const KEYED_RATE_LIMIT_RUNTIME_REF = "keyedRateLimit.runtime";
+const KEYED_RATE_LIMIT_PROJECTION_REF = "keyedRateLimit.projection";
+
+/** The runtime's recipe config: everything its function and setup are built from. */
+interface KeyedRateLimitRuntimeConfig {
+	readonly name: string;
+	readonly maxPending: number;
+	readonly maxCompleted: number;
+	readonly correlated: boolean;
+}
+
+/**
+ * The runtime's function and setup (D649, graphrefly-ts:D180), from its ledger and config: built
+ * the same way by the bundle and by restore.
+ */
+function keyedRateLimitRuntimeBuild(
+	ledger: StateNode<KeyedRateLimitRuntimeState>,
+	config: KeyedRateLimitRuntimeConfig,
+): { readonly fn: NodeFn; readonly setup: (ctx: Ctx) => () => void } {
+	const { correlated, maxPending, maxCompleted } = config;
+	const ledgerIndex = correlated ? 1 : 2;
+	const fn: NodeFn = (ctx) => {
+		const state = ctx.state.get<KeyedRateLimitRuntimeState>() as KeyedRateLimitRuntimeState;
+		const facts: KeyedRateLimitRuntimeFact[] = [];
+		if (correlated) {
+			for (const raw of depBatch(ctx, 0) ?? []) {
+				processCorrelationFact(state, raw, maxPending, maxCompleted, facts);
+			}
+		} else {
+			for (const raw of depBatch(ctx, 0) ?? []) {
+				processRequest(state, raw, maxPending, facts);
+			}
+			for (const raw of depBatch(ctx, 1) ?? []) {
+				processOutcome(state, raw, maxCompleted, facts);
+			}
+		}
+		if (facts.length === 0) return;
+		facts.push(cursorFact(state));
+		ctx.down(facts.map((fact) => ["DATA", fact] as const));
+	};
+	const setup = (ctx: Ctx) => {
+		// A restored lifetime brings its working copy, which is newer than the ledger: the ledger is
+		// written only when a lifetime closes. Seed only an empty one.
+		if (ctx.state.get<KeyedRateLimitRuntimeState>() === undefined)
+			ctx.state.set(
+				copyRuntimeState(
+					(depLatest(ctx, ledgerIndex) as KeyedRateLimitRuntimeState | undefined) ??
+						initialRuntimeState(),
+				),
+			);
+		return () => {
+			const state = ctx.state.get<KeyedRateLimitRuntimeState>();
+			// A ledger released with its graph has nothing to keep.
+			if (state !== undefined && !isNodeRuntimeReleased(ledger as Node<unknown>))
+				ledger.set(copyRuntimeState(state));
+		};
+	};
+	return { fn, setup };
+}
+
+function boundedConfig(value: unknown, key: string): number {
+	if (!Number.isSafeInteger(value) || (value as number) < 1)
+		throw new Error(
+			`restoreGraph: '${KEYED_RATE_LIMIT_RUNTIME_REF}' config.${key} must be a positive integer`,
+		);
+	return value as number;
+}
+
+/**
+ * Restore entries for the keyed rate limit's nodes (R-checkpoint@1): add them to the registry
+ * given to restoreGraph, e.g. `{ ...defaultRestoreRegistry, ...keyedRateLimitRestoreRegistry }`.
+ * @category rate-limit
+ * @example
+ * ```ts
+ * import { defaultRestoreRegistry, restoreGraph } from "@graphrefly/ts/graph";
+ * import { keyedRateLimitRestoreRegistry } from "@graphrefly/ts/rate-limit";
+ *
+ * const g = restoreGraph(checkpoint, {
+ *   registry: { ...defaultRestoreRegistry, ...keyedRateLimitRestoreRegistry },
+ * });
+ * ```
+ */
+export const keyedRateLimitRestoreRegistry: Readonly<Record<string, GraphRecipeFactory<any>>> = {
+	[KEYED_RATE_LIMIT_RUNTIME_REF]: {
+		ref: KEYED_RATE_LIMIT_RUNTIME_REF,
+		validateConfig(config): KeyedRateLimitRuntimeConfig {
+			const c = (config ?? {}) as Record<string, unknown>;
+			if (typeof c.name !== "string" || typeof c.correlated !== "boolean")
+				throw new Error(`restoreGraph: '${KEYED_RATE_LIMIT_RUNTIME_REF}' config is malformed`);
+			return {
+				name: c.name,
+				correlated: c.correlated,
+				maxPending: boundedConfig(c.maxPending, "maxPending"),
+				maxCompleted: boundedConfig(c.maxCompleted, "maxCompleted"),
+			};
+		},
+		build(config: KeyedRateLimitRuntimeConfig, ctx) {
+			const ledger = ctx.graph.find(`${config.name}/ledger`);
+			if (!(ledger instanceof StateNode))
+				throw new Error(`restoreGraph: '${ctx.id}' needs its ledger state '${config.name}/ledger'`);
+			return keyedRateLimitRuntimeBuild(ledger as StateNode<KeyedRateLimitRuntimeState>, config);
+		},
+	} satisfies GraphRecipeFactory<KeyedRateLimitRuntimeConfig>,
+	[KEYED_RATE_LIMIT_PROJECTION_REF]: {
+		ref: KEYED_RATE_LIMIT_PROJECTION_REF,
+		validateConfig(config): { readonly kind: string } {
+			const kind = (config as { kind?: unknown } | undefined)?.kind;
+			if (typeof kind !== "string")
+				throw new Error(
+					`restoreGraph: '${KEYED_RATE_LIMIT_PROJECTION_REF}' config.kind must be a string`,
+				);
+			return { kind };
+		},
+		build(config: { readonly kind: string }) {
+			return { fn: projectionFn(config.kind) };
+		},
+	} satisfies GraphRecipeFactory<{ readonly kind: string }>,
+};
 
 const entryIndexes = new WeakMap<KeyedRateLimitRuntimeState, Map<string, KeyedRateLimitEntry>>();
 

@@ -195,7 +195,7 @@ export function cqrsSubmitCommand<TCommand>(
 		policyRefs: opts.policyRefs,
 		actorRefs: opts.actorRefs,
 		auditRefs: opts.auditRefs,
-		metadata: opts.metadata,
+		...(opts.metadata === undefined ? {} : { metadata: opts.metadata }),
 	};
 	return {
 		kind: "submit",

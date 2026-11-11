@@ -642,7 +642,7 @@ function validateCandidateFromPolicy(opts: {
 			admissionPolicy: mergePolicyRefs(policy.policy, opts.sourceRefs, opts.policyRefs),
 			sourceRefs: snapshotOptionalRefs(opts.sourceRefs),
 			policyRefs: snapshotOptionalRefs(opts.policyRefs),
-			metadata: opts.metadata,
+			...(opts.metadata === undefined ? {} : { metadata: opts.metadata }),
 		}),
 		issues: [],
 		audit: [],
@@ -898,7 +898,7 @@ function invalidCandidate(
 		issues: Object.freeze([
 			dataIssue("agentic-memory.admission-policy-source.candidate-invalid", reason, {
 				severity: "error",
-				subjectId: opts.subjectId,
+				...(opts.subjectId === undefined ? {} : { subjectId: opts.subjectId }),
 				path: [index],
 				refs: opts.refs,
 			}),

@@ -1275,8 +1275,10 @@ function issue(
 		severity: "error",
 		code,
 		message,
-		subjectId: opts.subjectId,
-		refs: opts.refs?.map((entry) => `${entry.kind}:${entry.id}`),
+		...(opts.subjectId === undefined ? {} : { subjectId: opts.subjectId }),
+		...(opts.refs === undefined
+			? {}
+			: { refs: opts.refs.map((entry) => `${entry.kind}:${entry.id}`) }),
 	};
 }
 

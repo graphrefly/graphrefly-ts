@@ -866,9 +866,11 @@ function dataIssue(
 		code,
 		message,
 		severity: "error",
-		subjectId: opts.subjectId,
-		refs: opts.refs?.map((sourceRef) => canonicalTupleKey([sourceRef.kind, sourceRef.id])),
-		details: opts.details,
+		...(opts.subjectId === undefined ? {} : { subjectId: opts.subjectId }),
+		...(opts.refs === undefined
+			? {}
+			: { refs: opts.refs.map((sourceRef) => canonicalTupleKey([sourceRef.kind, sourceRef.id])) }),
+		...(opts.details === undefined ? {} : { details: opts.details }),
 	};
 }
 

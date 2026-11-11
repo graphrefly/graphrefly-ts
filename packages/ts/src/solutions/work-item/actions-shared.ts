@@ -64,9 +64,11 @@ export function dataIssue(
 		message,
 		severity: "error",
 		source: "work-item-actions",
-		subjectId: opts.subjectId,
-		refs: opts.refs?.map((sourceRef) => canonicalTupleKey([sourceRef.kind, sourceRef.id])),
-		metadata: opts.metadata,
+		...(opts.subjectId === undefined ? {} : { subjectId: opts.subjectId }),
+		...(opts.refs === undefined
+			? {}
+			: { refs: opts.refs.map((sourceRef) => canonicalTupleKey([sourceRef.kind, sourceRef.id])) }),
+		...(opts.metadata === undefined ? {} : { metadata: opts.metadata }),
 	};
 }
 

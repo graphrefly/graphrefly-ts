@@ -843,9 +843,11 @@ export function dataIssue(
 		code,
 		message,
 		severity: opts.severity ?? "error",
-		subjectId: opts.subjectId,
-		refs: opts.refs?.map((r) => canonicalTupleKey([r.kind, r.id])),
-		details: opts.details,
+		...(opts.subjectId === undefined ? {} : { subjectId: opts.subjectId }),
+		...(opts.refs === undefined
+			? {}
+			: { refs: opts.refs.map((r) => canonicalTupleKey([r.kind, r.id])) }),
+		...(opts.details === undefined ? {} : { details: opts.details }),
 	};
 }
 
