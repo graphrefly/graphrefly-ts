@@ -1,6 +1,6 @@
 import { deferAfterBatchForTarget, request } from "../batch/batch.js";
 import type { NodeFn } from "../ctx/types.js";
-import { errorPayload, type Message, SENTINEL } from "../protocol/messages.js";
+import { type Message, SENTINEL } from "../protocol/messages.js";
 import { makeDepBookkeeping } from "./core.js";
 import type { Node } from "./node.js";
 import { nodeCallSink } from "./node-output-runtime.js";
@@ -29,13 +29,13 @@ function nodeQueueRewire<T>(
 	request(self._core, () => {
 		if (self._released || signal.aborted) return;
 		const current = self._slot.deps;
-		try {
-			const deps = next(current);
-			if (deps.length === current.length && deps.every((d, i) => d === current[i])) return;
-			self._rewire(deps);
-		} catch (e) {
-			self._down([["ERROR", errorPayload(e, "rewire failed")]]);
-		}
+		const deps = next(current);
+		if (deps.length === current.length && deps.every((d, i) => d === current[i])) return;
+		// graphrefly:D806 (2): the cycle check runs again when the request runs; refused, it changes
+		// nothing and its failure is the queued request's, for the host reporter (R-failure@3), not
+		// this node's ERROR.
+		assertRewireList(self, deps);
+		self._rewire(deps);
 	});
 }
 

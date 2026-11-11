@@ -728,11 +728,12 @@ describe("D161 graph construction ownership", () => {
 		scope.transferToGraph(owner);
 		startConstruction(g, owner);
 		expect(owner.phase).toBe("faulted");
-		// The failed handshake is root's ERROR; an ended node closes its lifetime and releases every
-		// dependency it acquired, the rewired one included (R-terminals, R-lifetime).
-		expect(root.status.output).toBe("errored");
-		expect(subscriberCountOfNode(b)).toBe(0);
-		expect(nodeRuntimeHost(root)._dep.unsubs).toEqual([]);
+		// REVIEW-D797-migration-codex F4: the failed rewire is the queued request's failure, not
+		// root's ERROR. Its committed dependencies stay (D167), and the lease acquired before the
+		// handshake threw is recorded (D161), so root holds it and releases it with its lifetime.
+		expect(root.status.output).toBe("open");
+		expect(root.deps).toEqual([a, b]);
+		expect(subscriberCountOfNode(b)).toBe(1);
 	});
 
 	it("releases a completed non-causal view without retaining its owner or disturbing shared sources", () => {

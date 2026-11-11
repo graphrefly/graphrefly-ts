@@ -564,9 +564,9 @@ describe("repeat (D47 self-rewire, factory-based — clean-slate complete design
 		// round 1 errors via a throwing projector inner (a derived that throws → D30 ERROR).
 		const r = g.initNode(
 			repeat<number>(() => {
-				const gg = graph();
-				const s = gg.state(0);
-				return gg.derived([s], () => {
+				// The inner is a node of repeat's own graph (R-graph-domain@3).
+				const s = g.state(0);
+				return g.derived([s], () => {
 					throw new Error("inner boom");
 				});
 			}, 3),

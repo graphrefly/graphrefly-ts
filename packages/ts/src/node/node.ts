@@ -406,14 +406,21 @@ export class Node<T = unknown> {
 			if (subscriber.kind === "sink") {
 				nodeCallSink(nodeRuntimeHost(this), subscriber, start);
 			} else {
-				// A new dependent receives the snapshot as one input array, not a live wave.
+				// A new dependent receives the snapshot as one input array, not a live wave. A
+				// dependent whose handshake throws is not subscribed, unless an owned acquisition
+				// records the lease for its owner to release (D161).
 				const wave = {};
-				for (let i = 0; i < start.length; i++)
-					subscriber.fn(start[i] as Message, {
-						wave,
-						last: i === start.length - 1,
-						snapshot: true,
-					});
+				try {
+					for (let i = 0; i < start.length; i++)
+						subscriber.fn(start[i] as Message, {
+							wave,
+							last: i === start.length - 1,
+							snapshot: true,
+						});
+				} catch (e) {
+					if (acquisition === undefined) unsubscribe();
+					throw e;
+				}
 			}
 
 			return unsubscribe;
