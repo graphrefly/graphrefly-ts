@@ -8,7 +8,7 @@
 
 import { describe, expect, it } from "vitest";
 import type { Ctx, Message, Wave } from "../index.js";
-import { node } from "../index.js";
+import { graph } from "../index.js";
 
 const types = (msgs: readonly Message[]) => msgs.map((m) => m[0]);
 
@@ -29,9 +29,10 @@ describe("C-26: the message set is closed: PULL, PAUSE, RESUME and TEARDOWN are 
 	it.each(
 		Object.keys(retired),
 	)("%s from a function is unknown and ends the node with ERROR", (type) => {
-		const a = node<number>([], null, { initial: 1 });
+		const g = graph();
+		const a = g.node<number>([], null, { initial: 1 });
 		let runs = 0;
-		const n = node<number>([a], (ctx) => {
+		const n = g.node<number>([a], (ctx) => {
 			runs++;
 			ctx.down(retired[type] as Wave);
 			ctx.down([["DATA", 99]]);
@@ -58,7 +59,8 @@ describe("C-26: the message set is closed: PULL, PAUSE, RESUME and TEARDOWN are 
 
 describe("C-42: the message set is closed and nothing travels upstream", () => {
 	it("rejects each array before applying anything; the DATA sent afterwards is retained", () => {
-		const a = node<number>([], null, { initial: 1 });
+		const g = graph();
+		const a = g.node<number>([], null, { initial: 1 });
 		const rejected: string[] = [];
 		const attempts: Wave[] = [
 			...Object.values(retired),
@@ -71,7 +73,7 @@ describe("C-42: the message set is closed and nothing travels upstream", () => {
 				["PAUSE", "lock"],
 			] as unknown as Wave,
 		];
-		const n = node<number>([a], (ctx) => {
+		const n = g.node<number>([a], (ctx) => {
 			for (const attempt of attempts) {
 				try {
 					ctx.down(attempt);
@@ -105,8 +107,9 @@ describe("C-42: the message set is closed and nothing travels upstream", () => {
 	});
 
 	it("uncaught, the rejection is the node's ERROR", () => {
-		const a = node<number>([], null, { initial: 1 });
-		const n = node<number>([a], (ctx) => {
+		const g = graph();
+		const a = g.node<number>([], null, { initial: 1 });
+		const n = g.node<number>([a], (ctx) => {
 			ctx.down([["PENDING"]]);
 		});
 		const s = recorder();
@@ -119,9 +122,10 @@ describe("C-42: the message set is closed and nothing travels upstream", () => {
 	});
 
 	it("there is no upward call on ctx or on a node", () => {
-		const a = node<number>([], null, { initial: 1 });
+		const g = graph();
+		const a = g.node<number>([], null, { initial: 1 });
 		let seen: Ctx | undefined;
-		const n = node<number>([a], (ctx) => {
+		const n = g.node<number>([a], (ctx) => {
 			seen = ctx;
 		});
 		n.subscribe(() => {});
@@ -133,7 +137,8 @@ describe("C-42: the message set is closed and nothing travels upstream", () => {
 	});
 
 	it("a host emission through node.down is held to the same closed set", () => {
-		const a = node<number>([], null, { initial: 1 });
+		const g = graph();
+		const a = g.node<number>([], null, { initial: 1 });
 		for (const attempt of [
 			...Object.values(retired),
 			[["START"]],
@@ -147,12 +152,13 @@ describe("C-42: the message set is closed and nothing travels upstream", () => {
 
 describe("C-12 (c): RESOLVED is the kernel's alone", () => {
 	it("a function that sends RESOLVED is rejected and ends the node with ERROR", () => {
-		const a = node<number>([], null, { initial: 1 });
-		const n = node<number>([a], (ctx) => {
+		const g = graph();
+		const a = g.node<number>([], null, { initial: 1 });
+		const n = g.node<number>([a], (ctx) => {
 			if (ctx.waveData[0]?.flat().includes(2)) ctx.down([["RESOLVED"]]);
 			else ctx.down([["DATA", 1]]);
 		});
-		const d = node<number>([n], (ctx) => {
+		const d = g.node<number>([n], (ctx) => {
 			ctx.down([["DATA", 1]]);
 		});
 		const s = recorder();
@@ -174,8 +180,9 @@ describe("C-12 (c): RESOLVED is the kernel's alone", () => {
 	});
 
 	it("a pending node that sends nothing gets the kernel's RESOLVED", () => {
-		const a = node<number>([], null, { initial: 1 });
-		const n = node<number>([a], () => {});
+		const g = graph();
+		const a = g.node<number>([], null, { initial: 1 });
+		const n = g.node<number>([a], () => {});
 		const s = recorder();
 		n.subscribe((incoming) => {
 			for (const message of incoming) s.sink(message);

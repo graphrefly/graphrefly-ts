@@ -14,9 +14,10 @@
 
 import { type Ctx, depBatch, depCount, depLatest } from "../../ctx/types.js";
 import { attachableInput } from "../../node/attachable-input.js";
-import { Node, node } from "../../node/node.js";
+import { makeNodeBeside, Node } from "../../node/node.js";
 import { oneArrayPerRun } from "../../node/one-array-per-run.js";
 import { errorPayload } from "../../protocol/messages.js";
+import type { Graph } from "../graph.js";
 import type { Operator } from "../operators.js";
 import type { OrderedCapacityPolicy, ReactiveOpt, ViewCachePolicy } from "../policies/types.js";
 import type { IndexChange } from "./change.js";
@@ -293,42 +294,51 @@ function assertCheckpointableIndexRows(rows: readonly IndexRow<unknown, unknown>
 }
 
 /**
- * Create a reactive dual-key index (D54/D60). DELTA + lazy SNAPSHOT + REQUEST via
+ * Create a reactive dual-key index (D54/D60) in `graph`. DELTA + lazy SNAPSHOT + REQUEST via
  * {@link collectionCore}; this layer adds the sorted backend + Z reverse-lookup surface.
- * @param options - Options that configure the helper.
+ * @param graph - The graph that builds the index's nodes.
+ * @param options - Optional name, capacity policy, and view memo policy.
  * @returns A `ReactiveIndex<K, V>` value.
  * @category data-structures
  * @example
  * ```ts
+ * import { graph } from "@graphrefly/ts/graph";
  * import { reactiveIndex } from "@graphrefly/ts/data-structures";
+ *
+ * const byScore = reactiveIndex<string, { title: string }>(graph());
+ * byScore.upsert("doc-1", 0.9, { title: "Intro" });
  * ```
  */
 export function reactiveIndex<K, V = unknown>(
+	graph: Graph,
 	options: ReactiveIndexOptions = {},
 ): ReactiveIndex<K, V> {
-	return createReactiveIndex(options);
+	return createReactiveIndex(graph, options);
 }
 
 /** @internal D160 restore path: seed the backend without replaying public deltas. */
 export function restoreReactiveIndexFromBackendState<K, V = unknown>(
+	graph: Graph,
 	initialRows: readonly IndexRow<K, V>[],
 	options: ReactiveIndexOptions = {},
 ): ReactiveIndex<K, V> {
-	return createReactiveIndex(options, initialRows);
+	return createReactiveIndex(graph, options, initialRows);
 }
 
 function createReactiveIndex<K, V = unknown>(
-	options: ReactiveIndexOptions = {},
+	graph: Graph,
+	options: ReactiveIndexOptions,
 	initialRows: readonly IndexRow<K, V>[] = [],
 ): ReactiveIndex<K, V> {
-	const { capacity, graph, dispatcher, name } = options;
+	const { capacity, name } = options;
 	const lruEnabled = capacity?.order === "lru";
 	const backend = new IndexBackend<K, V>(lruEnabled, initialRows);
 	const core: CollectionCore<readonly IndexRow<K, V>[], IndexChange<K, V>> = collectionCore(
+		graph,
 		backend,
 		"reactiveIndex",
 		options,
-		graph !== undefined && name !== undefined && capacity === undefined
+		name !== undefined && capacity === undefined
 			? {
 					deltaRef: "reactiveIndex.delta",
 					snapshotRef: "reactiveIndex.snapshot",
@@ -342,7 +352,6 @@ function createReactiveIndex<K, V = unknown>(
 			: undefined,
 	);
 	const binds: Array<() => void> = [];
-	const base = dispatcher ? { dispatcher } : {};
 	const bindDeps = new WeakSet<Node<unknown>>();
 	const rangeMemo = new ViewMemoCache<
 		readonly [K, K],
@@ -409,22 +418,12 @@ function createReactiveIndex<K, V = unknown>(
 			opts: { partial: true, setup: folders.setup },
 		};
 		const deps = capacityPolicy ? [capacityPolicy as Node<unknown>] : [];
-		apply = graph
-			? graph.initNode(op, deps, {
-					name: name ? `${name}.capacityPolicy` : undefined,
-					meta: { kind: "collection_policy_apply", collection: "reactiveIndex" },
-				})
-			: new Node<IndexChange<K, V>>(deps, op.body, {
-					...base,
-					factory: "reactiveIndex.capacityPolicy",
-					partial: true,
-					setup: folders.setup,
-					name: name ? `${name}.capacityPolicy` : undefined,
-				});
+		apply = graph.initNode(op, deps, {
+			name: name ? `${name}.capacityPolicy` : undefined,
+			meta: { kind: "collection_policy_apply", collection: "reactiveIndex" },
+		});
 		folders.bind(apply as Node<unknown>);
-		releaseApply = graph
-			? graph.retain(apply, { reason: "reactiveIndex.capacityPolicy" })
-			: apply.subscribe(() => {});
+		releaseApply = graph.retain(apply, { reason: "reactiveIndex.capacityPolicy" });
 		return apply;
 	}
 
@@ -440,32 +439,24 @@ function createReactiveIndex<K, V = unknown>(
 		}
 
 		const maxSize = capacity.maxSize;
-		if (isNodeOpt(maxSize) && graph === undefined) {
-			throw new Error(
-				"reactiveIndex capacity.maxSize Node option requires options.graph so the policy edge is describe-visible (D73)",
-			);
-		}
-
 		capacityPolicy = isNodeOpt(maxSize)
 			? maxSize
-			: graph
-				? graph.initNode<number, number>(
-						{
-							factory: "reactiveIndex.maxSizePolicy",
-							body: () => {},
-							opts: { initial: validateMaxSize(maxSize) },
-						},
-						[],
-						{
-							name: name ? `${name}.maxSizePolicy` : undefined,
-							meta: { kind: "collection_policy", collection: "reactiveIndex", policy: "maxSize" },
-						},
-					)
-				: undefined;
+			: graph.initNode<number, number>(
+					{
+						factory: "reactiveIndex.maxSizePolicy",
+						body: () => {},
+						opts: { initial: validateMaxSize(maxSize) },
+					},
+					[],
+					{
+						name: name ? `${name}.maxSizePolicy` : undefined,
+						meta: { kind: "collection_policy", collection: "reactiveIndex", policy: "maxSize" },
+					},
+				);
 
 		if (!isNodeOpt(maxSize)) currentMaxSize = validateMaxSize(maxSize);
 
-		if (capacityPolicy instanceof Node) ensureApply();
+		ensureApply();
 	}
 
 	// Lazy reactive reverse-lookup port (Z): a delta-driven pushed primary→value map. Created on
@@ -473,7 +464,7 @@ function createReactiveIndex<K, V = unknown>(
 	let byPrimaryNode: Node<ReadonlyMap<K, V>> | undefined;
 	function getByPrimary(): Node<ReadonlyMap<K, V>> {
 		if (byPrimaryNode === undefined) {
-			byPrimaryNode = node<ReadonlyMap<K, V>>(
+			byPrimaryNode = makeNodeBeside<ReadonlyMap<K, V>>(
 				[core.delta as Node<unknown>],
 				(ctx: Ctx) => {
 					// pushed reverse-lookup: re-read the backend's primary map on each delta (the
@@ -492,7 +483,7 @@ function createReactiveIndex<K, V = unknown>(
 		if (hit !== undefined) return hit;
 		const materialize = (): readonly V[] => backend.rangeByPrimary(start, end);
 		let view: ReactiveView<IndexChange<K, V>, readonly V[]>;
-		view = lightReactiveView<IndexChange<K, V>, readonly V[]>(core.delta as Node<unknown>, {
+		view = lightReactiveView<IndexChange<K, V>, readonly V[]>(graph, core.delta as Node<unknown>, {
 			...options,
 			factory: "reactiveIndex.range",
 			name: name ? `${name}.range#${rangeSeq++}` : undefined,
@@ -562,10 +553,6 @@ function createReactiveIndex<K, V = unknown>(
 		},
 
 		upsertFrom(src: Node<{ primary: K; secondary: unknown; value: V }>): () => void {
-			if (graph === undefined)
-				throw new Error(
-					"reactiveIndex.upsertFrom requires options.graph so the input fold is describe-visible (D61)",
-				);
 			const op: Operator<
 				{ primary: K; secondary: unknown; value: V },
 				{ primary: K; secondary: unknown; value: V }

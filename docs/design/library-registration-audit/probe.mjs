@@ -37,7 +37,7 @@ const afterRelease = checkpointBackendStateOfNode(n);
 assert(isNodeRuntimeReleased(n));assert.equal(reads,1);
 results.backendContributor = {released:isNodeRuntimeReleased(n),reads,afterRelease,note:'Internal accessor probe; no GC measurement or public Graph checkpoint exposure claimed.'};
 const cg = new Graph(); const source = cg.state(1,{name:'source'});
-const list = reactiveList([], { graph:cg, name:'list' });
+const list = reactiveList(cg, [], { name:'list' });
 const before = cg.describe().nodes.length;
 for(let i=0;i<3;i++){const detach=list.appendFrom(source);detach();}
 const afterDetach = cg.describe().nodes.length;

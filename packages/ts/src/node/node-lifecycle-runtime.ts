@@ -8,6 +8,7 @@ import {
 	closeNodeRegistration,
 	notifyTopologyDepsChanged,
 	setRuntimeReleaseFailures,
+	withRunningGraph,
 } from "./runtime-accessors.js";
 import type { NodeReceived, Status } from "./types.js";
 
@@ -60,7 +61,12 @@ function nodeRunSetup<T>(self: NodeRuntimeHost<T>): void {
 	lifetime.setupDone = true;
 	const ctx = self._buildCtx();
 	try {
-		const cleanup = setup(ctx);
+		const cleanup = withRunningGraph(
+			self._core,
+			self._slot.environment,
+			self._slot.dispatcher,
+			() => setup(ctx),
+		);
 		if (typeof cleanup === "function") lifetime.cleanup = cleanup;
 	} catch (error) {
 		ctx.down([["ERROR", errorPayload(error, "node setup threw without a valid error payload")]]);

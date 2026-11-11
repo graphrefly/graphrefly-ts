@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { batch } from "../batch/batch.js";
 import type { DataIssue } from "../data/index.js";
 import { graph } from "../graph/graph.js";
 import {
@@ -313,7 +312,7 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 4", () => {
 		});
 
 		inputs.set(ready);
-		batch(() => {
+		g.batch(() => {
 			runRequests.set(requestToolProviderAdapterRun(ready, { runId: "run-once", attempt: 1 }));
 			runRequests.set(requestToolProviderAdapterRun(ready, { runId: "run-twice", attempt: 1 }));
 		});
@@ -411,7 +410,7 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 4", () => {
 		});
 
 		inputs.set(ready);
-		batch(() => {
+		g.batch(() => {
 			runRequests.set(requestToolProviderAdapterRun(ready, { runId: "coord-keep-1", attempt: 1 }));
 			runRequests.set(requestToolProviderAdapterRun(ready, { runId: "coord-trim-2", attempt: 2 }));
 			runRequests.set(requestToolProviderAdapterRun(ready, { runId: "coord-keep-3", attempt: 3 }));
@@ -510,11 +509,11 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 4", () => {
 			}
 		});
 
-		batch(() => {
+		g.batch(() => {
 			inputs.set(first);
 			inputs.set(second);
 		});
-		batch(() => {
+		g.batch(() => {
 			runRequests.set(
 				requestToolProviderAdapterRun(first, { runId: "evidence-first", attempt: 1 }),
 			);
@@ -827,7 +826,7 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 4", () => {
 		});
 
 		inputs.set(ready);
-		batch(() => {
+		g.batch(() => {
 			runRequests.set(
 				requestToolProviderAdapterRun(ready, {
 					runId: "drop-run",

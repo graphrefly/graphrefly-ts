@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { batch } from "../batch/batch.js";
 import { graph } from "../graph/graph.js";
 import type { BoundaryCapabilityRef } from "../inspection/boundary.js";
 import type { Wave } from "../protocol/messages.js";
@@ -81,7 +80,7 @@ describe("solution capability admission (D357)", () => {
 				capability: authCapability,
 			}),
 		);
-		batch(() => {
+		setup.g.batch(() => {
 			setup.decisions.set({
 				kind: "capability-admission-decision",
 				decisionId: "decision-missing-policy",
@@ -151,7 +150,7 @@ describe("solution capability admission (D357)", () => {
 	it("rejects malformed and duplicate policy/decision facts as visible DataIssue records", () => {
 		const setup = admissionSetup();
 
-		batch(() => {
+		setup.g.batch(() => {
 			setup.proposals.set({
 				kind: "capability-admission-proposal",
 				subjectId: "boundary:token-a",
@@ -170,7 +169,7 @@ describe("solution capability admission (D357)", () => {
 				}),
 			);
 		});
-		batch(() => {
+		setup.g.batch(() => {
 			setup.policies.set({
 				kind: "capability-admission-policy",
 				policyId: "auth-policy",
@@ -189,7 +188,7 @@ describe("solution capability admission (D357)", () => {
 				capabilityKinds: ["provider"],
 			} as unknown as CapabilityAdmissionPolicy);
 		});
-		batch(() => {
+		setup.g.batch(() => {
 			setup.decisions.set({
 				kind: "capability-admission-decision",
 				decisionId: "",
@@ -243,6 +242,7 @@ function admissionSetup() {
 		now: () => 456,
 	});
 	return {
+		g,
 		proposals,
 		decisions,
 		policies,

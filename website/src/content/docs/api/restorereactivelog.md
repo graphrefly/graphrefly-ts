@@ -17,6 +17,7 @@ import { restoreReactiveLog } from "@graphrefly/ts/data-structures";
 
 ```ts
 function restoreReactiveLog(
+	graph: Graph,
 	state: ReactiveLogRestoreState<T> | readonly T[],
 	options: ReactiveLogOptions = {},
 ): ReactiveLog<T>
@@ -26,8 +27,9 @@ function restoreReactiveLog(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `state` | `ReactiveLogRestoreState<T> \| readonly T[]` | state value used by the helper. |
-| `options` | `ReactiveLogOptions` | Options that configure the helper. |
+| `graph` | `Graph` | The graph that builds the log's nodes. |
+| `state` | `ReactiveLogRestoreState<T> \| readonly T[]` | The persisted log state, or its values. |
+| `options` | `ReactiveLogOptions` | Optional name, ring-buffer cap, and view memo policy. |
 
 ## Returns
 
@@ -36,7 +38,10 @@ A `ReactiveLog<T>` value.
 ## Example
 
 ```ts
+import { graph } from "@graphrefly/ts/graph";
 import { restoreReactiveLog } from "@graphrefly/ts/data-structures";
+
+const log = restoreReactiveLog<string>(graph(), ["started"]);
 ```
 
 ## Source

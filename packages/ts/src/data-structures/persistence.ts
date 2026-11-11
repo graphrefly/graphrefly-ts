@@ -10,6 +10,7 @@ import type { ReactiveLogOptions } from "../graph/data-structures/reactive-log.j
 import { type ReactiveLog, reactiveLog } from "../graph/data-structures/reactive-log.js";
 import type { ReactiveMap, ReactiveMapOptions } from "../graph/data-structures/reactive-map.js";
 import { restoreReactiveMapFromBackendState } from "../graph/data-structures/reactive-map.js";
+import type { Graph } from "../graph/graph.js";
 import type {
 	ReactiveIndexRestoreState,
 	ReactiveListRestoreState,
@@ -72,73 +73,95 @@ function restoreIndexRows<K, V>(
 }
 
 /** D161 synchronous collection-owned restore. This helper never reads storage.
- * @param state - state value used by the helper.
- * @param options - Options that configure the helper.
+ * @param graph - The graph that builds the list's nodes.
+ * @param state - The persisted list state, or its values.
+ * @param options - Optional name and capacity policy.
  * @returns A `ReactiveList<T>` value.
  * @category data-structures
  * @example
  * ```ts
+ * import { graph } from "@graphrefly/ts/graph";
  * import { restoreReactiveList } from "@graphrefly/ts/data-structures";
+ *
+ * const list = restoreReactiveList<string>(graph(), ["a", "b"]);
  * ```
  */
 export function restoreReactiveList<T = unknown>(
+	graph: Graph,
 	state: ReactiveListRestoreState<T> | readonly T[],
 	options: ReactiveListOptions = {},
 ): ReactiveList<T> {
 	const values = restoreListValues(state);
-	return reactiveList<T>(values, options);
+	return reactiveList<T>(graph, values, options);
 }
 
 /** D161 synchronous collection-owned restore. This helper never reads storage.
- * @param state - state value used by the helper.
- * @param options - Options that configure the helper.
+ * @param graph - The graph that builds the log's nodes.
+ * @param state - The persisted log state, or its values.
+ * @param options - Optional name, ring-buffer cap, and view memo policy.
  * @returns A `ReactiveLog<T>` value.
  * @category data-structures
  * @example
  * ```ts
+ * import { graph } from "@graphrefly/ts/graph";
  * import { restoreReactiveLog } from "@graphrefly/ts/data-structures";
+ *
+ * const log = restoreReactiveLog<string>(graph(), ["started"]);
  * ```
  */
 export function restoreReactiveLog<T = unknown>(
+	graph: Graph,
 	state: ReactiveLogRestoreState<T> | readonly T[],
 	options: ReactiveLogOptions = {},
 ): ReactiveLog<T> {
 	const values = restoreLogValues(state);
-	return reactiveLog<T>(values, options);
+	return reactiveLog<T>(graph, values, options);
 }
 
 /** D161 synchronous collection-owned restore for map entries; policy config still comes from options.
- * @param state - state value used by the helper.
- * @param options - Options that configure the helper.
+ * @param graph - The graph that builds the map's nodes.
+ * @param state - The persisted map state, or its entries.
+ * @param options - Optional name and map policies.
  * @returns A `ReactiveMap<K, V>` value.
  * @category data-structures
  * @example
  * ```ts
+ * import { graph } from "@graphrefly/ts/graph";
  * import { restoreReactiveMap } from "@graphrefly/ts/data-structures";
+ *
+ * const map = restoreReactiveMap<string, number>(graph(), [["a", 1]]);
  * ```
  */
 export function restoreReactiveMap<K = unknown, V = unknown>(
+	graph: Graph,
 	state: ReactiveMapRestoreState<K, V> | readonly (readonly [K, V])[],
 	options: ReactiveMapOptions<K, V> = {},
 ): ReactiveMap<K, V> {
 	const entries = restoreMapEntries(state);
-	return restoreReactiveMapFromBackendState<K, V>(entries, options);
+	return restoreReactiveMapFromBackendState<K, V>(graph, entries, options);
 }
 
 /** D161 synchronous collection-owned restore for sorted index rows; key-codec I/O stays outside.
- * @param state - state value used by the helper.
- * @param options - Options that configure the helper.
+ * @param graph - The graph that builds the index's nodes.
+ * @param state - The persisted index state, or its rows.
+ * @param options - Optional name, capacity policy, and view memo policy.
  * @returns A `ReactiveIndex<K, V>` value.
  * @category data-structures
  * @example
  * ```ts
+ * import { graph } from "@graphrefly/ts/graph";
  * import { restoreReactiveIndex } from "@graphrefly/ts/data-structures";
+ *
+ * const index = restoreReactiveIndex<string, number>(graph(), [
+ *   { primary: "a", secondary: 1, value: 1 },
+ * ]);
  * ```
  */
 export function restoreReactiveIndex<K = unknown, V = unknown>(
+	graph: Graph,
 	state: ReactiveIndexRestoreState<K, V> | readonly IndexRow<K, V>[],
 	options: ReactiveIndexOptions = {},
 ): ReactiveIndex<K, V> {
 	const rows = restoreIndexRows(state);
-	return restoreReactiveIndexFromBackendState<K, V>(rows, options);
+	return restoreReactiveIndexFromBackendState<K, V>(graph, rows, options);
 }

@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import { attachKeyedRateLimitAuthority, type KeyedRateLimitAuthority } from "../adapters/index.js";
-import { batch } from "../batch/batch.js";
 import { graph } from "../graph/index.js";
 import { strictCanonicalJsonBytes, strictJsonCodec } from "../json/codec.js";
 import type { Node } from "../node/node.js";
@@ -244,11 +243,11 @@ describe("D648/D649 bounded admission and exact correlation", () => {
 		const b = request("b", {
 			key: { kind: "network-key", id: "different-key", revision: "opaque-v1" },
 		});
-		batch(() => {
+		t.g.batch(() => {
 			t.requests.set(a);
 			t.requests.set(b);
 		});
-		batch(() => {
+		t.g.batch(() => {
 			t.outcomes.set(outcome(b, "denied"));
 			t.outcomes.set(outcome(a, "allowed"));
 		});
@@ -283,7 +282,7 @@ describe("D648/D649 bounded admission and exact correlation", () => {
 			const t = setup();
 			const original = request(`reuse-${label}`);
 			const replacement = request(`reuse-${label}`, changed);
-			batch(() => {
+			t.g.batch(() => {
 				t.requests.set(original);
 				t.requests.set(replacement);
 			});
@@ -327,7 +326,7 @@ describe("D648/D649 bounded admission and exact correlation", () => {
 		const req = request("replay");
 		const allowed = outcome(req, "allowed");
 		t.requests.set(req);
-		batch(() => {
+		t.g.batch(() => {
 			t.outcomes.set(allowed);
 			t.outcomes.set(allowed);
 		});
@@ -359,11 +358,11 @@ describe("D648/D649 bounded admission and exact correlation", () => {
 		const allowedA = request("identity-a");
 		const allowedB = request("identity-b");
 		const sharedOutcomeId = "authority-local-outcome";
-		batch(() => {
+		t.g.batch(() => {
 			t.requests.set(allowedA);
 			t.requests.set(allowedB);
 		});
-		batch(() => {
+		t.g.batch(() => {
 			t.outcomes.set({ ...outcome(allowedA, "allowed"), outcomeId: sharedOutcomeId });
 			t.outcomes.set({ ...outcome(allowedB, "allowed"), outcomeId: sharedOutcomeId });
 		});
@@ -377,12 +376,12 @@ describe("D648/D649 bounded admission and exact correlation", () => {
 		const t = setup();
 		const unavailable = request("unavailable");
 		const conflict = request("conflict");
-		batch(() => {
+		t.g.batch(() => {
 			t.requests.set({ ...request("malformed"), unknown: true } as KeyedRateLimitRequest);
 			t.requests.set(unavailable);
 			t.requests.set(conflict);
 		});
-		batch(() => {
+		t.g.batch(() => {
 			t.outcomes.set({
 				...outcome(unavailable, "allowed"),
 				retryAfterMs: BigInt(1),
@@ -412,7 +411,7 @@ describe("D648/D649 bounded admission and exact correlation", () => {
 		const a = request("bounded-a");
 		const b = request("bounded-b");
 		const c = request("bounded-c");
-		batch(() => {
+		t.g.batch(() => {
 			t.requests.set(a);
 			t.requests.set(b);
 		});
@@ -593,7 +592,7 @@ describe("D648/D649 host authority adapter and topology", () => {
 		const cursor = capture(adapter.cursor);
 		const admissions = capture(adapter.admission.admissions);
 
-		batch(() => {
+		g.batch(() => {
 			requests.set(request("bounded-authority-a"));
 			requests.set(request("bounded-authority-b"));
 		});
@@ -636,7 +635,7 @@ describe("D648/D649 host authority adapter and topology", () => {
 		const errors = capture(adapter.errors);
 		const cursor = capture(adapter.cursor);
 
-		batch(() => {
+		g.batch(() => {
 			requests.set(request("mismatch-a"));
 			requests.set(request("mismatch-b"));
 		});
@@ -740,7 +739,7 @@ describe("D648/D649 host authority adapter and topology", () => {
 		const gate = adapter.admission;
 		const admissions = capture(gate.admissions);
 		const req = request("idempotent");
-		batch(() => {
+		g.batch(() => {
 			requests.set(req);
 			requests.set(req);
 		});

@@ -7,7 +7,6 @@ import {
 	wireBridgeEnvelope,
 } from "../adapters/index.js";
 import { graph } from "../graph/graph.js";
-import { batch } from "../index.js";
 
 describe("remote dispatcher helpers over wireBridge facts (D147)", () => {
 	it("remoteCall emits request facts and projects later response/status/error facts", () => {
@@ -239,7 +238,7 @@ describe("remote dispatcher helpers over wireBridge facts (D147)", () => {
 			}
 		});
 
-		batch(() => {
+		g.batch(() => {
 			bridge.inbound.set(
 				wireBridgeEnvelope({
 					sessionId: "session-a",
@@ -669,7 +668,8 @@ describe("remote dispatcher helpers over wireBridge facts (D147)", () => {
 
 		const snap = g.describe();
 		expect(snap.edges).toContainEqual({ from: "bridge/inbound", to: "responder/events" });
-		expect(snap.edges).toContainEqual({
+		// D803: response commands are written into the bridge's command state, not a dependency.
+		expect(snap.edges).not.toContainEqual({
 			from: "responder/responseCommands",
 			to: "bridge/command",
 		});
@@ -691,10 +691,6 @@ describe("remote dispatcher helpers over wireBridge facts (D147)", () => {
 			for (const msg of incoming) {
 				outbound.push(msg);
 			}
-		});
-		expect(g.describe().edges).toContainEqual({
-			from: "responder/responseCommands",
-			to: "bridge/command",
 		});
 
 		responder.release();
@@ -739,10 +735,6 @@ describe("remote dispatcher helpers over wireBridge facts (D147)", () => {
 		});
 
 		expect(() => responder.release()).toThrow(/live subscribers/);
-		expect(g.describe().edges).toContainEqual({
-			from: "responder/responseCommands",
-			to: "bridge/command",
-		});
 		bridge.inbound.set(
 			wireBridgeEnvelope({
 				sessionId: "session-a",

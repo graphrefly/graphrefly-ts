@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { batch } from "../batch/batch.js";
 import type { DataIssue } from "../data/index.js";
 import { graph } from "../graph/graph.js";
 import {
@@ -320,7 +319,7 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 6", () => {
 		});
 
 		inputs.set(ready);
-		batch(() => {
+		g.batch(() => {
 			runRequests.set(
 				requestToolProviderAdapterRun(ready, {
 					runId: longRunA,
@@ -446,7 +445,7 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 6", () => {
 		});
 
 		inputs.set(ready);
-		batch(() => {
+		g.batch(() => {
 			runRequests.set({
 				...requestToolProviderAdapterRun(ready, { runId: "bad-run-a", attempt: 1 }),
 				requestId: "stale-a",
@@ -547,7 +546,7 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 6", () => {
 		});
 
 		inputs.set(ready);
-		batch(() => {
+		g.batch(() => {
 			runRequests.set({
 				...requestToolProviderAdapterRun(ready, { runId: "stale-run", attempt: 2 }),
 				requestId: "other-request",

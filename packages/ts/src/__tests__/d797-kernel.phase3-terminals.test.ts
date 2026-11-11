@@ -11,10 +11,8 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { batch } from "../batch/batch.js";
 import { type Ctx, depBatch, depLatest } from "../ctx/types.js";
 import { graph } from "../graph/graph.js";
-import { node } from "../node/node.js";
 import type { Wave } from "../protocol/messages.js";
 
 /** A sink that records every array it receives, as the kernel delivers it. */
@@ -31,11 +29,12 @@ const cloneWaves = (ctx: Ctx) => ctx.waveData.map((waves) => waves.map((wave) =>
 
 describe("C-3: INVALIDATE through a diamond: one INVALIDATE out, private state kept", () => {
 	function diamond(invalidate: "auto" | "manual") {
-		const s = node<number>([], null);
-		const b = node<number>([s], forward);
-		const c = node<number>([s], forward);
+		const g = graph();
+		const s = g.node<number>([], null);
+		const b = g.node<number>([s], forward);
+		const c = g.node<number>([s], forward);
 		const runs: { invalidated: boolean[]; waves: unknown[][][] }[] = [];
-		const d = node<number>(
+		const d = g.node<number>(
 			[b, c],
 			(ctx) => {
 				runs.push({ invalidated: [...ctx.invalidated], waves: cloneWaves(ctx) });
@@ -51,7 +50,7 @@ describe("C-3: INVALIDATE through a diamond: one INVALIDATE out, private state k
 		);
 		const sink = arrays();
 		d.subscribe(sink.sink);
-		return { s, d, runs, sink };
+		return { g, s, d, runs, sink };
 	}
 
 	it("auto: the function does not run for it; the value goes, the count stays", () => {
@@ -88,12 +87,13 @@ describe("C-3: INVALIDATE through a diamond: one INVALIDATE out, private state k
 
 describe("C-15: a dependency's terminal settles its pending mark", () => {
 	function topology() {
-		const a = node<number>([], null);
-		const a2 = node<number>([], null);
-		const b = node<number>([a], forward, { partial: true });
-		const c = node<number>([a2], forward, { partial: true });
+		const g = graph();
+		const a = g.node<number>([], null);
+		const a2 = g.node<number>([], null);
+		const b = g.node<number>([a], forward, { partial: true });
+		const c = g.node<number>([a2], forward, { partial: true });
 		const runs: { terminal: unknown[]; waves: unknown[][][] }[] = [];
-		const d = node<number>(
+		const d = g.node<number>(
 			[b, c],
 			(ctx) => {
 				runs.push({ terminal: [...ctx.terminal], waves: cloneWaves(ctx) });
@@ -103,12 +103,12 @@ describe("C-15: a dependency's terminal settles its pending mark", () => {
 		const sink = arrays();
 		d.subscribe(sink.sink);
 		runs.length = 0;
-		return { a, a2, b, c, d, runs, sink };
+		return { g, a, a2, b, c, d, runs, sink };
 	}
 
 	it("(a) B's COMPLETE without a value and C's value: D runs once on both", () => {
 		const f = topology();
-		batch(() => {
+		f.g.batch(() => {
 			f.a.complete();
 			f.a2.set(7);
 		});
@@ -128,7 +128,7 @@ describe("C-15: a dependency's terminal settles its pending mark", () => {
 	it("(c) B's ERROR and C's value: D runs once with both", () => {
 		const f = topology();
 		const e = new Error("e");
-		batch(() => {
+		f.g.batch(() => {
 			f.a.error(e);
 			f.a2.set(3);
 		});
@@ -140,10 +140,11 @@ describe("C-15: a dependency's terminal settles its pending mark", () => {
 
 describe("C-17: an ended dependency counts toward auto COMPLETE, in any order", () => {
 	function topology() {
-		const b = node<number>([], null);
-		const c = node<number>([], null);
+		const g = graph();
+		const b = g.node<number>([], null);
+		const c = g.node<number>([], null);
 		const runs: { terminal: unknown[]; waves: unknown[][][] }[] = [];
-		const d = node<number>(
+		const d = g.node<number>(
 			[b, c],
 			(ctx) => {
 				runs.push({ terminal: [...ctx.terminal], waves: cloneWaves(ctx) });
@@ -151,7 +152,7 @@ describe("C-17: an ended dependency counts toward auto COMPLETE, in any order", 
 			{ partial: true, error: "manual" },
 		);
 		let ctrlRuns = 0;
-		const dctrl = node<number>(
+		const dctrl = g.node<number>(
 			[b, c],
 			() => {
 				ctrlRuns++;
@@ -164,7 +165,7 @@ describe("C-17: an ended dependency counts toward auto COMPLETE, in any order", 
 		dctrl.subscribe(cs.sink);
 		runs.length = 0;
 		ctrlRuns = 0;
-		return { b, c, d, dctrl, runs, ds, cs, ctrlRuns: () => ctrlRuns };
+		return { g, b, c, d, dctrl, runs, ds, cs, ctrlRuns: () => ctrlRuns };
 	}
 	const completes = (log: Wave[]) => log.filter((a) => a.some((m) => m[0] === "COMPLETE")).length;
 
@@ -176,7 +177,7 @@ describe("C-17: an ended dependency counts toward auto COMPLETE, in any order", 
 		expect(f.d.status.output).not.toBe("errored");
 		expect(f.dctrl.status.output).toBe("errored");
 		expect(f.ctrlRuns()).toBe(0);
-		batch(() => {
+		f.g.batch(() => {
 			f.b.set(1);
 			f.b.complete();
 		});
@@ -189,7 +190,7 @@ describe("C-17: an ended dependency counts toward auto COMPLETE, in any order", 
 	it("(b) B's value and COMPLETE first, then C's ERROR", () => {
 		const f = topology();
 		const e = new Error("e");
-		batch(() => {
+		f.g.batch(() => {
 			f.b.set(1);
 			f.b.complete();
 		});
@@ -260,9 +261,10 @@ describe("C-34: terminal fanout, the ended node's lifetime closing, and acquirin
 
 describe("C-36: input arrays and terminal admission in one invocation", () => {
 	it("manual COMPLETE: one invocation sees the values and the COMPLETE; d stays open", () => {
-		const a = node<number>([], null);
+		const g = graph();
+		const a = g.node<number>([], null);
 		const seen: { waves: unknown[][][]; terminal: unknown[] }[] = [];
-		const d = node<number>(
+		const d = g.node<number>(
 			[a],
 			(ctx) => {
 				seen.push({ waves: cloneWaves(ctx), terminal: [...ctx.terminal] });
@@ -271,7 +273,7 @@ describe("C-36: input arrays and terminal admission in one invocation", () => {
 		);
 		d.subscribe(() => {});
 		seen.length = 0;
-		batch(() => {
+		g.batch(() => {
 			a.set(20);
 			a.complete();
 		});
@@ -280,12 +282,13 @@ describe("C-36: input arrays and terminal admission in one invocation", () => {
 	});
 
 	it("auto COMPLETE: the run's output, then COMPLETE, with no balancing RESOLVED", () => {
-		const a = node<number>([], null);
-		const d = node<number>([a], (ctx) => ctx.down([["DATA", (depLatest(ctx, 0) as number) * 2]]));
+		const g = graph();
+		const a = g.node<number>([], null);
+		const d = g.node<number>([a], (ctx) => ctx.down([["DATA", (depLatest(ctx, 0) as number) * 2]]));
 		const sink = arrays();
 		d.subscribe(sink.sink);
 		sink.log.length = 0;
-		batch(() => {
+		g.batch(() => {
 			a.set(5);
 			a.complete();
 		});
@@ -296,9 +299,10 @@ describe("C-36: input arrays and terminal admission in one invocation", () => {
 	});
 
 	it("[DATA 7, INVALIDATE] is published as [PENDING, INVALIDATE]; d does not run", () => {
-		const a = node<number>([], null);
+		const g = graph();
+		const a = g.node<number>([], null);
 		let runs = 0;
-		const d = node<number>([a], (ctx) => {
+		const d = g.node<number>([a], (ctx) => {
 			runs++;
 			ctx.down([["DATA", depLatest(ctx, 0) as number]]);
 		});
@@ -310,7 +314,7 @@ describe("C-36: input arrays and terminal admission in one invocation", () => {
 		as.log.length = 0;
 		ds.log.length = 0;
 		runs = 0;
-		batch(() => {
+		g.batch(() => {
 			a.set(7);
 			a.invalidate();
 		});
@@ -324,11 +328,12 @@ describe("C-36: input arrays and terminal admission in one invocation", () => {
 
 describe("C-40: an ended node can be subscribed and depended on", () => {
 	it("gives its snapshot with its terminal; the policies apply to it at a first run", () => {
-		const s = node<number>([], null);
+		const g = graph();
+		const s = g.node<number>([], null);
 		s.set(1);
 		s.complete();
 		const e = new Error("e");
-		const t = node<number>([], null);
+		const t = g.node<number>([], null);
 		t.error(e);
 
 		const sink = arrays();
@@ -336,7 +341,7 @@ describe("C-40: an ended node can be subscribed and depended on", () => {
 		expect(sink.log).toEqual([[["START"], ["DATA", 1], ["COMPLETE"]]]);
 
 		let dRuns = 0;
-		const d = node<number>([s], (ctx) => {
+		const d = g.node<number>([s], (ctx) => {
 			dRuns++;
 			ctx.down([["DATA", depLatest(ctx, 0) as number]]);
 		});
@@ -347,7 +352,7 @@ describe("C-40: an ended node can be subscribed and depended on", () => {
 		expect(ds.log).toEqual([[["START"], ["DATA", 1], ["COMPLETE"]]]);
 
 		let eRuns = 0;
-		const en = node<number>([t], () => {
+		const en = g.node<number>([t], () => {
 			eRuns++;
 		});
 		en.subscribe(() => {});
@@ -355,7 +360,7 @@ describe("C-40: an ended node can be subscribed and depended on", () => {
 		expect(en.status.output).toBe("errored");
 
 		const mSeen: unknown[][] = [];
-		const m = node<number>(
+		const m = g.node<number>(
 			[t],
 			(ctx) => {
 				mSeen.push([...ctx.terminal]);
@@ -373,12 +378,13 @@ describe("C-40: an ended node can be subscribed and depended on", () => {
 
 describe("C-44: a wave of terminals or INVALIDATEs holds a fan-in", () => {
 	it("manual COMPLETE: D waits for both legs' COMPLETE and runs once on both", () => {
-		const s = node<number>([], null, { initial: 0 });
-		const b = node<number>([s], forward);
-		const c = node<number>([s], forward);
+		const g = graph();
+		const s = g.node<number>([], null, { initial: 0 });
+		const b = g.node<number>([s], forward);
+		const c = g.node<number>([s], forward);
 		const bs = arrays();
 		const runs: unknown[][] = [];
-		const d = node<number>(
+		const d = g.node<number>(
 			[b, c],
 			(ctx) => {
 				runs.push([...ctx.terminal]);
@@ -395,11 +401,12 @@ describe("C-44: a wave of terminals or INVALIDATEs holds a fan-in", () => {
 	});
 
 	it("manual INVALIDATE: D waits for both legs and runs once, seeing both invalidated", () => {
-		const s = node<number>([], null, { initial: 0 });
-		const b = node<number>([s], forward);
-		const c = node<number>([s], forward);
+		const g = graph();
+		const s = g.node<number>([], null, { initial: 0 });
+		const b = g.node<number>([s], forward);
+		const c = g.node<number>([s], forward);
 		const runs: boolean[][] = [];
-		const d = node<number>(
+		const d = g.node<number>(
 			[b, c],
 			(ctx) => {
 				runs.push([...ctx.invalidated]);
@@ -413,9 +420,10 @@ describe("C-44: a wave of terminals or INVALIDATEs holds a fan-in", () => {
 	});
 
 	it("an INVALIDATE reaches a quiet node's sink and the fan-in's at once, in the source's wave", () => {
-		const a = node<number>([], null, { initial: 1 });
-		const q = node<number>([a], forward, { quiet: true });
-		const d = node<number>([a, q], (ctx) => ctx.down([["DATA", depLatest(ctx, 0) as number]]), {
+		const g = graph();
+		const a = g.node<number>([], null, { initial: 1 });
+		const q = g.node<number>([a], forward, { quiet: true });
+		const d = g.node<number>([a, q], (ctx) => ctx.down([["DATA", depLatest(ctx, 0) as number]]), {
 			partial: true,
 		});
 		const qs = arrays();

@@ -52,12 +52,12 @@ import {
 	type NodeFn,
 	terminalErrorValue,
 } from "../ctx/types.js";
-import type { Node } from "../node/node.js";
+import { buildBeside, type Node } from "../node/node.js";
 import { errorPayload } from "../protocol/messages.js";
 import { eachInputArray } from "./each-input-array.js";
 import { exhaustMap, mergeMap, switchMap } from "./higher-order.js";
-import { filter, initNode, map, merge, type Operator } from "./operators.js";
-import { fromAny, interval, type NodeInput, of, timer } from "./sources.js";
+import { filter, initNode, initNodeBeside, map, merge, type Operator } from "./operators.js";
+import { interval, type NodeInput, nodeFromInput, of, timer } from "./sources.js";
 
 /** A bare inner that emits `v` once after `ms`, then COMPLETEs (timer(ms)→map(v); auto-completes). */
 function delayedValue<S>(v: S, ms: number): Node<S> {
@@ -248,7 +248,7 @@ export function audit<S>(durationSelector: (v: S) => NodeInput<unknown>): Operat
 
 			// a fresh source value with no open window → open one (value-triggered, trailing edge).
 			if (!st.windowOpen && sb != null && sb.length > 0 && st.latest !== undefined) {
-				const n = fromAny<unknown>(durationSelector(st.latest.v), { iter: true });
+				const n = nodeFromInput<unknown>(durationSelector(st.latest.v), { iter: true });
 				st.windowOpen = true;
 				st.notifier = n;
 				ctxRewireDiff(ctx, [n]); // (a same-wave close+reopen issues remove-before-add)
@@ -312,7 +312,7 @@ interface TimeoutState {
  * ```
  */
 export function timeout<S>(source: Node<S>, ms: number): Node<S> {
-	const makeTimer = (): Node<unknown> => initNode(timer(ms), []);
+	const makeTimer = (): Node<unknown> => buildBeside(source, () => initNode(timer(ms), []));
 	const initial = makeTimer();
 	const body: NodeFn = (ctx: Ctx) => {
 		try {
@@ -362,7 +362,7 @@ export function timeout<S>(source: Node<S>, ms: number): Node<S> {
 			ctx.down([["ERROR", errorPayload(e, "timeout threw without a valid error payload")]]);
 		}
 	};
-	return initNode<S, S>(
+	return initNodeBeside<S, S>(
 		{
 			factory: "timeout",
 			body,
@@ -393,7 +393,7 @@ export function timeout<S>(source: Node<S>, ms: number): Node<S> {
  * ```
  */
 export function bufferTime<S>(source: Node<S>, ms: number): Node<S[]> {
-	const iv: Node<unknown> = initNode(interval(ms), []);
+	const iv: Node<unknown> = buildBeside(source, () => initNode(interval(ms), []));
 	const body: NodeFn = (ctx: Ctx) => {
 		const srcBatch = depBatch(ctx, 0);
 		const tickBatch = depBatch(ctx, 1);
@@ -420,7 +420,7 @@ export function bufferTime<S>(source: Node<S>, ms: number): Node<S[]> {
 		}
 		ctx.state.set(buf);
 	};
-	return initNode<unknown, S[]>(
+	return initNodeBeside<unknown, S[]>(
 		{
 			factory: "bufferTime",
 			body,

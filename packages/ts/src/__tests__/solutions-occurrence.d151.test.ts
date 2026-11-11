@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { batch } from "../batch/batch.js";
 import { graph } from "../graph/graph.js";
 import type { Message } from "../protocol/messages.js";
 import {
@@ -51,7 +50,7 @@ function fixture(maxOccurrences = 2) {
 			messages.push(message);
 		}
 	});
-	return { input, messages, unsubscribe };
+	return { owner, input, messages, unsubscribe };
 }
 
 describe("D151 package-private solution occurrence projection", () => {
@@ -66,7 +65,7 @@ describe("D151 package-private solution occurrence projection", () => {
 		};
 		const f = fixture();
 		rejects(f.messages, () =>
-			batch(() => {
+			f.owner.batch(() => {
 				f.input.set(occurrence("one"));
 				f.input.set(occurrence("two", { value: malformed }));
 			}),
@@ -189,7 +188,7 @@ describe("D151 exact solution occurrence join", () => {
 	}
 	it("pairs all DATA by identity, not wave or latest value; an absent sibling stays quiet", () => {
 		const f = joined();
-		batch(() => {
+		f.owner.batch(() => {
 			f.leftInput.set(occurrence("one"));
 			f.leftInput.set(occurrence("two"));
 		});
@@ -221,11 +220,11 @@ describe("D151 exact solution occurrence join", () => {
 	});
 	it("releases every completed occurrence from one multi-DATA wave", () => {
 		const f = joined();
-		batch(() => {
+		f.owner.batch(() => {
 			f.leftInput.set(occurrence("one"));
 			f.leftInput.set(occurrence("two"));
 		});
-		batch(() => {
+		f.owner.batch(() => {
 			f.rightInput.set(occurrence("one"));
 			f.rightInput.set(occurrence("two"));
 		});
@@ -238,14 +237,14 @@ describe("D151 exact solution occurrence join", () => {
 	});
 	it("rejects cross-lane provenance disagreement without publishing a partial batch", () => {
 		const f = joined();
-		batch(() => {
+		f.owner.batch(() => {
 			f.leftInput.set(occurrence("one"));
 			f.leftInput.set(occurrence("two"));
 		});
 		rejects(
 			f.messages,
 			() =>
-				batch(() => {
+				f.owner.batch(() => {
 					f.rightInput.set(occurrence("one"));
 					f.rightInput.set(
 						occurrence("two", { occurrenceSourceRefs: [{ kind: "work-item", id: "wrong" }] }),

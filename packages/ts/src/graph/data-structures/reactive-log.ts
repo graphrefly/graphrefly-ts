@@ -19,9 +19,10 @@
  */
 
 import { type Ctx, depBatch, depCount } from "../../ctx/types.js";
-import { type Node, node } from "../../node/node.js";
+import { makeNodeBeside, type Node } from "../../node/node.js";
 import { oneArrayPerRun } from "../../node/one-array-per-run.js";
 import type { GraphCheckpointJson } from "../checkpoint.js";
+import type { Graph } from "../graph.js";
 import { trimHeadOverflow } from "../policies/collection.js";
 import type { ViewCachePolicy } from "../policies/types.js";
 import type { LogChange } from "./change.js";
@@ -155,31 +156,37 @@ function rejectUndefined<T>(value: T, ctx: string): void {
 }
 
 /**
- * Create an append-only reactive log (D54/D60). DELTA + lazy SNAPSHOT + REQUEST via
+ * Create an append-only reactive log (D54/D60) in `graph`. DELTA + lazy SNAPSHOT + REQUEST via
  * {@link collectionCore}; this layer adds the typed append surface + incremental view/scan.
- * @param initial - initial value used by the helper.
- * @param options - Options that configure the helper.
+ * @param graph - The graph that builds the log's nodes.
+ * @param initial - Optional initial log contents.
+ * @param options - Optional name, ring-buffer cap, and view memo policy.
  * @returns A `ReactiveLog<T>` value.
  * @category data-structures
  * @example
  * ```ts
+ * import { graph } from "@graphrefly/ts/graph";
  * import { reactiveLog } from "@graphrefly/ts/data-structures";
+ *
+ * const log = reactiveLog<string>(graph(), [], { maxSize: 100 });
+ * log.append("started");
  * ```
  */
 export function reactiveLog<T>(
+	graph: Graph,
 	initial?: readonly T[],
 	options: ReactiveLogOptions = {},
 ): ReactiveLog<T> {
 	const { maxSize, viewCache, ...coreOpts } = options;
-	const base = coreOpts.dispatcher ? { dispatcher: coreOpts.dispatcher } : {};
 	const backend = new LogBackend<T>(initial, maxSize);
 	const restoreConfig =
-		coreOpts.graph !== undefined && coreOpts.name !== undefined
+		coreOpts.name !== undefined
 			? ({
 					...(maxSize !== undefined ? { maxSize } : {}),
 				} as GraphCheckpointJson)
 			: undefined;
 	const core: CollectionCore<readonly T[], LogChange<T>> = collectionCore(
+		graph,
 		backend,
 		"reactiveLog",
 		coreOpts,
@@ -243,13 +250,13 @@ export function reactiveLog<T>(
 			// Incremental on the DELTA backbone (D60 #5a): each delta re-reads the backend's current
 			// tail (the backend is this structure's own materialized state, D60 #1 — not a foreign
 			// .cache peek). `partial:true` — the tail does not consume the delta value, it fires on arm.
-			const tnode = node<readonly T[]>(
+			const tnode = makeNodeBeside<readonly T[]>(
 				[core.delta as Node<unknown>],
 				(ctx: Ctx) => {
 					const all = backend.snapshot();
 					ctx.down([["DATA", n === 0 ? [] : all.slice(Math.max(0, all.length - n))]]);
 				},
-				{ ...base, factory: "reactiveLog.tail", partial: true },
+				{ factory: "reactiveLog.tail", partial: true },
 			);
 			tailMemo.set(n, tnode);
 			return tnode;
@@ -267,12 +274,12 @@ export function reactiveLog<T>(
 			if (hit !== undefined) return hit;
 			// Incremental on the DELTA backbone (D60 #5a): each delta re-reads this log's own
 			// backend slice. The backend is the single materialized state (D60), not a dep cache.
-			const snode = node<readonly T[]>(
+			const snode = makeNodeBeside<readonly T[]>(
 				[core.delta as Node<unknown>],
 				(ctx: Ctx) => {
 					ctx.down([["DATA", backend.snapshot().slice(start, stop)]]);
 				},
-				{ ...base, factory: "reactiveLog.slice", partial: true },
+				{ factory: "reactiveLog.slice", partial: true },
 			);
 			sliceMemo.set(key, snode);
 			return snode;
@@ -290,7 +297,7 @@ export function reactiveLog<T>(
 			if (hit !== undefined) return hit;
 			const materialize = (): readonly T[] => backend.snapshot().slice(offset, offset + limit);
 			let view: ReactiveView<LogChange<T>, readonly T[]>;
-			view = lightReactiveView<LogChange<T>, readonly T[]>(core.delta as Node<unknown>, {
+			view = lightReactiveView<LogChange<T>, readonly T[]>(graph, core.delta as Node<unknown>, {
 				...coreOpts,
 				factory: "reactiveLog.page",
 				name: coreOpts.name ? `${coreOpts.name}.page#${pageSeq++}` : undefined,
@@ -306,7 +313,7 @@ export function reactiveLog<T>(
 		scan<A>(initial: A, step: (acc: A, value: T) => A): Node<A> {
 			// Incremental fold on the delta backbone: keep the accumulator + processed-count in
 			// ctx.state; fold only the new tail each append; full re-fold on a shrink (clear/trimHead).
-			return node<A>(
+			return makeNodeBeside<A>(
 				[core.delta as Node<unknown>],
 				(ctx: Ctx) => {
 					const st = ctx.state.get<{ acc: A; processed: number }>() ?? {
@@ -327,7 +334,7 @@ export function reactiveLog<T>(
 					ctx.state.set(st);
 					ctx.down([["DATA", st.acc]]);
 				},
-				{ ...base, factory: "reactiveLog.scan", partial: true },
+				{ factory: "reactiveLog.scan", partial: true },
 			);
 		},
 
@@ -366,7 +373,7 @@ export function reactiveLog<T>(
  */
 export function mergeReactiveLogs<T>(logs: readonly ReactiveLog<T>[]): Node<LogChange<T>> {
 	const deps = logs.map((l) => l.delta as Node<unknown>);
-	return node<LogChange<T>>(
+	return makeNodeBeside<LogChange<T>>(
 		deps,
 		oneArrayPerRun((ctx: Ctx) => {
 			for (let i = 0; i < depCount(ctx); i++) {

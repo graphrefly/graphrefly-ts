@@ -18,7 +18,6 @@ import {
 	presetBinding,
 } from "../../../../scripts/fixtures/spending-preset-harness.js";
 import { oracleRequest } from "../../../../scripts/fixtures/spending-preset-oracle.js";
-import { batch } from "../batch/batch.js";
 import { ColdConstructionError } from "../graph/construction-scope.js";
 import { Graph } from "../graph/graph.js";
 
@@ -88,7 +87,7 @@ for (const mode of ["off", "summary"] as const) {
 				observed.push(seen);
 				stops.push(ordinaryExample(view, (v) => seen.push(v)));
 				run.sources.pack.set(evaluationPack([e]));
-				batch(() => {
+				run.graph.batch(() => {
 					run.sources.current.set(f.current);
 					run.sources.verification.set(f.verification);
 					run.sources.local.set(f.local);

@@ -14,9 +14,10 @@
 
 import { type Ctx, depBatch, depCount, depLatest } from "../../ctx/types.js";
 import { attachableInput } from "../../node/attachable-input.js";
-import { Node, StateNode } from "../../node/node.js";
+import { Node } from "../../node/node.js";
 import { oneArrayPerRun } from "../../node/one-array-per-run.js";
 import { errorPayload } from "../../protocol/messages.js";
+import type { Graph } from "../graph.js";
 import type { Operator } from "../operators.js";
 import { trimHeadOverflow } from "../policies/collection.js";
 import type { ReactiveOpt } from "../policies/types.js";
@@ -27,8 +28,8 @@ export type ReactiveListOpt<T> = ReactiveOpt<T>;
 
 export interface ReactiveListOptions extends CollectionCoreOptions {
 	/**
-	 * Head-trim capacity policy (D72). A static number caps the list locally; a Node-valued maxSize
-	 * must be graph-bound and becomes a declared policy dep that trims on policy changes.
+	 * Head-trim capacity policy (D72). A static number becomes a constant policy node; a Node-valued
+	 * maxSize (a node of the same graph) becomes a declared policy dep that trims on policy changes.
 	 */
 	maxSize?: ReactiveListOpt<number>;
 }
@@ -142,30 +143,37 @@ class ListBackend<T> {
 }
 
 /**
- * Create a reactive list (D54/D60). The DELTA + SNAPSHOT ports + REQUEST state come from the shared
- * {@link collectionCore}; this layer adds the typed list method surface + backend.
+ * Create a reactive list (D54/D60) in `graph`. The DELTA + SNAPSHOT ports + REQUEST state come from
+ * the shared {@link collectionCore}; this layer adds the typed list method surface + backend.
  *
  * @example
  * ```ts
- * const list = reactiveList<number>([1]);
+ * import { graph } from "@graphrefly/ts/graph";
+ * import { reactiveList } from "@graphrefly/ts/data-structures";
+ *
+ * const g = graph();
+ * const list = reactiveList<number>(g, [1]);
  * // observe events:
- * list.delta.subscribe((m) => { if (m[0] === "DATA") console.log("Δ", m[1]); });
+ * list.delta.subscribe((msgs) => {
+ *   for (const [type, change] of msgs) if (type === "DATA") console.log("Δ", change);
+ * });
  * list.append(2);                 // delta: {kind:"append", value:2}
- * // request the snapshot (a subscriber of `list.snapshot` then receives [1, 2]):
- * list.request.down([["DATA", true]]);
+ * // request the snapshot: write `true` to the `list.request` state node; a subscriber of
+ * // `list.snapshot` then receives [1, 2].
  * list.toArray();                 // [1, 2]   (synchronous non-reactive read)
  * ```
+ * @param graph - The graph that builds the list's nodes.
  * @param initial - Optional initial list contents.
- * @param options - Optional graph binding, dispatcher, name, and capacity policy.
+ * @param options - Optional name and capacity policy.
  * @returns A reactive list with DELTA and lazy SNAPSHOT ports plus imperative mutation helpers.
  * @category data-structures
  */
 export function reactiveList<T>(
+	graph: Graph,
 	initial?: readonly T[],
 	options: ReactiveListOptions = {},
 ): ReactiveList<T> {
-	const { maxSize, graph, dispatcher } = options;
-	const base = dispatcher ? { dispatcher } : {};
+	const { maxSize } = options;
 
 	function isNodeOpt(x: ReactiveListOpt<number> | undefined): x is Node<number> {
 		return x instanceof Node;
@@ -182,8 +190,9 @@ export function reactiveList<T>(
 		initial,
 		initialMaxSize === undefined ? undefined : validateMaxSize(initialMaxSize),
 	);
-	const restorable = graph !== undefined && options.name !== undefined && maxSize === undefined;
+	const restorable = options.name !== undefined && maxSize === undefined;
 	const core: CollectionCore<readonly T[], ListChange<T>> = collectionCore(
+		graph,
 		backend,
 		"reactiveList",
 		options,
@@ -242,22 +251,12 @@ export function reactiveList<T>(
 			opts: { partial: true, setup: folders.setup },
 		};
 		const deps = capacityPolicy ? [capacityPolicy as Node<unknown>] : [];
-		apply = graph
-			? graph.initNode(op, deps, {
-					name: options.name ? `${options.name}.capacityPolicy` : undefined,
-					meta: { kind: "collection_policy_apply", collection: "reactiveList" },
-				})
-			: new Node<ListChange<T>>(deps, op.body, {
-					...base,
-					factory: "reactiveList.capacityPolicy",
-					partial: true,
-					setup: folders.setup,
-					name: options.name ? `${options.name}.capacityPolicy` : undefined,
-				});
+		apply = graph.initNode(op, deps, {
+			name: options.name ? `${options.name}.capacityPolicy` : undefined,
+			meta: { kind: "collection_policy_apply", collection: "reactiveList" },
+		});
 		folders.bind(apply as Node<unknown>);
-		releaseApply = graph
-			? graph.retain(apply, { reason: "reactiveList.capacityPolicy" })
-			: apply.subscribe(() => {});
+		releaseApply = graph.retain(apply, { reason: "reactiveList.capacityPolicy" });
 		return apply;
 	}
 
@@ -267,31 +266,15 @@ export function reactiveList<T>(
 			body: () => {},
 			opts: { initial: value },
 		};
-		if (graph) {
-			return graph.initNode(op, [], {
-				name: options.name ? `${options.name}.maxSizePolicy` : undefined,
-				meta: { kind: "collection_policy", collection: "reactiveList", policy: "maxSize" },
-			});
-		}
-		return new StateNode<number>([], null, {
-			...base,
-			initial: value,
-			factory: "reactiveList.maxSizePolicy",
+		return graph.initNode(op, [], {
 			name: options.name ? `${options.name}.maxSizePolicy` : undefined,
+			meta: { kind: "collection_policy", collection: "reactiveList", policy: "maxSize" },
 		});
 	}
 
 	if (maxSize !== undefined) {
-		if (isNodeOpt(maxSize) && graph === undefined)
-			throw new Error(
-				"reactiveList maxSize Node option requires options.graph so the policy edge is describe-visible (D72)",
-			);
-		capacityPolicy = isNodeOpt(maxSize)
-			? maxSize
-			: graph
-				? constPolicyNode(validateMaxSize(maxSize))
-				: undefined;
-		if (capacityPolicy !== undefined) ensureApply();
+		capacityPolicy = isNodeOpt(maxSize) ? maxSize : constPolicyNode(validateMaxSize(maxSize));
+		ensureApply();
 	}
 
 	return {
@@ -349,10 +332,6 @@ export function reactiveList<T>(
 		},
 
 		appendFrom(src: Node<T>): () => void {
-			if (graph === undefined)
-				throw new Error(
-					"reactiveList.appendFrom requires options.graph so the input fold is describe-visible (D61)",
-				);
 			const op: Operator<T, T> = {
 				factory: "reactiveList.bindSource",
 				body: oneArrayPerRun((ctx: Ctx) => {

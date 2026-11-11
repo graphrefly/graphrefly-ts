@@ -12,7 +12,6 @@ import {
 	prepareLocalSpendingProofResource,
 	prepareSpendingProofResourceWithIO,
 } from "../../examples/spending-alerts/causal-resource.js";
-import { batch } from "../../packages/ts/src/batch/batch.js";
 import { Graph } from "../../packages/ts/src/graph/graph.js";
 import type {
 	CausalQuiescence,
@@ -144,7 +143,7 @@ try {
 					}),
 				};
 			}
-			if (setup) batch(() => setup.sources[step.lane].set(value as never));
+			if (setup && graph) graph.batch(() => setup.sources[step.lane].set(value as never));
 			else plain!.feed(step.lane, value);
 		} else if (step.kind === "drain") {
 			await drain();

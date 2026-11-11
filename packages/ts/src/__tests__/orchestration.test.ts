@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { batch } from "../batch/batch.js";
 import { graph } from "../graph/graph.js";
 import { compoundTupleKey } from "../identity.js";
 import {
@@ -97,7 +96,7 @@ describe("graph-visible resilience bundles (D132)", () => {
 			}
 		});
 
-		batch(() => {
+		g.batch(() => {
 			source.set(1);
 			source.set(2);
 			source.set(3);

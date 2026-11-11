@@ -6,7 +6,6 @@ import {
 	policyFacts,
 	presetRun,
 } from "../../../../scripts/fixtures/spending-preset-harness.js";
-import { batch } from "../batch/batch.js";
 
 for (const mode of ["off", "summary"] as const) {
 	it(`two exact requests can share one readiness observation (${mode})`, () => {
@@ -15,7 +14,7 @@ for (const mode of ["off", "summary"] as const) {
 			const evaluations = [evaluationFixture(0, "coffee"), evaluationFixture(0, "tea")];
 			const facts = evaluations.map((e) => policyFacts(e));
 			run.send("pack", evaluationPack(evaluations));
-			batch(() => {
+			run.graph.batch(() => {
 				run.send("current", {
 					...facts[0].current,
 					current: facts.flatMap((f) => f.current.current),

@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { batch } from "../batch/batch.js";
 import { graph } from "../graph/graph.js";
 import {
 	type AgentRequestIssued,
@@ -287,7 +286,7 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 12", () => {
 			allowedOutcomes: ["admit"],
 		});
 
-		batch(() => {
+		g.batch(() => {
 			proposals.set(workItemActionProposal("proposal-1", "mark-ready"));
 			proposals.set(workItemActionProposal("proposal-1", "mark-ready"));
 			proposals.set(workItemActionProposal("proposal-2", "mark-ready"));
@@ -295,7 +294,7 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 12", () => {
 			proposals.set(workItemActionProposal("proposal-4", "other-action"));
 			proposals.set(workItemActionProposal("proposal-5", "mark-ready"));
 		});
-		batch(() => {
+		g.batch(() => {
 			decisions.set(
 				workItemAdmissionDecision("decision-ok", "admission-1", "proposal-1", "admit", {
 					policyId: "admit-ready",
@@ -381,12 +380,12 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 12", () => {
 				msg[0] === "DATA" && issues.push(msg[1]);
 			}
 		});
-		batch(() => {
+		g.batch(() => {
 			proposals.set(workItemActionProposal("proposal-1", "mark-ready"));
 			proposals.set(workItemActionProposal("proposal-2", "mark-ready"));
 			proposals.set(workItemActionProposal("proposal-3", "mark-ready"));
 		});
-		batch(() => {
+		g.batch(() => {
 			decisions.set(
 				workItemAdmissionDecision(
 					"decision-missing-policy",
@@ -457,7 +456,7 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 12", () => {
 			}
 		});
 
-		batch(() => {
+		g.batch(() => {
 			decisions.set(
 				workItemAdmissionDecision("decision-admit", "admission-admit", "proposal-admit", "admit", {
 					policyId: "late-policy",
@@ -480,7 +479,7 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 12", () => {
 			actionKinds: ["mark-ready"],
 			allowedOutcomes: ["admit"],
 		});
-		batch(() => {
+		g.batch(() => {
 			proposals.set(workItemActionProposal("proposal-merge", "mark-ready"));
 			proposals.set(workItemActionProposal("proposal-admit", "mark-ready"));
 		});

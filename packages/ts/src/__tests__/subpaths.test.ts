@@ -376,7 +376,10 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 	});
 
 	it("exposes the clean-slate layer surfaces from source barrels", () => {
-		expect(typeof core.node).toBe("function");
+		// R-graph-domain@3 (graphrefly-ts:D179): nodes are built by a graph; core has no node().
+		expect(core).not.toHaveProperty("node");
+		expect(core).not.toHaveProperty("batch");
+		expect(typeof core.Node).toBe("function");
 		expect(typeof graphLayer.Graph).toBe("function");
 		expect(typeof graphLayer.graph).toBe("function");
 		expect(typeof graphLayer.coalesceObserve).toBe("function");

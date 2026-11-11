@@ -305,10 +305,7 @@ function restoredList(ctx: GraphRestoreExtensionContext, ref: string): ReactiveL
 	if (ctx.deps.length !== 0) {
 		throw new Error(`restoreGraph: '${ref}' node '${ctx.id}' cannot restore deps`);
 	}
-	const collection = reactiveList(backendArray(ctx.checkpoint, ref), {
-		graph: ctx.graph,
-		name: base,
-	});
+	const collection = reactiveList(ctx.graph, backendArray(ctx.checkpoint, ref), { name: base });
 	restoredCollectionMap(ctx.graph).set(base, { kind: "reactiveList", collection });
 	return collection;
 }
@@ -319,10 +316,7 @@ function restoredIndex(ctx: GraphRestoreExtensionContext, ref: string): Reactive
 		throw new Error(`restoreGraph: '${ref}' node '${ctx.id}' cannot restore deps`);
 	}
 	const rows = indexRows(ctx.checkpoint, ref);
-	const collection = restoreReactiveIndexFromBackendState(rows, {
-		graph: ctx.graph,
-		name: base,
-	});
+	const collection = restoreReactiveIndexFromBackendState(ctx.graph, rows, { name: base });
 	restoredCollectionMap(ctx.graph).set(base, { kind: "reactiveIndex", collection });
 	return collection;
 }
@@ -339,8 +333,7 @@ function restoredLog(
 	if (ctx.config.maxSize !== undefined && state.length > ctx.config.maxSize) {
 		throw new Error(`restoreGraph: '${ref}' node '${ctx.id}' backendState exceeds config.maxSize`);
 	}
-	const collection = reactiveLog(state, {
-		graph: ctx.graph,
+	const collection = reactiveLog(ctx.graph, state, {
 		name: base,
 		...(ctx.config.maxSize !== undefined ? { maxSize: ctx.config.maxSize } : {}),
 	});
@@ -354,10 +347,7 @@ function restoredMapNode(ctx: GraphRestoreExtensionContext, ref: string): Node<u
 		throw new Error(`restoreGraph: '${ref}' node '${ctx.id}' cannot restore deps`);
 	}
 	const entries = mapEntries(ctx.checkpoint, ref);
-	const collection = restoreReactiveMapFromBackendState(entries, {
-		graph: ctx.graph,
-		name: base,
-	});
+	const collection = restoreReactiveMapFromBackendState(ctx.graph, entries, { name: base });
 	restoredCollectionMap(ctx.graph).set(base, { kind: "reactiveMap", collection });
 	const node = ctx.graph.find(ctx.id);
 	if (node === undefined) {

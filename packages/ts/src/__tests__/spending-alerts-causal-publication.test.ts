@@ -29,7 +29,6 @@ import {
 	PlainPublication,
 	verifyPublicationMaterial,
 } from "../../../../scripts/fixtures/spending-publication-oracle.js";
-import { batch } from "../batch/batch.js";
 import { depBatch } from "../ctx/types.js";
 import {
 	constructionOf,
@@ -197,7 +196,7 @@ function fixture(p: MaterialProfile = profile) {
 	scope.transferToGraph(owner);
 	startConstruction(graph, owner);
 	const send = (lane: keyof typeof sources, ...values: unknown[]) =>
-		batch(() => {
+		graph.batch(() => {
 			for (const v of values) asState(sources[lane]).set(v);
 		});
 	const release = (a: ReturnType<typeof facts>) => {

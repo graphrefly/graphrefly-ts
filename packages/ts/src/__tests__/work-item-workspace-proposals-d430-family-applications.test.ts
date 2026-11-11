@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { batch } from "../batch/batch.js";
 import { graph } from "../graph/graph.js";
 import {
 	decideWorkspaceProposalAdmission,
@@ -4786,7 +4785,7 @@ describe("Workspace proposal family application helpers (D430)", () => {
 		expect(preparations[0]).toMatchObject({ status: "prepared" });
 		expect(readyRequests).toHaveLength(1);
 
-		batch(() => {
+		g.batch(() => {
 			releases.set(
 				projectionRelease(
 					"projection-release:d476-preparation",
@@ -5394,7 +5393,7 @@ describe("Workspace proposal family application helpers (D430)", () => {
 		expect(validations).toHaveLength(1);
 		expect(previews).toHaveLength(1);
 
-		batch(() => {
+		g.batch(() => {
 			releases.set(
 				projectionRelease(
 					"projection-release:d472-advisory",

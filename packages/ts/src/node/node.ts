@@ -16,13 +16,12 @@
 import {
 	type BatchTarget,
 	currentBatch,
-	currentBoundaryBatchToken,
 	DeferredWrite,
 	deferToBatch,
 	request,
 	stagedBatchWave,
 } from "../batch/batch.js";
-import { deferRewire, enterWave, exitWave, isWaveActive } from "../batch/boundary.js";
+import { enterWave, exitWave } from "../batch/boundary.js";
 import type { Ctx, CtxState, DeliveryMeta, NodeFn, Sink } from "../ctx/types.js";
 import { defaultDispatcher, type Handle } from "../dispatcher/index.js";
 import { EnvironmentDrivers } from "../graph/environment.js";
@@ -32,7 +31,7 @@ import {
 	type LifecycleState,
 	type LifetimeState,
 	makeDepBookkeeping,
-	NodeCore,
+	type NodeCore,
 	type NodeId,
 	type NodeSlot,
 	type PrivateState,
@@ -90,8 +89,12 @@ import { validateNodeOutput } from "./protocol-guards.js";
 import {
 	getNodeOwner,
 	issueNodeRegistration,
+	runningGraph,
+	takeConstructingDispatcher,
 	takeConstructingEnvironmentDrivers,
 	takeConstructingNodeCore,
+	withEnvironmentDrivers,
+	withNodeCore,
 } from "./runtime-accessors.js";
 import type { NodeOptions, NodeReceived, NodeSeed, Status } from "./types.js";
 import {
@@ -122,14 +125,14 @@ export type { NodeCheckpointState, NodeOptions, NodeRestoreState, Status } from 
  *
  * @example
  * ```ts
- * import { node } from "@graphrefly/ts/core";
+ * import { graph } from "@graphrefly/ts/graph";
  *
- * const source = node<number>([], null);
- * source.subscribe((value) => console.log(value));
- * source.down([["DATA", 1]]);
+ * const source = graph().state<number>(0);
+ * source.subscribe((msgs) => console.log(msgs));
+ * source.set(1);
  * ```
- * @remarks **Substrate primitive:** `Node` is graph-agnostic; use `graph().node`,
- *   `graph().state`, or `graph().derived` when you want inspection and lifecycle ownership.
+ * @remarks **Built by a graph:** every node belongs to one graph's domain (R-graph-domain@3); build
+ *   it with `graph().node`, `graph().state` or `graph().derived`. There is no standalone node.
  * @category core
  */
 export class Node<T = unknown> {
@@ -189,9 +192,15 @@ export class Node<T = unknown> {
 		const suppliedAcquisition = constructionAcquisitions.get(opts);
 		const acquisition: NodeAcquisition = suppliedAcquisition ?? { name: "bare node" };
 		constructionAcquisitions.delete(opts);
-		const core = takeConstructingNodeCore();
-		const dispatcher = opts.dispatcher ?? defaultDispatcher;
-		const environment = takeConstructingEnvironmentDrivers() ?? EnvironmentDrivers.empty();
+		const staged = takeConstructingNodeCore();
+		const stagedDispatcher = takeConstructingDispatcher();
+		const stagedEnvironment = takeConstructingEnvironmentDrivers();
+		// D179: with no graph staged, a node built during a run belongs to the running graph.
+		const running = staged === undefined ? runningGraph() : undefined;
+		const core = staged ?? running?.core;
+		const dispatcher =
+			opts.dispatcher ?? stagedDispatcher ?? running?.dispatcher ?? defaultDispatcher;
+		const environment = stagedEnvironment ?? running?.environment ?? EnvironmentDrivers.empty();
 		try {
 			const versioning = resolveNodeVersioningPolicy(opts.versioning);
 			const pool = opts.pool ?? "sync";
@@ -218,7 +227,10 @@ export class Node<T = unknown> {
 				value.lastArray = [opts.initial as T];
 				value.hasData = true;
 			}
-			this._core = core ?? new NodeCore();
+			// R-graph-domain@3: a node belongs to one graph's domain; there is no standalone node.
+			if (core === undefined)
+				throw new Error("node: a node is built by a graph (graph.node, graph.state, ...)");
+			this._core = core;
 			const created = this._core.createSlot<T>(
 				{
 					deps,
@@ -360,7 +372,7 @@ export class Node<T = unknown> {
 		// Wave-owner boundary (R-rewire-deferred / D47): the activation cascade can run fns that
 		// issue ctx.rewire; the OUTERMOST exit drains them. Nested subscribes (dep wiring)
 		// just inc/dec the depth.
-		enterWave();
+		enterWave(this._core);
 		try {
 			let left = false;
 			const unsubscribe = () => {
@@ -400,7 +412,7 @@ export class Node<T = unknown> {
 
 			return unsubscribe;
 		} finally {
-			exitWave();
+			exitWave(this._core);
 		}
 	}
 
@@ -415,7 +427,7 @@ export class Node<T = unknown> {
 		// R-terminals: a host input to an ended node is refused.
 		if (this._value.terminal !== undefined)
 			throw new Error("down: this node has ended (R-terminals)");
-		if (currentBatch()) {
+		if (currentBatch(this._core)) {
 			this._down(msgs);
 			return;
 		}
@@ -438,11 +450,11 @@ export class Node<T = unknown> {
 		if (this._value.terminal !== undefined)
 			throw new Error("set: this node has ended (R-terminals)");
 		const deferred = new DeferredWrite(fn as (prev: unknown) => unknown);
-		if (currentBatch()) {
-			const staged = stagedBatchWave(this as unknown as BatchTarget);
+		if (currentBatch(this._core)) {
+			const staged = stagedBatchWave(this._core, this as unknown as BatchTarget);
 			if (staged?.some((m) => isTerminal(m[0])))
 				throw new Error("set: a terminal must be the last message of its array (R-wave)");
-			deferToBatch(this as unknown as BatchTarget, [
+			deferToBatch(this._core, this as unknown as BatchTarget, [
 				...(staged ?? []),
 				["DATA", deferred] as Message,
 			]);
@@ -653,46 +665,6 @@ export class Node<T = unknown> {
 }
 
 /**
- * Construct a node (R-node-iface / D5 / L1.9 deps-first).
- *   node([], null, { initial })       — state node (manual source; emit via .down)
- *   node([], fn)                        — producer (runs on activation)
- *   node([a, b], fn)                    — compute / derived
- *   node([dep])                         — passthrough wire
- *
- * @param deps - Upstream nodes this node reads positionally from `ctx`.
- * @param handleOrFn - Dispatcher handle, node function, or `null` for a manual source/state node.
- * @param opts - Node runtime options such as `initial`, `name`, pool, dispatcher, and restore data.
- * @returns A graph-agnostic `Node`.
- * @example
- * ```ts
- * import { depLatest, node } from "@graphrefly/ts/core";
- *
- * const source = node<number>([], null, { initial: 1 });
- * const doubled = node<number>([source], (ctx) => {
- *   ctx.down([["DATA", Number(depLatest(ctx, 0)) * 2]]);
- * });
- * ```
- * @category core
- */
-export function node<T = unknown>(
-	deps?: readonly [],
-	handleOrFn?: null,
-	opts?: NodeOptions<T>,
-): StateNode<T>;
-export function node<T = unknown>(
-	deps?: Node<unknown>[],
-	handleOrFn?: Handle | NodeFn | null,
-	opts?: NodeOptions<T>,
-): Node<T>;
-export function node<T = unknown>(
-	deps: readonly Node<unknown>[] = [],
-	handleOrFn: Handle | NodeFn | null = null,
-	opts: NodeOptions<T> = {},
-): Node<T> {
-	return makeNode<T>([...deps], handleOrFn, opts);
-}
-
-/**
  * Internal: a node with no dependencies and no function is a state node, the only node with host
  * inputs (R-node, graphrefly-ts:D175).
  */
@@ -707,27 +679,34 @@ export function makeNode<T>(
 }
 
 /**
- * Construct a dynamicNode (R-dynamic-node / D35) — a node variant whose fn reads a
- * subset of a fixed superset of deps per invocation via `ctx.track(i)`. All declared
- * deps participate in wave tracking; an unread dep's change re-runs the fn, which re-emits
- * its current value as DATA (D49 removed equals-absorption — dedup is opt-in via
- * distinctUntilChanged). Intra-graph only (D22).
- * @param deps - Declared dependency node or nodes.
- * @param fn - Synchronous function invoked by the helper.
- * @param opts - Options that configure the helper.
- * @returns A `Node<T>` value.
- * @category core
- * @example
- * ```ts
- * import { dynamicNode } from "@graphrefly/ts/core";
- * ```
+ * Internal: build nodes in the graph of `beside` (R-graph-domain@3), for helpers that take a node
+ * and open helper nodes of their own (a timer beside its source). One node per call.
  */
-export function dynamicNode<T = unknown>(
+export function buildBeside<N extends Node<unknown>>(beside: Node<unknown>, create: () => N): N {
+	const host = nodeRuntimeHost(beside);
+	return withEnvironmentDrivers(host._slot.environment, () =>
+		withNodeCore(host._core, create, host._slot.dispatcher),
+	);
+}
+
+/**
+ * Internal: a derived node built in its dependencies' graph (R-graph-domain@3), for views a
+ * structure creates on first use. Every dependency must belong to the same graph.
+ */
+export function makeNodeBeside<T>(
 	deps: Node<unknown>[],
 	fn: NodeFn,
-	opts: NodeOptions<T> = {},
+	opts: NodeOptions<T>,
 ): Node<T> {
-	return new Node<T>(deps, fn, { ...opts, dynamic: true });
+	const first = deps[0];
+	if (first === undefined) throw new Error("node: a derived view needs a dependency");
+	const host = nodeRuntimeHost(first);
+	for (const d of deps)
+		if (nodeRuntimeHost(d)._core !== host._core)
+			throw new Error("node: dependencies belong to different graphs; use a wire bridge");
+	return withEnvironmentDrivers(host._slot.environment, () =>
+		withNodeCore(host._core, () => new Node<T>(deps, fn, opts), host._slot.dispatcher),
+	);
 }
 
 /**

@@ -422,11 +422,11 @@ describe("promise / iterable / coercion sources (D43)", () => {
 	it("fromAny passes an existing Node through", () => {
 		const g = graph();
 		const s = g.state(1);
-		expect(fromAny(s)).toBe(s);
+		expect(fromAny(g, s)).toBe(s);
 	});
 
 	it("fromAny lifts a Promise via fromPromise", async () => {
-		const n = fromAny(Promise.resolve(9));
+		const n = fromAny(graph(), Promise.resolve(9));
 		const msgs: Message[] = [];
 		n.subscribe((incoming) => {
 			for (const x of incoming) {
@@ -442,7 +442,7 @@ describe("promise / iterable / coercion sources (D43)", () => {
 			yield 1;
 			yield 2;
 		}
-		const n = fromAny(gen());
+		const n = fromAny(graph(), gen());
 		const msgs: Message[] = [];
 		n.subscribe((incoming) => {
 			for (const x of incoming) {
@@ -455,7 +455,7 @@ describe("promise / iterable / coercion sources (D43)", () => {
 	});
 
 	it("fromAny expands a sync iterable only with {iter:true}", () => {
-		const expanded = fromAny([1, 2, 3], { iter: true });
+		const expanded = fromAny(graph(), [1, 2, 3], { iter: true });
 		const vals: unknown[] = [];
 		expanded.subscribe((incoming) => {
 			for (const m of incoming) {
@@ -465,7 +465,7 @@ describe("promise / iterable / coercion sources (D43)", () => {
 		expect(vals).toEqual([1, 2, 3]);
 
 		// default: the array is a single scalar DATA value (of)
-		const scalar = fromAny([1, 2, 3]);
+		const scalar = fromAny(graph(), [1, 2, 3]);
 		const got: unknown[] = [];
 		scalar.subscribe((incoming) => {
 			for (const m of incoming) {
@@ -476,7 +476,7 @@ describe("promise / iterable / coercion sources (D43)", () => {
 	});
 
 	it("fromAny treats null as a valid scalar DATA value (R-data-payload)", () => {
-		const n = fromAny(null);
+		const n = fromAny(graph(), null);
 		const msgs: Message[] = [];
 		n.subscribe((incoming) => {
 			for (const x of incoming) {
@@ -490,7 +490,7 @@ describe("promise / iterable / coercion sources (D43)", () => {
 	});
 
 	it("fromAny rejects undefined as DATA because it is the protocol SENTINEL", () => {
-		const n = fromAny(undefined);
+		const n = fromAny(graph(), undefined);
 		const msgs: Message[] = [];
 		n.subscribe((incoming) => {
 			for (const x of incoming) {
@@ -521,8 +521,12 @@ describe("promise / iterable / coercion sources (D43)", () => {
 	});
 
 	it("firstValueFrom rejects on ERROR or COMPLETE before DATA", async () => {
-		await expect(firstValueFrom(fromAny(undefined))).rejects.toThrow(/SENTINEL|valid value/);
-		await expect(firstValueFrom(fromAny([], { iter: true }))).rejects.toThrow(/without DATA/);
+		await expect(firstValueFrom(fromAny(graph(), undefined))).rejects.toThrow(
+			/SENTINEL|valid value/,
+		);
+		await expect(firstValueFrom(fromAny(graph(), [], { iter: true }))).rejects.toThrow(
+			/without DATA/,
+		);
 	});
 
 	it("singleFromAny dedupes concurrent calls and clears the entry after settle", async () => {

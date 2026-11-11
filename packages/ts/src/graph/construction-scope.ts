@@ -1,5 +1,3 @@
-import { currentBatch } from "../batch/batch.js";
-import { isWaveActive } from "../batch/boundary.js";
 import type { NodeFn } from "../ctx/types.js";
 import type { Node, StateNode } from "../node/node.js";
 import { nodeRuntimeHost } from "../node/node-runtime-host.js";
@@ -66,8 +64,8 @@ export class ColdConstructionError extends Error {
 	}
 }
 
-function stableBoundary(): void {
-	if (isWaveActive() || currentBatch())
+function stableBoundary(registrar: GraphLifecycleRegistrar | undefined): void {
+	if (registrar !== undefined && !registrar.atWaveBoundary())
 		throw new Error("construction requires a stable wave/batch boundary");
 }
 
@@ -89,8 +87,8 @@ export function prepareConstruction(
 	graph: Graph,
 	manifest: ConstructionManifest,
 ): ConstructionScope {
-	stableBoundary();
 	const registrar = graphRegistrations.get(graph);
+	stableBoundary(registrar);
 	if (registrar === undefined) throw new Error("construction graph is not registered");
 	if (
 		!manifest.name ||
@@ -202,7 +200,7 @@ export class ConstructionScope {
 
 	/** Cold inspection only: actual acquired members, never edges synthesized from the manifest. */
 	readIncoming(): Pick<DescribeSnapshot, "edges"> {
-		stableBoundary();
+		stableBoundary(this.registrar);
 		if (this.phase !== "cold") throw new Error("construction is sealed");
 		const nodes = new Set<Node<unknown>>();
 		for (const record of this.acquisitions) {
@@ -215,7 +213,7 @@ export class ConstructionScope {
 	}
 
 	seal(startup: StateNode<StartupFact>, roots: readonly Node<unknown>[]): OwnedConstruction {
-		stableBoundary();
+		stableBoundary(this.registrar);
 		if (this.phase !== "cold" || this.available.size !== 0)
 			throw new Error("construction topology is incomplete or sealed");
 		checkInputs(this.registrar, this.manifest.inputs);
@@ -317,7 +315,7 @@ export class ConstructionScope {
 
 /** The private native lifecycle driver reports resource facts; it never approves an effect. */
 export function startConstruction(graph: Graph, owner: OwnedConstruction): void {
-	stableBoundary();
+	stableBoundary(graphRegistrations.get(graph));
 	if (
 		graphRegistrations.get(graph)?.existingConstructions?.get(owner.instance) !== owner ||
 		owner.phase !== "owned"

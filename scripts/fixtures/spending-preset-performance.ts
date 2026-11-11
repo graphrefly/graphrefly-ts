@@ -4,7 +4,6 @@ import {
 	buildSpendingPresetNodes,
 	spendingNodeNames,
 } from "../../examples/spending-alerts/causal-preset.js";
-import { batch } from "../../packages/ts/src/batch/batch.js";
 import {
 	prepareConstruction,
 	startConstruction,
@@ -188,7 +187,7 @@ export function graphArm(arm: Exclude<Arm, "plain">, mode: Mode) {
 		connect,
 		disconnect,
 		send: (step: InputStep) =>
-			batch(() => {
+			graph.batch(() => {
 				for (const v of step.values) sources[step.lane].set(v as never);
 			}),
 		state: () =>

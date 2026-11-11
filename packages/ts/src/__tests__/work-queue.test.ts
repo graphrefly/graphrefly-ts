@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { batch } from "../batch/batch.js";
 import { graph } from "../graph/graph.js";
 import { compoundTupleKey } from "../identity.js";
 import { messageBus } from "../messaging/index.js";
@@ -579,7 +578,7 @@ describe("workQueue messageBus-backed lifecycle (D299-D324/D325)", () => {
 			}
 		});
 
-		batch(() => {
+		g.batch(() => {
 			const target = asState(queue.commands);
 			target.set({ kind: "bogus", commandId: "bad-1" } as never);
 			target.set({ kind: "cancel", commandId: "bad-2", queueId: "other", workId: "x" } as never);

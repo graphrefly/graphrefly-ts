@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Ctx, Message } from "../index.js";
-import { batch, depLatest, dynamicNode, node } from "../index.js";
+import { depLatest, graph } from "../index.js";
 
 function collect(n: { subscribe(s: (m: Message) => void): () => void }) {
 	const msgs: Message[] = [];
@@ -15,10 +15,11 @@ const types = (msgs: Message[]) => msgs.map((m) => m[0]);
 
 describe("batch (R-batch-coalesce / D12)", () => {
 	it("coalesces a diamond join to ONE recompute when both sources change", () => {
+		const g = graph();
 		let fires = 0;
-		const a = node<number>([], null, { initial: 1 });
-		const b = node<number>([], null, { initial: 1 });
-		const d = node<number>([a, b], (ctx: Ctx) => {
+		const a = g.node<number>([], null, { initial: 1 });
+		const b = g.node<number>([], null, { initial: 1 });
+		const d = g.node<number>([a, b], (ctx: Ctx) => {
 			fires++;
 			ctx.down([["DATA", (depLatest(ctx, 0) as number) + (depLatest(ctx, 1) as number)]]);
 		});
@@ -26,7 +27,7 @@ describe("batch (R-batch-coalesce / D12)", () => {
 		expect(d.cache).toBe(2);
 
 		fires = 0;
-		batch(() => {
+		g.batch(() => {
 			a.set(10);
 			b.set(20);
 		});
@@ -35,10 +36,11 @@ describe("batch (R-batch-coalesce / D12)", () => {
 	});
 
 	it("a batch body delivers nothing; the commit delivers one array (R-request-order, O3)", () => {
-		const a = node<number>([], null, { initial: 1 });
+		const g = graph();
+		const a = g.node<number>([], null, { initial: 1 });
 		const { msgs } = collect(a);
 		msgs.length = 0;
-		batch(() => {
+		g.batch(() => {
 			a.set(9);
 			// inside the batch nothing is delivered and nothing changes
 			expect(types(msgs)).toEqual([]);
@@ -49,11 +51,12 @@ describe("batch (R-batch-coalesce / D12)", () => {
 	});
 
 	it("a throwing body commits nothing and delivers nothing (no compensating RESOLVED)", () => {
-		const a = node<number>([], null, { initial: 1 });
+		const g = graph();
+		const a = g.node<number>([], null, { initial: 1 });
 		const { msgs } = collect(a);
 		msgs.length = 0;
 		expect(() =>
-			batch(() => {
+			g.batch(() => {
 				a.set(99);
 				throw new Error("abort");
 			}),
@@ -63,9 +66,10 @@ describe("batch (R-batch-coalesce / D12)", () => {
 	});
 
 	it("bctx.rollback() is the explicit escape hatch", () => {
-		const a = node<number>([], null, { initial: 1 });
+		const g = graph();
+		const a = g.node<number>([], null, { initial: 1 });
 		collect(a);
-		batch((bctx) => {
+		g.batch((bctx) => {
 			a.set(50);
 			bctx.rollback();
 		});
@@ -73,16 +77,21 @@ describe("batch (R-batch-coalesce / D12)", () => {
 	});
 });
 
-describe("dynamicNode (R-dynamic-node / D35; D49 — no equals-absorption)", () => {
+describe("dynamic node (R-dynamic-node / D35; D49 — no equals-absorption)", () => {
 	it("reads a selected dep; an unread dep's change re-emits the value as DATA (D49)", () => {
-		const sel = node<"a" | "b">([], null, { initial: "a" });
-		const a = node<number>([], null, { initial: 100 });
-		const b = node<number>([], null, { initial: 200 });
-		const router = dynamicNode<number>([sel, a, b], (ctx: Ctx) => {
-			const which = ctx.track?.(0) as "a" | "b";
-			const value = which === "a" ? (ctx.track?.(1) as number) : (ctx.track?.(2) as number);
-			ctx.down([["DATA", value]]);
-		});
+		const g = graph();
+		const sel = g.node<"a" | "b">([], null, { initial: "a" });
+		const a = g.node<number>([], null, { initial: 100 });
+		const b = g.node<number>([], null, { initial: 200 });
+		const router = g.node<number>(
+			[sel, a, b],
+			(ctx: Ctx) => {
+				const which = ctx.track?.(0) as "a" | "b";
+				const value = which === "a" ? (ctx.track?.(1) as number) : (ctx.track?.(2) as number);
+				ctx.down([["DATA", value]]);
+			},
+			{ dynamic: true },
+		);
 		const { msgs } = collect(router);
 		expect(router.cache).toBe(100); // sel="a" -> reads a
 		msgs.length = 0;

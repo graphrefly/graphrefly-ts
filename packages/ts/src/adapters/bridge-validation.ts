@@ -7,7 +7,11 @@
  */
 
 import { assertStrictJsonValue } from "../json/codec.js";
-import type { CanonicalWireBridgeDataBody, CanonicalWireEdgeFrame } from "./bridge-protobuf.js";
+import {
+	CanonicalProtobufError,
+	type CanonicalWireBridgeDataBody,
+	validateWireEdgeCause,
+} from "./bridge-protobuf.js";
 import type {
 	RemoteCallRequest,
 	RemoteCallResponse,
@@ -15,6 +19,7 @@ import type {
 	WireBridgeEnvelopeType,
 	WireBridgeMetadata,
 } from "./bridge-types.js";
+import type { WireEdgeCause } from "./bridge-wire-edge-group.js";
 
 export const envelopeTypes = new Set<WireBridgeEnvelopeType>([
 	"start",
@@ -246,15 +251,14 @@ export function validatePayloadForType(
 export function normalizeWireAdmissiblePayload(value: unknown, label: string): unknown {
 	if (value instanceof Uint8Array) return Uint8Array.from(value);
 	if (isCanonicalWireBridgeDataBody(value)) return cloneCanonicalWireBridgeDataBody(value);
-	if (isCanonicalWireEdgeFrame(value)) return cloneCanonicalWireEdgeFrame(value);
-	if (isCanonicalWireBridgeDataBodyLike(value) || isCanonicalWireEdgeFrameLike(value)) {
+	if (isCanonicalWireBridgeDataBodyLike(value)) {
 		throw new TypeError(`${label}: invalid canonical wire DTO`);
 	}
 	try {
 		return assertStrictJsonValue(value, label);
 	} catch (error) {
 		throw new TypeError(
-			`${label}: wire-admissible payload must be copied bytes, canonical WireEdgeFrame material, or strict JSON-like material`,
+			`${label}: wire-admissible payload must be copied bytes, a canonical data body, or strict JSON-like material`,
 			{ cause: error },
 		);
 	}
@@ -313,10 +317,8 @@ function isCanonicalWireBridgeDataBody(value: unknown): value is CanonicalWireBr
 	if (kind === "value") {
 		return hasOnlyKeys(value, ["kind", "value"]) && ownData(value, "value") instanceof Uint8Array;
 	}
-	if (kind === "wire_edge") {
-		return (
-			hasOnlyKeys(value, ["frame", "kind"]) && isCanonicalWireEdgeFrame(ownData(value, "frame"))
-		);
+	if (kind === "edge_cause") {
+		return hasOnlyKeys(value, ["cause", "kind"]) && isWireEdgeCause(ownData(value, "cause"));
 	}
 	return false;
 }
@@ -324,33 +326,19 @@ function isCanonicalWireBridgeDataBody(value: unknown): value is CanonicalWireBr
 function isCanonicalWireBridgeDataBodyLike(value: unknown): boolean {
 	if (!isPlainDataRecord(value)) return false;
 	const kind = ownData(value, "kind");
-	if (kind === "wire_edge") return "frame" in value;
+	if (kind === "edge_cause") return "cause" in value;
 	if (kind !== "value") return false;
 	return "value" in value && ownData(value, "value") instanceof Uint8Array;
 }
 
-function isCanonicalWireEdgeFrame(value: unknown): value is CanonicalWireEdgeFrame {
-	if (!isPlainDataRecord(value)) return false;
-	const kind = ownData(value, "kind");
-	const edgeId = ownData(value, "edgeId");
-	const causeId = ownData(value, "causeId");
-	if (typeof edgeId !== "string" || edgeId.length === 0) return false;
-	if (typeof causeId !== "string" || causeId.length === 0) return false;
-	if (kind === "pending") return hasOnlyKeys(value, ["causeId", "edgeId", "kind"]);
-	if (kind === "data") {
-		return (
-			hasOnlyKeys(value, ["causeId", "edgeId", "kind", "value"]) &&
-			ownData(value, "value") instanceof Uint8Array
-		);
+function isWireEdgeCause(value: unknown): value is WireEdgeCause {
+	try {
+		validateWireEdgeCause(value as WireEdgeCause);
+		return true;
+	} catch (error) {
+		if (error instanceof CanonicalProtobufError) return false;
+		throw error;
 	}
-	return false;
-}
-
-function isCanonicalWireEdgeFrameLike(value: unknown): boolean {
-	if (!isPlainDataRecord(value)) return false;
-	const kind = ownData(value, "kind");
-	if (kind !== "pending" && kind !== "data") return false;
-	return "edgeId" in value || "causeId" in value || "value" in value;
 }
 
 function isPlainDataRecord(value: unknown): value is Record<string, unknown> {
@@ -387,15 +375,24 @@ function cloneCanonicalWireBridgeDataBody(
 	value: CanonicalWireBridgeDataBody,
 ): CanonicalWireBridgeDataBody {
 	if (value.kind === "value") return { kind: "value", value: Uint8Array.from(value.value) };
-	return { kind: "wire_edge", frame: cloneCanonicalWireEdgeFrame(value.frame) };
-}
-
-function cloneCanonicalWireEdgeFrame(value: CanonicalWireEdgeFrame): CanonicalWireEdgeFrame {
+	const { cause } = value;
 	return {
-		kind: value.kind,
-		edgeId: value.edgeId,
-		causeId: value.causeId,
-		...(value.value === undefined ? {} : { value: Uint8Array.from(value.value) }),
+		kind: "edge_cause",
+		cause: {
+			group: cause.group,
+			session: cause.session,
+			cause: cause.cause,
+			edges: cause.edges.map((edge) => ({
+				edgeId: edge.edgeId,
+				arrays: edge.arrays.map((wave) =>
+					wave.map((m) =>
+						m[0] === "DATA" || m[0] === "ERROR"
+							? ([m[0], Uint8Array.from(m[1] as Uint8Array)] as const)
+							: m,
+					),
+				),
+			})),
+		},
 	};
 }
 

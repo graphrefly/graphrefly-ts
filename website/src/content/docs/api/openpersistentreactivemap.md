@@ -16,13 +16,17 @@ import { openPersistentReactiveMap } from "@graphrefly/ts/adapters";
 ## Signature
 
 ```ts
-function openPersistentReactiveMap(opts: OpenPersistentReactiveMapOptions<K, V>): Promise<PersistentReactiveMap<K, V>>
+function openPersistentReactiveMap(
+	graph: Graph,
+	opts: OpenPersistentReactiveMapOptions<K, V>,
+): Promise<PersistentReactiveMap<K, V>>
 ```
 
 ## Parameters
 
 | Parameter | Type | Description |
 |---|---|---|
+| `graph` | `Graph` | The graph that builds the restored collection. |
 | `opts` | `OpenPersistentReactiveMapOptions<K, V>` | Options that configure the helper. |
 
 ## Returns

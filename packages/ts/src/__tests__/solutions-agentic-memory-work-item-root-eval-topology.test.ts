@@ -99,7 +99,6 @@ import {
 	ROOT_EVAL_TOPOLOGY_NO_NETWORK_QA_ARTIFACT_DIGEST,
 	ROOT_EVAL_TOPOLOGY_QUALIFICATION,
 } from "../../evals/graph-native-rerun-avoidance/root-eval-topology-qualification.js";
-import { batch } from "../batch/batch.js";
 import type { DescribeSnapshot } from "../graph/describe.js";
 import type { Node } from "../node/node.js";
 import { asState } from "./helpers/as-state.js";
@@ -3967,7 +3966,7 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 				resultDigest: empiricalStrictJsonDigest({ result: arm }),
 			}),
 		);
-		batch(() => {
+		topology.graph.batch(() => {
 			for (const value of batched) cleanup.set(value);
 		});
 		expect(

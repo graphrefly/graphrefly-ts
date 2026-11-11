@@ -2,14 +2,11 @@ import { describe, expect, it } from "vitest";
 import { ctxRewireDiff } from "../ctx/types.js";
 import type { Ctx, Message } from "../index.js";
 import {
-	batch,
 	Dispatcher,
 	defaultNodeVersionHash,
 	depBatch,
 	depLatest,
 	graph,
-	initNode,
-	node,
 	strictCanonicalJsonBytes,
 	strictJsonCodec,
 } from "../index.js";
@@ -32,7 +29,8 @@ const testHash = (bytes: Uint8Array) => `h:${decodeTestJsonBytes(bytes)}`;
 
 describe("state node (manual source)", () => {
 	it("push-on-subscribe delivers START then cached DATA (R-push-subscribe, R-initial)", () => {
-		const s = node<number>([], null, { initial: 5 });
+		const g = graph();
+		const s = g.node<number>([], null, { initial: 5 });
 		const { msgs } = collect(s);
 		expect(msgs).toEqual([["START"], ["DATA", 5]]);
 		expect(s.cache).toBe(5);
@@ -40,7 +38,8 @@ describe("state node (manual source)", () => {
 	});
 
 	it("uncached subscribe delivers only START", () => {
-		const s = node<number>([], null);
+		const g = graph();
+		const s = g.node<number>([], null);
 		const { msgs } = collect(s);
 		expect(msgs).toEqual([["START"]]);
 		expect(s.cache).toBeUndefined();
@@ -48,7 +47,8 @@ describe("state node (manual source)", () => {
 	});
 
 	it("external down emits PENDING before DATA (R-dirty-before-data, two-phase)", () => {
-		const s = node<number>([], null, { initial: 1 });
+		const g = graph();
+		const s = g.node<number>([], null, { initial: 1 });
 		const { msgs } = collect(s);
 		msgs.length = 0;
 		s.set(2);
@@ -58,7 +58,8 @@ describe("state node (manual source)", () => {
 	});
 
 	it("null is a valid DATA value (R-data-payload)", () => {
-		const s = node<number | null>([], null, { initial: null });
+		const g = graph();
+		const s = g.node<number | null>([], null, { initial: null });
 		const { msgs } = collect(s);
 		expect(msgs).toEqual([["START"], ["DATA", null]]);
 		expect(s.cache).toBeNull();
@@ -67,7 +68,8 @@ describe("state node (manual source)", () => {
 
 describe("occurrences stay DATA (R-resolved-undirty / D49, supersedes R-equals)", () => {
 	it("re-emitting the same value yields DATA, not RESOLVED (no equals-substitution)", () => {
-		const s = node<number>([], null, { initial: 5 });
+		const g = graph();
+		const s = g.node<number>([], null, { initial: 5 });
 		const { msgs } = collect(s);
 		msgs.length = 0;
 		s.set(5); // same value is still a distinct occurrence
@@ -76,7 +78,8 @@ describe("occurrences stay DATA (R-resolved-undirty / D49, supersedes R-equals)"
 	});
 
 	it("a changed value yields DATA", () => {
-		const s = node<number>([], null, { initial: 5 });
+		const g = graph();
+		const s = g.node<number>([], null, { initial: 5 });
 		const { msgs } = collect(s);
 		msgs.length = 0;
 		s.set(6);
@@ -85,10 +88,11 @@ describe("occurrences stay DATA (R-resolved-undirty / D49, supersedes R-equals)"
 	});
 
 	it("a multi-DATA wave passes every occurrence as DATA", () => {
-		const s = node<number>([], null, { initial: 5 });
+		const g = graph();
+		const s = g.node<number>([], null, { initial: 5 });
 		const { msgs } = collect(s);
 		msgs.length = 0;
-		batch(() => {
+		g.batch(() => {
 			s.set(5);
 			s.set(5);
 		});
@@ -98,8 +102,9 @@ describe("occurrences stay DATA (R-resolved-undirty / D49, supersedes R-equals)"
 
 describe("compute node (derived)", () => {
 	it("computes from a dep and recomputes on change", () => {
-		const count = node<number>([], null, { initial: 2 });
-		const doubled = node<number>([count], (ctx: Ctx) => {
+		const g = graph();
+		const count = g.node<number>([], null, { initial: 2 });
+		const doubled = g.node<number>([count], (ctx: Ctx) => {
 			ctx.down([["DATA", (depLatest(ctx, 0) as number) * 2]]);
 		});
 		const { msgs } = collect(doubled);
@@ -116,15 +121,16 @@ describe("compute node (derived)", () => {
 
 describe("diamond (R-diamond, glitch-free join)", () => {
 	it("join node computes exactly once per upstream change, after both deps settle", () => {
+		const g = graph();
 		let fireCount = 0;
-		const a = node<number>([], null, { initial: 1 });
-		const b = node<number>([a], (ctx: Ctx) =>
+		const a = g.node<number>([], null, { initial: 1 });
+		const b = g.node<number>([a], (ctx: Ctx) =>
 			ctx.down([["DATA", (depLatest(ctx, 0) as number) + 10]]),
 		);
-		const c = node<number>([a], (ctx: Ctx) =>
+		const c = g.node<number>([a], (ctx: Ctx) =>
 			ctx.down([["DATA", (depLatest(ctx, 0) as number) + 20]]),
 		);
-		const d = node<number>([b, c], (ctx: Ctx) => {
+		const d = g.node<number>([b, c], (ctx: Ctx) => {
 			fireCount++;
 			ctx.down([["DATA", (depLatest(ctx, 0) as number) + (depLatest(ctx, 1) as number)]]);
 		});
@@ -142,17 +148,18 @@ describe("diamond (R-diamond, glitch-free join)", () => {
 
 describe("first-run gate (R-first-run-gate)", () => {
 	it("partial:false holds fn until every dep has settled", () => {
+		const g = graph();
 		let fired = false;
-		const a = node<number>([], null, { initial: 1 });
-		const b = node<number>([], null); // uncached — never settles
-		node<number>([a, b], () => {
+		const a = g.node<number>([], null, { initial: 1 });
+		const b = g.node<number>([], null); // uncached — never settles
+		g.node<number>([a, b], () => {
 			fired = true;
 		});
-		collect(node<number>([a, b], () => {})); // force-activate a separate gate path
+		collect(g.node<number>([a, b], () => {})); // force-activate a separate gate path
 
 		// Build the gated node explicitly and activate it:
 		fired = false;
-		const gated = node<number>([a, b], () => {
+		const gated = g.node<number>([a, b], () => {
 			fired = true;
 		});
 		gated.subscribe(() => {});
@@ -162,10 +169,11 @@ describe("first-run gate (R-first-run-gate)", () => {
 	});
 
 	it("partial:true fires without waiting for all deps", () => {
+		const g = graph();
 		let fired = false;
-		const a = node<number>([], null, { initial: 1 });
-		const b = node<number>([], null); // uncached
-		const g = node<number>(
+		const a = g.node<number>([], null, { initial: 1 });
+		const b = g.node<number>([], null); // uncached
+		const d = g.node<number>(
 			[a, b],
 			(ctx: Ctx) => {
 				fired = true;
@@ -175,18 +183,19 @@ describe("first-run gate (R-first-run-gate)", () => {
 			},
 			{ partial: true },
 		);
-		g.subscribe(() => {});
+		d.subscribe(() => {});
 		expect(fired).toBe(true);
-		expect(g.cache).toBe(-1);
+		expect(d.cache).toBe(-1);
 	});
 });
 
 describe("closed message set at node output (R-messages)", () => {
 	it("down rejects unknown tags; there is no up", () => {
-		const a = node<number>([], null, { initial: 1 });
+		const g = graph();
+		const a = g.node<number>([], null, { initial: 1 });
 		const custom = [["CUSTOM"]] as unknown as Message[];
 		let rejected: unknown;
-		const d = node<number>([a], (ctx: Ctx) => {
+		const d = g.node<number>([a], (ctx: Ctx) => {
 			try {
 				ctx.down(custom);
 			} catch (error) {
@@ -221,7 +230,7 @@ describe("B49 core-slot migration", () => {
 		].map((k) => occupied(c[k] as unknown[]));
 	};
 	const boundaryTaskCount = (core: unknown) => {
-		const boundary = (core as Record<string, unknown>).boundary as {
+		const boundary = (core as Record<string, unknown>).domain as {
 			queue: unknown[];
 			head: number;
 		};
@@ -229,7 +238,8 @@ describe("B49 core-slot migration", () => {
 	};
 
 	it("stores wave bookkeeping behind the Node view, without old direct-field shims", () => {
-		const s = node<number>([], null, { initial: 1, factory: "probe" });
+		const g = graph();
+		const s = g.node<number>([], null, { initial: 1, factory: "probe" });
 		const view = s as unknown as Record<string, unknown>;
 
 		expect(Object.hasOwn(view, "_core")).toBe(true);
@@ -299,7 +309,8 @@ describe("B49 core-slot migration", () => {
 	});
 
 	it("does not add a parallel frontier or adjacency transport over subscriber propagation", () => {
-		const s = node<number>([], null, { initial: 1 });
+		const g = graph();
+		const s = g.node<number>([], null, { initial: 1 });
 		const coreKeys = Reflect.ownKeys(coreOf(s)).map((key) => String(key));
 		const knownCoreFields = new Set([
 			"nextId",
@@ -312,7 +323,7 @@ describe("B49 core-slot migration", () => {
 			"lifetimes",
 			"syncCtxs",
 			"versionStates",
-			"boundary",
+			"domain",
 		]);
 		const forbiddenTransportName = /adjacency|edge|frontier|queue|work/i;
 
@@ -323,45 +334,6 @@ describe("B49 core-slot migration", () => {
 				"new core fields must not smuggle B50-B52 adjacency/frontier/work transport",
 			).not.toMatch(forbiddenTransportName);
 		}
-	});
-
-	it("uses one graph-local core for graph-created nodes while standalone nodes stay isolated", () => {
-		const g1 = graph();
-		const a = g1.state(1);
-		const b = g1.derived([a], (v) => v + 1);
-		const c = g1.initNode(
-			{
-				factory: "probeOp",
-				body: (ctx: Ctx) => ctx.down([["DATA", depLatest(ctx, 0)]]),
-			},
-			[b],
-		);
-
-		const g2 = graph();
-		const otherGraphNode = g2.state(1);
-		const bare = node<number>([], null, { initial: 1 });
-		const bareOp = initNode(
-			{
-				factory: "bareProbe",
-				body: (ctx: Ctx) => ctx.down([["DATA", 1]]),
-			},
-			[],
-		);
-
-		expect(coreOf(a)).toBe(coreOf(b));
-		expect(coreOf(b)).toBe(coreOf(c));
-		expect(coreOf(a)).not.toBe(coreOf(otherGraphNode));
-		expect(coreOf(a)).not.toBe(coreOf(bare));
-		expect(coreOf(a)).not.toBe(coreOf(bareOp));
-
-		const seen: number[] = [];
-		c.subscribe((incoming) => {
-			for (const msg of incoming) {
-				if (msg[0] === "DATA") seen.push(msg[1] as number);
-			}
-		});
-		a.set(2);
-		expect(seen.at(-1)).toBe(3);
 	});
 
 	it("does not retain a failed cross-graph graph-node construction in the target core", () => {
@@ -378,7 +350,7 @@ describe("B49 core-slot migration", () => {
 		let nested: object | undefined;
 		class NestedDispatcher extends Dispatcher {
 			override register(fn: (ctx: Ctx) => void, pool?: "sync" | "async" | number) {
-				nested ??= node<number>([], null, { initial: 7 });
+				nested ??= graph().node<number>([], null, { initial: 7 });
 				return pool === undefined ? super.register(fn) : super.register(fn, pool);
 			}
 		}
@@ -407,7 +379,7 @@ describe("B49 core-slot migration", () => {
 	it("stores deferred-boundary work on the owning core and drains it at the wave boundary", () => {
 		const g = graph();
 		const trigger = g.state(0);
-		const inner = node<number>([], (ctx) => ctx.down([["DATA", 7]]));
+		const inner = g.node<number>([], (ctx) => ctx.down([["DATA", 7]]));
 		let queuedInsideRun = -1;
 		const op = g.node<number>(
 			[trigger],
@@ -428,23 +400,25 @@ describe("B49 core-slot migration", () => {
 		expect(inner.cache).toBe(7);
 	});
 
-	it("preserves enqueue FIFO when deferred tasks span multiple cores", () => {
+	it("keeps each graph's request queue its own: a write to another graph in a batch body runs at once (R-graph-domain@3, D803)", () => {
 		const order: string[] = [];
-		const sourceA = node<number>([], null);
-		const sourceB = node<number>([], null);
-		const innerA1 = node<number>([], (ctx) => {
+		const gA = graph();
+		const gB = graph();
+		const sourceA = gA.node<number>([], null);
+		const sourceB = gB.node<number>([], null);
+		const innerA1 = gA.node<number>([], (ctx) => {
 			order.push("A1");
 			ctx.down([["DATA", 1]]);
 		});
-		const innerA2 = node<number>([], (ctx) => {
+		const innerA2 = gA.node<number>([], (ctx) => {
 			order.push("A2");
 			ctx.down([["DATA", 2]]);
 		});
-		const innerB1 = node<number>([], (ctx) => {
+		const innerB1 = gB.node<number>([], (ctx) => {
 			order.push("B1");
 			ctx.down([["DATA", 1]]);
 		});
-		const opA = node<number>(
+		const opA = gA.node<number>(
 			[sourceA],
 			function opAFn(ctx) {
 				if (depBatch(ctx, 0)) ctxRewireDiff(ctx, [innerA1]);
@@ -452,30 +426,32 @@ describe("B49 core-slot migration", () => {
 			},
 			{ complete: "manual" },
 		);
-		const opB = node<number>([sourceB], function opBFn(ctx) {
+		const opB = gB.node<number>([sourceB], function opBFn(ctx) {
 			if (depBatch(ctx, 0)) ctxRewireDiff(ctx, [innerB1]);
 		});
 		opA.subscribe(() => {});
 		opB.subscribe(() => {});
 
-		batch(() => {
+		gA.batch(() => {
 			sourceA.set(1);
 			sourceB.set(1);
 		});
 
-		expect(order).toEqual(["A1", "B1", "A2"]);
+		// sourceB's write is gB's own request and runs inside the body; gA's queue then runs in order.
+		expect(order).toEqual(["B1", "A1", "A2"]);
 	});
 });
 
 describe("D109 node runtime versioning", () => {
-	it("defaults free-standing nodes to nodev0 and advances only on DATA", () => {
-		const s = node<number>([], null, { initial: 1 });
+	it("defaults nodes to nodev0 and advances only on DATA", () => {
+		const g = graph();
+		const s = g.node<number>([], null, { initial: 1 });
 		expect(s.version).toEqual({ level: 0, counter: 0 });
 
 		s.set(2);
 		expect(s.version).toEqual({ level: 0, counter: 1 });
 
-		batch(() => {
+		g.batch(() => {
 			s.set(3);
 			s.set(4);
 		});
@@ -487,7 +463,7 @@ describe("D109 node runtime versioning", () => {
 		s.complete();
 		expect(s.version).toEqual({ level: 0, counter: 3 });
 
-		const errored = node<number>([], null, { initial: 1 });
+		const errored = g.node<number>([], null, { initial: 1 });
 		errored.error("boom");
 		expect(errored.version).toEqual({ level: 0, counter: 0 });
 	});
@@ -522,7 +498,8 @@ describe("D109 node runtime versioning", () => {
 	});
 
 	it("keeps returned version objects immutable snapshots", () => {
-		const s = node<number>([], null, { initial: 1 });
+		const g = graph();
+		const s = g.node<number>([], null, { initial: 1 });
 		const v = s.version as { counter: number };
 		expect(Object.isFrozen(v)).toBe(true);
 		expect(() => {
@@ -532,7 +509,8 @@ describe("D109 node runtime versioning", () => {
 	});
 
 	it("uses the default V1 hash over stable JSON-compatible data", () => {
-		const s = node<{ b: number; a: number }>([], null, {
+		const g = graph();
+		const s = g.node<{ b: number; a: number }>([], null, {
 			initial: { b: 2, a: 1 },
 			versioning: 1,
 		});
@@ -548,13 +526,14 @@ describe("D109 node runtime versioning", () => {
 	});
 
 	it("passes strict canonical JSON UTF-8 bytes to custom V1 hash callbacks (D112)", () => {
+		const g = graph();
 		const calls: Uint8Array[] = [];
 		const hash = (bytes: Uint8Array) => {
 			expect(bytes).toBeInstanceOf(Uint8Array);
 			calls.push(Uint8Array.from(bytes));
 			return `bytes:${decodeTestJsonBytes(bytes)}`;
 		};
-		const s = node<Record<string, number>>([], null, {
+		const s = g.node<Record<string, number>>([], null, {
 			initial: { b: 2, a: 1 },
 			versioning: { level: 1, hash },
 		});
@@ -569,13 +548,14 @@ describe("D109 node runtime versioning", () => {
 	});
 
 	it("uses equivalent canonical bytes for V1 payloads with different key insertion order (D112)", () => {
+		const g = graph();
 		const calls: string[] = [];
 		const hash = (bytes: Uint8Array) => {
 			const canonical = decodeTestJsonBytes(bytes);
 			calls.push(canonical);
 			return `h:${canonical}`;
 		};
-		const s = node<Record<string, number>>([], null, {
+		const s = g.node<Record<string, number>>([], null, {
 			initial: JSON.parse('{"b":2,"a":1}') as Record<string, number>,
 			versioning: { level: 1, hash },
 		});
@@ -593,8 +573,9 @@ describe("D109 node runtime versioning", () => {
 	});
 
 	it("V1 rejects non-strict-JSON DATA before mutating cache or version", () => {
-		const s = node<number | bigint>([], null, { initial: 1, versioning: 1 });
-		const downstream = node<number | bigint>([s], (ctx) => {
+		const g = graph();
+		const s = g.node<number | bigint>([], null, { initial: 1, versioning: 1 });
+		const downstream = g.node<number | bigint>([s], (ctx) => {
 			ctx.down([["DATA", depLatest(ctx, 0)]]);
 		});
 		const { msgs } = collect(s);
@@ -616,7 +597,7 @@ describe("D109 node runtime versioning", () => {
 		expect(s.cache).toBe(2);
 
 		const customHash = (bytes: Uint8Array) => `custom:${decodeTestJsonBytes(bytes)}`;
-		const custom = node<unknown>([], null, {
+		const custom = g.node<unknown>([], null, {
 			initial: 1,
 			versioning: { level: 1, hash: customHash },
 		});
@@ -625,7 +606,7 @@ describe("D109 node runtime versioning", () => {
 		expect(custom.version).toEqual(customBefore);
 		expect(custom.cache).toBe(1);
 
-		const terminal = node<unknown>([], null, { initial: 1, versioning: 1 });
+		const terminal = g.node<unknown>([], null, { initial: 1, versioning: 1 });
 		terminal.complete();
 		const terminalBefore = terminal.version;
 		expect(() => terminal.set(2n)).toThrow(/ended/);
@@ -635,25 +616,26 @@ describe("D109 node runtime versioning", () => {
 	});
 
 	it("V1 rejects deferred batch DATA before PENDING, cache, or version changes", () => {
-		const batched = node<unknown>([], null, { initial: 1, versioning: 1 });
+		const g = graph();
+		const batched = g.node<unknown>([], null, { initial: 1, versioning: 1 });
 		const batchedMsgs = collect(batched).msgs;
 		batchedMsgs.length = 0;
 		const batchedBefore = batched.version;
 
-		expect(() => batch(() => batched.set(2n))).toThrow(/not JSON-encodable/);
+		expect(() => g.batch(() => batched.set(2n))).toThrow(/not JSON-encodable/);
 		expect(batchedMsgs).toEqual([]);
 		expect(batched.version).toEqual(batchedBefore);
 		expect(batched.cache).toBe(1);
 		expect(batched.status.cache).toBe("ready");
 
-		const batchedSnapshot = node<Record<string, unknown>>([], null, {
+		const batchedSnapshot = g.node<Record<string, unknown>>([], null, {
 			initial: { a: 0 },
 			versioning: { level: 1, hash: testHash },
 		});
 		const batchedSnapshotMsgs = collect(batchedSnapshot).msgs;
 		batchedSnapshotMsgs.length = 0;
 		const batchedPayload: Record<string, unknown> = { a: 1 };
-		batch(() => {
+		g.batch(() => {
 			batchedSnapshot.set(batchedPayload);
 			batchedPayload.a = 2;
 			batchedPayload.bad = 2n;
@@ -669,7 +651,8 @@ describe("D109 node runtime versioning", () => {
 	});
 
 	it("does not apply the D112 strict JSON preflight to V0 or versioning:false", () => {
-		const v0 = node<unknown>([], null, { initial: 1, versioning: 0 });
+		const g = graph();
+		const v0 = g.node<unknown>([], null, { initial: 1, versioning: 0 });
 		const v0Msgs = collect(v0).msgs;
 		v0Msgs.length = 0;
 		v0.set(2n);
@@ -677,7 +660,7 @@ describe("D109 node runtime versioning", () => {
 		expect(v0.cache).toBe(2n);
 		expect(types(v0Msgs)).toEqual(["PENDING", "DATA"]);
 
-		const disabled = node<unknown>([], null, { initial: 1, versioning: false });
+		const disabled = g.node<unknown>([], null, { initial: 1, versioning: false });
 		const disabledMsgs = collect(disabled).msgs;
 		disabledMsgs.length = 0;
 		disabled.set(new Date(0));
@@ -687,7 +670,7 @@ describe("D109 node runtime versioning", () => {
 	});
 
 	it("V1 rejects non-strict-JSON initial values at construction", () => {
-		expect(() => node<unknown>([], null, { initial: 2n, versioning: 1 })).toThrow(
+		expect(() => graph().node<unknown>([], null, { initial: 2n, versioning: 1 })).toThrow(
 			/not JSON-encodable/,
 		);
 		const g = graph({ versioning: 1 });
@@ -695,7 +678,9 @@ describe("D109 node runtime versioning", () => {
 	});
 
 	it("fails honestly for unapproved V2/V3 levels", () => {
-		expect(() => node([], null, { versioning: { level: 2 } as unknown as 1 })).toThrow(/V2\/V3/);
+		expect(() => graph().node([], null, { versioning: { level: 2 } as unknown as 1 })).toThrow(
+			/V2\/V3/,
+		);
 		const g = graph({ versioning: { level: 3 } as unknown as 1 });
 		expect(() => g.state(1)).toThrow(/V2\/V3/);
 	});

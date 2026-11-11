@@ -6,7 +6,6 @@
  * state is surfaced through graph-visible attempts/status/errors nodes.
  */
 
-import type { NodeFn } from "../ctx/types.js";
 import { type Ctx, depBatch } from "../ctx/types.js";
 import type { Graph } from "../graph/graph.js";
 import {
@@ -16,14 +15,13 @@ import {
 	shouldRetry,
 } from "../graph/resilience.js";
 import { canonicalTupleKey } from "../identity.js";
-import type { Node } from "../node/node.js";
+import type { Node, StateNode } from "../node/node.js";
 import { errorPayload } from "../protocol/messages.js";
 import type {
 	CanonicalWireBridgeDataBody,
 	CanonicalWireBridgeEnvelope,
 	CanonicalWireBridgeMetadata,
 	CanonicalWireBridgePayload,
-	CanonicalWireEdgeFrame,
 } from "./bridge-protobuf.js";
 import {
 	CanonicalProtobufError,
@@ -31,7 +29,6 @@ import {
 	encodeCanonicalWireBridgeEnvelope,
 } from "./bridge-protobuf.js";
 import type {
-	AttachedCommandSources,
 	BridgeState,
 	RemoteCallRequest,
 	RemoteCallResponse,
@@ -65,14 +62,13 @@ export type {
 	CanonicalWireBridgeEnvelope,
 	CanonicalWireBridgeMetadata,
 	CanonicalWireBridgePayload,
-	CanonicalWireEdgeFrame,
 } from "./bridge-protobuf.js";
 export {
 	CanonicalProtobufError,
 	decodeCanonicalWireBridgeEnvelope,
-	decodeCanonicalWireEdgeFrame,
+	decodeCanonicalWireEdgeCause,
 	encodeCanonicalWireBridgeEnvelope,
-	encodeCanonicalWireEdgeFrame,
+	encodeCanonicalWireEdgeCause,
 } from "./bridge-protobuf.js";
 export { remoteCall } from "./bridge-remote-call.js";
 export type {
@@ -115,7 +111,6 @@ export type {
 	WireBridgeStatus,
 } from "./bridge-types.js";
 
-import { nodeRuntimeHost } from "../node/node-runtime-host.js";
 import {
 	guardedInboundNode,
 	invalidIngress,
@@ -147,27 +142,22 @@ import {
 	validateInboundEnvelope,
 	validatePayloadForType,
 } from "./bridge-validation.js";
+import type { WireEdgeCause } from "./bridge-wire-edge-group.js";
 
 /**
- * The held bridge (phase 6 of graphrefly-ts:D797-KERNEL-MIGRATION-TS) still changes its command
- * and inbound nodes' declared dependencies from outside, through the internal rewire. A deviation
- * kept minimal until the root settles the bridge model; the kernel has no graph-level rewire.
+ * R-bridge's envelope lanes (graphrefly:D803): a lane feeds the bridge by writing what its source
+ * sends into the bridge's state input, as host writes; nothing rewires the bridge. Each DATA value
+ * the source sends, its snapshot's included, is one write, run in request order.
  */
-function heldBridgeRewire(node: Node<unknown>, deps: Node<unknown>[], fn: NodeFn): void {
-	nodeRuntimeHost(node)._rewire(deps, fn, { declare: true });
+function feedState<T>(source: Node<T>, target: StateNode<T>): () => void {
+	return source.subscribe((msgs) => {
+		for (const m of msgs) if (m[0] === "DATA") target.set(m[1] as T);
+	});
 }
 
-const bridgeCommandSources = new WeakMap<
-	WireBridgeBundle<unknown, unknown>,
-	AttachedCommandSources<unknown>
->();
 const bridgeInboundTargets = new WeakMap<
 	WireBridgeBundle<unknown, unknown>,
-	Node<WireBridgeEnvelope<unknown> | WireBridgeInvalidIngress>
->();
-const bridgeInboundSources = new WeakMap<
-	WireBridgeBundle<unknown, unknown>,
-	{ sources: Node<WireBridgeEnvelope<unknown> | WireBridgeInvalidIngress>[] }
+	StateNode<WireBridgeEnvelope<unknown> | WireBridgeInvalidIngress>
 >();
 
 /** Stable D134 idempotency key helper scoped to one bridge session and sequence.
@@ -291,7 +281,7 @@ export function wireBridge<TOutbound = unknown, TInbound = unknown>(
 			factory: "wireBridgeInbound",
 		},
 	);
-	const inbound = guardedInboundNode(inboundCore, opts.sessionId);
+	const inbound = guardedInboundNode(graph, inboundCore, opts.sessionId);
 	const events = wireBridgeEventsNode<TOutbound, TInbound>(
 		graph,
 		command,
@@ -345,9 +335,10 @@ export function wireBridge<TOutbound = unknown, TInbound = unknown>(
 		close: (reason, closeOpts) =>
 			command.set({ kind: "close", reason, idempotencyKey: closeOpts?.idempotencyKey }),
 	};
-	bridgeCommandSources.set(bundle as WireBridgeBundle<unknown, unknown>, { sources: [] });
-	bridgeInboundTargets.set(bundle as WireBridgeBundle<unknown, unknown>, inboundCore);
-	bridgeInboundSources.set(bundle as WireBridgeBundle<unknown, unknown>, { sources: [] });
+	bridgeInboundTargets.set(
+		bundle as WireBridgeBundle<unknown, unknown>,
+		inboundCore as unknown as StateNode<WireBridgeEnvelope<unknown> | WireBridgeInvalidIngress>,
+	);
 	return bundle;
 }
 
@@ -918,8 +909,9 @@ export function wireBridgeProtobuf(
 			error: "manual",
 		},
 	);
+	let stopInbound: (() => void) | undefined;
 	try {
-		attachWireBridgeInboundSource(bridge, inboundDecoded);
+		stopInbound = feedState(inboundDecoded, wireBridgeInboundTarget(bridge));
 	} catch (error) {
 		topology.release({ reason: `${name}.wireBridgeProtobuf.failedAttach` });
 		throw error;
@@ -932,12 +924,13 @@ export function wireBridgeProtobuf(
 		status,
 		release() {
 			if (released) return;
-			detachWireBridgeInboundSource(bridge, inboundDecoded);
+			stopInbound?.();
 			try {
 				topology.release({ reason: `${name}.wireBridgeProtobuf.release` });
 				released = true;
 			} catch (error) {
-				attachWireBridgeInboundSource(bridge, inboundDecoded);
+				// A blocked release keeps the lane feeding the bridge, so release can be retried.
+				stopInbound = feedState(inboundDecoded, wireBridgeInboundTarget(bridge));
 				throw error;
 			}
 		},
@@ -1002,8 +995,9 @@ export function remoteResponder<TRequest = unknown, TResponse = unknown>(
 	const requests = topology.add(remoteResponderRequestsNode(graph, events, name));
 	const status = topology.add(remoteResponderStatusNode(graph, events, name));
 	const errors = topology.add(remoteResponderErrorsNode(graph, events, name));
+	let stopCommands: (() => void) | undefined;
 	try {
-		attachWireBridgeCommandSource(bridge, responseCommands);
+		stopCommands = feedState(responseCommands, bridge.command);
 	} catch (error) {
 		topology.release({ reason: `${name}.remoteResponder.failedAttach` });
 		throw error;
@@ -1017,12 +1011,13 @@ export function remoteResponder<TRequest = unknown, TResponse = unknown>(
 		errors,
 		release() {
 			if (released) return;
-			detachWireBridgeCommandSource(bridge, responseCommands);
+			stopCommands?.();
 			try {
 				topology.release({ reason: `${name}.remoteResponder.release` });
 				released = true;
 			} catch (error) {
-				attachWireBridgeCommandSource(bridge, responseCommands);
+				// A blocked release keeps the lane feeding the bridge, so release can be retried.
+				stopCommands = feedState(responseCommands, bridge.command);
 				throw error;
 			}
 		},
@@ -1200,150 +1195,14 @@ function initBridgeState<TPayload>(ctx: Ctx): BridgeState<TPayload> {
 	return state;
 }
 
-function attachWireBridgeCommandSource<TOutbound, TInbound>(
-	bridge: WireBridgeBundle<TOutbound, TInbound>,
-	source: Node<WireBridgeCommand<TOutbound>>,
-): void {
-	const attached = bridgeCommandSources.get(bridge as WireBridgeBundle<unknown, unknown>);
-	if (attached === undefined) {
-		throw new Error("remoteResponder: bridge command source registry missing");
-	}
-	const sources = attached.sources as Node<WireBridgeCommand<TOutbound>>[];
-	const previousSources = [...sources];
-	if (!sources.includes(source)) sources.push(source);
-	try {
-		heldBridgeRewire(bridge.command, [...sources], wireBridgeCommandSourceFn(sources.length));
-	} catch (error) {
-		sources.splice(0, sources.length, ...previousSources);
-		heldBridgeRewire(
-			bridge.command,
-			[...previousSources],
-			wireBridgeCommandSourceFn(previousSources.length),
-		);
-		throw error;
-	}
-}
-
-function detachWireBridgeCommandSource<TOutbound, TInbound>(
-	bridge: WireBridgeBundle<TOutbound, TInbound>,
-	source: Node<WireBridgeCommand<TOutbound>>,
-): void {
-	const attached = bridgeCommandSources.get(bridge as WireBridgeBundle<unknown, unknown>);
-	if (attached === undefined) {
-		throw new Error("remoteResponder: bridge command source registry missing");
-	}
-	const sources = attached.sources as Node<WireBridgeCommand<TOutbound>>[];
-	if (!sources.includes(source)) return;
-	const previousSources = [...sources];
-	const nextSources = sources.filter((candidate) => candidate !== source);
-	sources.splice(0, sources.length, ...nextSources);
-	try {
-		heldBridgeRewire(
-			bridge.command,
-			[...nextSources],
-			wireBridgeCommandSourceFn(nextSources.length),
-		);
-	} catch (error) {
-		sources.splice(0, sources.length, ...previousSources);
-		heldBridgeRewire(
-			bridge.command,
-			[...previousSources],
-			wireBridgeCommandSourceFn(previousSources.length),
-		);
-		throw error;
-	}
-}
-
-function attachWireBridgeInboundSource<TOutbound, TInbound>(
-	bridge: WireBridgeBundle<TOutbound, TInbound>,
-	source: Node<WireBridgeEnvelope<TInbound> | WireBridgeInvalidIngress>,
-): void {
-	const attached = bridgeInboundSources.get(bridge as WireBridgeBundle<unknown, unknown>);
-	if (attached === undefined) {
-		throw new Error("wireBridgeProtobuf: bridge inbound source registry missing");
-	}
-	const sources = attached.sources as Node<
-		WireBridgeEnvelope<TInbound> | WireBridgeInvalidIngress
-	>[];
-	const previousSources = [...sources];
-	if (!sources.includes(source)) sources.push(source);
-	try {
-		heldBridgeRewire(
-			wireBridgeInboundTarget(bridge),
-			[...sources],
-			wireBridgeInboundSourceFn(sources.length),
-		);
-	} catch (error) {
-		sources.splice(0, sources.length, ...previousSources);
-		heldBridgeRewire(
-			wireBridgeInboundTarget(bridge),
-			[...previousSources],
-			wireBridgeInboundSourceFn(previousSources.length),
-		);
-		throw error;
-	}
-}
-
-function detachWireBridgeInboundSource<TOutbound, TInbound>(
-	bridge: WireBridgeBundle<TOutbound, TInbound>,
-	source: Node<WireBridgeEnvelope<TInbound> | WireBridgeInvalidIngress>,
-): void {
-	const attached = bridgeInboundSources.get(bridge as WireBridgeBundle<unknown, unknown>);
-	if (attached === undefined) {
-		throw new Error("wireBridgeProtobuf: bridge inbound source registry missing");
-	}
-	const sources = attached.sources as Node<
-		WireBridgeEnvelope<TInbound> | WireBridgeInvalidIngress
-	>[];
-	if (!sources.includes(source)) return;
-	const previousSources = [...sources];
-	const nextSources = sources.filter((candidate) => candidate !== source);
-	sources.splice(0, sources.length, ...nextSources);
-	try {
-		heldBridgeRewire(
-			wireBridgeInboundTarget(bridge),
-			[...nextSources],
-			wireBridgeInboundSourceFn(nextSources.length),
-		);
-	} catch (error) {
-		sources.splice(0, sources.length, ...previousSources);
-		heldBridgeRewire(
-			wireBridgeInboundTarget(bridge),
-			[...previousSources],
-			wireBridgeInboundSourceFn(previousSources.length),
-		);
-		throw error;
-	}
-}
-
 function wireBridgeInboundTarget<TOutbound, TInbound>(
 	bridge: WireBridgeBundle<TOutbound, TInbound>,
-): Node<WireBridgeEnvelope<TInbound> | WireBridgeInvalidIngress> {
+): StateNode<WireBridgeEnvelope<TInbound> | WireBridgeInvalidIngress> {
 	const target = bridgeInboundTargets.get(bridge as unknown as WireBridgeBundle<unknown, unknown>);
 	if (target === undefined) {
-		throw new Error("remoteResponder: bridge inbound target registry missing");
+		throw new Error("wireBridgeProtobuf: bridge inbound target registry missing");
 	}
-	return target as Node<WireBridgeEnvelope<TInbound> | WireBridgeInvalidIngress>;
-}
-
-function wireBridgeCommandSourceFn<TOutbound>(sourceCount: number): (ctx: Ctx) => void {
-	return (ctx) => {
-		for (let i = 0; i < sourceCount; i += 1) {
-			for (const command of depBatch(ctx, i) ?? []) {
-				ctx.down([["DATA", command as WireBridgeCommand<TOutbound>]]);
-			}
-		}
-	};
-}
-
-function wireBridgeInboundSourceFn<TInbound>(sourceCount: number): (ctx: Ctx) => void {
-	return (ctx) => {
-		for (let i = 0; i < sourceCount; i += 1) {
-			for (const envelope of depBatch(ctx, i) ?? []) {
-				ctx.down([["DATA", envelope as WireBridgeEnvelope<TInbound> | WireBridgeInvalidIngress]]);
-			}
-		}
-	};
+	return target as StateNode<WireBridgeEnvelope<TInbound> | WireBridgeInvalidIngress>;
 }
 
 function wireBridgeProtobufInboundResult(
@@ -1556,10 +1415,10 @@ function canonicalDataBody(value: unknown): CanonicalWireBridgeDataBody {
 	if (
 		typeof value === "object" &&
 		value !== null &&
-		(value as { readonly kind?: unknown }).kind === "wire_edge"
+		(value as { readonly kind?: unknown }).kind === "edge_cause"
 	) {
-		const frame = (value as { readonly frame?: unknown }).frame;
-		return { kind: "wire_edge", frame: frame as CanonicalWireEdgeFrame };
+		const cause = (value as { readonly cause?: unknown }).cause;
+		return { kind: "edge_cause", cause: cause as WireEdgeCause };
 	}
 	throw new CanonicalProtobufError(
 		"malformed",

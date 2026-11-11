@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Ctx, Message } from "../index.js";
-import { depLatest, node } from "../index.js";
+import { depLatest, graph } from "../index.js";
 
 function collect(n: { subscribe(s: (m: Message) => void): () => void }) {
 	const msgs: Message[] = [];
@@ -15,9 +15,10 @@ const types = (msgs: Message[]) => msgs.map((m) => m[0]);
 
 describe("async pool (R-sync-core async label, R8 late-emit pairing)", () => {
 	it("a late ctx.down from an async fn pairs PENDING+DATA downstream", () => {
-		const a = node<number>([], null, { initial: 3 });
+		const g = graph();
+		const a = g.node<number>([], null, { initial: 3 });
 		let resolve: (() => void) | null = null;
-		const dbl = node<number>(
+		const dbl = g.node<number>(
 			[a],
 			(ctx: Ctx) => {
 				const v = depLatest(ctx, 0) as number;

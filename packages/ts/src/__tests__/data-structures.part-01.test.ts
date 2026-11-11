@@ -48,7 +48,8 @@ function demand(request: Node<true>): void {
 
 describe("collectionCore two-port shape (D60) via reactiveList", () => {
 	it("DELTA stream emits one change per mutation (O(1)/mutation)", () => {
-		const list = reactiveList<number>();
+		const g = graph();
+		const list = reactiveList<number>(g);
 		const { msgs } = collect(list.delta);
 		list.append(1);
 		list.append(2);
@@ -66,7 +67,8 @@ describe("collectionCore two-port shape (D60) via reactiveList", () => {
 	});
 
 	it("bulk list deltas carry defensive copies", () => {
-		const list = reactiveList<number>();
+		const g = graph();
+		const list = reactiveList<number>(g);
 		const { msgs } = collect(list.delta);
 		const appended = [1, 2];
 		const inserted = [3, 4];
@@ -81,7 +83,8 @@ describe("collectionCore two-port shape (D60) via reactiveList", () => {
 	});
 
 	it("empty list bulk ops are no-op deltas where the array bulk API exists", () => {
-		const list = reactiveList<number>([1]);
+		const g = graph();
+		const list = reactiveList<number>(g, [1]);
 		const { msgs } = collect(list.delta);
 		msgs.length = 0;
 		list.appendMany([]);
@@ -91,7 +94,8 @@ describe("collectionCore two-port shape (D60) via reactiveList", () => {
 	});
 
 	it("SNAPSHOT pull node is quiet (START only, no push-on-subscribe), absorbs delta PENDING", () => {
-		const list = reactiveList<number>([10]);
+		const g = graph();
+		const list = reactiveList<number>(g, [10]);
 		const { msgs } = collect(list.snapshot);
 		expect(types(msgs)).toEqual(["START"]);
 		list.append(20);
@@ -99,7 +103,8 @@ describe("collectionCore two-port shape (D60) via reactiveList", () => {
 	});
 
 	it("a demand delivers the CURRENT snapshot once, then re-quiets (1:1, lazy O(n))", () => {
-		const list = reactiveList<number>();
+		const g = graph();
+		const list = reactiveList<number>(g);
 		const { msgs } = collect(list.snapshot);
 		list.append(1);
 		list.append(2);
@@ -109,7 +114,8 @@ describe("collectionCore two-port shape (D60) via reactiveList", () => {
 	});
 
 	it("demand-on-no-change emits no duplicate DATA (collection coalesce)", () => {
-		const list = reactiveList<number>();
+		const g = graph();
+		const list = reactiveList<number>(g);
 		const { msgs } = collect(list.snapshot);
 		list.append(1);
 		demand(list.request);
@@ -120,7 +126,8 @@ describe("collectionCore two-port shape (D60) via reactiveList", () => {
 	});
 
 	it("a second demand after a new mutation delivers the fresh snapshot", () => {
-		const list = reactiveList<number>();
+		const g = graph();
+		const list = reactiveList<number>(g);
 		const { msgs } = collect(list.snapshot);
 		list.append(1);
 		demand(list.request);
@@ -130,7 +137,8 @@ describe("collectionCore two-port shape (D60) via reactiveList", () => {
 	});
 
 	it("synchronous quick-reads are the non-reactive peek (at/size/toArray)", () => {
-		const list = reactiveList<string>(["a", "b"]);
+		const g = graph();
+		const list = reactiveList<string>(g, ["a", "b"]);
 		list.append("c");
 		expect(list.size).toBe(3);
 		expect(list.at(0)).toBe("a");
@@ -140,13 +148,15 @@ describe("collectionCore two-port shape (D60) via reactiveList", () => {
 	});
 
 	it("insert/pop edge cases throw RangeError out of range", () => {
-		const list = reactiveList<number>([1, 2]);
+		const g = graph();
+		const list = reactiveList<number>(g, [1, 2]);
 		expect(() => list.insert(5, 9)).toThrow(RangeError);
-		expect(() => reactiveList<number>().pop()).toThrow(RangeError);
+		expect(() => reactiveList<number>(g).pop()).toThrow(RangeError);
 	});
 
 	it("D72 maxSize head-trims on overflow and emits trimHead deltas", () => {
-		const list = reactiveList<number>([], { maxSize: 2 });
+		const g = graph();
+		const list = reactiveList<number>(g, [], { maxSize: 2 });
 		const { msgs } = collect(list.delta);
 		list.append(1);
 		list.append(2);
@@ -163,7 +173,7 @@ describe("collectionCore two-port shape (D60) via reactiveList", () => {
 	it("D72 Node-valued list maxSize is a declared policy dep and trims on policy change", () => {
 		const g = graph();
 		const max = g.state(3, { name: "max" });
-		const list = reactiveList<number>([], { graph: g, name: "list", maxSize: max });
+		const list = reactiveList<number>(g, [], { name: "list", maxSize: max });
 		const { msgs } = collect(list.delta);
 		list.appendMany([1, 2, 3]);
 		max.set(1);
@@ -178,17 +188,11 @@ describe("collectionCore two-port shape (D60) via reactiveList", () => {
 		);
 	});
 
-	it("D72 Node-valued list maxSize requires graph binding", () => {
-		const g = graph();
-		const max = g.state(1);
-		expect(() => reactiveList<number>([], { maxSize: max })).toThrow(/requires options.graph/);
-	});
-
 	it("D72 Node policy + appendFrom share one graph-visible apply path", () => {
 		const g = graph();
 		const max = g.state(2, { name: "max" });
 		const src = g.state(0, { name: "src" });
-		const list = reactiveList<number>([], { graph: g, name: "list", maxSize: max });
+		const list = reactiveList<number>(g, [], { name: "list", maxSize: max });
 		const { msgs } = collect(list.delta);
 		list.appendFrom(src);
 		src.set(1);
@@ -210,7 +214,7 @@ describe("D54 Node<T> widening — in-graph producer drives the structure (decla
 	it("appendFrom folds a source's values into the list (no imperative glue)", () => {
 		const g = graph();
 		const src = g.state<number>(0, { name: "src" });
-		const list = reactiveList<number>([], { graph: g, name: "list" });
+		const list = reactiveList<number>(g, [], { name: "list" });
 		const { msgs } = collect(list.delta);
 		list.appendFrom(src as unknown as Node<number>);
 		src.set(1);
@@ -230,7 +234,8 @@ describe("D54 Node<T> widening — in-graph producer drives the structure (decla
 
 describe("reactiveMap (D60 #3) — lazy TTL + LRU + delete-reason", () => {
 	it("set/delete emit deltas with the right reason; snapshot reflects state", () => {
-		const m = reactiveMap<string, number>();
+		const g = graph();
+		const m = reactiveMap<string, number>(g);
 		const { msgs } = collect(m.delta);
 		m.set("a", 1);
 		m.set("b", 2);
@@ -244,7 +249,8 @@ describe("reactiveMap (D60 #3) — lazy TTL + LRU + delete-reason", () => {
 	});
 
 	it("empty setMany/deleteMany are no-op deltas", () => {
-		const m = reactiveMap<string, number>();
+		const g = graph();
+		const m = reactiveMap<string, number>(g);
 		const { msgs } = collect(m.delta);
 		msgs.length = 0;
 		m.setMany([]);
@@ -254,6 +260,7 @@ describe("reactiveMap (D60 #3) — lazy TTL + LRU + delete-reason", () => {
 	});
 
 	it("setMany/deleteMany accept generator inputs and ignore missing deletes", () => {
+		const g = graph();
 		function* entries(): Generator<readonly [string, number]> {
 			yield ["a", 1];
 			yield ["b", 2];
@@ -264,7 +271,7 @@ describe("reactiveMap (D60 #3) — lazy TTL + LRU + delete-reason", () => {
 			yield "also-missing";
 		}
 
-		const m = reactiveMap<string, number>();
+		const m = reactiveMap<string, number>(g);
 		const { msgs } = collect(m.delta);
 		m.setMany(entries());
 		m.deleteMany(keys());
@@ -278,13 +285,14 @@ describe("reactiveMap (D60 #3) — lazy TTL + LRU + delete-reason", () => {
 	});
 
 	it("setMany applies per-call TTL to every generated entry", () => {
+		const g = graph();
 		let t = 0;
 		function* entries(): Generator<readonly [string, number]> {
 			yield ["a", 1];
 			yield ["b", 2];
 		}
 
-		const m = reactiveMap<string, number>({ now: () => t });
+		const m = reactiveMap<string, number>(g, { now: () => t });
 		const { msgs } = collect(m.delta);
 		m.setMany(entries(), { ttl: 10 });
 
@@ -304,8 +312,9 @@ describe("reactiveMap (D60 #3) — lazy TTL + LRU + delete-reason", () => {
 	});
 
 	it("lazy TTL: a read that materializes expiry emits delete(reason:'expired') (D61)", () => {
+		const g = graph();
 		let t = 1000;
-		const m = reactiveMap<string, number>({ defaultTtl: 100, now: () => t });
+		const m = reactiveMap<string, number>(g, { defaultTtl: 100, now: () => t });
 		const { msgs } = collect(m.delta);
 		m.set("x", 1);
 		expect(m.get("x")).toBe(1);
@@ -319,8 +328,9 @@ describe("reactiveMap (D60 #3) — lazy TTL + LRU + delete-reason", () => {
 	});
 
 	it("lazy TTL: pruneExpired/toMap emit expired deletes for materialized expiry (D61)", () => {
+		const g = graph();
 		let t = 0;
-		const m = reactiveMap<string, number>({ defaultTtl: 5, now: () => t });
+		const m = reactiveMap<string, number>(g, { defaultTtl: 5, now: () => t });
 		const { msgs } = collect(m.delta);
 		m.set("a", 1);
 		m.set("b", 2);
@@ -345,7 +355,8 @@ describe("reactiveMap (D60 #3) — lazy TTL + LRU + delete-reason", () => {
 	});
 
 	it("LRU maxSize evicts the oldest with reason:'lru-evict'", () => {
-		const m = reactiveMap<string, number>({ maxSize: 2 });
+		const g = graph();
+		const m = reactiveMap<string, number>(g, { maxSize: 2 });
 		const { msgs } = collect(m.delta);
 		m.set("a", 1);
 		m.set("b", 2);
@@ -361,7 +372,7 @@ describe("reactiveMap (D60 #3) — lazy TTL + LRU + delete-reason", () => {
 
 	it("D68 static TTL/LRU shorthands install graph-visible policy/apply nodes", () => {
 		const g = graph();
-		const m = reactiveMap<string, number>({ graph: g, name: "map", maxSize: 2, defaultTtl: 5 });
+		const m = reactiveMap<string, number>(g, { name: "map", maxSize: 2, defaultTtl: 5 });
 		m.set("a", 1);
 		const snap = g.describe();
 		expect(snap.nodes.find((n) => n.id === "map.apply")?.factory).toBe("reactiveMap.apply");
@@ -377,7 +388,7 @@ describe("reactiveMap (D60 #3) — lazy TTL + LRU + delete-reason", () => {
 	it("D68 Node-valued maxSize is a declared policy dep and can evict on policy change", () => {
 		const g = graph();
 		const max = g.state(2, { name: "max" });
-		const m = reactiveMap<string, number>({ graph: g, name: "map", maxSize: max });
+		const m = reactiveMap<string, number>(g, { name: "map", maxSize: max });
 		const { msgs } = collect(m.delta);
 		m.set("a", 1);
 		m.set("b", 2);
@@ -398,8 +409,7 @@ describe("reactiveMap (D60 #3) — lazy TTL + LRU + delete-reason", () => {
 		let t = 0;
 		const g = graph();
 		const ttl = g.state(5, { name: "ttl" });
-		const m = reactiveMap<string, number>({
-			graph: g,
+		const m = reactiveMap<string, number>(g, {
 			name: "map",
 			defaultTtl: ttl,
 			now: () => t,
@@ -416,17 +426,9 @@ describe("reactiveMap (D60 #3) — lazy TTL + LRU + delete-reason", () => {
 		expect(g.describe().edges).toContainEqual({ from: "ttl", to: "map.apply" });
 	});
 
-	it("D68 Node-valued policy opts require graph binding", () => {
-		const g = graph();
-		const max = g.state(1);
-		expect(() => reactiveMap<string, number>({ maxSize: max })).toThrow(/requires options.graph/);
-		expect(() => reactiveMap<string, number>({ defaultTtl: max })).toThrow(
-			/requires options.graph/,
-		);
-	});
-
 	it("D72 retention archives lowest scores with reason:'archived'", () => {
-		const m = reactiveMap<string, number>({
+		const g = graph();
+		const m = reactiveMap<string, number>(g, {
 			retention: { maxSize: 2, score: ({ value }) => value },
 		});
 		const { msgs } = collect(m.delta);
@@ -447,8 +449,7 @@ describe("reactiveMap (D60 #3) — lazy TTL + LRU + delete-reason", () => {
 
 	it("D72 static retention maxSize installs a graph-visible policy/apply edge", () => {
 		const g = graph();
-		const m = reactiveMap<string, number>({
-			graph: g,
+		const m = reactiveMap<string, number>(g, {
 			name: "map",
 			retention: { maxSize: 2, score: ({ value }) => value },
 		});
@@ -463,8 +464,7 @@ describe("reactiveMap (D60 #3) — lazy TTL + LRU + delete-reason", () => {
 	it("D72 Node-valued retention.maxSize is a declared policy dep and archives on policy change", () => {
 		const g = graph();
 		const keep = g.state(3, { name: "keep" });
-		const m = reactiveMap<string, number>({
-			graph: g,
+		const m = reactiveMap<string, number>(g, {
 			name: "map",
 			retention: { maxSize: keep, score: ({ value }) => value },
 		});
@@ -484,35 +484,26 @@ describe("reactiveMap (D60 #3) — lazy TTL + LRU + delete-reason", () => {
 		expect(g.describe().edges).toContainEqual({ from: "keep", to: "map.apply" });
 	});
 
-	it("D72 Node-valued retention.maxSize requires graph binding", () => {
-		const g = graph();
-		const keep = g.state(1);
-		expect(() =>
-			reactiveMap<string, number>({
-				retention: { maxSize: keep, score: ({ value }) => value },
-			}),
-		).toThrow(/requires options.graph/);
-	});
-
 	it("D68 graph-bound Node policy/input opts reject foreign graph nodes", () => {
 		const g1 = graph();
 		const g2 = graph();
 		const foreignMax = g1.state(1, { name: "max" });
-		expect(() =>
-			reactiveMap<string, number>({ graph: g2, name: "map", maxSize: foreignMax }),
-		).toThrow(/different graph/);
+		expect(() => reactiveMap<string, number>(g2, { name: "map", maxSize: foreignMax })).toThrow(
+			/different graph/,
+		);
 
 		const foreignSrc = g1.state<readonly [string, number]>(["x", 1], { name: "src" });
-		const m = reactiveMap<string, number>({ graph: g2, name: "map2" });
+		const m = reactiveMap<string, number>(g2, { name: "map2" });
 		expect(() => m.setFrom(foreignSrc as Node<readonly [string, number]>)).toThrow(
 			/different graph/,
 		);
 	});
 
 	it("D68 active TTL uses one internal timer path to prune without a read", () => {
+		const g = graph();
 		vi.useFakeTimers();
 		try {
-			const m = reactiveMap<string, number>({ defaultTtl: 10 });
+			const m = reactiveMap<string, number>(g, { defaultTtl: 10 });
 			const { msgs } = collect(m.delta);
 			m.set("a", 1);
 			vi.advanceTimersByTime(9);
@@ -528,7 +519,8 @@ describe("reactiveMap (D60 #3) — lazy TTL + LRU + delete-reason", () => {
 	});
 
 	it("pull snapshot delivers a ReadonlyMap on demand", () => {
-		const m = reactiveMap<string, number>();
+		const g = graph();
+		const m = reactiveMap<string, number>(g);
 		const { msgs } = collect(m.snapshot);
 		m.set("a", 1);
 		m.set("b", 2);
@@ -541,8 +533,9 @@ describe("reactiveMap (D60 #3) — lazy TTL + LRU + delete-reason", () => {
 	});
 
 	it("pull snapshot demand prunes expired entries and emits expired deletes through public delta", () => {
+		const g = graph();
 		let t = 0;
-		const m = reactiveMap<string, number>({ defaultTtl: 5, now: () => t });
+		const m = reactiveMap<string, number>(g, { defaultTtl: 5, now: () => t });
 		const deltas = collect(m.delta);
 		const snaps = collect(m.snapshot);
 		m.set("live", 1, { ttl: 20 });
@@ -559,8 +552,9 @@ describe("reactiveMap (D60 #3) — lazy TTL + LRU + delete-reason", () => {
 	});
 
 	it("pull snapshot demand with no expired entries does not emit delta DATA", () => {
+		const g = graph();
 		let t = 0;
-		const m = reactiveMap<string, number>({ defaultTtl: 50, now: () => t });
+		const m = reactiveMap<string, number>(g, { defaultTtl: 50, now: () => t });
 		const deltas = collect(m.delta);
 		const snaps = collect(m.snapshot);
 		m.set("a", 1);
@@ -572,7 +566,8 @@ describe("reactiveMap (D60 #3) — lazy TTL + LRU + delete-reason", () => {
 	});
 
 	it("select(predicate) is a D121 light view with forwarded delta + pulled snapshot", () => {
-		const m = reactiveMap<string, number>();
+		const g = graph();
+		const m = reactiveMap<string, number>(g);
 		const isEven = (value: number) => value % 2 === 0;
 		const view = m.select(isEven);
 		const deltaMsgs = collect(view.delta);
@@ -590,6 +585,9 @@ describe("reactiveMap (D60 #3) — lazy TTL + LRU + delete-reason", () => {
 		]);
 		expect(m.select(isEven)).toBe(view);
 		expect(() => m.select(null as never)).toThrow(TypeError);
+		// A graph releases a view's node group only when it is quiescent (D124).
+		deltaMsgs.unsub();
+		snapshotMsgs.unsub();
 		view.dispose();
 		expect(m.select(isEven)).not.toBe(view);
 		expect(() => view.delta.subscribe(() => {})).toThrow(/released from its graph lifecycle/);
@@ -597,7 +595,8 @@ describe("reactiveMap (D60 #3) — lazy TTL + LRU + delete-reason", () => {
 	});
 
 	it("select snapshot predicate failures surface as ERROR waves", () => {
-		const m = reactiveMap<string, number>();
+		const g = graph();
+		const m = reactiveMap<string, number>(g);
 		m.set("a", 1);
 		const view = m.select(() => {
 			throw new Error("select boom");
@@ -612,9 +611,9 @@ describe("reactiveMap (D60 #3) — lazy TTL + LRU + delete-reason", () => {
 		expect(data(snapshotMsgs.msgs)).toEqual([]);
 	});
 
-	it("select light views register through the graph funnel when options.graph is present", () => {
+	it("select light views register through the graph funnel", () => {
 		const g = graph();
-		const m = reactiveMap<string, number>({ graph: g, name: "map" });
+		const m = reactiveMap<string, number>(g, { name: "map" });
 		const view = m.select((value) => value > 1);
 
 		const snap = g.describe();
@@ -642,7 +641,7 @@ describe("reactiveMap (D60 #3) — lazy TTL + LRU + delete-reason", () => {
 
 	it("select viewCache evicts only memo refs, not live D121 view nodes", () => {
 		const g = graph();
-		const m = reactiveMap<string, number>({ graph: g, name: "map", viewCache: { maxEntries: 1 } });
+		const m = reactiveMap<string, number>(g, { name: "map", viewCache: { maxEntries: 1 } });
 		const gt0 = (value: number) => value > 0;
 		const gt1 = (value: number) => value > 1;
 
@@ -665,13 +664,15 @@ describe("reactiveMap (D60 #3) — lazy TTL + LRU + delete-reason", () => {
 	});
 
 	it("rejects invalid select viewCache policies", () => {
-		expect(() => reactiveMap<string, number>({ viewCache: { maxEntries: -1 } })).toThrow(
+		const g = graph();
+		expect(() => reactiveMap<string, number>(g, { viewCache: { maxEntries: -1 } })).toThrow(
 			/viewCache\.maxEntries/,
 		);
 	});
 
 	it("undefined is a valid map value: has/delete use presence, not value !== undefined", () => {
-		const m = reactiveMap<string, number | undefined>();
+		const g = graph();
+		const m = reactiveMap<string, number | undefined>(g);
 		const { msgs } = collect(m.delta);
 		m.set("u", undefined);
 		expect(m.has("u")).toBe(true);
@@ -687,7 +688,7 @@ describe("reactiveMap (D60 #3) — lazy TTL + LRU + delete-reason", () => {
 	it("setFrom routes malformed input errors to the folder ERROR boundary", () => {
 		const g = graph();
 		const src = g.node<readonly [string, number]>([], null, { name: "src" });
-		const m = reactiveMap<string, number>({ graph: g, name: "map" });
+		const m = reactiveMap<string, number>(g, { name: "map" });
 		m.setFrom(src as Node<readonly [string, number]>);
 		expect(g.describe().edges).toContainEqual({ from: "map.bind#0", to: "map.apply" });
 

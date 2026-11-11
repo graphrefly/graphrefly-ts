@@ -25,7 +25,7 @@ export {
 	type ReactiveCollectionPersistenceHandle,
 	type ReactiveCollectionPersistenceStatus,
 } from "./adapters/reactive-collection-storage.js";
-export { type BatchCtx, batch } from "./batch/batch.js";
+export type { BatchCtx } from "./batch/batch.js";
 export type {
 	Ctx,
 	CtxState,
@@ -279,7 +279,6 @@ export {
 	filter,
 	find,
 	first,
-	initNode,
 	last,
 	map,
 	merge,
@@ -426,7 +425,7 @@ export {
 	type StrictJsonValue,
 	strictCanonicalJsonBytes,
 } from "./json/codec.js";
-export { dynamicNode, Node, type NodeOptions, node, type Status } from "./node/node.js";
+export { Node, type NodeOptions, type Status } from "./node/node.js";
 export {
 	defaultNodeVersionHash,
 	type NodeVersion,

@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { batch } from "../batch/batch.js";
 import { graph } from "../graph/graph.js";
 import {
 	type AgentRequestIssued,
@@ -652,7 +651,7 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 11", () => {
 		});
 		workItems.set(workItemSeed("wi-1"));
 
-		batch(() => {
+		g.batch(() => {
 			effectRequests.set({
 				kind: "work-item-effect-requested",
 				requestId: "wi-effect-1",
@@ -800,13 +799,13 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 11", () => {
 			}
 		});
 
-		batch(() => {
+		g.batch(() => {
 			proposals.set(workItemActionProposal("proposal-reject", "mark-ready"));
 			proposals.set(workItemActionProposal("proposal-defer", "mark-ready"));
 			proposals.set(workItemActionProposal("proposal-merge-target", "mark-ready"));
 			proposals.set(workItemActionProposal("proposal-merge", "mark-ready"));
 		});
-		batch(() => {
+		g.batch(() => {
 			decisions.set(
 				workItemAdmissionDecision(
 					"decision-reject",

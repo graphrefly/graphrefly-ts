@@ -17,6 +17,7 @@ import { restoreReactiveList } from "@graphrefly/ts/data-structures";
 
 ```ts
 function restoreReactiveList(
+	graph: Graph,
 	state: ReactiveListRestoreState<T> | readonly T[],
 	options: ReactiveListOptions = {},
 ): ReactiveList<T>
@@ -26,8 +27,9 @@ function restoreReactiveList(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `state` | `ReactiveListRestoreState<T> \| readonly T[]` | state value used by the helper. |
-| `options` | `ReactiveListOptions` | Options that configure the helper. |
+| `graph` | `Graph` | The graph that builds the list's nodes. |
+| `state` | `ReactiveListRestoreState<T> \| readonly T[]` | The persisted list state, or its values. |
+| `options` | `ReactiveListOptions` | Optional name and capacity policy. |
 
 ## Returns
 
@@ -36,7 +38,10 @@ A `ReactiveList<T>` value.
 ## Example
 
 ```ts
+import { graph } from "@graphrefly/ts/graph";
 import { restoreReactiveList } from "@graphrefly/ts/data-structures";
+
+const list = restoreReactiveList<string>(graph(), ["a", "b"]);
 ```
 
 ## Source

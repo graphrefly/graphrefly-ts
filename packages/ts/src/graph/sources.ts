@@ -34,6 +34,8 @@ import type {
 	WebSocketEvent,
 	WebSocketRequest,
 } from "./environment.js";
+import type { Graph } from "./graph.js";
+import type { SugarOpts } from "./graph-types.js";
 import { initNode, type Operator } from "./operators.js";
 
 /**
@@ -1228,43 +1230,62 @@ export function fromPushNotification<T = unknown>(register: PushRegister<T>): Op
 	);
 }
 
+/** The source operator a {@link NodeInput} coerces to (D43). */
+function inputOperator<T>(input: NodeInput<T>, iter: boolean | undefined): Operator<unknown, T> {
+	if (isThenable(input)) return fromPromise(input as PromiseLike<T>) as Operator<unknown, T>;
+	if (input !== null && input !== undefined) {
+		const candidate = input as {
+			[Symbol.asyncIterator]?: unknown;
+			[Symbol.iterator]?: unknown;
+		};
+		if (typeof candidate[Symbol.asyncIterator] === "function")
+			return fromAsyncIter(input as AsyncIterable<T>) as Operator<unknown, T>;
+		if (iter === true && typeof candidate[Symbol.iterator] === "function")
+			return fromIter(input as Iterable<T>) as Operator<unknown, T>;
+	}
+	return of(input as T) as Operator<unknown, T>;
+}
+
 /**
- * Coerce a {@link NodeInput}`<T>` to a `Node<T>` (D43 — coercion prerequisite for the CSP-2.7
- * higher-order operators). An existing Node passes through; a thenable → {@link fromPromise};
- * an async iterable → {@link fromAsyncIter}; with `{iter:true}` a sync iterable →
- * {@link fromIter}; everything else → {@link of}. Coerced nodes are bare (use
- * `opts.dispatcher` to bind one, default = process-global D26).
+ * Coerce a {@link NodeInput}`<T>` to a `Node<T>` of `graph` (D43). An existing Node passes
+ * through; a thenable → {@link fromPromise}; an async iterable → {@link fromAsyncIter}; with
+ * `{iter:true}` a sync iterable → {@link fromIter}; everything else → {@link of}. A coerced node is
+ * a node of `graph` (R-graph-domain@3: there is no standalone node).
+ * @param graph - The graph that builds the coerced node.
  * @param input - Input value to project or validate.
  * @param opts - Options that configure the helper.
  * @returns A Node<T> value for the boundary or adapter.
  * @category sources
  * @example
  * ```ts
+ * import { graph } from "@graphrefly/ts/graph";
  * import { fromAny } from "@graphrefly/ts/sources";
+ *
+ * const g = graph();
+ * const n = fromAny(g, Promise.resolve(1));
  * ```
  */
 export function fromAny<T>(
+	graph: Graph,
+	input: NodeInput<T>,
+	opts: SugarOpts<T> & { iter?: boolean } = {},
+): Node<T> {
+	if (isNode(input)) return input as Node<T>;
+	const { iter, ...nodeOpts } = opts;
+	return graph.initNode(inputOperator(input, iter), [], nodeOpts);
+}
+
+/**
+ * @internal Coerce inside a node's run or a graph's construction scope: the coerced node is built
+ * in the running graph (graphrefly-ts:D179), unregistered, as a *Map inner is.
+ */
+export function nodeFromInput<T>(
 	input: NodeInput<T>,
 	opts: NodeOptions<T> & { iter?: boolean } = {},
 ): Node<T> {
 	if (isNode(input)) return input as Node<T>;
 	const { iter, ...nodeOpts } = opts;
-	if (isThenable(input)) {
-		return initNode(fromPromise(input as PromiseLike<T>), [], nodeOpts);
-	}
-	if (input !== null && input !== undefined) {
-		const candidate = input as {
-			[Symbol.asyncIterator]?: unknown;
-			[Symbol.iterator]?: unknown;
-		};
-		if (typeof candidate[Symbol.asyncIterator] === "function") {
-			return initNode(fromAsyncIter(input as AsyncIterable<T>), [], nodeOpts);
-		}
-		if (iter === true && typeof candidate[Symbol.iterator] === "function") {
-			return initNode(fromIter(input as Iterable<T>), [], nodeOpts);
-		}
-	}
-	return initNode(of(input as T), [], nodeOpts);
+	return initNode(inputOperator(input, iter), [], nodeOpts);
 }
 
 /**

@@ -1,6 +1,5 @@
 import { createHash } from "node:crypto";
 import ts from "typescript";
-import { batch } from "../../src/batch/batch.js";
 import { graph } from "../../src/graph/graph.js";
 import { strictJsonCodec } from "../../src/json/codec.js";
 import type {
@@ -316,7 +315,7 @@ function duplicateEffectRunSuppressionPassed(): boolean {
 		effectKind: "d687-duplicate-check",
 		goal: { kind: "d687-duplicate-check" },
 	};
-	batch(() => {
+	g.batch(() => {
 		requests.set(request);
 		requests.set({ ...request, requestId: "d687-request-2" });
 	});

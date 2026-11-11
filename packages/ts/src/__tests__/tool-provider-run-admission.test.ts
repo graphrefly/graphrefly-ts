@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { batch } from "../batch/batch.js";
 import type { DataIssue } from "../data/index.js";
 import { graph } from "../graph/graph.js";
 import { compoundTupleKey } from "../identity.js";
@@ -119,7 +118,7 @@ function createHarness() {
 			msg[0] === "DATA" && seen.views.push(msg[1] as ToolProviderRunAdmissionViews);
 		}
 	});
-	return { inputs, runRequests, decisions, seen };
+	return { g, inputs, runRequests, decisions, seen };
 }
 
 describe("toolProviderRunAdmissionProjector (D419)", () => {
@@ -265,7 +264,7 @@ describe("toolProviderRunAdmissionProjector (D419)", () => {
 
 		harness.inputs.set(input);
 		harness.runRequests.set(candidate);
-		batch(() => {
+		harness.g.batch(() => {
 			harness.decisions.set({
 				kind: "tool-provider-run-admission-decision",
 				decisionId: "decision-first",

@@ -30,7 +30,6 @@ export {
 	filter,
 	find,
 	first,
-	initNode,
 	last,
 	map,
 	merge,

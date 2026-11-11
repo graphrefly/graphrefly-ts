@@ -5,6 +5,7 @@ import { errorPayload, isTerminal, SENTINEL } from "../protocol/messages.js";
 import { nodeDeferQuietOutput } from "./node-context-runtime.js";
 import { isMarking } from "./node-output-runtime.js";
 import type { NodeRuntimeHost } from "./node-runtime-host.js";
+import { withRunningGraph } from "./runtime-accessors.js";
 
 export function nodeRecordDepProjection<T>(
 	self: NodeRuntimeHost<T>,
@@ -275,11 +276,13 @@ function nodeInvoke<T>(self: NodeRuntimeHost<T>): Message[][] {
 	self._wave.insideRunWave = true;
 	let thrown: { readonly error: unknown } | undefined;
 	try {
-		if (setup !== undefined) {
-			const cleanup = setup(ctx);
-			if (typeof cleanup === "function") lifetime.cleanup = cleanup;
-		}
-		self._slot.dispatcher.invoke(self._slot.handle as Handle, ctx);
+		withRunningGraph(self._core, self._slot.environment, self._slot.dispatcher, () => {
+			if (setup !== undefined) {
+				const cleanup = setup(ctx);
+				if (typeof cleanup === "function") lifetime.cleanup = cleanup;
+			}
+			self._slot.dispatcher.invoke(self._slot.handle as Handle, ctx);
+		});
 	} catch (error) {
 		thrown = { error };
 	} finally {

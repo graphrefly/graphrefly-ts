@@ -16,13 +16,17 @@ import { openPersistentReactiveLog } from "@graphrefly/ts/adapters";
 ## Signature
 
 ```ts
-function openPersistentReactiveLog(opts: OpenPersistentReactiveLogOptions<T>): Promise<PersistentReactiveLog<T>>
+function openPersistentReactiveLog(
+	graph: Graph,
+	opts: OpenPersistentReactiveLogOptions<T>,
+): Promise<PersistentReactiveLog<T>>
 ```
 
 ## Parameters
 
 | Parameter | Type | Description |
 |---|---|---|
+| `graph` | `Graph` | The graph that builds the restored collection. |
 | `opts` | `OpenPersistentReactiveLogOptions<T>` | Options that configure the helper. |
 
 ## Returns

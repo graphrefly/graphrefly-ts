@@ -1,5 +1,4 @@
 import { describe, expect, it, vi } from "vitest";
-import { batch } from "../batch/batch.js";
 import type { Message } from "../index.js";
 import {
 	catchError,
@@ -10,11 +9,9 @@ import {
 	first,
 	fromIter,
 	graph,
-	initNode,
 	last,
 	map,
 	merge,
-	node,
 	onFirstData,
 	pairwise,
 	reduce,
@@ -95,8 +92,9 @@ describe("core operators (free-standing factories via g.initNode, D43/D6)", () =
 	});
 
 	it("map does not treat same-wave INVALIDATE SENTINEL as DATA (D77/R-sentinel)", () => {
-		const s = node<number>([], null, { initial: 1 });
-		const m = initNode(
+		const g = graph();
+		const s = g.node<number>([], null, { initial: 1 });
+		const m = g.initNode(
 			map((n: number) => n * 2),
 			[s],
 		);
@@ -108,7 +106,7 @@ describe("core operators (free-standing factories via g.initNode, D43/D6)", () =
 		});
 		msgs.length = 0;
 
-		batch(() => {
+		g.batch(() => {
 			s.set(9);
 			s.invalidate();
 		});
@@ -339,27 +337,6 @@ describe("core operators (free-standing factories via g.initNode, D43/D6)", () =
 		const byId = Object.fromEntries(snap.nodes.map((n) => [n.id, n]));
 		expect(byId.inc.factory).toBe("map");
 		expect(byId.pos.factory).toBe("filter");
-	});
-
-	it("operators work bare (no Graph) via the free initNode", () => {
-		const g = graph();
-		const s = g.state(5);
-		// Bare-node path (D43): the free initNode builds a working Node with NO graph
-		// registration (s is created on g, the bare operator just subscribes to it).
-		const doubled = initNode(
-			map((n: number) => n * 2),
-			[s],
-		);
-		const msgs: Message[] = [];
-		doubled.subscribe((incoming) => {
-			for (const x of incoming) {
-				msgs.push(x);
-			}
-		});
-		expect(doubled.cache).toBe(10);
-		s.set(6);
-		expect(doubled.cache).toBe(12);
-		expect(data(msgs)).toEqual([10, 12]);
 	});
 });
 

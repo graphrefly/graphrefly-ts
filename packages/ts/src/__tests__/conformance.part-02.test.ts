@@ -10,7 +10,7 @@
 
 import { describe, expect, it } from "vitest";
 import type { Message, NodeFn } from "../index.js";
-import { batch, depBatch, depCount, graph, map, type Node, node } from "../index.js";
+import { depBatch, depCount, graph } from "../index.js";
 
 const _flush = () => new Promise((r) => setTimeout(r, 0));
 function collect(n: { subscribe(s: (m: Message) => void): () => void }) {
@@ -57,7 +57,7 @@ describe("C-17 — absorbed-error dep counts as terminal for auto-COMPLETE (B42 
 		c.error(new Error("boom")); // absorbed; B still live → not yet all-terminal
 		expect(d.status.output).not.toBe("completed");
 		expect(d.status.output).not.toBe("errored"); // errorWhenDepsError:false → no auto-ERROR
-		batch(() => {
+		g.batch(() => {
 			b.set(1);
 			b.complete();
 		}); // B terminal → ALL deps terminal (C errored) → COMPLETE
@@ -70,7 +70,7 @@ describe("C-17 — absorbed-error dep counts as terminal for auto-COMPLETE (B42 
 		const c = g.node<number>([], null);
 		const d = g.node([b, c], fwd, { error: "manual" });
 		collect(d);
-		batch(() => {
+		g.batch(() => {
 			b.set(1);
 			b.complete();
 		}); // B terminal; C still live → not yet all-terminal

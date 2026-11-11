@@ -65,7 +65,7 @@ describe("D161 persistReactiveCollection and openPersistentReactive*", () => {
 			memoryAppendLog<ReactiveCollectionChangeFrame<"reactiveList", ListChange<number>>>(
 				"persist-list",
 			);
-		const list = reactiveList<number>([1], { graph: g, name: "list" });
+		const list = reactiveList<number>(g, [1], { name: "list" });
 		const persistence = persistReactiveCollection(g, list, {
 			kind: "reactiveList",
 			name: "list/persistence",
@@ -114,7 +114,7 @@ describe("D161 persistReactiveCollection and openPersistentReactive*", () => {
 	it("preflights strict JSON before writing default persistence frames", async () => {
 		const g = graph();
 		const snapshots = memoryKv<unknown>();
-		const list = reactiveList<unknown>([1n], { graph: g, name: "strictList" });
+		const list = reactiveList<unknown>(g, [1n], { name: "strictList" });
 		const persistence = persistReactiveCollection(g, list, {
 			kind: "reactiveList",
 			name: "strictList/persistence",
@@ -147,7 +147,7 @@ describe("D161 persistReactiveCollection and openPersistentReactive*", () => {
 				return baseSnapshots.set(key, value);
 			},
 		};
-		const list = reactiveList<number>([0], { graph: g, name: "cadence" });
+		const list = reactiveList<number>(g, [0], { name: "cadence" });
 		const persistence = persistReactiveCollection(g, list, {
 			kind: "reactiveList",
 			name: "cadence/persistence",
@@ -190,7 +190,7 @@ describe("D161 persistReactiveCollection and openPersistentReactive*", () => {
 				return Promise.resolve(0);
 			},
 		};
-		const list = reactiveList<number>([1], { graph: g, name: "errorList" });
+		const list = reactiveList<number>(g, [1], { name: "errorList" });
 		const persistence = persistReactiveCollection(g, list, {
 			kind: "reactiveList",
 			name: "errorList/persistence",
@@ -237,7 +237,7 @@ describe("D161 persistReactiveCollection and openPersistentReactive*", () => {
 				return Promise.resolve(0);
 			},
 		};
-		const list = reactiveList<number>([0], { graph: g, name: "disposeList" });
+		const list = reactiveList<number>(g, [0], { name: "disposeList" });
 		const persistence = persistReactiveCollection(g, list, {
 			kind: "reactiveList",
 			name: "disposeList/persistence",
@@ -284,7 +284,7 @@ describe("D161 persistReactiveCollection and openPersistentReactive*", () => {
 			memoryAppendLog<ReactiveCollectionChangeFrame<"reactiveList", ListChange<number>>>(
 				"cadence-queued",
 			);
-		const list = reactiveList<number>([0], { graph: g, name: "cadenceQueued" });
+		const list = reactiveList<number>(g, [0], { name: "cadenceQueued" });
 		const persistence = persistReactiveCollection(g, list, {
 			kind: "reactiveList",
 			name: "cadenceQueued/persistence",
@@ -317,7 +317,7 @@ describe("D161 persistReactiveCollection and openPersistentReactive*", () => {
 		const other = graph();
 		const snapshots = memoryKv<unknown>();
 		const changes = memoryAppendLog<unknown>("crossGraph/changes");
-		const list = reactiveList<number>([], { graph: owner, name: "ownedList" });
+		const list = reactiveList<number>(owner, [], { name: "ownedList" });
 
 		expect(() =>
 			persistReactiveCollection(other, list, {
@@ -384,7 +384,7 @@ describe("D161 persistReactiveCollection and openPersistentReactive*", () => {
 				return Promise.resolve(writes.length);
 			},
 		};
-		const list = reactiveList<number>([0], { graph: g, name: "queued" });
+		const list = reactiveList<number>(g, [0], { name: "queued" });
 		const persistence = persistReactiveCollection(g, list, {
 			kind: "reactiveList",
 			name: "queued/persistence",
@@ -431,8 +431,7 @@ describe("D161 persistReactiveCollection and openPersistentReactive*", () => {
 				"open-list",
 			);
 
-		const opened = await openPersistentReactiveList<number>({
-			graph: g,
+		const opened = await openPersistentReactiveList<number>(g, {
 			name: "list",
 			initial: [10],
 			snapshotStore: snapshots,
@@ -444,8 +443,7 @@ describe("D161 persistReactiveCollection and openPersistentReactive*", () => {
 		await waitControl((done) => opened.persistence.flush(done));
 		await waitControl((done) => opened.persistence.snapshot(done));
 
-		const reopened = await openPersistentReactiveList<number>({
-			graph: graph(),
+		const reopened = await openPersistentReactiveList<number>(graph(), {
 			name: "list",
 			initial: [999],
 			snapshotStore: snapshots,
@@ -467,8 +465,7 @@ describe("D161 persistReactiveCollection and openPersistentReactive*", () => {
 			memoryAppendLog<ReactiveCollectionChangeFrame<"reactiveList", ListChange<number>>>(
 				"default-key-list",
 			);
-		const opened = await openPersistentReactiveList<number>({
-			graph: graph(),
+		const opened = await openPersistentReactiveList<number>(graph(), {
 			name: "defaultList",
 			initial: [1],
 			snapshotStore: snapshots,
@@ -480,8 +477,7 @@ describe("D161 persistReactiveCollection and openPersistentReactive*", () => {
 		await waitControl((done) => opened.persistence.snapshot(done));
 		await waitControl((done) => opened.persistence.dispose(done));
 
-		const reopened = await openPersistentReactiveList<number>({
-			graph: graph(),
+		const reopened = await openPersistentReactiveList<number>(graph(), {
 			name: "defaultList",
 			initial: [999],
 			snapshotStore: snapshots,
@@ -493,8 +489,7 @@ describe("D161 persistReactiveCollection and openPersistentReactive*", () => {
 		await waitControl((done) => reopened.persistence.flush(done));
 		await waitControl((done) => reopened.persistence.dispose(done));
 
-		const third = await openPersistentReactiveList<number>({
-			graph: graph(),
+		const third = await openPersistentReactiveList<number>(graph(), {
 			name: "defaultList",
 			initial: [999],
 			snapshotStore: snapshots,
@@ -515,8 +510,7 @@ describe("D161 persistReactiveCollection and openPersistentReactive*", () => {
 			}),
 		);
 
-		const opened = await openPersistentReactiveLog<string>({
-			graph: graph(),
+		const opened = await openPersistentReactiveLog<string>(graph(), {
 			name: "log",
 			initial: ["ignored"],
 			snapshotStore: snapshots,
@@ -536,8 +530,7 @@ describe("D161 persistReactiveCollection and openPersistentReactive*", () => {
 			memoryAppendLog<ReactiveCollectionChangeFrame<"reactiveMap", MapChange<string, number>>>(
 				"open-map",
 			);
-		const openedMap = await openPersistentReactiveMap<string, number>({
-			graph: graph(),
+		const openedMap = await openPersistentReactiveMap<string, number>(graph(), {
 			name: "map",
 			initial: [["a", 1]],
 			snapshotStore: mapSnapshots,
@@ -550,8 +543,7 @@ describe("D161 persistReactiveCollection and openPersistentReactive*", () => {
 		await waitControl((done) => openedMap.persistence.snapshot(done));
 		await waitControl((done) => openedMap.persistence.dispose(done));
 
-		const reopenedMap = await openPersistentReactiveMap<string, number>({
-			graph: graph(),
+		const reopenedMap = await openPersistentReactiveMap<string, number>(graph(), {
 			name: "map",
 			initial: [["ignored", 999]],
 			snapshotStore: mapSnapshots,
@@ -567,8 +559,7 @@ describe("D161 persistReactiveCollection and openPersistentReactive*", () => {
 			memoryAppendLog<ReactiveCollectionChangeFrame<"reactiveIndex", IndexChange<string, number>>>(
 				"open-index",
 			);
-		const openedIndex = await openPersistentReactiveIndex<string, number>({
-			graph: graph(),
+		const openedIndex = await openPersistentReactiveIndex<string, number>(graph(), {
 			name: "index",
 			initial: [{ primary: "a", secondary: 1, value: 10 }],
 			snapshotStore: indexSnapshots,
@@ -581,8 +572,7 @@ describe("D161 persistReactiveCollection and openPersistentReactive*", () => {
 		await waitControl((done) => openedIndex.persistence.snapshot(done));
 		await waitControl((done) => openedIndex.persistence.dispose(done));
 
-		const reopenedIndex = await openPersistentReactiveIndex<string, number>({
-			graph: graph(),
+		const reopenedIndex = await openPersistentReactiveIndex<string, number>(graph(), {
 			name: "index",
 			initial: [{ primary: "ignored", secondary: 0, value: 999 }],
 			snapshotStore: indexSnapshots,

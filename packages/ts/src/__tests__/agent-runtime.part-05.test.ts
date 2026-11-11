@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { batch } from "../batch/batch.js";
 import type { DataIssue } from "../data/index.js";
 import { graph } from "../graph/graph.js";
 import {
@@ -466,7 +465,7 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 5", () => {
 		});
 
 		inputs.set(ready);
-		batch(() => {
+		g.batch(() => {
 			runRequests.set(requestToolProviderAdapterRun(ready, { runId: "node-run", attempt: 1 }));
 			runRequests.set(requestToolProviderAdapterRun(ready, { runId: "node-run", attempt: 2 }));
 		});
@@ -535,7 +534,7 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 5", () => {
 		});
 
 		inputs.set(ready);
-		batch(() => {
+		g.batch(() => {
 			runRequests.set(requestToolProviderAdapterRun(ready, { runId: "invalid-run", attempt: 1 }));
 			runRequests.set(requestToolProviderAdapterRun(ready, { runId: "invalid-run", attempt: 2 }));
 		});
@@ -642,11 +641,11 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 5", () => {
 			}
 		});
 
-		batch(() => {
+		evidenceGraph.batch(() => {
 			evidenceInputs.set(evidenceFirst);
 			evidenceInputs.set(evidenceSecond);
 		});
-		batch(() => {
+		evidenceGraph.batch(() => {
 			evidenceRunRequests.set(
 				requestToolProviderAdapterRun(evidenceFirst, {
 					runId: "evidence-score-a-1",
@@ -814,7 +813,7 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 5", () => {
 			}
 		});
 
-		batch(() => {
+		g.batch(() => {
 			inputs.set(first);
 			inputs.set(second);
 		});
@@ -908,12 +907,12 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 5", () => {
 			}
 		});
 
-		batch(() => {
+		g.batch(() => {
 			inputs.set(first);
 			inputs.set(second);
 			inputs.set(first);
 		});
-		batch(() => {
+		g.batch(() => {
 			runRequests.set(requestToolProviderAdapterRun(first, { runId: "refreshed-first" }));
 			runRequests.set(requestToolProviderAdapterRun(second, { runId: "trimmed-second" }));
 		});

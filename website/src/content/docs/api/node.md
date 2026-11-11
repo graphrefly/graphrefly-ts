@@ -22,16 +22,16 @@ class Node
 ## Example
 
 ```ts
-import { node } from "@graphrefly/ts/core";
+import { graph } from "@graphrefly/ts/graph";
 
-const source = node<number>([], null);
-source.subscribe((value) => console.log(value));
-source.down([["DATA", 1]]);
+const source = graph().state<number>(0);
+source.subscribe((msgs) => console.log(msgs));
+source.set(1);
 ```
 
 ## Remarks
 
-- **Substrate primitive:** `Node` is graph-agnostic; use `graph().node`, `graph().state`, or `graph().derived` when you want inspection and lifecycle ownership.
+- **Built by a graph:** every node belongs to one graph's domain (R-graph-domain@3); build it with `graph().node`, `graph().state` or `graph().derived`. There is no standalone node.
 
 ## Source
 

@@ -1,7 +1,6 @@
 /** Real cold assembly and finite offline inputs, shared wiring only (not verifier logic). */
 import assert from "node:assert/strict";
 import { buildSpendingPublication } from "../../examples/spending-alerts/causal-publication.js";
-import { batch } from "../../packages/ts/src/batch/batch.js";
 import type { NodeFn } from "../../packages/ts/src/ctx/types.js";
 import { Dispatcher } from "../../packages/ts/src/dispatcher/index.js";
 import {
@@ -223,12 +222,12 @@ export function publicationRun(
 		observeStop = undefined;
 	};
 	const send = (lane: keyof typeof sources, ...values: unknown[]) =>
-		batch(() => {
+		graph.batch(() => {
 			for (const v of values) sources[lane].set(v as never);
 		});
 	const frames = (values: unknown[]) => {
 		currentMaterial = values.at(-1);
-		batch(() => {
+		graph.batch(() => {
 			for (const value of values) material.set(value);
 		});
 	};

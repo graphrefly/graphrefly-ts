@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { batch } from "../batch/batch.js";
 import { graph } from "../graph/graph.js";
 import type {
 	WorkItemEffectRequested,
@@ -369,7 +368,7 @@ describe("WorkItem authoring, verification, and scheduling surface (D333-D343) â
 		const issues = collectData(mapper.issues);
 
 		facts.set(workItemCreatedFromDraft("wi-1", draft()));
-		batch(() => {
+		g.batch(() => {
 			policies.set({
 				kind: "work-item-verification-mapping-policy",
 				policyId: "bad-policy",

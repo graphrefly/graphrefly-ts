@@ -11,7 +11,6 @@ import type {
 	LocalAuthorityFrame,
 	VerificationFrame,
 } from "../../examples/spending-alerts/causal-inputs.js";
-import { batch } from "../../packages/ts/src/batch/batch.js";
 import { Graph } from "../../packages/ts/src/graph/graph.js";
 import { checkpointStateOfNode } from "../../packages/ts/src/node/runtime-accessors.js";
 import type { RuntimeState } from "../../packages/ts/src/solutions/causal-occurrence/contracts.js";
@@ -83,7 +82,7 @@ export function runHost(
 	const drive = (evaluations: readonly Evaluation[]) => {
 		const facts = evaluations.map((e) => policyFacts(e));
 		send("pack", evaluationPack(evaluations));
-		batch(() => {
+		graph.batch(() => {
 			send("current", { ...facts[0].current, current: facts.flatMap((f) => f.current.current) });
 			send("verification", {
 				...facts[0].verification,

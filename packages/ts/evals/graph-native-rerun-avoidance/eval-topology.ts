@@ -1,4 +1,3 @@
-import { batch } from "../../src/batch/batch.js";
 import { type Ctx, depBatch, depLatest } from "../../src/ctx/types.js";
 import { type Graph, graph } from "../../src/graph/graph.js";
 import type { ObserveEvent } from "../../src/graph/inspect.js";

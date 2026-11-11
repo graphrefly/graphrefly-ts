@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { batch } from "../batch/batch.js";
 import { depBatch } from "../ctx/types.js";
 import { graph } from "../graph/graph.js";
 import type { BoundaryCapabilityKind } from "../inspection/boundary.js";
@@ -237,7 +236,7 @@ describe("WorkItem domain action admission and application (D239/D333-D343) — 
 			...capabilityAdmission("boundary-auth", "allowed"),
 			sourceRefs: { kind: "not-an-array", id: "bad" },
 		} as unknown as CapabilityAdmission);
-		batch(() => {
+		g.batch(() => {
 			capabilityAdmissionStatus.set({
 				kind: "capability-admission-status",
 				statusId: "bad-status-issue",

@@ -1,6 +1,5 @@
 /** Minimal host-boundary counterexample; no production effect or I/O. */
 import { expect, it } from "vitest";
-import { batch } from "../batch/batch.js";
 import { depBatch } from "../ctx/types.js";
 import { Graph } from "../graph/graph.js";
 
@@ -30,7 +29,7 @@ it("an outer batch can produce completion after the wrapped source call has retu
 		ingress(1);
 		expect(delivered).toEqual([1]);
 		trace.length = 0;
-		batch(() => ingress(2));
+		graph.batch(() => ingress(2));
 		expect(trace).toEqual(["wrapped-return", "guard:2"]);
 		expect(delivered).toEqual([1]);
 		expect(pending).toEqual([2]);

@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { batch } from "../batch/batch.js";
 import {
 	constructionOf,
 	prepareConstruction,
@@ -109,7 +108,7 @@ function fixture(maxOccurrences = 8, viewFirst = false) {
 	scope.transferToGraph(owner);
 	startConstruction(graph, owner);
 	function send(lane: keyof typeof sources, ...values: unknown[]) {
-		batch(() => {
+		graph.batch(() => {
 			for (const v of values) asState(sources[lane]).set(v);
 		});
 	}

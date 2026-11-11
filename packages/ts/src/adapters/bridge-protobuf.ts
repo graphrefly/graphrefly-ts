@@ -1,4 +1,8 @@
-// D497 canonical protobuf profile for the D134/D496 wire bridge envelope subset.
+// D497 canonical protobuf profile for the D134 wire bridge envelope subset and the R-bridge
+// wire edge cause (graphrefly:D803).
+
+import type { Message, Wave } from "../protocol/messages.js";
+import type { WireEdgeCause, WireEdgeCauseEdge } from "./bridge-wire-edge-group.js";
 
 export type CanonicalProtobufErrorCategory =
 	| "unknown_field"
@@ -42,14 +46,7 @@ export interface CanonicalWireBridgeMetadata {
 
 export type CanonicalWireBridgeDataBody =
 	| { readonly kind: "value"; readonly value: Uint8Array }
-	| { readonly kind: "wire_edge"; readonly frame: CanonicalWireEdgeFrame };
-
-export interface CanonicalWireEdgeFrame {
-	readonly kind: "pending" | "data";
-	readonly edgeId: string;
-	readonly causeId: string;
-	readonly value?: Uint8Array;
-}
+	| { readonly kind: "edge_cause"; readonly cause: WireEdgeCause };
 
 export type CanonicalWireBridgePayload =
 	| { readonly kind: "start" }
@@ -102,44 +99,44 @@ export function decodeCanonicalWireBridgeEnvelope(bytes: Uint8Array): CanonicalW
 }
 
 /**
- * Decodes canonical wire edge frame bytes.
+ * Decodes canonical `WireEdgeCause` bytes (R-bridge@1) into a wire edge group frame.
  *
  * @param bytes - Canonical bytes to decode.
- * @returns The decoded canonical frame or envelope.
+ * @returns The frame, for a {@link frameSource}'s deliver.
  * @category adapters
  * @example
  * ```ts
- * import { decodeCanonicalWireEdgeFrame } from "@graphrefly/ts/adapters";
+ * import { decodeCanonicalWireEdgeCause } from "@graphrefly/ts/adapters";
  * ```
  */
-export function decodeCanonicalWireEdgeFrame(bytes: Uint8Array): CanonicalWireEdgeFrame {
+export function decodeCanonicalWireEdgeCause(bytes: Uint8Array): WireEdgeCause {
 	const input = Uint8Array.from(bytes);
-	const frame = parseWireEdgeFrame(input);
-	validateWireEdgeFrame(frame);
-	const canonical = encodeWireEdgeFrame(frame);
+	const cause = parseWireEdgeCause(input);
+	validateWireEdgeCause(cause);
+	const canonical = encodeWireEdgeCause(cause);
 	if (!bytesEqual(input, canonical)) {
 		throw new CanonicalProtobufError(
 			"noncanonical_bytes",
-			"WireEdgeFrame bytes are not canonical deterministic protobuf",
+			"WireEdgeCause bytes are not canonical deterministic protobuf",
 		);
 	}
-	return frame;
+	return cause;
 }
 
 /**
- * Encodes canonical wire edge frame data.
+ * Encodes a wire edge group frame as canonical `WireEdgeCause` bytes (R-bridge@1).
  *
- * @param frame - Frame to encode.
+ * @param cause - The frame to encode.
  * @returns Canonical encoded bytes.
  * @category adapters
  * @example
  * ```ts
- * import { encodeCanonicalWireEdgeFrame } from "@graphrefly/ts/adapters";
+ * import { encodeCanonicalWireEdgeCause } from "@graphrefly/ts/adapters";
  * ```
  */
-export function encodeCanonicalWireEdgeFrame(frame: CanonicalWireEdgeFrame): Uint8Array {
-	validateWireEdgeFrame(frame);
-	return encodeWireEdgeFrame(frame);
+export function encodeCanonicalWireEdgeCause(cause: WireEdgeCause): Uint8Array {
+	validateWireEdgeCause(cause);
+	return encodeWireEdgeCause(cause);
 }
 
 /**
@@ -309,72 +306,121 @@ function parseDataPayload(bytes: Uint8Array): CanonicalWireBridgeDataBody {
 		bytes,
 		new Map([
 			[1, 2],
-			[2, 2],
+			[3, 2],
 		]),
 		"WireBridgeDataPayload",
 	);
 	const value = bytesField(fields, 1);
-	const wireEdge = bytesField(fields, 2);
-	if (value !== undefined && wireEdge !== undefined) {
+	const edgeCause = bytesField(fields, 3);
+	if (value !== undefined && edgeCause !== undefined) {
 		throw new CanonicalProtobufError(
 			"invalid_oneof",
 			"WireBridgeDataPayload body has multiple cases",
 		);
 	}
 	if (value !== undefined) return { kind: "value", value };
-	if (wireEdge !== undefined) return { kind: "wire_edge", frame: parseWireEdgeFrame(wireEdge) };
+	if (edgeCause !== undefined) return { kind: "edge_cause", cause: parseWireEdgeCause(edgeCause) };
 	throw new CanonicalProtobufError("missing_required", "WireBridgeDataPayload missing body");
 }
 
-function parseWireEdgeFrame(bytes: Uint8Array): CanonicalWireEdgeFrame {
+const MESSAGE_TYPES: ReadonlyArray<Message[0] | undefined> = [
+	undefined,
+	"START",
+	"PENDING",
+	"DATA",
+	"RESOLVED",
+	"INVALIDATE",
+	"COMPLETE",
+	"ERROR",
+];
+const CROSSING_TYPES = new Set<string>(["DATA", "INVALIDATE", "COMPLETE", "ERROR"]);
+
+function parseWireEdgeCause(bytes: Uint8Array): WireEdgeCause {
+	const fields = readFields(
+		bytes,
+		new Map([
+			[1, 2],
+			[2, 2],
+			[3, 0],
+			[4, 2],
+		]),
+		"WireEdgeCause",
+		new Set([4]),
+	);
+	const group = bytesField(fields, 1);
+	const session = bytesField(fields, 2);
+	const cause = uintField(fields, 3);
+	if (group === undefined || session === undefined || cause === undefined) {
+		throw new CanonicalProtobufError("missing_required", "WireEdgeCause missing required fields");
+	}
+	if (cause === 0n) {
+		throw new CanonicalProtobufError("default_emission", "WireEdgeCause cause counts from 1");
+	}
+	if (cause > BigInt(Number.MAX_SAFE_INTEGER)) {
+		throw new CanonicalProtobufError("malformed", "WireEdgeCause cause exceeds a safe integer");
+	}
+	return {
+		group: utf8String(group, "group"),
+		session: utf8String(session, "session"),
+		cause: Number(cause),
+		edges: fields
+			.filter((field) => field.no === 4)
+			.map((field) => parseWireEdgeArrays(field.value as Uint8Array)),
+	};
+}
+
+function parseWireEdgeArrays(bytes: Uint8Array): WireEdgeCauseEdge {
+	const fields = readFields(
+		bytes,
+		new Map([
+			[1, 2],
+			[2, 2],
+		]),
+		"WireEdgeArrays",
+		new Set([2]),
+	);
+	const edgeId = bytesField(fields, 1);
+	if (edgeId === undefined) {
+		throw new CanonicalProtobufError("missing_required", "WireEdgeArrays missing edge_id");
+	}
+	return {
+		edgeId: utf8String(edgeId, "edge_id"),
+		arrays: fields
+			.filter((field) => field.no === 2)
+			.map((field) => parseWave(field.value as Uint8Array)),
+	};
+}
+
+function parseWave(bytes: Uint8Array): Wave {
+	const fields = readFields(bytes, new Map([[1, 2]]), "Wave", new Set([1]));
+	return fields.map((field) => parseMessage(field.value as Uint8Array));
+}
+
+function parseMessage(bytes: Uint8Array): Message {
 	const fields = readFields(
 		bytes,
 		new Map([
 			[1, 0],
 			[2, 2],
-			[3, 2],
-			[4, 2],
 		]),
-		"WireEdgeFrame",
+		"Message",
 	);
-	const kind = uintField(fields, 1);
-	const edge = bytesField(fields, 2);
-	const cause = bytesField(fields, 3);
-	const value = bytesField(fields, 4);
-	if (kind === undefined || edge === undefined || cause === undefined) {
-		throw new CanonicalProtobufError("missing_required", "WireEdgeFrame missing required fields");
+	const typeNo = uintField(fields, 1);
+	const data = bytesField(fields, 2);
+	const type = typeNo === undefined || typeNo > 7n ? undefined : MESSAGE_TYPES[Number(typeNo)];
+	if (type === undefined) {
+		throw new CanonicalProtobufError("invalid_wire_edge", "Message type is not a message type");
 	}
-	if (edge.length === 0 || cause.length === 0) {
-		throw new CanonicalProtobufError(
-			"missing_required",
-			"WireEdgeFrame edge_id/cause_id must be non-empty",
-		);
-	}
-	if (kind === 1n) {
-		if (value !== undefined) {
-			throw new CanonicalProtobufError(
-				"invalid_wire_edge",
-				"PENDING WireEdgeFrame must not carry value",
-			);
+	if (type === "DATA" || type === "ERROR") {
+		if (data === undefined) {
+			throw new CanonicalProtobufError("invalid_wire_edge", `${type} requires value bytes`);
 		}
-		return {
-			kind: "pending",
-			edgeId: utf8String(edge, "edge_id"),
-			causeId: utf8String(cause, "cause_id"),
-		};
+		return [type, data];
 	}
-	if (kind === 2n) {
-		if (value === undefined) {
-			throw new CanonicalProtobufError("invalid_wire_edge", "DATA WireEdgeFrame requires value");
-		}
-		return {
-			kind: "data",
-			edgeId: utf8String(edge, "edge_id"),
-			causeId: utf8String(cause, "cause_id"),
-			value,
-		};
+	if (data !== undefined) {
+		throw new CanonicalProtobufError("invalid_wire_edge", `${type} must not carry data`);
 	}
-	throw new CanonicalProtobufError("invalid_wire_edge", "WireEdgeFrame kind is invalid");
+	return [type] as Message;
 }
 
 function validateWireBridgeEnvelope(envelope: CanonicalWireBridgeEnvelope): void {
@@ -446,8 +492,8 @@ function validatePayloadDto(payload: CanonicalWireBridgePayload): void {
 				assertUint8Array(payload.body.value, "WireBridgeDataPayload value");
 				return;
 			}
-			if (payload.body.kind === "wire_edge") {
-				validateWireEdgeFrame(payload.body.frame);
+			if (payload.body.kind === "edge_cause") {
+				validateWireEdgeCause(payload.body.cause);
 				return;
 			}
 			throw new CanonicalProtobufError(
@@ -476,39 +522,85 @@ function validatePayloadDto(payload: CanonicalWireBridgePayload): void {
 	}
 }
 
-function validateWireEdgeFrame(frame: CanonicalWireEdgeFrame): void {
-	if (!isRecord(frame)) {
-		throw new CanonicalProtobufError("malformed", "WireEdgeFrame DTO must be an object");
+/**
+ * R-bridge@1: a cause carries at least one edge, each edge once and with at least one array, and
+ * each array holds only DATA, INVALIDATE, COMPLETE and ERROR, a terminal last and no array after
+ * the edge's terminal; DATA and ERROR carry bytes, the others nothing.
+ * @internal
+ */
+export function validateWireEdgeCause(cause: WireEdgeCause): void {
+	if (!isRecord(cause)) {
+		throw new CanonicalProtobufError("malformed", "WireEdgeCause DTO must be an object");
 	}
-	if (typeof frame.edgeId !== "string" || typeof frame.causeId !== "string") {
-		throw new CanonicalProtobufError(
-			"missing_required",
-			"WireEdgeFrame edge_id/cause_id are required",
-		);
+	if (typeof cause.group !== "string" || cause.group.length === 0) {
+		throw new CanonicalProtobufError("missing_required", "WireEdgeCause group is required");
 	}
-	if (frame.edgeId.length === 0 || frame.causeId.length === 0) {
-		throw new CanonicalProtobufError(
-			"missing_required",
-			"WireEdgeFrame edge_id/cause_id must be non-empty",
-		);
+	if (typeof cause.session !== "string" || cause.session.length === 0) {
+		throw new CanonicalProtobufError("missing_required", "WireEdgeCause session is required");
 	}
-	switch (frame.kind) {
-		case "pending":
-			if (frame.value !== undefined) {
+	if (!Number.isSafeInteger(cause.cause) || cause.cause < 1) {
+		throw new CanonicalProtobufError("missing_required", "WireEdgeCause cause counts from 1");
+	}
+	if (!Array.isArray(cause.edges) || cause.edges.length === 0) {
+		throw new CanonicalProtobufError("invalid_wire_edge", "WireEdgeCause carries no edge");
+	}
+	const seen = new Set<string>();
+	for (const edge of cause.edges) {
+		if (!isRecord(edge) || typeof edge.edgeId !== "string" || edge.edgeId.length === 0) {
+			throw new CanonicalProtobufError("missing_required", "WireEdgeArrays edge_id is required");
+		}
+		if (seen.has(edge.edgeId)) {
+			throw new CanonicalProtobufError("invalid_wire_edge", `edge ${edge.edgeId} twice in a cause`);
+		}
+		seen.add(edge.edgeId);
+		if (!Array.isArray(edge.arrays) || edge.arrays.length === 0) {
+			throw new CanonicalProtobufError("invalid_wire_edge", `edge ${edge.edgeId} carries no array`);
+		}
+		let ended = false;
+		for (const wave of edge.arrays) {
+			if (!Array.isArray(wave) || wave.length === 0) {
 				throw new CanonicalProtobufError(
 					"invalid_wire_edge",
-					"PENDING WireEdgeFrame must not carry value",
+					`edge ${edge.edgeId}: an empty array`,
 				);
 			}
-			return;
-		case "data":
-			if (frame.value === undefined) {
-				throw new CanonicalProtobufError("invalid_wire_edge", "DATA WireEdgeFrame requires value");
+			if (ended) {
+				throw new CanonicalProtobufError(
+					"invalid_wire_edge",
+					`edge ${edge.edgeId}: an array after its terminal`,
+				);
 			}
-			assertUint8Array(frame.value, "WireEdgeFrame value");
-			return;
-		default:
-			throw new CanonicalProtobufError("invalid_wire_edge", "WireEdgeFrame kind is invalid");
+			wave.forEach((m, i) => {
+				if (!Array.isArray(m) || !CROSSING_TYPES.has(m[0] as string)) {
+					throw new CanonicalProtobufError(
+						"invalid_wire_edge",
+						`edge ${edge.edgeId}: ${String((m as unknown as unknown[] | undefined)?.[0])} does not cross`,
+					);
+				}
+				if (m[0] === "DATA" || m[0] === "ERROR") {
+					if (!(m[1] instanceof Uint8Array)) {
+						throw new CanonicalProtobufError(
+							"invalid_wire_edge",
+							`edge ${edge.edgeId}: ${m[0]} requires value bytes`,
+						);
+					}
+				} else if (m.length !== 1) {
+					throw new CanonicalProtobufError(
+						"invalid_wire_edge",
+						`edge ${edge.edgeId}: ${m[0]} must not carry data`,
+					);
+				}
+				if (m[0] === "COMPLETE" || m[0] === "ERROR") {
+					if (i !== wave.length - 1) {
+						throw new CanonicalProtobufError(
+							"invalid_wire_edge",
+							`edge ${edge.edgeId}: a terminal not last`,
+						);
+					}
+					ended = true;
+				}
+			});
+		}
 	}
 }
 
@@ -530,17 +622,31 @@ function encodeDataPayload(body: CanonicalWireBridgeDataBody): Uint8Array {
 	if (body.kind === "value") {
 		out.bytesField(1, body.value);
 	} else {
-		out.messageField(2, encodeWireEdgeFrame(body.frame));
+		out.messageField(3, encodeWireEdgeCause(body.cause));
 	}
 	return out.finish();
 }
 
-function encodeWireEdgeFrame(frame: CanonicalWireEdgeFrame): Uint8Array {
+function encodeWireEdgeCause(cause: WireEdgeCause): Uint8Array {
 	const out = new ByteWriter();
-	out.varintField(1, frame.kind === "pending" ? 1n : 2n);
-	out.stringField(2, frame.edgeId);
-	out.stringField(3, frame.causeId);
-	if (frame.value !== undefined) out.bytesField(4, frame.value);
+	out.stringField(1, cause.group);
+	out.stringField(2, cause.session);
+	out.varintField(3, BigInt(cause.cause));
+	for (const edge of cause.edges) {
+		const arrays = new ByteWriter();
+		arrays.stringField(1, edge.edgeId);
+		for (const wave of edge.arrays) {
+			const w = new ByteWriter();
+			for (const m of wave) {
+				const msg = new ByteWriter();
+				msg.varintField(1, BigInt(MESSAGE_TYPES.indexOf(m[0])));
+				if (m[0] === "DATA" || m[0] === "ERROR") msg.bytesField(2, m[1] as Uint8Array);
+				w.messageField(1, msg.finish());
+			}
+			arrays.messageField(2, w.finish());
+		}
+		out.messageField(4, arrays.finish());
+	}
 	return out.finish();
 }
 
@@ -589,7 +695,12 @@ function requireEmptyMessage(bytes: Uint8Array, name: string): void {
 	}
 }
 
-function readFields(bytes: Uint8Array, allowed: Map<number, number>, messageName: string): Field[] {
+function readFields(
+	bytes: Uint8Array,
+	allowed: Map<number, number>,
+	messageName: string,
+	repeated: ReadonlySet<number> = new Set(),
+): Field[] {
 	const reader = new ByteReader(bytes);
 	const fields: Field[] = [];
 	const seen = new Set<number>();
@@ -610,7 +721,7 @@ function readFields(bytes: Uint8Array, allowed: Map<number, number>, messageName
 				`${messageName} field ${fieldNo} has wrong wire type`,
 			);
 		}
-		if (seen.has(fieldNo)) {
+		if (seen.has(fieldNo) && !repeated.has(fieldNo)) {
 			throw new CanonicalProtobufError(
 				"duplicate_singular",
 				`${messageName} field ${fieldNo} is duplicated`,

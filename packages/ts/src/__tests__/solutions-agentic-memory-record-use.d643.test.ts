@@ -1,5 +1,4 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
-import { batch } from "../batch/batch.js";
 import { depBatch } from "../ctx/types.js";
 import { graph } from "../graph/graph.js";
 import * as packageRoot from "../index.js";
@@ -809,7 +808,7 @@ describe("AgenticMemory D789 real keyed exact-use lifecycle", () => {
 			},
 		});
 		expect(() =>
-			batch(() => {
+			g.batch(() => {
 				input.set({ ...a, value: { ...a.value, request: hostileRequest } });
 				input.set({ ...b, value: { ...b.value, records: hostileRecords } });
 				input.set(useOccurrence("valid"));
@@ -935,7 +934,7 @@ describe("AgenticMemory D789 real keyed exact-use lifecycle", () => {
 		const input = g.node<AgenticMemoryRecordUseOccurrence<string>>([], null);
 		const gate = agenticMemoryRecordUseGateBundle(g, { occurrences: input, maxOccurrences: 1 });
 		const observed = collect(gate.allowedRecords);
-		batch(() => {
+		g.batch(() => {
 			input.set(useOccurrence("same", 1));
 			input.set(useOccurrence("same", 2));
 		});
@@ -960,7 +959,7 @@ describe("AgenticMemory D789 real keyed exact-use lifecycle", () => {
 		const b = useOccurrence("b");
 		const order = delivery === "reordered" ? [b, a] : [a, b];
 		if (delivery === "batched")
-			batch(() => {
+			g.batch(() => {
 				for (const value of order) asState(input).set(value);
 			});
 		else for (const value of order) input.set(value);
@@ -975,7 +974,7 @@ describe("AgenticMemory D789 real keyed exact-use lifecycle", () => {
 			expect(value.occurrenceDigest).toBe(order[index]?.occurrenceDigest);
 			expect(value.value).toBe(observed.values[index]?.value.allowedRecords);
 		}
-		batch(() => {
+		g.batch(() => {
 			for (const value of order) asState(input).set(value);
 		});
 		expect(observed.values).toHaveLength(2);
@@ -1011,7 +1010,7 @@ describe("AgenticMemory D789 real keyed exact-use lifecycle", () => {
 				},
 			};
 		};
-		batch(() => {
+		g.batch(() => {
 			input.set(make("deny", "denied"));
 			input.set(make("missing", "missing"));
 			input.set(make("duplicate", "duplicate"));
@@ -1060,7 +1059,7 @@ describe("AgenticMemory D789 real keyed exact-use lifecycle", () => {
 		rejectsIn(
 			g,
 			() =>
-				batch(() => {
+				g.batch(() => {
 					input.set(useOccurrence("b"));
 					input.set(bad);
 				}),
@@ -1103,7 +1102,7 @@ describe("AgenticMemory D789 real keyed exact-use lifecycle", () => {
 		const gate = agenticMemoryRecordUseGateBundle(g, { occurrences: input, maxOccurrences: 1 });
 		const a = useOccurrence("a");
 		const first = collect(gate.snapshot);
-		batch(() => {
+		g.batch(() => {
 			input.set(a);
 			input.set(a);
 		});

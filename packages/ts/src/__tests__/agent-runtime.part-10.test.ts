@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { batch } from "../batch/batch.js";
 import { graph } from "../graph/graph.js";
 import { compoundTupleKey } from "../identity.js";
 import {
@@ -613,7 +612,7 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 10", () => {
 			}
 		});
 		workItems.set(workItemSeed("wi-1"));
-		batch(() => {
+		g.batch(() => {
 			effectRequests.set({
 				kind: "work-item-effect-requested",
 				requestId: "wi-effect-1",

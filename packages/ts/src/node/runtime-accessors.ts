@@ -1,3 +1,4 @@
+import type { Dispatcher } from "../dispatcher/index.js";
 import type { EnvironmentDrivers } from "../graph/environment.js";
 import type { NodeCore } from "./core.js";
 import type { Node } from "./node.js";
@@ -13,6 +14,8 @@ type TopologyDepsChangedObserver = (
 ) => void;
 
 let constructingCore: NodeCore | undefined;
+/** The dispatcher a node built in a staged or running graph takes when its options name none. */
+let constructingDispatcher: Dispatcher | undefined;
 let constructingEnvironment: EnvironmentDrivers | undefined;
 // D167: exact issued identity, runtime access and optional attachments share one owner record.
 type NodeRegistration =
@@ -63,14 +66,25 @@ export function nodeBackendContributor(node: Node<unknown>): (() => unknown) | u
 export function withNodeCore<TNode extends Node<unknown>>(
 	core: NodeCore,
 	create: () => TNode,
+	dispatcher?: Dispatcher,
 ): TNode {
 	const prev = constructingCore;
+	const prevDispatcher = constructingDispatcher;
 	constructingCore = core;
+	constructingDispatcher = dispatcher;
 	try {
 		return create();
 	} finally {
 		constructingCore = prev;
+		constructingDispatcher = prevDispatcher;
 	}
+}
+
+/** @internal Consume the dispatcher staged with the core by withNodeCore. */
+export function takeConstructingDispatcher(): Dispatcher | undefined {
+	const dispatcher = constructingDispatcher;
+	constructingDispatcher = undefined;
+	return dispatcher;
 }
 
 /** @internal Consume the graph-local NodeCore staged by withNodeCore. */
@@ -78,6 +92,51 @@ export function takeConstructingNodeCore(): NodeCore | undefined {
 	const core = constructingCore;
 	constructingCore = undefined;
 	return core;
+}
+
+/**
+ * R-graph-domain@3 (graphrefly-ts:D179): the graph of the node whose function or setup is running.
+ * A node built during a run, with no graph staged for it, belongs to that run's graph (an inner of
+ * a *Map, a timer an operator opens). Nested runs (a write to another graph that runs at once)
+ * set and restore it.
+ */
+let runningCore: NodeCore | undefined;
+let runningEnvironment: EnvironmentDrivers | undefined;
+let runningDispatcher: Dispatcher | undefined;
+
+/** @internal Run a node's function or setup with its graph as the running graph. */
+export function withRunningGraph<R>(
+	core: NodeCore,
+	environment: EnvironmentDrivers,
+	dispatcher: Dispatcher,
+	run: () => R,
+): R {
+	const prevCore = runningCore;
+	const prevEnvironment = runningEnvironment;
+	const prevDispatcher = runningDispatcher;
+	runningCore = core;
+	runningEnvironment = environment;
+	runningDispatcher = dispatcher;
+	try {
+		return run();
+	} finally {
+		runningCore = prevCore;
+		runningEnvironment = prevEnvironment;
+		runningDispatcher = prevDispatcher;
+	}
+}
+
+/** @internal The running graph's core and drivers, for a node built during a run. */
+export function runningGraph():
+	| {
+			readonly core: NodeCore;
+			readonly environment: EnvironmentDrivers | undefined;
+			readonly dispatcher: Dispatcher | undefined;
+	  }
+	| undefined {
+	return runningCore === undefined
+		? undefined
+		: { core: runningCore, environment: runningEnvironment, dispatcher: runningDispatcher };
 }
 
 /** @internal Run a Node/StateNode constructor with graph-owned environment drivers (D130/D131). */

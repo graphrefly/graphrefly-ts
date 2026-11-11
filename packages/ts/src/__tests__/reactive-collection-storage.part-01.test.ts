@@ -474,15 +474,16 @@ describe("D172 agentic memory record persistence sidecar", () => {
 });
 
 describe("D161 synchronous restore helpers", () => {
-	it("restoreReactiveList and restoreReactiveLog seed graphless collections without storage reads", () => {
-		const list = restoreReactiveList({
+	it("restoreReactiveList and restoreReactiveLog seed collections without storage reads", () => {
+		const g = graph();
+		const list = restoreReactiveList(g, {
 			kind: "reactiveList",
 			state: [1, 2],
 			source: "snapshot",
 			snapshot: { found: true, changeCursor: -1 },
 			changes: { applied: 0, cursor: -1 },
 		});
-		const log = restoreReactiveLog({
+		const log = restoreReactiveLog(g, {
 			kind: "reactiveLog",
 			state: ["a"],
 			source: "changes",
@@ -499,7 +500,7 @@ describe("D161 synchronous restore helpers", () => {
 
 	it("restoreReactiveList can register graph/name collection ports", () => {
 		const g = graph();
-		const list = restoreReactiveList([1], { graph: g, name: "list" });
+		const list = restoreReactiveList(g, [1], { name: "list" });
 
 		expect(list.toArray()).toEqual([1]);
 		expect(g.describe().nodes.map((node) => node.id)).toEqual(
@@ -508,34 +509,36 @@ describe("D161 synchronous restore helpers", () => {
 	});
 
 	it("restoreReactiveList and restoreReactiveLog reject wrong-kind restore states", () => {
+		const g = graph();
 		const logState = {
 			kind: "reactiveLog",
 			state: ["x"],
 			source: "snapshot",
 			snapshot: { found: true, changeCursor: -1 },
 			changes: { applied: 0, cursor: -1 },
-		} as unknown as Parameters<typeof restoreReactiveList<string>>[0];
+		} as unknown as Parameters<typeof restoreReactiveList<string>>[1];
 		const listState = {
 			kind: "reactiveList",
 			state: ["x"],
 			source: "snapshot",
 			snapshot: { found: true, changeCursor: -1 },
 			changes: { applied: 0, cursor: -1 },
-		} as unknown as Parameters<typeof restoreReactiveLog<string>>[0];
+		} as unknown as Parameters<typeof restoreReactiveLog<string>>[1];
 
-		expect(() => restoreReactiveList(logState)).toThrow(/reactiveList/);
-		expect(() => restoreReactiveLog(listState)).toThrow(/reactiveLog/);
+		expect(() => restoreReactiveList(g, logState)).toThrow(/reactiveList/);
+		expect(() => restoreReactiveLog(g, listState)).toThrow(/reactiveLog/);
 	});
 
 	it("restoreReactiveMap and restoreReactiveIndex seed graph-registered backends", () => {
 		const g = graph();
-		const map = restoreReactiveMap<string, number>([["a", 1]], { graph: g, name: "map" });
+		const map = restoreReactiveMap<string, number>(g, [["a", 1]], { name: "map" });
 		const index = restoreReactiveIndex<string, number>(
+			g,
 			[
 				{ primary: "b", secondary: 2, value: 20 },
 				{ primary: "a", secondary: 1, value: 10 },
 			],
-			{ graph: g, name: "index" },
+			{ name: "index" },
 		);
 
 		map.set("b", 2);

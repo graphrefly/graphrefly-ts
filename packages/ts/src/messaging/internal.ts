@@ -1,4 +1,3 @@
-import { deferAfterBatchForTarget } from "../batch/batch.js";
 import type { NodeFn } from "../ctx/types.js";
 import type { Graph } from "../graph/graph.js";
 import type { AttachableInput } from "../node/attachable-input.js";

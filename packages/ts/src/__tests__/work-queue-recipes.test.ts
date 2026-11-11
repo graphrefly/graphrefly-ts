@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { batch } from "../batch/batch.js";
 import {
 	type ExecutorQueuedDispatchPayload,
 	executorWorkQueueRecipe,
@@ -93,7 +92,7 @@ describe("workQueue recipes (D327/D328/D331)", () => {
 		const evidence = collectData(recipe.evidence);
 		const issues = collectData(recipe.issues);
 
-		batch(() => {
+		g.batch(() => {
 			records.set({
 				kind: "work-admitted",
 				recordSeq: 1,
@@ -210,7 +209,7 @@ describe("workQueue recipes (D327/D328/D331)", () => {
 			planMemberId: "A",
 		});
 
-		batch(() => {
+		g.batch(() => {
 			records.set({
 				kind: "work-admitted",
 				recordSeq: 1,
@@ -264,7 +263,7 @@ describe("workQueue recipes (D327/D328/D331)", () => {
 		const attempts = collectData(recipe.attempts);
 		const commands = collectData(recipe.commands);
 
-		batch(() => {
+		g.batch(() => {
 			records.set({
 				kind: "work-admitted",
 				recordSeq: 1,
@@ -329,7 +328,7 @@ describe("workQueue recipes (D327/D328/D331)", () => {
 		const recipe = executorWorkQueueRecipe(g, { records, outcomes });
 		const commands = collectData(recipe.commands);
 
-		batch(() => {
+		g.batch(() => {
 			records.set({
 				kind: "work-admitted",
 				recordSeq: 1,
@@ -398,7 +397,7 @@ describe("workQueue recipes (D327/D328/D331)", () => {
 		expect(commands).toEqual([]);
 		expect(issues).toEqual([]);
 
-		batch(() => {
+		g.batch(() => {
 			records.set({
 				kind: "work-admitted",
 				recordSeq: 1,
@@ -441,7 +440,7 @@ describe("workQueue recipes (D327/D328/D331)", () => {
 		const commands = collectData(recipe.commands);
 		const issues = collectData(recipe.issues);
 
-		batch(() => {
+		g.batch(() => {
 			records.set({
 				kind: "work-admitted",
 				recordSeq: 1,
@@ -465,7 +464,7 @@ describe("workQueue recipes (D327/D328/D331)", () => {
 				recordedAtMs: 110,
 			} satisfies WorkQueueRecord<ExecutorPayload>);
 		});
-		batch(() => {
+		g.batch(() => {
 			outcomes.set({
 				kind: "result",
 				outcomeId: "out-result",

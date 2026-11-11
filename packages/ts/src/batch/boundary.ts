@@ -1,122 +1,100 @@
 /**
- * The wave-owner boundary + deferred self-rewire drain (R-rewire-deferred / D47).
+ * A graph's wave boundary and request queue (R-request-order, R-graph-domain@3).
  *
- * `ctx.rewire` defers a node's OWN dep-set mutation to the COMMITTED wave boundary.
- * The substrate has no such boundary on the raw call stack, so this module establishes one:
- * a module-global re-entrant DEPTH counter — the TS analogue of the Rust `WaveScope` /
- * `with_wave_owner` (graphrefly-rs B25, flagged forward-load-bearing for exactly this). JS is
- * single-threaded and waves are synchronous, so one cascade is on the stack at a time (same
- * rationale as `batch.ts`'s module-global `active`).
+ * Each graph owns one {@link WaveDomain}, held by its NodeCore: the depth of the wave being
+ * delivered, the queue of requests made during it, and its open batch body. Graphs share none of
+ * them (graphrefly:D803): a request to one graph is never held by another graph's wave or batch.
+ * Every wave origin of a graph brackets its synchronous cascade with {@link enterWave} /
+ * {@link exitWave} on that graph's domain; nested calls only count, and the outermost exit runs
+ * what was queued, in request order, each as a wave of its own.
  *
- * Every EXTERNAL wave origin brackets its synchronous cascade with {@link enterWave} /
- * {@link exitWave}: `Node.subscribe`/`Node.down`/`Node.up` (activation, state.set, control),
- * the async-pool `ctx.down` re-entry (which enters via the stashed ctx, NOT the public
- * method), and `batch()` (so the drain fires AFTER commit). Re-entrant (nested) calls just
- * inc/dec the counter; only the OUTERMOST exit (depth → 0) DRAINS the deferred-rewire queue.
- *
- * B49 migration: the deferred thunks now live on the graph-local NodeCore, not in this module.
- * This module keeps only the JS call-stack wave-owner depth plus a small FIFO of cores that
- * have work to drain. Per D22, a graph is the supported single-thread domain; cross-domain
- * coordination is the async wire bridge (D32), so the queued work for one legal synchronous cascade
- * belongs to one graph-local core. Standalone nodes keep their private core. Within a core, FIFO
- * issue order still gives the R-rewire-deferred drain order, and the scheduler records one core
- * token per queued task so mixed-core legal batches keep their enqueue order. Each queued mutation
- * runs as a fresh wave whose own `ctx.rewire` calls re-enqueue and drain in the same loop.
- *
- * C-25 / D110: queued boundary work is tagged with the batch frame that caused it (when any).
- * The drain applies only committed tasks; rollback drops the batch's tasks. Besides
- * `ctx.rewire`, a quiet node's in-run output is queued here (R-wave). Zero behavior change
- * when nothing is queued: the drain is one empty-queue check per outermost wave (F-PERF).
+ * Queued work is tagged with the batch frame that caused it (when any): only a committed frame's
+ * tasks run, and a rollback drops them (C-25 / D110). With nothing queued, the drain is one check
+ * per outermost wave.
  */
 
 import type { NodeCore } from "../node/core.js";
 
-let depth = 0;
-/** A queued task that belongs to no one core (a batch commit touches several). */
-interface DirectTask {
+export interface BoundaryTask {
 	readonly apply: () => void;
-}
-const pendingCores: Array<NodeCore | DirectTask> = [];
-let pendingHead = 0;
-/** Requests that run before everything queued (a committing batch's body requests). */
-let priority: Array<() => void> = [];
-
-/** @internal D161: construction is allowed only outside a synchronous cascade. */
-export function isWaveActive(): boolean {
-	return depth !== 0;
+	readonly batchToken?: object;
 }
 
-/** Enter a wave cascade (re-entrant). Pair with {@link exitWave} in a try/finally. */
-export function enterWave(): void {
-	depth++;
+/** One graph's wave, request queue and batch (R-graph-domain@3). */
+export interface WaveDomain {
+	depth: number;
+	queue: BoundaryTask[];
+	head: number;
+	/** Requests that run before everything queued (a committing batch's body requests). */
+	priority: Array<() => void>;
+	/** The open batch body, if any (batch.ts). */
+	batch: unknown;
+	/** The batch whose commit is being delivered, if any (batch.ts). */
+	boundaryOwner: unknown;
 }
 
-/** Exit a wave cascade; the OUTERMOST exit (depth → 0) drains the deferred-rewire queue. */
-export function exitWave(): void {
-	depth--;
-	if (depth === 0 && (priority.length > 0 || pendingHead < pendingCores.length)) drain();
+export function makeWaveDomain(): WaveDomain {
+	return { depth: 0, queue: [], head: 0, priority: [], batch: null, boundaryOwner: null };
 }
 
-/** R-request-order: queue a request that belongs to no one core. */
-export function deferDirect(apply: () => void): void {
-	pendingCores.push({ apply });
+/** True while this graph is delivering a wave (D161, R-checkpoint). */
+export function isWaveActive(core: NodeCore): boolean {
+	return core.domain.depth !== 0;
+}
+
+/** Enter a wave of this graph (re-entrant). Pair with {@link exitWave} in a try/finally. */
+export function enterWave(core: NodeCore): void {
+	core.domain.depth++;
+}
+
+/** Exit a wave of this graph; the outermost exit runs what was queued. */
+export function exitWave(core: NodeCore): void {
+	const d = core.domain;
+	d.depth--;
+	if (d.depth === 0 && (d.priority.length > 0 || d.head < d.queue.length)) drain(core);
 }
 
 /** R-request-order: a committing batch's requests run before anything its commit wave asks for. */
-export function deferFirst(ops: ReadonlyArray<() => void>): void {
-	priority = [...ops, ...priority];
+export function deferFirst(core: NodeCore, ops: ReadonlyArray<() => void>): void {
+	core.domain.priority = [...ops, ...core.domain.priority];
 }
 
 export interface DeferredBoundaryOptions {
 	readonly batchToken?: object;
 }
 
-/**
- * Queue a deferred self-rewire application, drained at the committed boundary
- * (R-rewire-deferred). The thunk applies one queued mutation to its owning node.
- */
-export function deferRewire(
+/** Queue a request of this graph, run after its current wave (R-request-order). */
+export function deferRequest(
 	core: NodeCore,
 	apply: () => void,
 	options: DeferredBoundaryOptions = {},
 ): void {
-	core.enqueueBoundaryTask({ apply, batchToken: options.batchToken });
-	pendingCores.push(core);
+	core.domain.queue.push({ apply, batchToken: options.batchToken });
 }
 
 /** D110: an uncommitted batch cannot leak queued boundary effects. */
-export function dropBoundaryTasksForBatch(batchToken: object): void {
-	const seen = new Set<NodeCore>();
-	for (let i = pendingHead; i < pendingCores.length; i++) {
-		const core = pendingCores[i] as NodeCore | DirectTask;
-		if ("apply" in core || seen.has(core)) continue;
-		seen.add(core);
-		core.dropBoundaryTasksForBatch(batchToken);
-	}
+export function dropBoundaryTasksForBatch(core: NodeCore, batchToken: object): void {
+	const d = core.domain;
+	d.queue = d.queue.slice(d.head).filter((task) => task.batchToken !== batchToken);
+	d.head = 0;
 }
 
-function drain(): void {
-	// Each applied rewire runs a fresh wave (its own depth-bracketed cascade) which may itself
-	// enqueue more ctx.rewire requests — appended and drained by this same FIFO loop
-	// (DrainExactlyOnce). The depth++ around apply() prevents the fresh wave's own outermost
-	// exit from re-entering drain (this loop owns the draining). A net-changing op re-issued
-	// every boundary (oscillation) is a user-level runaway, like an infinite producer — NOT a
-	// substrate-detected error (D47).
+function drain(core: NodeCore): void {
+	// Each queued request runs as a wave of its own and may queue more, which this loop runs too.
+	// The depth++ around each keeps that wave's own outermost exit from draining again.
 	//
-	// Per-thunk isolation: a thunk whose application throws (e.g. its _applyRewireNext error-route
-	// reaches a throwing external sink) must NOT abandon the rest of the queue — otherwise the
-	// stranded thunks would linger in this module-global queue and drain at an unrelated LATER
-	// wave boundary (a stale, misattributed rewire). Drain every thunk; re-surface the FIRST
-	// escape once the queue is empty so the error stays visible without corrupting the queue.
+	// A request whose application throws does not abandon the rest of the queue; with no host
+	// reporter, the first failure is re-thrown once the queue is empty.
+	const d = core.domain;
 	let escaped: { e: unknown } | null = null;
-	const run = (apply: () => void, core?: NodeCore): void => {
-		depth++;
+	const run = (apply: () => void): void => {
+		d.depth++;
 		try {
 			apply();
 		} catch (e) {
 			// R-request-order: a queued request's caller has returned, so its failure goes to the
 			// graph's host reporter; with none, it is re-thrown once the queue is empty.
-			const report = core?.report;
+			const report = core.report;
 			if (report !== undefined) {
 				try {
 					report({ source: "queued request", error: e });
@@ -125,22 +103,16 @@ function drain(): void {
 				}
 			} else if (escaped === null) escaped = { e };
 		} finally {
-			depth--;
+			d.depth--;
 		}
 	};
-	while (priority.length > 0 || pendingHead < pendingCores.length) {
-		const first = priority.shift();
+	while (d.priority.length > 0 || d.head < d.queue.length) {
+		const first = d.priority.shift();
 		if (first !== undefined) {
 			run(first);
 			continue;
 		}
-		const entry = pendingCores[pendingHead++] as NodeCore | DirectTask;
-		if ("apply" in entry) {
-			run(entry.apply);
-			continue;
-		}
-		const task = entry.shiftBoundaryTask();
-		if (task === undefined) continue;
+		const task = d.queue[d.head++] as BoundaryTask;
 		if (task.batchToken !== undefined) {
 			// A stale token means the batch never reached the committed boundary (D110). Rollback
 			// normally removes these before drain; this guard covers commit failures before the
@@ -148,9 +120,9 @@ function drain(): void {
 			const committed = (task.batchToken as { committed?: boolean }).committed === true;
 			if (!committed) continue;
 		}
-		run(task.apply, entry);
+		run(task.apply);
 	}
-	pendingCores.length = 0;
-	pendingHead = 0;
+	d.queue = [];
+	d.head = 0;
 	if (escaped !== null) throw (escaped as { e: unknown }).e;
 }

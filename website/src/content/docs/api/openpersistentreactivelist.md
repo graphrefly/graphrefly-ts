@@ -16,13 +16,17 @@ import { openPersistentReactiveList } from "@graphrefly/ts/adapters";
 ## Signature
 
 ```ts
-function openPersistentReactiveList(opts: OpenPersistentReactiveListOptions<T>): Promise<PersistentReactiveList<T>>
+function openPersistentReactiveList(
+	graph: Graph,
+	opts: OpenPersistentReactiveListOptions<T>,
+): Promise<PersistentReactiveList<T>>
 ```
 
 ## Parameters
 
 | Parameter | Type | Description |
 |---|---|---|
+| `graph` | `Graph` | The graph that builds the restored collection. |
 | `opts` | `OpenPersistentReactiveListOptions<T>` | Options that configure the helper. |
 
 ## Returns

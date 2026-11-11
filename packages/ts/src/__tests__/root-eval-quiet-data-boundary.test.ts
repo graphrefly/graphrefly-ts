@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { rootEvalQuietDataBoundary } from "../../evals/graph-native-rerun-avoidance/quiet-data-boundary.js";
-import { batch } from "../batch/batch.js";
 import { graph } from "../graph/graph.js";
 import { asState } from "./helpers/as-state.js";
 
@@ -24,10 +23,10 @@ describe("D151 quiet complete-DATA boundary", () => {
 		});
 		try {
 			const values = Array.from({ length: 6 }, (_, index) => ({ id: String(index), version: 1n }));
-			batch(() => {
+			owner.batch(() => {
 				for (const value of values) asState(input).set(value);
 			});
-			batch(() => {
+			owner.batch(() => {
 				input.set(values[0]);
 				input.set({ id: "6", version: 1n });
 			});
@@ -61,7 +60,7 @@ describe("D151 quiet complete-DATA boundary", () => {
 		try {
 			// R-failure@3: the rejection inside `validated` is its ERROR, not a host throw.
 			expect(() =>
-				batch(() => {
+				owner.batch(() => {
 					input.set({ id: "same", value: 1 });
 					input.set({ id: "same", value: 2 });
 				}),

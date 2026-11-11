@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { batch } from "../batch/batch.js";
 import { graph } from "../graph/graph.js";
 import {
 	type AgentDecisionContinue,
@@ -453,7 +452,7 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 1", () => {
 			sourceRefs: [{ kind: "agent-decision", id: "decision-continue" }],
 		});
 		const issued = issueAgentRequest(proposal, admitted);
-		batch(() => {
+		g.batch(() => {
 			requestFacts.set(proposal);
 			requestFacts.set(admitted);
 			requestFacts.set(issued);
@@ -603,7 +602,7 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 1", () => {
 			sourceRefs: [{ kind: "agent-decision", id: "decision-continue" }],
 		});
 		const issued = issueAgentRequest(proposal, admitted);
-		batch(() => {
+		g.batch(() => {
 			requestFacts.set(proposal);
 			requestFacts.set(admitted);
 			requestFacts.set(issued);
@@ -698,7 +697,7 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 1", () => {
 		const promptReq = issued("prompt-1", "prompt-op", "prompt");
 		const executorReq = issued("exec-1", "exec-op", "executor", "tool-call");
 
-		batch(() => {
+		g.batch(() => {
 			requestFacts.set(contextReq);
 			requestFacts.set(promptReq);
 			requestFacts.set(executorReq);

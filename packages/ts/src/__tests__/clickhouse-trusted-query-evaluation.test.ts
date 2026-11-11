@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { batch } from "../batch/batch.js";
 import { graph } from "../graph/graph.js";
 import { compoundTupleKey } from "../identity.js";
 import type {
@@ -382,7 +381,7 @@ describe("ClickHouse trusted-query evaluation contracts (D628)", () => {
 		const required = adapterInput("require");
 		const conflicting = adapterInput("auto");
 		expect(conflicting.adapterInputId).toBe(required.adapterInputId);
-		batch(() => {
+		g.batch(() => {
 			inputs.set(required);
 			inputs.set(conflicting);
 		});

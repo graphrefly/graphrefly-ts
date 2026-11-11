@@ -9,9 +9,8 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { batch } from "../batch/batch.js";
 import type { Ctx, Message } from "../index.js";
-import { depLatest, dynamicNode, fromPromise, graph, node } from "../index.js";
+import { depLatest, fromPromise, graph } from "../index.js";
 
 const types = (msgs: Message[]) => msgs.map((m) => m[0]);
 const _data = (msgs: Message[]) =>
@@ -43,8 +42,9 @@ describe("C-23 raw ctx waveData is the only dep-value input (R-fn-contract / R-c
 	it("exposes waveData/terminal, not depRecords/latest/prevData aliases", () => {
 		let seen: { waveData: unknown[][][]; terminal: unknown[]; hasDepRecords: boolean } | null =
 			null;
-		const a = node<number>([], null);
-		const n = node<number>(
+		const g = graph();
+		const a = g.node<number>([], null);
+		const n = g.node<number>(
 			[a],
 			(ctx) => {
 				seen = {
@@ -68,9 +68,10 @@ describe("C-23 raw ctx waveData is the only dep-value input (R-fn-contract / R-c
 
 	it("distinguishes no-wave, a split at INVALIDATE, null, and empty-array payloads", () => {
 		const captures: unknown[][][][] = [];
-		const a = node<unknown>([], null);
-		const b = node<unknown>([], null);
-		const n = node<unknown>(
+		const g = graph();
+		const a = g.node<unknown>([], null);
+		const b = g.node<unknown>([], null);
+		const n = g.node<unknown>(
 			[a, b],
 			(ctx) => {
 				captures.push(cloneWaveData(ctx));
@@ -83,7 +84,7 @@ describe("C-23 raw ctx waveData is the only dep-value input (R-fn-contract / R-c
 		expect(captures.at(-1)).toEqual([[], [["b"]]]);
 
 		// R-wave: the array is split at its last INVALIDATE; what came before it is dropped.
-		batch(() => {
+		g.batch(() => {
 			a.set(1);
 			a.set(2);
 			a.invalidate();
@@ -100,13 +101,14 @@ describe("C-23 raw ctx waveData is the only dep-value input (R-fn-contract / R-c
 
 	it("a RESOLVED-only wave is one empty array (the kernel settles a silent dependency)", () => {
 		const captures: unknown[][][][] = [];
-		const src = node<number>([], null, { initial: 0 });
+		const g = graph();
+		const src = g.node<number>([], null, { initial: 0 });
 		// a sends nothing for odd values, so the kernel settles it with RESOLVED.
-		const a = node<number>([src], (ctx) => {
+		const a = g.node<number>([src], (ctx) => {
 			const v = depLatest(ctx, 0) as number;
 			if (v % 2 === 0) ctx.down([["DATA", v]]);
 		});
-		const n = node<unknown>(
+		const n = g.node<unknown>(
 			[a],
 			(ctx) => {
 				captures.push(cloneWaveData(ctx));
@@ -121,8 +123,9 @@ describe("C-23 raw ctx waveData is the only dep-value input (R-fn-contract / R-c
 	it("keeps COMPLETE/ERROR out of waveData and in ctx.terminal", () => {
 		const terminals: unknown[][] = [];
 		const waves: unknown[][][][] = [];
-		const a = node<number>([], null);
-		const n = node<number>(
+		const g = graph();
+		const a = g.node<number>([], null);
+		const n = g.node<number>(
 			[a],
 			(ctx) => {
 				waves.push(cloneWaveData(ctx));
@@ -141,8 +144,8 @@ describe("C-23 raw ctx waveData is the only dep-value input (R-fn-contract / R-c
 		expect(terminals.at(-1)).toEqual([true]);
 
 		const e = new Error("boom");
-		const b = node<number>([], null);
-		const m = node<number>(
+		const b = g.node<number>([], null);
+		const m = g.node<number>(
 			[b],
 			(ctx) => {
 				waves.push(cloneWaveData(ctx));
@@ -159,8 +162,8 @@ describe("C-23 raw ctx waveData is the only dep-value input (R-fn-contract / R-c
 		expect(waves.at(-1)).toEqual([[]]);
 		expect(terminals.at(-1)).toEqual([e]);
 
-		const c = node<number>([], null);
-		const p = node<number>(
+		const c = g.node<number>([], null);
+		const p = g.node<number>(
 			[c],
 			(ctx) => {
 				waves.push(cloneWaveData(ctx));
@@ -180,9 +183,10 @@ describe("C-23 raw ctx waveData is the only dep-value input (R-fn-contract / R-c
 
 	it("exposes terminal metadata only for the invocation that observed the terminal", () => {
 		const captures: Array<{ waveData: unknown[][][]; terminal: unknown[] }> = [];
-		const a = node<number>([], null);
-		const b = node<number>([], null);
-		const n = node<number>(
+		const g = graph();
+		const a = g.node<number>([], null);
+		const b = g.node<number>([], null);
+		const n = g.node<number>(
 			[a, b],
 			(ctx) => {
 				captures.push({
@@ -205,7 +209,8 @@ describe("C-23 raw ctx waveData is the only dep-value input (R-fn-contract / R-c
 	});
 
 	it("rejects boolean ERROR payloads at the protocol boundary and coerces host-source failures", async () => {
-		const s = node<number>([], null);
+		const g = graph();
+		const s = g.node<number>([], null);
 		const msgs: Message[] = [];
 		s.subscribe((incoming) => {
 			for (const m of incoming) {
@@ -217,14 +222,13 @@ describe("C-23 raw ctx waveData is the only dep-value input (R-fn-contract / R-c
 		expect(() => s.error(false)).toThrow(/non-boolean/);
 		expect(() => s.error(true)).toThrow(/non-boolean/);
 		expect(() =>
-			batch(() => {
+			g.batch(() => {
 				s.set(1);
 				s.error(false);
 			}),
 		).toThrow(/non-boolean/);
 		expect(msgs).toEqual([]);
 
-		const g = graph();
 		for (const reason of [undefined, false, true]) {
 			const n = g.initNode(fromPromise(Promise.reject(reason)), []);
 			const msgs: Message[] = [];
@@ -240,18 +244,19 @@ describe("C-23 raw ctx waveData is the only dep-value input (R-fn-contract / R-c
 		}
 	});
 
-	it("lets dynamicNode inspect waveData to stay quiet on an unread-dep-only wave", () => {
-		const a = node<number>([], null, { initial: 1 });
-		const b = node<number>([], null);
+	it("lets a dynamic node inspect waveData to stay quiet on an unread-dep-only wave", () => {
+		const g = graph();
+		const a = g.node<number>([], null, { initial: 1 });
+		const b = g.node<number>([], null);
 		const captures: unknown[][][][] = [];
-		const d = dynamicNode<number>(
+		const d = g.node<number>(
 			[a, b],
 			(ctx) => {
 				captures.push(cloneWaveData(ctx));
 				if (ctx.waveData[1]?.length) return;
 				ctx.down([["DATA", ctx.track?.(0) as number]]);
 			},
-			{ partial: true },
+			{ partial: true, dynamic: true },
 		);
 		const { msgs } = collect(d);
 		msgs.length = 0;

@@ -1,4 +1,4 @@
-export { type BatchCtx, batch } from "../batch/batch.js";
+export type { BatchCtx } from "../batch/batch.js";
 export type {
 	Ctx,
 	CtxState,
@@ -26,7 +26,7 @@ export {
 	type Pool,
 	type PoolKind,
 } from "../dispatcher/index.js";
-export { dynamicNode, Node, type NodeOptions, node, type Status } from "../node/node.js";
+export { Node, type NodeOptions, type Status } from "../node/node.js";
 export {
 	defaultNodeVersionHash,
 	type NodeVersion,

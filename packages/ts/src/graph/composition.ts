@@ -20,7 +20,7 @@ import type { Node, NodeOptions } from "../node/node.js";
 import { oneArrayPerRun } from "../node/one-array-per-run.js";
 import type { DescribeEdge, DescribeNode, DescribeSnapshot } from "./describe.js";
 import type { Graph, StateNode, SugarOpts } from "./graph.js";
-import { initNode, type Operator } from "./operators.js";
+import { initNodeBeside, type Operator } from "./operators.js";
 
 /** One unary operator step accepted by {@link pipe}. */
 export type PipeOperator<TIn, TOut> = Operator<TIn, TOut>;
@@ -265,7 +265,7 @@ export function stratifyBranch<T, R>(
 	opts: StratifyBranchOptions<T> = {},
 ): Node<T> {
 	const op = stratifyBranchOperator<T, R>(classifier);
-	return initNode(op, [source as Node<unknown>, rules as Node<unknown>], opts);
+	return initNodeBeside(op, [source as Node<unknown>, rules as Node<unknown>], opts);
 }
 
 function stratifyBranchOperator<T, R>(

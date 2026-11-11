@@ -8,10 +8,8 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { batch } from "../batch/batch.js";
 import { type Ctx, depBatch, depLatest } from "../ctx/types.js";
 import { graph } from "../graph/graph.js";
-import { node } from "../node/node.js";
 import type { Message, Wave } from "../protocol/messages.js";
 
 /** A sink that records every array it receives, as the kernel delivers it. */
@@ -24,7 +22,8 @@ const cloneWaves = (ctx: Ctx) => ctx.waveData.map((waves) => waves.map((wave) =>
 
 describe("C-12: occurrences stay DATA; RESOLVED only settles a node that sent nothing", () => {
 	it("(a) equal values are distinct occurrences", () => {
-		const source = node<number>([], null);
+		const g = graph();
+		const source = g.node<number>([], null);
 		const s = arrays();
 		source.subscribe(s.sink);
 		source.set(1);
@@ -41,9 +40,10 @@ describe("C-12: occurrences stay DATA; RESOLVED only settles a node that sent no
 	});
 
 	it("(b) a silent pending node settles with exactly one kernel RESOLVED per wave", () => {
-		const source = node<number>([], null, { initial: 0 });
-		const silent = node<number>([source], () => {});
-		const below = node<number>([silent], (ctx) => ctx.down([["DATA", 1]]));
+		const g = graph();
+		const source = g.node<number>([], null, { initial: 0 });
+		const silent = g.node<number>([source], () => {});
+		const below = g.node<number>([silent], (ctx) => ctx.down([["DATA", 1]]));
 		const s = arrays();
 		silent.subscribe(s.sink);
 		below.subscribe(() => {});
@@ -60,9 +60,10 @@ describe("C-12: occurrences stay DATA; RESOLVED only settles a node that sent no
 
 describe("C-16: a quiet node absorbs its input waves without leaving dependents pending", () => {
 	it("marks nothing below it pending; what it sends later is its own wave; START has its last array", () => {
-		const a = node<number>([], null, { initial: 0 });
+		const g = graph();
+		const a = g.node<number>([], null, { initial: 0 });
 		let kept: Ctx | undefined;
-		const q = node<number>(
+		const q = g.node<number>(
 			[a],
 			(ctx) => {
 				kept = ctx;
@@ -72,7 +73,7 @@ describe("C-16: a quiet node absorbs its input waves without leaving dependents 
 			{ quiet: true },
 		);
 		let eRuns = 0;
-		const e = node<number>([q], (ctx) => {
+		const e = g.node<number>([q], (ctx) => {
 			eRuns++;
 			ctx.down([["DATA", (depBatch(ctx, 0) ?? []).length]]);
 		});
@@ -100,7 +101,8 @@ describe("C-16: a quiet node absorbs its input waves without leaving dependents 
 
 describe("R-subscription: subscribing activates first; the first array is START plus the snapshot", () => {
 	it("a source's activation array reaches its first sink in the START array", () => {
-		const source = node<number>([], (ctx) =>
+		const g = graph();
+		const source = g.node<number>([], (ctx) =>
 			ctx.down([["DATA", 1], ["DATA", 1], ["DATA", 1], ["COMPLETE"]]),
 		);
 		const s = arrays();
@@ -109,7 +111,8 @@ describe("R-subscription: subscribing activates first; the first array is START 
 	});
 
 	it("arrays an activation sent before the sink joined are not delivered separately", () => {
-		const source = node<number>([], (ctx) => {
+		const g = graph();
+		const source = g.node<number>([], (ctx) => {
 			ctx.down([["DATA", 1]]);
 			ctx.down([["DATA", 2]]);
 		});
@@ -121,12 +124,13 @@ describe("R-subscription: subscribing activates first; the first array is START 
 
 describe("C-23: ctx.waveData, ctx.terminal and the latest value are the function's only input", () => {
 	it("gives each dependency its arrays, terminal and latest value", () => {
+		const g = graph();
 		const captures: { waves: unknown[][][]; terminal: unknown[]; latest: unknown[] }[] = [];
-		const trigger = node<number>([], null, { initial: 0 });
+		const trigger = g.node<number>([], null, { initial: 0 });
 		// a sends nothing for an odd trigger, so the kernel settles it with RESOLVED; a planned run
 		// sends the plan's output instead.
 		let plan: ((ctx: Ctx) => void) | undefined;
-		const a = node<unknown>([trigger], (ctx) => {
+		const a = g.node<unknown>([trigger], (ctx) => {
 			const v = depLatest(ctx, 0) as number;
 			if (plan !== undefined) {
 				const run = plan;
@@ -138,8 +142,8 @@ describe("C-23: ctx.waveData, ctx.terminal and the latest value are the function
 			plan = run;
 			trigger.set(next);
 		};
-		const b = node<unknown>([], null);
-		const n = node<unknown>(
+		const b = g.node<unknown>([], null);
+		const n = g.node<unknown>(
 			[a, b],
 			(ctx) => {
 				captures.push({
@@ -169,14 +173,14 @@ describe("C-23: ctx.waveData, ctx.terminal and the latest value are the function
 		expect(captures.at(-1)?.waves).toEqual([[[[]]], []]);
 		// (e) terminals are never among the arrays
 		const e = new Error("e");
-		batch(() => {
+		g.batch(() => {
 			sendFromA(5, (ctx) => ctx.down([["COMPLETE"]]));
 			b.error(e);
 		});
 		expect(captures.at(-1)?.terminal).toEqual([true, e]);
 		expect(captures.at(-1)?.waves.flat(2)).toEqual([]);
 		// (f) DATA SENTINEL is rejected
-		const c = node<unknown>([], null);
+		const c = g.node<unknown>([], null);
 		expect(() => c.set(undefined)).toThrow(/SENTINEL/);
 	});
 });
@@ -259,11 +263,12 @@ describe("C-28: intact output arrays, kernel-only PENDING prefixes and written o
 	});
 
 	it("a host batch delivers one accumulated array per node at commit; rejections leave staging", () => {
-		const s = node<number>([], null, { initial: 0 });
+		const g = graph();
+		const s = g.node<number>([], null, { initial: 0 });
 		const log = arrays();
 		s.subscribe(log.sink);
 		log.log.length = 0;
-		batch(() => {
+		g.batch(() => {
 			s.set(1);
 			// The host writes only values and terminals; it has no way to send RESOLVED (R-wave@2).
 			s.complete();
@@ -291,7 +296,8 @@ describe("C-28: intact output arrays, kernel-only PENDING prefixes and written o
 
 describe("C-41: the snapshot is the node's last array that carried DATA", () => {
 	it("keeps the last DATA array, not a RESOLVED array; an INVALIDATE leaves START alone", () => {
-		const a = node<number>([], null, { initial: 0 });
+		const g = graph();
+		const a = g.node<number>([], null, { initial: 0 });
 		const plan: Record<number, Wave | null> = {
 			1: [["DATA", 1]],
 			2: [
@@ -301,7 +307,7 @@ describe("C-41: the snapshot is the node's last array that carried DATA", () => 
 			3: null, // sends nothing: the kernel's RESOLVED
 			4: [["INVALIDATE"]],
 		};
-		const n = node<number>([a], (ctx) => {
+		const n = g.node<number>([a], (ctx) => {
 			const out = plan[depLatest(ctx, 0) as number];
 			if (out) ctx.down(out);
 		});
@@ -312,7 +318,7 @@ describe("C-41: the snapshot is the node's last array that carried DATA", () => 
 		expect(late.log).toEqual([[["START"], ["DATA", 2], ["DATA", 3]]]);
 
 		const firstRun: unknown[][][] = [];
-		const dependent = node<number>([n], (ctx) => {
+		const dependent = g.node<number>([n], (ctx) => {
 			if (firstRun.length === 0) firstRun.push(...cloneWaves(ctx));
 		});
 		dependent.subscribe(() => {});
@@ -331,7 +337,7 @@ describe("C-41: the snapshot is the node's last array that carried DATA", () => 
 			name: "n",
 		});
 		const stop = n.subscribe(() => {});
-		batch(() => {
+		g.batch(() => {
 			q.set(1);
 			q.set(2);
 		});
@@ -348,13 +354,14 @@ describe("C-41: the snapshot is the node's last array that carried DATA", () => 
 
 describe("C-44 (value and quiet-node clauses): the kernel adds only the settling RESOLVED", () => {
 	it("settles a silent node, never holds a wave for a quiet node, and forwards INVALIDATE at once", () => {
-		const a = node<number>([], null, { initial: 0 });
-		const f = node<number>([a], (ctx) => {
+		const g = graph();
+		const a = g.node<number>([], null, { initial: 0 });
+		const f = g.node<number>([a], (ctx) => {
 			const v = depLatest(ctx, 0) as number;
 			if (v % 2 === 0) ctx.down([["DATA", v]]);
 		});
 		let kept: Ctx | undefined;
-		const q = node<number>(
+		const q = g.node<number>(
 			[a],
 			(ctx) => {
 				kept = ctx;
@@ -364,7 +371,7 @@ describe("C-44 (value and quiet-node clauses): the kernel adds only the settling
 			{ quiet: true },
 		);
 		const dSaw: [unknown, unknown][] = [];
-		const d = node<number>(
+		const d = g.node<number>(
 			[a, q],
 			(ctx) => {
 				dSaw.push([depLatest(ctx, 0), depLatest(ctx, 1)]);

@@ -90,7 +90,7 @@ export function nodeRewire<T>(
 	const added = newDeps.filter((d) => !oldDeps.includes(d));
 
 	if (
-		deferAfterBatchForTarget(node, () => {
+		deferAfterBatchForTarget(self._core, node, () => {
 			self._rewire(newDeps, fn, opts);
 		})
 	) {

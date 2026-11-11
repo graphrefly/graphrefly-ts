@@ -2,7 +2,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { prepareConstruction } from "../graph/construction-scope.js";
 import { Graph, releaseGraphNodes } from "../graph/graph.js";
 import type { TopologyEvent } from "../graph/inspect.js";
-import { Node } from "../node/node.js";
+import type { NodeCore } from "../node/core.js";
+import { Node, withNodeCore } from "../node/node.js";
 import { releaseRuntimeOfNode } from "../node/runtime-accessors.js";
 import { rewireOwnedNode } from "./helpers/owned-rewire.js";
 
@@ -15,8 +16,10 @@ function graph() {
 	graphs.push(g);
 	return g;
 }
-function hidden(deps: Node<unknown>[] = []) {
-	const n = new Node(deps, null, { factory: "hidden" });
+/** An unregistered node of `g`'s domain (R-graph-domain@3: every node belongs to a graph). */
+function hidden(g: Graph, deps: Node<unknown>[] = []) {
+	const core = (g as unknown as { _core: NodeCore })._core;
+	const n = withNodeCore(core, () => new Node(deps, null, { factory: "hidden" }));
 	bare.push(n);
 	return n;
 }
@@ -74,9 +77,9 @@ describe("D161 B1 incoming inspection", () => {
 		function run(local: boolean) {
 			const f = fixture();
 			const inspected = mount ? graph() : f.g;
-			const w = hidden();
-			const u = hidden([w]);
-			const v = hidden([u]);
+			const w = hidden(inspected);
+			const u = hidden(inspected, [w]);
+			const v = hidden(inspected, [u]);
 			// Public rewire rejects cycles. Stress only the inspection walk with a cold getter fixture.
 			vi.spyOn(u, "deps", "get").mockReturnValue([w, v]);
 			inspected.node([u, v, u], null, { name: "background" });
@@ -86,7 +89,7 @@ describe("D161 B1 incoming inspection", () => {
 			else f.g.describe();
 			const events: TopologyEvent[] = [];
 			stops.push(inspected.observeTopology().subscribe((e) => events.push(e)));
-			inspected.node([hidden()], null, { name: "later" });
+			inspected.node([hidden(inspected)], null, { name: "later" });
 			return { events, snapshot: f.g.describe(), checkpoint: f.g.checkpoint() };
 		}
 		expect(run(true)).toEqual(run(false));
@@ -94,7 +97,7 @@ describe("D161 B1 incoming inspection", () => {
 
 	it("retains a target's unregistered live dependency rather than substituting its old registered dep", () => {
 		const f = fixture();
-		rewireOwnedNode(f.root, [hidden()], null);
+		rewireOwnedNode(f.root, [hidden(f.g)], null);
 		expect(f.scope.readIncoming().edges).toEqual([{ from: "~hidden#0", to: "view/root" }]);
 		expect(f.g.describe().nodes.find((n) => n.id === "view/root")?.deps).toEqual(["~hidden#0"]);
 	});

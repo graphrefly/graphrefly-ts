@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { batch } from "../batch/batch.js";
 import {
 	type PostgresqlDriverQueryRequest,
 	type PostgresqlDriverQueryResult,
@@ -206,7 +205,7 @@ describe("PostgreSQL-compatible tool provider (D602)", () => {
 		inputs.set(input());
 		await settle();
 		expect(calls).toHaveLength(0);
-		batch(() => {
+		g.batch(() => {
 			admitted.set(run());
 			admitted.set(run());
 		});
@@ -333,7 +332,7 @@ describe("PostgreSQL-compatible tool provider (D602)", () => {
 		const outcomes = collect<ExecutorOutcome>(runtime.outcomes);
 		const issues = collect<{ code: string }>(runtime.issues);
 		inputs.set(input());
-		batch(() => {
+		g.batch(() => {
 			admitted.set(run());
 			admitted.set(run({ requestId: "request:conflict" }));
 			admitted.set(

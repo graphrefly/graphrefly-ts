@@ -6,20 +6,14 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { batch } from "../batch/batch.js";
-import type { Ctx, Message } from "../index.js";
+import type { Ctx, Graph, Message } from "../index.js";
 import {
 	concatMap,
 	Dispatcher,
-	depLatest,
 	exhaustMap,
 	flatMap,
 	graph,
-	initNode,
-	map,
 	mergeMap,
-	node,
-	of,
 	repeat,
 	switchMap,
 } from "../index.js";
@@ -46,11 +40,11 @@ class CountingDispatcher extends Dispatcher {
 }
 
 /** A controllable inner source whose activation + deactivation (cancellation) are observable. */
-function subject() {
+function subject(g: Graph) {
 	let ctxRef: Ctx | null = null;
 	let activated = false;
 	let deactivated = false;
-	const n = node<number>([], (ctx) => {
+	const n = g.node<number>([], (ctx) => {
 		ctxRef = ctx;
 		activated = true;
 		ctx.signal.addEventListener(
@@ -94,13 +88,14 @@ describe("mergeMap (D47 / R-rewire-deferred)", () => {
 		const dispatcher = new CountingDispatcher();
 		const g = graph({ dispatcher });
 		const s = g.node<number>([], null);
+		const trapGraph = graph();
 		let trapNode: object | null = null;
 		const target = {};
 		const thenKey = "th" + "en";
 		Object.defineProperty(target, thenKey, { value: () => undefined });
 		const input = new Proxy(target, {
 			get(target, prop, receiver) {
-				if (prop === thenKey && trapNode === null) trapNode = node<number>([], null);
+				if (prop === thenKey && trapNode === null) trapNode = trapGraph.node<number>([], null);
 				return Reflect.get(target, prop, receiver);
 			},
 		}) as PromiseLike<number>;
@@ -121,9 +116,9 @@ describe("mergeMap (D47 / R-rewire-deferred)", () => {
 	});
 
 	it("keeps all inners live and interleaves their emissions; a completed inner is bounded", () => {
-		const a = subject();
-		const b = subject();
 		const g = graph();
+		const a = subject(g);
+		const b = subject(g);
 		const s = g.node([], null); // manual source
 		const op = g.initNode(
 			mergeMap((v: number) => (v === 1 ? a.node : b.node)),
@@ -156,7 +151,7 @@ describe("mergeMap (D47 / R-rewire-deferred)", () => {
 		const op = g.initNode(
 			mergeMap(
 				(_v: number) => {
-					const inner = subject();
+					const inner = subject(g);
 					inners.push(inner);
 					return inner.node;
 				},
@@ -166,7 +161,7 @@ describe("mergeMap (D47 / R-rewire-deferred)", () => {
 		);
 		const { msgs } = collect(op);
 
-		batch(() => {
+		g.batch(() => {
 			s.set(1);
 			s.set(2);
 			s.set(3);
@@ -198,8 +193,8 @@ describe("mergeMap (D47 / R-rewire-deferred)", () => {
 	});
 
 	it("does not re-add a just-completed inner while draining bounded mergeMap queue", () => {
-		const inner = subject();
 		const g = graph();
+		const inner = subject(g);
 		const s = g.node([], null);
 		const op = g.initNode(
 			mergeMap(() => inner.node, { concurrent: 1 }),
@@ -207,7 +202,7 @@ describe("mergeMap (D47 / R-rewire-deferred)", () => {
 		);
 		collect(op);
 
-		batch(() => {
+		g.batch(() => {
 			s.set(1);
 			s.set(2);
 			s.complete();
@@ -226,9 +221,9 @@ describe("mergeMap (D47 / R-rewire-deferred)", () => {
 		// a LATER inner COMPLETE removes the WRONG (already-gone) inner, leaking the real one. The
 		// leak only surfaces on a subsequent removal, so we drive X (twice → dup), then a distinct Y,
 		// then complete both and assert Y is actually torn down.
-		const x = subject();
-		const y = subject();
 		const g = graph();
+		const x = subject(g);
+		const y = subject(g);
 		const s = g.node([], null);
 		const op = g.initNode(
 			mergeMap((v: number) => (v === 3 ? y.node : x.node)),
@@ -246,8 +241,8 @@ describe("mergeMap (D47 / R-rewire-deferred)", () => {
 	});
 
 	it("flatMap is an alias of mergeMap", () => {
-		const a = subject();
 		const g = graph();
+		const a = subject(g);
 		const s = g.node([], null);
 		const op = g.initNode(
 			flatMap((_v: number) => a.node),
@@ -260,8 +255,8 @@ describe("mergeMap (D47 / R-rewire-deferred)", () => {
 	});
 
 	it("COMPLETEs when the source is done AND every inner has completed", () => {
-		const a = subject();
 		const g = graph();
+		const a = subject(g);
 		const s = g.node([], null);
 		const op = g.initNode(
 			mergeMap((_v: number) => a.node),
@@ -294,9 +289,9 @@ describe("mergeMap (D47 / R-rewire-deferred)", () => {
 	});
 
 	it("source ERROR detaches every live inner before emitting ERROR (D81)", () => {
-		const a = subject();
-		const b = subject();
 		const g = graph();
+		const a = subject(g);
+		const b = subject(g);
 		const s = g.node([], null);
 		const op = g.initNode(
 			mergeMap((v: number) => (v === 1 ? a.node : b.node)),
@@ -328,9 +323,9 @@ describe("mergeMap (D47 / R-rewire-deferred)", () => {
 	});
 
 	it("inner ERROR detaches sibling inners before emitting ERROR (D81)", () => {
-		const a = subject();
-		const b = subject();
 		const g = graph();
+		const a = subject(g);
+		const b = subject(g);
 		const s = g.node([], null);
 		const op = g.initNode(
 			mergeMap((v: number) => (v === 1 ? a.node : b.node)),
@@ -360,8 +355,8 @@ describe("mergeMap (D47 / R-rewire-deferred)", () => {
 	});
 
 	it("inner DATA in the same wave before ERROR is forwarded before cleanup (D81)", () => {
-		const a = subject();
 		const g = graph();
+		const a = subject(g);
 		const s = g.node([], null);
 		const op = g.initNode(
 			mergeMap((_v: number) => a.node),
@@ -383,8 +378,8 @@ describe("mergeMap (D47 / R-rewire-deferred)", () => {
 	});
 
 	it("projector ERROR detaches previously-live inners and seals later output (D81)", () => {
-		const a = subject();
 		const g = graph();
+		const a = subject(g);
 		const s = g.node([], null);
 		const op = g.initNode(
 			mergeMap((v: number) => {
@@ -415,9 +410,9 @@ describe("mergeMap (D47 / R-rewire-deferred)", () => {
 
 describe("switchMap (D47)", () => {
 	it("cancels the in-flight inner on a new source value (abortInFlight) and forwards only the current", () => {
-		const a = subject();
-		const b = subject();
 		const g = graph();
+		const a = subject(g);
+		const b = subject(g);
 		const s = g.node([], null);
 		const op = g.initNode(
 			switchMap((v: number) => (v === 1 ? a.node : b.node)),
@@ -439,8 +434,8 @@ describe("switchMap (D47)", () => {
 	});
 
 	it("re-projecting the same live inner does not cancel or duplicate it", () => {
-		const inner = subject();
 		const g = graph();
+		const inner = subject(g);
 		const s = g.node([], null);
 		const op = g.initNode(
 			switchMap((_v: number) => inner.node),
@@ -463,9 +458,9 @@ describe("switchMap (D47)", () => {
 
 describe("concatMap (D47)", () => {
 	it("runs inners one at a time in source order; later source values queue", () => {
-		const a = subject();
-		const b = subject();
 		const g = graph();
+		const a = subject(g);
+		const b = subject(g);
 		const s = g.node([], null);
 		const op = g.initNode(
 			concatMap((v: number) => (v === 1 ? a.node : b.node)),
@@ -486,9 +481,9 @@ describe("concatMap (D47)", () => {
 	});
 
 	it("source ERROR clears queued values and detaches the active inner (D81)", () => {
-		const a = subject();
-		const b = subject();
 		const g = graph();
+		const a = subject(g);
+		const b = subject(g);
 		const s = g.node([], null);
 		const op = g.initNode(
 			concatMap((v: number) => (v === 1 ? a.node : b.node)),
@@ -515,10 +510,10 @@ describe("concatMap (D47)", () => {
 
 describe("exhaustMap (D47)", () => {
 	it("drops source values that arrive while an inner is active", () => {
-		const a = subject();
-		const b = subject();
-		const c = subject();
 		const g = graph();
+		const a = subject(g);
+		const b = subject(g);
+		const c = subject(g);
 		const s = g.node([], null);
 		const project = (v: number) => (v === 1 ? a.node : v === 2 ? b.node : c.node);
 		const op = g.initNode(exhaustMap(project), [s]);
@@ -612,8 +607,8 @@ describe("repeat (D47 self-rewire, factory-based — clean-slate complete design
 
 describe("higher-order — describe (D39 / D51): real factory name + LIVE inner topology", () => {
 	it("records the operator's real factory name; before any source value, only the construction edge", () => {
-		const a = subject();
 		const g = graph();
+		const a = subject(g);
 		const s = g.node([], null, { name: "src" });
 		g.initNode(
 			switchMap((_v: number) => a.node),
@@ -628,8 +623,8 @@ describe("higher-order — describe (D39 / D51): real factory name + LIVE inner 
 	});
 
 	it("shows a LIVE runtime inner after the operator wires it (D51 live-dep snapshot, no dangling '?')", () => {
-		const a = subject();
 		const g = graph();
+		const a = subject(g);
 		const s = g.node([], null, { name: "src" });
 		const sw = g.initNode(
 			switchMap((_v: number) => a.node),
@@ -648,52 +643,5 @@ describe("higher-order — describe (D39 / D51): real factory name + LIVE inner 
 		expect(innerNode).toBeDefined(); // the inner IS emitted as a node (D51/B38 auto-discovery)
 		expect(innerNode?.deps).toEqual([]); // subject() has no live deps, so it remains a leaf.
 		expect(snap.nodes.find((dn) => dn.id === "sw")?.deps).toContain("src"); // S still a live dep
-	});
-
-	it("auto-discovers an unregistered live dep (a bare initNode source) WITH its factory (D51 B2 / D43)", () => {
-		const g = graph();
-		const inner = initNode(of(42), []); // BARE (free initNode, not g.*) → unregistered, factory "of"
-		const d = g.node([inner], (ctx) => ctx.down([["DATA", depLatest(ctx, 0) as number]]), {
-			name: "d",
-		});
-		collect(d);
-		const snap = g.describe();
-		const dNode = snap.nodes.find((n) => n.id === "d");
-		expect(dNode?.deps).toHaveLength(1); // d's single live dep = the bare inner
-		const innerId = dNode?.deps[0] as string;
-		const innerNode = snap.nodes.find((n) => n.id === innerId);
-		expect(innerNode).toBeDefined(); // emitted as a node, NOT a dangling "?" edge
-		expect(innerNode?.factory).toBe("of"); // named via NodeOptions.factory (D43-reserved, D51)
-		expect(snap.edges).toContainEqual({ from: innerId, to: "d" });
-	});
-
-	it("auto-discovers transitive unregistered live deps (B38)", () => {
-		const g = graph();
-		const s = g.node([], null, { name: "src" });
-		const innerLeaf = subject();
-		const innerParent = initNode(
-			map((n: number) => n + 1),
-			[innerLeaf.node],
-		);
-		const sw = g.initNode(
-			switchMap((_v: number) => innerParent),
-			[s],
-			{ name: "sw" },
-		);
-		collect(sw);
-		s.set(1);
-		innerLeaf.next(41);
-		const snap = g.describe();
-		const swNode = snap.nodes.find((n) => n.id === "sw");
-		const parentId = swNode?.deps.find((id) => id !== "src");
-		expect(parentId).toBeDefined();
-		const parentNode = snap.nodes.find((n) => n.id === parentId);
-		expect(parentNode?.factory).toBe("map");
-		expect(parentNode?.deps.length).toBe(1);
-		const leafId = parentNode?.deps[0];
-		expect(leafId).toBeDefined();
-		const leafNode = snap.nodes.find((n) => n.id === leafId);
-		expect(leafNode).toBeDefined();
-		expect(snap.edges).toContainEqual({ from: leafId as string, to: parentId as string });
 	});
 });

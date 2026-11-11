@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { batch } from "../batch/batch.js";
 import { graph, type Message, type Node } from "../index.js";
 import {
 	type AdmissionHandoffCandidate,
@@ -182,15 +181,15 @@ describe("admissionHandoff pattern (graphrefly-ts:D147)", () => {
 	});
 
 	it("conserves multiple admissions correlated in one input wave", () => {
-		const { candidates, decisions, handoff } = fixture();
+		const { owner, candidates, decisions, handoff } = fixture();
 		const accepted = collect(handoff.accepted);
 		accepted.length = 0;
 
-		batch(() => {
+		owner.batch(() => {
 			candidates.set(candidate("one", "fp-one"));
 			candidates.set(candidate("two", "fp-two"));
 		});
-		batch(() => {
+		owner.batch(() => {
 			decisions.set(decision("admitted", "one", "fp-one"));
 			decisions.set(decision("admitted", "two", "fp-two"));
 		});

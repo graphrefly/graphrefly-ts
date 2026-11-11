@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { batch } from "../batch/batch.js";
 import type { DataIssue } from "../data/index.js";
 import type { ToolProviderAdapterRuntimeStatus } from "../executors/tool-provider-runtime.js";
 import { attachToolProviderAdapterRuntime } from "../executors/tool-provider-runtime.js";
@@ -654,7 +653,7 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 3", () => {
 		} satisfies ToolProviderAdapterRunRequested;
 
 		inputs.set(ready);
-		batch(() => {
+		g.batch(() => {
 			runRequests.set(firstRunRequest);
 			runRequests.set(
 				requestToolProviderAdapterRun(ready, {
@@ -854,7 +853,7 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 3", () => {
 		});
 
 		inputs.set(ready);
-		batch(() => {
+		g.batch(() => {
 			runRequests.set(requestToolProviderAdapterRun(ready, { runId: "run-a", attempt: 1 }));
 			runRequests.set(
 				requestToolProviderAdapterRun(ready, { runId: "run-a", attempt: 2, reason: "retry" }),

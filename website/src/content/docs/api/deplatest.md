@@ -40,10 +40,12 @@ The latest DATA value for that dependency, or `undefined` when no DATA is availa
 ## Example
 
 ```ts
-import { depLatest, node } from "@graphrefly/ts/core";
+import { depLatest } from "@graphrefly/ts/core";
+import { graph } from "@graphrefly/ts/graph";
 
-const count = node<number>([], null, { initial: 1 });
-const doubled = node<number>([count], (ctx) => {
+const g = graph();
+const count = g.state(1);
+const doubled = g.node<number>([count], (ctx) => {
   const latest = depLatest(ctx, 0);
   if (latest === undefined) return;
   ctx.down([["DATA", Number(latest) * 2]]);

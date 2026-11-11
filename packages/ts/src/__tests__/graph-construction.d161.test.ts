@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { batch } from "../batch/batch.js";
-import { deferRewire } from "../batch/boundary.js";
+import { deferRequest } from "../batch/boundary.js";
 import { ctxRewireDiff, depBatch, depLatest } from "../ctx/types.js";
 import { Dispatcher, type Handle } from "../dispatcher/index.js";
 import {
@@ -211,7 +210,7 @@ describe("D161 graph construction ownership", () => {
 		const g = new Graph();
 		const other = new Graph();
 		// An ended node is a valid input (R-terminals): it can be depended on.
-		for (const input of [other.state(1), new Node([], null)])
+		for (const input of [other.state(1)])
 			expect(() =>
 				prepareConstruction(g, { name: "bad", epoch: 1, names: ["bad/startup"], inputs: [input] }),
 			).toThrow();
@@ -228,7 +227,7 @@ describe("D161 graph construction ownership", () => {
 		const g = new Graph();
 		const make = () =>
 			prepareConstruction(g, { name: "bad", epoch: 1, names: ["bad/startup"], inputs: [] });
-		expect(() => batch(make)).toThrow(/stable/);
+		expect(() => g.batch(make)).toThrow(/stable/);
 		const source = g.producer(
 			() => {
 				expect(make).toThrow(/stable/);
@@ -397,7 +396,7 @@ describe("D161 graph construction ownership", () => {
 								fn: (msgs) => {
 									subscriber.fn(msgs);
 									if (msgs[0]?.[0] === "START")
-										deferRewire(nodeRuntimeHost(f.join)._core, () => {
+										deferRequest(nodeRuntimeHost(f.join)._core, () => {
 											throw new Error("drain failure");
 										});
 								},

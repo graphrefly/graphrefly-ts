@@ -19,7 +19,6 @@ import {
 	oracleCanonical,
 	oracleHash,
 } from "../../../../scripts/fixtures/spending-preset-oracle.js";
-import { batch } from "../batch/batch.js";
 import type { NodeFn } from "../ctx/types.js";
 import { Dispatcher, type Handle } from "../dispatcher/index.js";
 import { ColdConstructionError, ConstructionScope } from "../graph/construction-scope.js";
@@ -186,7 +185,7 @@ it("unarrived normal pack frontier blocks normal end after earlier successful ef
 		const future = evaluationFixture(0, "tea", 2, false);
 		run.send("pack", evaluationPack([first, future]));
 		const facts = policyFacts(first);
-		batch(() => {
+		run.graph.batch(() => {
 			run.send("current", facts.current);
 			run.send("verification", facts.verification);
 			run.send("local", facts.local);
@@ -271,7 +270,7 @@ it("64 sequential writes within original pending bound retain lifetime records a
 		run.send("pack", evaluationPack(evaluations));
 		for (const e of evaluations) {
 			const facts = policyFacts(e);
-			batch(() => {
+			run.graph.batch(() => {
 				run.send("current", facts.current);
 				run.send("verification", facts.verification);
 				run.send("local", facts.local);
@@ -284,7 +283,7 @@ it("64 sequential writes within original pending bound retain lifetime records a
 		expect(run.host.inspect().records.every((r) => r.outcome?.state === "succeeded")).toBe(true);
 		expect(run.host.inspect().fault).toBeUndefined();
 		const latest = evaluations.slice(-2).map((e) => policyFacts(e));
-		batch(() => {
+		run.graph.batch(() => {
 			run.send("current", {
 				...latest[0].current,
 				current: latest.flatMap((f) => f.current.current),

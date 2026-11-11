@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import { attachKeyedRateLimitAuthority, type KeyedRateLimitAuthority } from "../adapters/index.js";
-import { batch } from "../batch/batch.js";
 import { graph, type ObserveEvent } from "../graph/index.js";
 import { canonicalTupleKey } from "../identity.js";
 import { strictJsonCodec } from "../json/codec.js";
@@ -271,7 +270,7 @@ describe("B111.6 deterministic restart evidence", () => {
 		const token = tokenPolicy(tokenSeed);
 		const host = new TestAtomicRateLimitAuthority([fixed, token], [0, 0]);
 		const instance = buildInstance(host, "image-source");
-		batch(() => {
+		instance.g.batch(() => {
 			instance.requests.set(fixedSeed);
 			instance.requests.set(tokenSeed);
 		});
@@ -716,7 +715,7 @@ describe("B111.6 inspection and injected-authority evidence", () => {
 		const conflict = request("host-custom", "custom-allowed", 2, "changed-operation");
 		const primary = buildInstance(customAuthority, "custom-authority-primary");
 		const secondary = buildInstance(customAuthority, "custom-authority-secondary");
-		batch(() => {
+		primary.g.batch(() => {
 			primary.requests.set(allowed);
 			primary.requests.set(allowed);
 			primary.requests.set(denied);

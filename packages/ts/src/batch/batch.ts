@@ -1,23 +1,16 @@
 /**
- * Declarative batch (R-batch-coalesce / D12).
+ * A graph's batch (R-request-order, R-graph-domain@3).
  *
- * Inside a batch, PENDING propagates immediately but the tier-3 settle slice
- * (DATA/RESOLVED/INVALIDATE) is deferred to commit, so a shared downstream
- * recomputes ONCE after all batched sources settle. Success -> commit; a thrown
- * error -> rollback; `bctx.rollback()` is the explicit escape hatch.
- *
- * Coalescing note: this kernel coalesces multiple emits to the SAME node within
- * one batch to the latest tier-3 wave (last-value-wins). Full per-item batch-array
- * delivery (downstream fn receiving [v1..vK]) is a documented refinement — the
- * dominant use (coalescing a diamond join to one recompute) is exact here.
+ * A batch body runs at once and delivers nothing; its writes to the graph's nodes commit as one
+ * array per node in one wave. Success commits; a throw or `bctx.rollback()` discards. The open
+ * batch lives on the graph's wave domain, so graphs share no batch (graphrefly:D803).
  */
 
 import type { NodeCore } from "../node/core.js";
 import type { Wave } from "../protocol/messages.js";
 import {
-	deferDirect,
 	deferFirst,
-	deferRewire,
+	deferRequest,
 	dropBoundaryTasksForBatch,
 	enterWave,
 	exitWave,
@@ -54,15 +47,17 @@ interface ActiveBatch {
 	rolledBack: boolean;
 }
 
-let active: ActiveBatch | null = null;
-let boundaryOwner: ActiveBatch | null = null;
-
-export function currentBatch(): boolean {
-	return active !== null;
+function activeOf(core: NodeCore): ActiveBatch | null {
+	return core.domain.batch as ActiveBatch | null;
 }
 
-export function currentBoundaryBatchToken(): object | undefined {
-	return active ?? boundaryOwner ?? undefined;
+/** True while this graph's batch body runs (R-graph-domain@3: each graph has its own batch). */
+export function currentBatch(core: NodeCore): boolean {
+	return core.domain.batch !== null;
+}
+
+export function currentBoundaryBatchToken(core: NodeCore): object | undefined {
+	return activeOf(core) ?? (core.domain.boundaryOwner as ActiveBatch | null) ?? undefined;
 }
 
 /**
@@ -70,7 +65,8 @@ export function currentBoundaryBatchToken(): object | undefined {
  * captured it; false if there is no active batch (caller emits normally).
  */
 /** Stage a node's whole array for the commit (the caller passes what is staged so far plus more). */
-export function deferToBatch(target: BatchTarget, wave: Wave): boolean {
+export function deferToBatch(core: NodeCore, target: BatchTarget, wave: Wave): boolean {
+	const active = activeOf(core);
 	if (active === null) return false;
 	if (!active.deferred.has(target)) active.order.push(target);
 	active.deferred.set(target, wave);
@@ -78,8 +74,8 @@ export function deferToBatch(target: BatchTarget, wave: Wave): boolean {
 }
 
 /** R-request-order: output staged through this lifetime is dropped if it closes before the commit. */
-export function noteBatchLifetime(target: BatchTarget, signal: AbortSignal): void {
-	active?.lifetimes.set(target, signal);
+export function noteBatchLifetime(core: NodeCore, target: BatchTarget, signal: AbortSignal): void {
+	activeOf(core)?.lifetimes.set(target, signal);
 }
 
 /**
@@ -87,32 +83,38 @@ export function noteBatchLifetime(target: BatchTarget, signal: AbortSignal): voi
  * requests were made. Inside a batch body it runs after the batch's commit.
  */
 export function request(core: NodeCore, op: () => void): void {
+	const active = activeOf(core);
 	if (active !== null) {
 		active.requests.push(op);
 		return;
 	}
-	if (isWaveActive()) {
-		deferRewire(core, op);
+	if (isWaveActive(core)) {
+		deferRequest(core, op);
 		return;
 	}
-	enterWave();
+	enterWave(core);
 	try {
 		op();
 	} finally {
-		exitWave();
+		exitWave(core);
 	}
 }
 
 /** What a node has staged in the open batch, if anything. */
-export function stagedBatchWave(target: BatchTarget): Wave | undefined {
-	return active?.deferred.get(target);
+export function stagedBatchWave(core: NodeCore, target: BatchTarget): Wave | undefined {
+	return activeOf(core)?.deferred.get(target);
 }
 
 /**
  * Defer a topology mutation until after the active batch has committed/rolled back,
  * but only when this target has an uncommitted settle slice in the current batch.
  */
-export function deferAfterBatchForTarget(target: BatchTarget, fn: () => void): boolean {
+export function deferAfterBatchForTarget(
+	core: NodeCore,
+	target: BatchTarget,
+	fn: () => void,
+): boolean {
+	const active = activeOf(core);
 	if (active === null || !active.deferred.has(target)) return false;
 	const owner = active;
 	target.__deferBoundary(() => {
@@ -121,12 +123,12 @@ export function deferAfterBatchForTarget(target: BatchTarget, fn: () => void): b
 	return true;
 }
 
-function commit(b: ActiveBatch): void {
-	const prev = boundaryOwner;
-	boundaryOwner = b;
+function commit(core: NodeCore, b: ActiveBatch): void {
+	const prev = core.domain.boundaryOwner;
+	core.domain.boundaryOwner = b;
 	// R-request-order: the body's requests run after this wave, before anything the wave asks for,
 	// and also when a function write fails the commit.
-	deferFirst(b.requests);
+	deferFirst(core, b.requests);
 	try {
 		// A function write sees the writes staged before it; a throw commits nothing.
 		const staged: Array<[BatchTarget, Wave]> = [];
@@ -142,50 +144,34 @@ function commit(b: ActiveBatch): void {
 		for (const [target, wave] of staged) target.__commitBatchedWave(wave);
 		b.committed = true;
 	} catch (e) {
-		dropBoundaryTasksForBatch(b);
+		dropBoundaryTasksForBatch(core, b);
 		throw e;
 	} finally {
-		boundaryOwner = prev;
+		core.domain.boundaryOwner = prev;
 	}
 }
 
-function rollback(b: ActiveBatch): void {
+function rollback(core: NodeCore, b: ActiveBatch): void {
 	// O3: nothing was delivered before the commit, so there is nothing to compensate.
-	dropBoundaryTasksForBatch(b);
+	dropBoundaryTasksForBatch(core, b);
 }
 
 /**
- * Run updates as one coalesced batch.
+ * Run a graph's updates as one batch (internal; the public form is `graph.batch`).
  *
- * @param fn - Synchronous callback that performs node updates and may call `rollback()`.
- * @returns The callback return value when the batch commits.
- * @example
- * ```ts
- * import { batch } from "@graphrefly/ts/core";
- * import { graph } from "@graphrefly/ts/graph";
- *
- * const g = graph();
- * const left = g.state(0);
- * const right = g.state(0);
- *
- * batch(() => {
- *   left.set(1);
- *   right.set(2);
- * });
- * ```
- * @remarks **One wave:** the body delivers nothing; its writes commit as one array per node in
- *   one wave, so shared downstream nodes recompute once for the batch (R-request-order).
- * @category core
+ * The body runs at once and delivers nothing; its writes to this graph's nodes commit as one
+ * array per node in one wave, so shared downstream nodes recompute once (R-request-order). A
+ * write to another graph's node inside the body is that graph's own request (R-graph-domain@3).
  */
-export function batch<R>(fn: (bctx: BatchCtx) => R): R {
+export function batchIn<R>(core: NodeCore, fn: (bctx: BatchCtx) => R): R {
 	// O3: a batch is one synchronous wave, which an async function cannot hold open.
 	if (Object.prototype.toString.call(fn) === "[object AsyncFunction]")
 		throw new TypeError(
 			"batch: the body must be synchronous; finish asynchronous work first, then batch the writes",
 		);
-	if (active !== null) {
-		// A batch inside a batch body joins the outer one (one commit).
-		const outer = active;
+	const outer = activeOf(core);
+	if (outer !== null) {
+		// A batch inside a batch body of the same graph joins the outer one (one commit).
 		return fn({
 			rollback: () => {
 				outer.rolledBack = true;
@@ -206,25 +192,25 @@ export function batch<R>(fn: (bctx: BatchCtx) => R): R {
 		},
 	};
 	// The body runs at once, also during a wave, and nothing is delivered while it runs.
-	const during = isWaveActive();
-	enterWave();
-	active = b;
+	const during = isWaveActive(core);
+	enterWave(core);
+	core.domain.batch = b;
 	let result: R;
 	try {
 		try {
 			result = fn(bctx);
 		} finally {
-			active = null;
+			core.domain.batch = null;
 		}
-		if (b.rolledBack) rollback(b);
+		if (b.rolledBack) rollback(core, b);
 		else if (during)
-			deferDirect(() => commit(b)); // the commit is a request (R-request-order)
-		else commit(b);
+			deferRequest(core, () => commit(core, b)); // the commit is a request (R-request-order)
+		else commit(core, b);
 	} catch (e) {
-		rollback(b);
+		rollback(core, b);
 		throw e;
 	} finally {
-		exitWave();
+		exitWave(core);
 	}
 	return result;
 }

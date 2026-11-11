@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from "vitest";
 import { CTX_NODE_BINDING } from "../ctx/types.js";
+import { initNode } from "../graph/operators.js";
 import type { Message } from "../index.js";
 import {
 	EnvironmentDrivers,
@@ -18,7 +19,6 @@ import {
 	graph,
 	type HttpRequest,
 	type HttpResponse,
-	initNode,
 	interval,
 	type LocalHttpDriver,
 	type LocalProcessDriver,

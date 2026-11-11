@@ -184,7 +184,7 @@ if (saved !== undefined) {
 import { graph, reactiveMap } from "@graphrefly/ts";
 
 const g = graph({ name: "inventory" });
-const items = reactiveMap<string, { stock: number }>();
+const items = reactiveMap<string, { stock: number }>(g);
 
 items.set("sku-1", { stock: 3 });
 

@@ -1,7 +1,6 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it } from "vitest";
-import { batch } from "../batch/batch.js";
 import type { DataIssue, DataResult } from "../data/index.js";
 import { constructionOf } from "../graph/construction-scope.js";
 import { Graph } from "../graph/graph.js";
@@ -277,11 +276,11 @@ describe("D791 causal occurrence contract-v2", () => {
 		const f = fixture();
 		const first = occurrence(1);
 		const second = occurrence(2);
-		batch(() => {
+		f.owner.batch(() => {
 			f.occurrences.set(first);
 			f.occurrences.set(second);
 		});
-		batch(() => {
+		f.owner.batch(() => {
 			f.admissions.set(admission(first));
 			f.admissions.set(admission(second));
 		});
@@ -296,11 +295,11 @@ describe("D791 causal occurrence contract-v2", () => {
 		const f = fixture();
 		const first = occurrence(1, "shared-id");
 		const second = occurrence(2, "shared-id");
-		batch(() => {
+		f.owner.batch(() => {
 			f.occurrences.set(first);
 			f.occurrences.set(second);
 		});
-		batch(() => {
+		f.owner.batch(() => {
 			f.admissions.set(admission(first));
 			f.admissions.set(admission(second));
 		});
@@ -827,7 +826,7 @@ describe("D791 causal occurrence contract-v2", () => {
 				}),
 			);
 			const send = () =>
-				batch(() => {
+				f.owner.batch(() => {
 					for (const v of proposals) asState(f.effectProposals).set(v);
 				});
 			if (early) send();

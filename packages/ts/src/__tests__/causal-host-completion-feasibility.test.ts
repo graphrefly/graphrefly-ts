@@ -1,6 +1,5 @@
 /** Private no-I/O probe of the approved host notification contract. Not a host adapter. */
 import { expect, it } from "vitest";
-import { batch } from "../batch/batch.js";
 import { depBatch } from "../ctx/types.js";
 import { Graph } from "../graph/graph.js";
 
@@ -77,6 +76,7 @@ function fixture(capacity = 64, enqueue: (callback: () => void) => void = queueM
 		}
 	});
 	return {
+		graph,
 		input,
 		guard,
 		source,
@@ -102,9 +102,9 @@ const checkpoint = () => new Promise<void>((resolve) => queueMicrotask(resolve))
 it("delivers after nested batch commits, with one immutable complete snapshot", async () => {
 	const f = fixture();
 	try {
-		batch(() =>
-			batch(() =>
-				batch(() => {
+		f.graph.batch(() =>
+			f.graph.batch(() =>
+				f.graph.batch(() => {
 					f.input.set(1);
 					f.input.set(2);
 				}),
@@ -130,7 +130,7 @@ it("delivers after nested batch commits, with one immutable complete snapshot", 
 it("does not create a host record or notification from rolled back input", async () => {
 	const f = fixture();
 	try {
-		batch((ctx) => {
+		f.graph.batch((ctx) => {
 			f.input.set(1);
 			ctx.rollback();
 		});

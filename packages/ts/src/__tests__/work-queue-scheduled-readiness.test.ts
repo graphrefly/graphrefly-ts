@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { batch } from "../batch/batch.js";
 import type { DataIssue } from "../data/index.js";
 import { graph } from "../graph/graph.js";
 import { compoundTupleKey } from "../identity.js";
@@ -78,7 +77,7 @@ describe("workQueueScheduledReadinessProjector (B94/D424/D432/D433)", () => {
 	it("lowers delayed work-admitted and retry-scheduled records to shared readyAtMs", () => {
 		const harness = createHarness();
 
-		batch(() => {
+		harness.g.batch(() => {
 			harness.records.set(
 				workAdmitted({
 					recordSeq: 1,
@@ -231,7 +230,7 @@ describe("workQueueScheduledReadinessProjector (B94/D424/D432/D433)", () => {
 	it("translates lease expiration eligibility without materializing lease-expired lifecycle records", () => {
 		const harness = createHarness();
 
-		batch(() => {
+		harness.g.batch(() => {
 			harness.records.set(
 				workClaimed({
 					recordSeq: 3,
@@ -361,7 +360,7 @@ describe("workQueueScheduledReadinessProjector (B94/D424/D432/D433)", () => {
 	it("ignores terminal/canceled/dead-lettered records instead of emitting shared lifecycle facts", () => {
 		const harness = createHarness();
 
-		batch(() => {
+		harness.g.batch(() => {
 			harness.records.set(terminalRecord("work-canceled", 20));
 			harness.records.set(terminalRecord("work-completed", 21));
 			harness.records.set(terminalRecord("work-dead-lettered", 22));
@@ -377,7 +376,7 @@ describe("workQueueReadinessHandoffProjector (B94/D433)", () => {
 	it("turns scheduled and retry readiness into claim-eligible candidates without claiming work", () => {
 		const harness = createHandoffHarness();
 
-		batch(() => {
+		harness.g.batch(() => {
 			harness.records.set(workScheduled({ recordSeq: 1, notBeforeMs: 100 }));
 			harness.records.set(
 				retryScheduled({ workId: "w2", recordSeq: 2, commandId: "fail-1", retryAtMs: 200 }),
@@ -409,7 +408,7 @@ describe("workQueueReadinessHandoffProjector (B94/D433)", () => {
 	it("keeps current work state isolated by queueId and workId", () => {
 		const harness = createHandoffHarness();
 
-		batch(() => {
+		harness.g.batch(() => {
 			harness.records.set(
 				workScheduled({ queueId: "q1", workId: "same-work", recordSeq: 1, notBeforeMs: 100 }),
 			);
@@ -441,7 +440,7 @@ describe("workQueueReadinessHandoffProjector (B94/D433)", () => {
 	it("ignores stale readiness whose origin record was superseded by a newer record", () => {
 		const harness = createHandoffHarness();
 
-		batch(() => {
+		harness.g.batch(() => {
 			harness.records.set(workScheduled({ recordSeq: 1, notBeforeMs: 100 }));
 			harness.records.set(workScheduled({ recordSeq: 2, notBeforeMs: 200 }));
 		});
@@ -465,7 +464,7 @@ describe("workQueueReadinessHandoffProjector (B94/D433)", () => {
 	it("ignores stale lower-sequence records instead of reopening terminal work", () => {
 		const harness = createHandoffHarness();
 
-		batch(() => {
+		harness.g.batch(() => {
 			harness.records.set(terminalRecord("work-completed", 10));
 			harness.records.set(workScheduled({ recordSeq: 1, notBeforeMs: 100 }));
 		});
@@ -523,7 +522,7 @@ describe("workQueueReadinessHandoffProjector (B94/D433)", () => {
 	it("ignores superseded lease readiness after a renewal extends the active lease", () => {
 		const harness = createHandoffHarness({ includeLeaseCommands: true });
 
-		batch(() => {
+		harness.g.batch(() => {
 			harness.records.set(
 				workClaimed({
 					recordSeq: 3,
@@ -560,7 +559,7 @@ describe("workQueueReadinessHandoffProjector (B94/D433)", () => {
 	it("ignores terminal work and treats overdue as visibility-only status", () => {
 		const harness = createHandoffHarness({ includeLeaseCommands: true });
 
-		batch(() => {
+		harness.g.batch(() => {
 			harness.records.set(workScheduled({ recordSeq: 6, notBeforeMs: 100 }));
 			harness.records.set(terminalRecord("work-completed", 7));
 		});
@@ -650,6 +649,7 @@ function createHarness(opts: { readonly includeSharedReadiness?: boolean } = {})
 					clocks: [clocks],
 				});
 	return {
+		g,
 		records,
 		clocks,
 		seen: {
@@ -683,6 +683,7 @@ function createHandoffHarness(opts: { readonly includeLeaseCommands?: boolean } 
 		? workQueueLeaseExpirationCommandProjector(g, { candidates: handoff.candidates })
 		: undefined;
 	return {
+		g,
 		records,
 		ready: readyNode,
 		overdue: overdueNode,

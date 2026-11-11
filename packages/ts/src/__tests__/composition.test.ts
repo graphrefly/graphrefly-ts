@@ -6,7 +6,6 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { batch } from "../batch/batch.js";
 import type { Message, Node } from "../index.js";
 import {
 	type DescribeSnapshot,
@@ -179,7 +178,7 @@ describe("stratifyBranch (D56)", () => {
 		);
 		const { msgs } = collect(branch);
 
-		batch(() => {
+		g.batch(() => {
 			source.set(1);
 			source.set(2);
 		});
@@ -217,7 +216,7 @@ describe("stratifyBranch (D56)", () => {
 		);
 		const { msgs } = collect(branch);
 
-		batch(() => {
+		g.batch(() => {
 			source.set(7);
 			source.complete();
 		});

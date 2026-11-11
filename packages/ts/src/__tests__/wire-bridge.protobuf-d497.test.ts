@@ -3,16 +3,14 @@ import { describe, expect, it } from "vitest";
 import {
 	CanonicalProtobufError,
 	decodeCanonicalWireBridgeEnvelope,
-	decodeCanonicalWireEdgeFrame,
+	decodeCanonicalWireEdgeCause,
 	encodeCanonicalWireBridgeEnvelope,
-	encodeCanonicalWireEdgeFrame,
+	encodeCanonicalWireEdgeCause,
 	type WireBridgeProtobufData,
 	wireBridge,
 	wireBridgeEnvelope,
 	wireBridgeProtobuf,
-	wireEdgeGroup,
 } from "../adapters/index.js";
-import { batch } from "../batch/batch.js";
 import { depBatch } from "../ctx/types.js";
 import { graph } from "../graph/graph.js";
 import { asState } from "./helpers/as-state.js";
@@ -20,19 +18,19 @@ import { asState } from "./helpers/as-state.js";
 interface VectorRecord {
 	readonly schema: "graphrefly.protobuf.golden.v1";
 	readonly id: string;
-	readonly message: "WireBridgeEnvelope" | "WireEdgeFrame";
+	readonly message: "WireBridgeEnvelope" | "WireEdgeCause";
 	readonly description: string;
 	readonly hex: string;
 	readonly canonical: boolean;
 	readonly errorCategory?: string;
-	readonly expect?: { readonly payload?: string };
+	readonly expect?: { readonly payload?: string; readonly edges?: number };
 }
 
 const envelopeFixtureUrl = new URL(
 	"./fixtures/protobuf/wire_bridge_envelope.v1.jsonl",
 	import.meta.url,
 );
-const wireEdgeFixtureUrl = new URL("./fixtures/protobuf/wire_edge_frame.v1.jsonl", import.meta.url);
+const wireEdgeFixtureUrl = new URL("./fixtures/protobuf/wire_edge_cause.v1.jsonl", import.meta.url);
 
 function vectors(fixtureUrl: URL, message: VectorRecord["message"]): VectorRecord[] {
 	return readFileSync(fixtureUrl, "utf8")
@@ -103,19 +101,17 @@ describe("D497 canonical protobuf wire bridge envelope vectors", () => {
 			expect(decoded.payload.kind).toBe("data");
 			expect(decoded.payload.kind === "data" && decoded.payload.body.kind).toBe("value");
 		}
-		if (record.expect?.payload === "data.wire_edge.dirty") {
+		if (record.expect?.payload === "data.edge_cause") {
 			expect(decoded.payload.kind).toBe("data");
-			expect(decoded.payload.kind === "data" && decoded.payload.body.kind).toBe("wire_edge");
-			if (decoded.payload.kind === "data" && decoded.payload.body.kind === "wire_edge") {
-				expect(decoded.payload.body.frame.kind).toBe("pending");
-			}
-		}
-		if (record.expect?.payload === "data.wire_edge.data") {
-			expect(decoded.payload.kind).toBe("data");
-			expect(decoded.payload.kind === "data" && decoded.payload.body.kind).toBe("wire_edge");
-			if (decoded.payload.kind !== "data" || decoded.payload.body.kind !== "wire_edge") return;
-			expect(decoded.payload.body.frame.kind).toBe("data");
-			expect(decoded.payload.body.frame.value).toBeInstanceOf(Uint8Array);
+			expect(decoded.payload.kind === "data" && decoded.payload.body.kind).toBe("edge_cause");
+			if (decoded.payload.kind !== "data" || decoded.payload.body.kind !== "edge_cause") return;
+			const { cause } = decoded.payload.body;
+			expect(cause.group).toBe("g");
+			expect(cause.cause).toBeGreaterThanOrEqual(1);
+			for (const edge of cause.edges)
+				for (const wave of edge.arrays)
+					for (const m of wave)
+						if (m[0] === "DATA" || m[0] === "ERROR") expect(m[1]).toBeInstanceOf(Uint8Array);
 		}
 	});
 
@@ -133,28 +129,56 @@ describe("D497 canonical protobuf wire bridge envelope vectors", () => {
 	});
 });
 
-describe("D497 canonical protobuf wire-edge frame vectors", () => {
-	it("parses standalone WireEdgeFrame fixture records", () => {
-		const records = vectors(wireEdgeFixtureUrl, "WireEdgeFrame");
+describe("C-1a canonical protobuf WireEdgeCause vectors (R-bridge@1, D803)", () => {
+	it("parses standalone WireEdgeCause fixture records", () => {
+		const records = vectors(wireEdgeFixtureUrl, "WireEdgeCause");
 		expect(records.some((record) => record.canonical)).toBe(true);
 		expect(records.some((record) => !record.canonical)).toBe(true);
 	});
 
 	it.each(
-		vectors(wireEdgeFixtureUrl, "WireEdgeFrame").filter((record) => record.canonical),
+		vectors(wireEdgeFixtureUrl, "WireEdgeCause").filter((record) => record.canonical),
 	)("decodes, validates, and re-encodes $id byte-for-byte", (record) => {
 		const bytes = fromHex(record.hex);
-		const decoded = decodeCanonicalWireEdgeFrame(bytes);
-		const encoded = encodeCanonicalWireEdgeFrame(decoded);
+		const decoded = decodeCanonicalWireEdgeCause(bytes);
+		const encoded = encodeCanonicalWireEdgeCause(decoded);
 
 		expect(toHex(encoded)).toBe(record.hex);
+		expect(decoded.edges).toHaveLength(record.expect?.edges ?? decoded.edges.length);
+	});
+
+	it("decodes the fixtures into the frames a wire edge group sends", () => {
+		const text = (bytes: Uint8Array) => new TextDecoder().decode(bytes);
+		const first = decodeCanonicalWireEdgeCause(
+			fromHex(vectorById("WireEdgeCause", "positive.edge_cause.first_with_invalidate").hex),
+		);
+		expect(first.group).toBe("g");
+		expect(first.session).toBe("s1");
+		expect(first.cause).toBe(1);
+		expect(first.edges.map((e) => e.edgeId)).toEqual(["x", "y"]);
+		expect(first.edges[0]?.arrays.map((w) => w.map((m) => m[0]))).toEqual([["DATA"]]);
+		expect(text(first.edges[0]?.arrays[0]?.[0]?.[1] as Uint8Array)).toBe('{"ok":true}');
+		expect(first.edges[1]?.arrays).toEqual([[["INVALIDATE"]]]);
+		const ordered = decodeCanonicalWireEdgeCause(
+			fromHex(vectorById("WireEdgeCause", "positive.edge_cause.arrays_in_order").hex),
+		);
+		expect(ordered.cause).toBe(4);
+		expect(ordered.edges[0]?.arrays.map((w) => w.map((m) => m[0]))).toEqual([
+			["DATA"],
+			["DATA", "COMPLETE"],
+		]);
+		const failed = decodeCanonicalWireEdgeCause(
+			fromHex(vectorById("WireEdgeCause", "positive.edge_cause.error").hex),
+		);
+		expect(failed.edges[0]?.arrays[0]?.[0]?.[0]).toBe("ERROR");
+		expect(text(failed.edges[0]?.arrays[0]?.[0]?.[1] as Uint8Array)).toBe('{"error":"boom"}');
 	});
 
 	it.each(
-		vectors(wireEdgeFixtureUrl, "WireEdgeFrame").filter((record) => !record.canonical),
+		vectors(wireEdgeFixtureUrl, "WireEdgeCause").filter((record) => !record.canonical),
 	)("rejects $id as $errorCategory", (record) => {
 		try {
-			decodeCanonicalWireEdgeFrame(fromHex(record.hex));
+			decodeCanonicalWireEdgeCause(fromHex(record.hex));
 		} catch (error) {
 			expect(error).toBeInstanceOf(CanonicalProtobufError);
 			expect((error as CanonicalProtobufError).category).toBe(record.errorCategory);
@@ -257,10 +281,14 @@ describe("D497 canonical protobuf wire-edge frame vectors", () => {
 			}),
 		).toThrow(CanonicalProtobufError);
 		expect(() =>
-			encodeCanonicalWireEdgeFrame({
-				kind: "bogus" as never,
-				edgeId: "edge-a",
-				causeId: "cause-1",
+			encodeCanonicalWireEdgeCause({ group: "g", session: "s1", cause: 0, edges: [] }),
+		).toThrow(CanonicalProtobufError);
+		expect(() =>
+			encodeCanonicalWireEdgeCause({
+				group: "g",
+				session: "s1",
+				cause: 1,
+				edges: [{ edgeId: "x", arrays: [[["RESOLVED"]]] }],
 			}),
 		).toThrow(CanonicalProtobufError);
 		expect(() =>
@@ -338,7 +366,7 @@ describe("D498 wireBridgeProtobuf focused helper", () => {
 			}
 		});
 
-		batch(() => {
+		g.batch(() => {
 			const target = asState(protobuf.inboundBytes);
 			target.set(canonicalInboundBytes());
 			target.set(malformedInboundBytes());
@@ -605,7 +633,7 @@ describe("D498 wireBridgeProtobuf focused helper", () => {
 		expect(toHex(encodeCanonicalWireBridgeEnvelope(decoded))).toBe(toHex(bytes));
 	});
 
-	it("encodes outbound wire-edge DTOs without introducing a WireEdgeGroup runtime", () => {
+	it("encodes outbound edge-cause DTOs without introducing a wire edge group runtime", () => {
 		const g = graph();
 		const bridge = wireBridge<WireBridgeProtobufData, WireBridgeProtobufData>(g, {
 			name: "bridge",
@@ -620,26 +648,21 @@ describe("D498 wireBridgeProtobuf focused helper", () => {
 			}
 		});
 
-		bridge.send({
-			kind: "wire_edge",
-			frame: { kind: "data", edgeId: "edge-a", causeId: "cause-1", value: new Uint8Array() },
-		});
+		const cause = {
+			group: "g",
+			session: "s1",
+			cause: 1,
+			edges: [{ edgeId: "x", arrays: [[["DATA", new Uint8Array()] as const]] }],
+		};
+		bridge.send({ kind: "edge_cause", cause });
 
 		const decoded = decodeCanonicalWireBridgeEnvelope(
 			dataMessages(outboundBytes).at(-1)?.[1] as Uint8Array,
 		);
 		expect(decoded.payload.kind).toBe("data");
 		if (decoded.payload.kind !== "data") return;
-		expect(decoded.payload.body).toEqual({
-			kind: "wire_edge",
-			frame: {
-				kind: "data",
-				edgeId: "edge-a",
-				causeId: "cause-1",
-				value: new Uint8Array(),
-			},
-		});
-		expect(g.describe().nodes.map((node) => node.factory)).not.toContain("WireEdgeGroup");
+		expect(decoded.payload.body).toEqual({ kind: "edge_cause", cause });
+		expect(g.describe().nodes.map((node) => node.factory)).not.toContain("wireEdgeGroupOut");
 	});
 
 	it("reports outbound encode issues for non-canonical semantic payloads", () => {
@@ -713,7 +736,8 @@ describe("D498 wireBridgeProtobuf focused helper", () => {
 		expect(snap.nodes).toContainEqual(
 			expect.objectContaining({ id: "bridge/inbound", factory: "wireBridgeInbound" }),
 		);
-		expect(snap.edges).toContainEqual({
+		// D803: the decoded lane writes into the bridge's inbound state; it is not a dependency.
+		expect(snap.edges).not.toContainEqual({
 			from: "bridge/protobuf/inboundDecoded",
 			to: "bridge/inbound",
 		});
@@ -813,295 +837,6 @@ describe("D498 wireBridgeProtobuf focused helper", () => {
 				{ from: "bridge/outbound", to: "bridge/protobuf/outboundResults" },
 				{ from: "bridge/protobuf/outboundResults", to: "bridge/protobuf/outboundEvents" },
 				{ from: "bridge/protobuf/outboundEvents", to: "bridge/protobuf/status" },
-			]),
-		);
-	});
-
-	it("C-1 TS mixed-locality bridge diamond stays coherent over FIFO protobuf WireEdgeGroup pumps", () => {
-		const text = new TextEncoder();
-		const decode = new TextDecoder();
-		const bytes = (value: string) => text.encode(value);
-		const stringOf = (value: Uint8Array) => decode.decode(value);
-		type TraceRow = {
-			readonly direction: "g1_to_g2" | "g2_to_g1";
-			readonly queueIndex: number;
-			readonly seq: bigint;
-			readonly edgeId?: string;
-			readonly causeId?: string;
-			readonly frameKind?: "pending" | "data";
-			readonly value?: string;
-		};
-		const trace: TraceRow[] = [];
-		const captureBytes = (messages: unknown[], queue: Uint8Array[]) => {
-			for (const msg of dataMessages(messages)) queue.push(Uint8Array.from(msg[1] as Uint8Array));
-			messages.length = 0;
-		};
-		const pumpOne = (
-			direction: TraceRow["direction"],
-			queue: Uint8Array[],
-			target: { down(msgs: readonly [readonly ["DATA", Uint8Array]]): void },
-		) => {
-			const item = queue.shift();
-			if (item === undefined) throw new Error(`empty ${direction} queue`);
-			const decoded = decodeCanonicalWireBridgeEnvelope(item);
-			expect(toHex(encodeCanonicalWireBridgeEnvelope(decoded))).toBe(toHex(item));
-			const payload = decoded.payload;
-			const row: TraceRow = {
-				direction,
-				queueIndex: trace.filter((entry) => entry.direction === direction).length,
-				seq: decoded.metadata.seq,
-				...(payload.kind === "data" && payload.body.kind === "wire_edge"
-					? {
-							edgeId: payload.body.frame.edgeId,
-							causeId: payload.body.frame.causeId,
-							frameKind: payload.body.frame.kind,
-							value:
-								payload.body.frame.kind === "data"
-									? stringOf(payload.body.frame.value ?? new Uint8Array())
-									: undefined,
-						}
-					: {}),
-			};
-			trace.push(row);
-			asState(target).set(item);
-		};
-		const pumpAll = (
-			direction: TraceRow["direction"],
-			queue: Uint8Array[],
-			target: { down(msgs: readonly [readonly ["DATA", Uint8Array]]): void },
-		) => {
-			while (queue.length > 0) pumpOne(direction, queue, target);
-		};
-		const causeFrames = (direction: TraceRow["direction"], causeId: string) =>
-			trace.filter((row) => row.direction === direction && row.causeId === causeId);
-
-		const g1 = graph();
-		const g2 = graph();
-		const a = g1.node<Uint8Array>([], null, { name: "g1/A" });
-		const aToB = g1.node<Uint8Array>(
-			[a],
-			(ctx) => {
-				for (const value of depBatch(ctx, 0) ?? [])
-					ctx.down([["DATA", Uint8Array.from(value as Uint8Array)]]);
-			},
-			{ name: "g1/A_to_B" },
-		);
-		const aToC = g1.node<Uint8Array>(
-			[a],
-			(ctx) => {
-				for (const value of depBatch(ctx, 0) ?? [])
-					ctx.down([["DATA", Uint8Array.from(value as Uint8Array)]]);
-			},
-			{ name: "g1/A_to_C" },
-		);
-
-		const g1ToG2Bridge = wireBridge<WireBridgeProtobufData, WireBridgeProtobufData>(g1, {
-			name: "g1/to_g2/bridge",
-			sessionId: "g1-to-g2",
-		});
-		const g1ToG2Bytes = wireBridgeProtobuf(g1, g1ToG2Bridge, {
-			name: "g1/to_g2/protobuf",
-		});
-		wireEdgeGroup(g1, g1ToG2Bridge, {
-			name: "g1/split",
-			edges: [
-				{ edgeId: "A:B", outbound: aToB },
-				{ edgeId: "A:C", outbound: aToC },
-			],
-		});
-		const g2FromG1Bridge = wireBridge<WireBridgeProtobufData, WireBridgeProtobufData>(g2, {
-			name: "g2/from_g1/bridge",
-			sessionId: "g1-to-g2",
-		});
-		const g2FromG1Bytes = wireBridgeProtobuf(g2, g2FromG1Bridge, {
-			name: "g2/from_g1/protobuf",
-		});
-		const g2Inbound = wireEdgeGroup(g2, g2FromG1Bridge, {
-			name: "g2/inbound_split",
-			edges: [{ edgeId: "A:B" }, { edgeId: "A:C" }],
-		});
-		const inboundAB = g2Inbound.inbound.get("A:B");
-		const inboundAC = g2Inbound.inbound.get("A:C");
-		if (inboundAB === undefined || inboundAC === undefined) throw new Error("missing g2 inbound");
-		const b = g2.node<Uint8Array>(
-			[inboundAB],
-			(ctx) => {
-				for (const value of depBatch(ctx, 0) ?? [])
-					ctx.down([["DATA", bytes(`B(${stringOf(value as Uint8Array)})`)]]);
-			},
-			{ name: "g2/B" },
-		);
-		const c = g2.node<Uint8Array>(
-			[inboundAC],
-			(ctx) => {
-				for (const value of depBatch(ctx, 0) ?? [])
-					ctx.down([["DATA", bytes(`C(${stringOf(value as Uint8Array)})`)]]);
-			},
-			{ name: "g2/C" },
-		);
-		const g2ToG1Bridge = wireBridge<WireBridgeProtobufData, WireBridgeProtobufData>(g2, {
-			name: "g2/to_g1/bridge",
-			sessionId: "g2-to-g1",
-		});
-		const g2ToG1Bytes = wireBridgeProtobuf(g2, g2ToG1Bridge, {
-			name: "g2/to_g1/protobuf",
-		});
-		wireEdgeGroup(g2, g2ToG1Bridge, {
-			name: "g2/join_out",
-			edges: [
-				{ edgeId: "B:D", outbound: b },
-				{ edgeId: "C:D", outbound: c },
-			],
-		});
-		const g1FromG2Bridge = wireBridge<WireBridgeProtobufData, WireBridgeProtobufData>(g1, {
-			name: "g1/from_g2/bridge",
-			sessionId: "g2-to-g1",
-		});
-		const g1FromG2Bytes = wireBridgeProtobuf(g1, g1FromG2Bridge, {
-			name: "g1/from_g2/protobuf",
-		});
-		const g1Inbound = wireEdgeGroup(g1, g1FromG2Bridge, {
-			name: "g1/inbound_join",
-			edges: [{ edgeId: "B:D" }, { edgeId: "C:D" }],
-		});
-		const inboundBD = g1Inbound.inbound.get("B:D");
-		const inboundCD = g1Inbound.inbound.get("C:D");
-		if (inboundBD === undefined || inboundCD === undefined) throw new Error("missing g1 inbound");
-		let dRuns = 0;
-		const d = g1.node<string>(
-			[inboundBD, inboundCD],
-			(ctx) => {
-				dRuns++;
-				const bBatch = depBatch(ctx, 0);
-				const cBatch = depBatch(ctx, 1);
-				if (bBatch && cBatch) {
-					ctx.down([
-						[
-							"DATA",
-							`${stringOf(bBatch.at(-1) as Uint8Array)}|${stringOf(cBatch.at(-1) as Uint8Array)}`,
-						],
-					]);
-				}
-			},
-			{ name: "g1/D" },
-		);
-
-		const g1ToG2Queue: Uint8Array[] = [];
-		const g2ToG1Queue: Uint8Array[] = [];
-		const g1ToG2Out: unknown[] = [];
-		const g2ToG1Out: unknown[] = [];
-		const g2InboundStatus: unknown[] = [];
-		const g1InboundStatus: unknown[] = [];
-		const dMessages: unknown[] = [];
-		g1ToG2Bytes.outboundBytes.subscribe((incoming) => {
-			for (const msg of incoming) {
-				g1ToG2Out.push(msg);
-			}
-		});
-		g2ToG1Bytes.outboundBytes.subscribe((incoming) => {
-			for (const msg of incoming) {
-				g2ToG1Out.push(msg);
-			}
-		});
-		g2Inbound.status.subscribe((incoming) => {
-			for (const msg of incoming) {
-				g2InboundStatus.push(msg);
-			}
-		});
-		g1Inbound.status.subscribe((incoming) => {
-			for (const msg of incoming) {
-				g1InboundStatus.push(msg);
-			}
-		});
-		d.subscribe((incoming) => {
-			for (const msg of incoming) {
-				dMessages.push(msg);
-			}
-		});
-
-		a.set(bytes("a0"));
-		captureBytes(g1ToG2Out, g1ToG2Queue);
-		pumpAll("g1_to_g2", g1ToG2Queue, g2FromG1Bytes.inboundBytes);
-		captureBytes(g2ToG1Out, g2ToG1Queue);
-		pumpAll("g2_to_g1", g2ToG1Queue, g1FromG2Bytes.inboundBytes);
-		expect(dataMessages(dMessages).map((msg) => msg[1])).toEqual(["B(a0)|C(a0)"]);
-
-		dMessages.length = 0;
-		dRuns = 0;
-		g2InboundStatus.length = 0;
-		g1InboundStatus.length = 0;
-		trace.length = 0;
-		batch(() => {
-			a.set(bytes("a1"));
-		});
-		captureBytes(g1ToG2Out, g1ToG2Queue);
-
-		pumpOne("g1_to_g2", g1ToG2Queue, g2FromG1Bytes.inboundBytes);
-		expect(dRuns).toBe(0);
-		expect(dataMessages(dMessages)).toEqual([]);
-		expect(g2ToG1Queue).toEqual([]);
-		expect(dataMessages(g2InboundStatus).at(-1)?.[1]).toEqual(
-			expect.objectContaining({ state: "collecting", pending: 1, data: 0, released: 2 }),
-		);
-
-		pumpAll("g1_to_g2", g1ToG2Queue, g2FromG1Bytes.inboundBytes);
-		captureBytes(g2ToG1Out, g2ToG1Queue);
-		expect(dRuns).toBe(0);
-		expect(dataMessages(dMessages)).toEqual([]);
-		expect(dataMessages(g2InboundStatus).at(-1)?.[1]).toEqual(
-			expect.objectContaining({ state: "released", released: 4 }),
-		);
-
-		pumpOne("g2_to_g1", g2ToG1Queue, g1FromG2Bytes.inboundBytes);
-		expect(dRuns).toBe(0);
-		expect(dataMessages(dMessages)).toEqual([]);
-
-		pumpAll("g2_to_g1", g2ToG1Queue, g1FromG2Bytes.inboundBytes);
-		expect(dRuns).toBe(1);
-		expect(dataMessages(dMessages).map((msg) => msg[1])).toEqual(["B(a1)|C(a1)"]);
-		expect(dataMessages(g1InboundStatus).at(-1)?.[1]).toEqual(
-			expect.objectContaining({ state: "released", released: 4 }),
-		);
-
-		const g1Cause = trace.find((row) => row.direction === "g1_to_g2" && row.causeId)?.causeId;
-		const g2Cause = trace.find((row) => row.direction === "g2_to_g1" && row.causeId)?.causeId;
-		if (g1Cause === undefined || g2Cause === undefined) throw new Error("missing stimulus causes");
-		expect(causeFrames("g1_to_g2", g1Cause).map((row) => row.frameKind)).toEqual([
-			"pending",
-			"pending",
-			"data",
-			"data",
-		]);
-		expect(causeFrames("g2_to_g1", g2Cause).map((row) => row.frameKind)).toEqual([
-			"pending",
-			"pending",
-			"data",
-			"data",
-		]);
-		expect(causeFrames("g1_to_g2", g1Cause).filter((row) => row.frameKind === "data")).toEqual(
-			expect.arrayContaining([
-				expect.objectContaining({ edgeId: "A:B", value: "a1" }),
-				expect.objectContaining({ edgeId: "A:C", value: "a1" }),
-			]),
-		);
-		expect(causeFrames("g2_to_g1", g2Cause).filter((row) => row.frameKind === "data")).toEqual(
-			expect.arrayContaining([
-				expect.objectContaining({ edgeId: "B:D", value: "B(a1)" }),
-				expect.objectContaining({ edgeId: "C:D", value: "C(a1)" }),
-			]),
-		);
-		expect(g1.describe().edges).toEqual(
-			expect.arrayContaining([
-				{ from: "g1/split/commands", to: "g1/to_g2/bridge/command" },
-				{ from: "g1/inbound_join/releaseCohorts", to: "g1/inbound_join/inbound/B:D" },
-				{ from: "g1/inbound_join/releaseCohorts", to: "g1/inbound_join/inbound/C:D" },
-			]),
-		);
-		expect(g2.describe().edges).toEqual(
-			expect.arrayContaining([
-				{ from: "g2/inbound_split/releaseCohorts", to: "g2/inbound_split/inbound/A:B" },
-				{ from: "g2/inbound_split/releaseCohorts", to: "g2/inbound_split/inbound/A:C" },
-				{ from: "g2/join_out/commands", to: "g2/to_g1/bridge/command" },
 			]),
 		);
 	});

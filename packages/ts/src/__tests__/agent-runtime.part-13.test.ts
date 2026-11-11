@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { batch } from "../batch/batch.js";
 import type { DataIssue } from "../data/index.js";
 import type {
 	ToolProviderAdapterBinding,
@@ -674,7 +673,7 @@ describe("CSP-8 dogfood evidence integration through explicit tool adapter runs 
 			toolRequest({ requestId: "tool-request-not-ready" }),
 		);
 
-		batch(() => {
+		harness.g.batch(() => {
 			harness.runRequests.set({
 				kind: "tool-provider-adapter-run-requested",
 				runId: "run-missing-input",

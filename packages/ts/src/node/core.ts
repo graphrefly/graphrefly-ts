@@ -1,3 +1,4 @@
+import { makeWaveDomain, type WaveDomain } from "../batch/boundary.js";
 import type { Ctx, DependentSink, NodeFn, Sink } from "../ctx/types.js";
 import type { Dispatcher, Handle } from "../dispatcher/index.js";
 import type { EnvironmentDrivers } from "../graph/environment.js";
@@ -87,16 +88,6 @@ export interface LifecycleState {
 	activated: boolean;
 }
 
-export interface BoundaryTask {
-	apply: () => void;
-	batchToken?: object;
-}
-
-export interface BoundaryState {
-	queue: BoundaryTask[];
-	head: number;
-}
-
 export interface NodeSlot<_T> {
 	/** R-node: the instance's declared dependencies; a lifetime's rewire goes back to them. */
 	declaredDeps: Node<unknown>[];
@@ -145,7 +136,8 @@ export class NodeCore {
 	private readonly lifetimes: Array<LifetimeState | undefined> = [];
 	private readonly syncCtxs: Array<SyncCtxState | undefined> = [];
 	private readonly versionStates: Array<VersionState | undefined> = [];
-	private readonly boundary: BoundaryState = { queue: [], head: 0 };
+	/** R-graph-domain@3: this graph's own wave, request queue and batch. */
+	readonly domain: WaveDomain = makeWaveDomain();
 
 	createSlot<T>(
 		slot: Omit<NodeSlot<T>, "id">,
@@ -235,45 +227,6 @@ export class NodeCore {
 		this.lifetimes[id] = undefined;
 		this.syncCtxs[id] = undefined;
 		this.versionStates[id] = undefined;
-	}
-
-	/** @internal B49: graph-local deferred-boundary queue (ctx.rewire/quiet output/batch-after-commit). */
-	enqueueBoundaryTask(task: BoundaryTask): void {
-		this.boundary.queue.push(task);
-	}
-
-	/** @internal */
-	hasBoundaryTasks(): boolean {
-		return this.boundary.head < this.boundary.queue.length;
-	}
-
-	/** @internal */
-	boundaryTaskCount(): number {
-		return this.boundary.queue.length - this.boundary.head;
-	}
-
-	/** @internal */
-	shiftBoundaryTask(): BoundaryTask | undefined {
-		if (!this.hasBoundaryTasks()) {
-			this.boundary.queue = [];
-			this.boundary.head = 0;
-			return undefined;
-		}
-		const task = this.boundary.queue[this.boundary.head++];
-		if (!this.hasBoundaryTasks()) {
-			this.boundary.queue = [];
-			this.boundary.head = 0;
-		}
-		return task;
-	}
-
-	/** @internal D110: discard all pending tasks caused by an uncommitted batch. */
-	dropBoundaryTasksForBatch(batchToken: object): void {
-		const remaining = this.boundary.queue
-			.slice(this.boundary.head)
-			.filter((task) => task.batchToken !== batchToken);
-		this.boundary.queue = remaining;
-		this.boundary.head = 0;
 	}
 }
 

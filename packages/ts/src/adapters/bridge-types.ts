@@ -389,10 +389,6 @@ export interface BridgeState<TData> {
 	pending: Map<number, PendingEnvelope<TData>>;
 }
 
-export interface AttachedCommandSources<TOutbound> {
-	sources: Node<WireBridgeCommand<TOutbound>>[];
-}
-
 export interface WireBridgeInvalidIngress {
 	readonly __wireBridgeInvalidIngress: true;
 	readonly error: string;

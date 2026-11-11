@@ -18,7 +18,6 @@ import {
 	presetBinding,
 } from "../../../../scripts/fixtures/spending-preset-harness.js";
 import { oracleRequest } from "../../../../scripts/fixtures/spending-preset-oracle.js";
-import { batch } from "../batch/batch.js";
 import { Graph } from "../graph/graph.js";
 
 type Host = ReturnType<typeof composeOfflineSpending>;
@@ -41,7 +40,7 @@ function drive(run: ReturnType<typeof setup>, epoch = 1) {
 	const e = evaluationFixture(),
 		f = policyFacts(e);
 	run.sources.pack.set(evaluationPack([e]));
-	batch(() => {
+	run.graph.batch(() => {
 		run.sources.current.set(f.current);
 		run.sources.verification.set({
 			...f.verification,
@@ -280,7 +279,7 @@ it("one factory composes independent names, inputs, epochs and local overrides o
 		const e = evaluationFixture(),
 			f = policyFacts(e, binding);
 		secondSources.pack.set(evaluationPack([e], binding));
-		batch(() => {
+		run.graph.batch(() => {
 			secondSources.current.set(f.current);
 			secondSources.verification.set(f.verification);
 			secondSources.local.set(f.local);

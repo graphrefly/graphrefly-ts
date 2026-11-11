@@ -19,6 +19,8 @@ export interface GraphRestoreRegistrar {
 
 export interface GraphLifecycleRegistrar extends GraphRestoreRegistrar {
 	assertRegisteredNode(node: Node<unknown>, label: string): void;
+	/** R-graph-domain@3: this graph is between waves and has no open batch body. */
+	atWaveBoundary(): boolean;
 	readIncoming(nodes: ReadonlySet<Node<unknown>>): Pick<DescribeSnapshot, "edges">;
 	releaseNodes(nodes: readonly Node<unknown>[], opts?: { reason?: string }): void;
 	assertAvailableName(name: string): void;

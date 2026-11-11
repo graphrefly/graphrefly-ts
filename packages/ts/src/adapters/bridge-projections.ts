@@ -6,7 +6,6 @@
  * state is surfaced through graph-visible attempts/status/errors nodes.
  */
 
-import { batch } from "../batch/batch.js";
 import { depBatch } from "../ctx/types.js";
 import type { Graph } from "../graph/graph.js";
 import type { Node, StateNode } from "../node/node.js";
@@ -272,14 +271,15 @@ export function projectAttempts<TOutbound, TInbound>(
 }
 
 export function guardedInboundNode<TInbound>(
+	graph: Graph,
 	node: StateNode<WireBridgeEnvelope<TInbound> | WireBridgeInvalidIngress>,
 	sessionId: string,
 ): StateNode<WireBridgeEnvelope<TInbound>> {
-	// The held bridge (phase 6) guards its inbound host inputs: each write goes through the guard,
-	// and what the guard gives back is written with the state's own inputs.
+	// The bridge guards its inbound host inputs: each write goes through the guard, and what the
+	// guard gives back is written with the state's own inputs, as one array.
 	const write = (target: typeof node, msgs: Wave): void => {
 		const guarded = guardInboundWave(msgs, sessionId);
-		batch(() => {
+		graph.batch(() => {
 			for (const m of guarded) {
 				if (m[0] === "DATA") target.set(m[1] as WireBridgeEnvelope<TInbound>);
 				else if (m[0] === "ERROR") target.error(m[1]);

@@ -1,5 +1,5 @@
 import { type BatchTarget, currentBoundaryBatchToken, noteBatchLifetime } from "../batch/batch.js";
-import { deferRewire, enterWave, exitWave } from "../batch/boundary.js";
+import { deferRequest, enterWave, exitWave } from "../batch/boundary.js";
 import {
 	CTX_DEP_CACHE,
 	CTX_NODE_BINDING,
@@ -59,18 +59,18 @@ export function nodeMakeCtx<T>(
 		down: (msgs) => {
 			if (self._released || signal.aborted) return;
 			validateNodeOutput(msgs);
-			noteBatchLifetime(self as unknown as BatchTarget, signal);
+			noteBatchLifetime(self._core, self as unknown as BatchTarget, signal);
 			if (self._slot.quiet && self._wave.insideRunWave) {
 				// R-wave: a quiet node's output during its run goes out after the current wave
 				// as a new wave of its own, so nothing below it waits for it in this wave.
 				nodeDeferQuietOutput(self, msgs);
 				return;
 			}
-			enterWave();
+			enterWave(self._core);
 			try {
 				self._down(msgs);
 			} finally {
-				exitWave();
+				exitWave(self._core);
 			}
 		},
 		waveData: snapshot?.waveData ?? self._dep.waveData,
@@ -84,7 +84,9 @@ export function nodeMakeCtx<T>(
 		[CTX_NODE_BINDING]: {
 			dispatcher: self._slot.dispatcher,
 			create: <U>(factory: () => Node<U>) =>
-				withEnvironmentDrivers(self._slot.environment, () => withNodeCore(self._core, factory)),
+				withEnvironmentDrivers(self._slot.environment, () =>
+					withNodeCore(self._core, factory, self._slot.dispatcher),
+				),
 			rewireDiff: (add, remove) => nodeRequestRewireDiff(self, signal, add, remove),
 			rewireDiffNow: (add, remove) => nodeApplyRewireDiff(self, signal, add, remove),
 		},
@@ -135,17 +137,17 @@ export function nodeMakeState<T>(self: NodeRuntimeHost<T>): CtxState {
  */
 export function nodeDeferQuietOutput<T>(self: NodeRuntimeHost<T>, msgs: Wave): void {
 	const array: Wave = [...msgs];
-	deferRewire(
+	deferRequest(
 		self._core,
 		() => {
 			if (self._released) return;
-			enterWave();
+			enterWave(self._core);
 			try {
 				self._down(array);
 			} finally {
-				exitWave();
+				exitWave(self._core);
 			}
 		},
-		{ batchToken: currentBoundaryBatchToken() },
+		{ batchToken: currentBoundaryBatchToken(self._core) },
 	);
 }

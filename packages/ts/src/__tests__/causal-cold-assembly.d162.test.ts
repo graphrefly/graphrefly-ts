@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { batch } from "../batch/batch.js";
 import { depLatest } from "../ctx/types.js";
 import { Dispatcher, type Handle } from "../dispatcher/index.js";
 import {
@@ -259,7 +258,7 @@ describe("D162 private shared cold assembly", () => {
 		startConstruction(f.graph, owner);
 		expect(f.value.cache).toBeUndefined();
 		expect(effects(f)).toHaveLength(0);
-		batch(() => {
+		f.graph.batch(() => {
 			f.a.set(2);
 			f.a.set(2);
 		});

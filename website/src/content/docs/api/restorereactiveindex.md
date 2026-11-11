@@ -17,6 +17,7 @@ import { restoreReactiveIndex } from "@graphrefly/ts/data-structures";
 
 ```ts
 function restoreReactiveIndex(
+	graph: Graph,
 	state: ReactiveIndexRestoreState<K, V> | readonly IndexRow<K, V>[],
 	options: ReactiveIndexOptions = {},
 ): ReactiveIndex<K, V>
@@ -26,8 +27,9 @@ function restoreReactiveIndex(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `state` | `ReactiveIndexRestoreState<K, V> \| readonly IndexRow<K, V>[]` | state value used by the helper. |
-| `options` | `ReactiveIndexOptions` | Options that configure the helper. |
+| `graph` | `Graph` | The graph that builds the index's nodes. |
+| `state` | `ReactiveIndexRestoreState<K, V> \| readonly IndexRow<K, V>[]` | The persisted index state, or its rows. |
+| `options` | `ReactiveIndexOptions` | Optional name, capacity policy, and view memo policy. |
 
 ## Returns
 
@@ -36,7 +38,12 @@ A `ReactiveIndex<K, V>` value.
 ## Example
 
 ```ts
+import { graph } from "@graphrefly/ts/graph";
 import { restoreReactiveIndex } from "@graphrefly/ts/data-structures";
+
+const index = restoreReactiveIndex<string, number>(graph(), [
+  { primary: "a", secondary: 1, value: 1 },
+]);
 ```
 
 ## Source

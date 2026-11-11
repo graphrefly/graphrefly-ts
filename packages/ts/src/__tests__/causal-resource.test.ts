@@ -14,7 +14,6 @@ import {
 	policyFacts,
 	presetBinding,
 } from "../../../../scripts/fixtures/spending-preset-harness.js";
-import { batch } from "../batch/batch.js";
 
 it("exclusive injected preparation binds one handle without claiming actual-file evidence", async () => {
 	const opens: unknown[] = [],
@@ -120,7 +119,7 @@ it("unknown submission is published and stops a subsequent independent request",
 		run.send("pack", evaluationPack([a, b]));
 		for (const e of [a, b]) {
 			const f = policyFacts(e);
-			batch(() => {
+			run.graph.batch(() => {
 				run.send("current", f.current);
 				run.send("verification", f.verification);
 				run.send("local", f.local);

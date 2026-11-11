@@ -17,6 +17,7 @@ import { restoreReactiveMap } from "@graphrefly/ts/data-structures";
 
 ```ts
 function restoreReactiveMap(
+	graph: Graph,
 	state: ReactiveMapRestoreState<K, V> | readonly (readonly [K, V])[],
 	options: ReactiveMapOptions<K, V> = {},
 ): ReactiveMap<K, V>
@@ -26,8 +27,9 @@ function restoreReactiveMap(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `state` | `ReactiveMapRestoreState<K, V> \| readonly (readonly [K, V])[]` | state value used by the helper. |
-| `options` | `ReactiveMapOptions<K, V>` | Options that configure the helper. |
+| `graph` | `Graph` | The graph that builds the map's nodes. |
+| `state` | `ReactiveMapRestoreState<K, V> \| readonly (readonly [K, V])[]` | The persisted map state, or its entries. |
+| `options` | `ReactiveMapOptions<K, V>` | Optional name and map policies. |
 
 ## Returns
 
@@ -36,7 +38,10 @@ A `ReactiveMap<K, V>` value.
 ## Example
 
 ```ts
+import { graph } from "@graphrefly/ts/graph";
 import { restoreReactiveMap } from "@graphrefly/ts/data-structures";
+
+const map = restoreReactiveMap<string, number>(graph(), [["a", 1]]);
 ```
 
 ## Source

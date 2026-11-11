@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { batch } from "../batch/batch.js";
 import type { CqrsStatus } from "../cqrs/index.js";
 import { cqrsMessagingRecipe } from "../cqrs/messaging.js";
 import { graph } from "../graph/graph.js";
@@ -84,7 +83,7 @@ describe("messaging recipes (D349-D351/D353)", () => {
 		const acks = collectData<MessageBusCommand>(recipe.ackCommands);
 
 		deliveries.set(page("sub-dup", [message("cmd-dup", 7), message("cmd-dup", 8)]));
-		batch(() => {
+		g.batch(() => {
 			status.set(cqrsStatus("cmd-dup", "accepted"));
 			status.set(cqrsStatus("cmd-dup", "rejected"));
 		});

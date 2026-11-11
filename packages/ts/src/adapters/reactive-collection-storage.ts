@@ -1,4 +1,3 @@
-import type { DeliveryMeta } from "../ctx/types.js";
 import {
 	type ReactiveIndex,
 	type ReactiveIndexOptions,
@@ -449,7 +448,7 @@ function collectionSnapshot<T, K extends PersistableKind>(
 	return (collection as ReactiveList<T> | ReactiveLog<T>).toArray();
 }
 
-type CollectionOptionsWithoutGraphName<T> = Omit<T, "graph" | "name">;
+type CollectionOptionsWithoutName<T> = Omit<T, "name">;
 
 /** Options for D161 load -> restore -> persist composition for reactiveList. */
 export interface OpenPersistentReactiveListOptions<T>
@@ -458,10 +457,9 @@ export interface OpenPersistentReactiveListOptions<T>
 			PersistReactiveCollectionOptions<"reactiveList">,
 			"kind" | "snapshotStore" | "changeLog" | "initialChangeCursor"
 		> {
-	readonly graph: Graph;
 	readonly name?: string;
 	readonly initial?: readonly T[];
-	readonly collection?: CollectionOptionsWithoutGraphName<ReactiveListOptions>;
+	readonly collection?: CollectionOptionsWithoutName<ReactiveListOptions>;
 }
 
 /** Options for D161 load -> restore -> persist composition for reactiveLog. */
@@ -471,10 +469,9 @@ export interface OpenPersistentReactiveLogOptions<T>
 			PersistReactiveCollectionOptions<"reactiveLog">,
 			"kind" | "snapshotStore" | "changeLog" | "initialChangeCursor"
 		> {
-	readonly graph: Graph;
 	readonly name?: string;
 	readonly initial?: readonly T[];
-	readonly collection?: CollectionOptionsWithoutGraphName<ReactiveLogOptions>;
+	readonly collection?: CollectionOptionsWithoutName<ReactiveLogOptions>;
 }
 
 /** Options for D161 load -> restore -> persist composition for reactiveMap. */
@@ -484,10 +481,9 @@ export interface OpenPersistentReactiveMapOptions<K, V>
 			PersistReactiveCollectionOptions<"reactiveMap">,
 			"kind" | "snapshotStore" | "changeLog" | "initialChangeCursor"
 		> {
-	readonly graph: Graph;
 	readonly name?: string;
 	readonly initial?: readonly (readonly [K, V])[];
-	readonly collection?: CollectionOptionsWithoutGraphName<ReactiveMapOptions<K, V>>;
+	readonly collection?: CollectionOptionsWithoutName<ReactiveMapOptions<K, V>>;
 }
 
 /** Options for D161 load -> restore -> persist composition for reactiveIndex. */
@@ -497,10 +493,9 @@ export interface OpenPersistentReactiveIndexOptions<K, V>
 			PersistReactiveCollectionOptions<"reactiveIndex">,
 			"kind" | "snapshotStore" | "changeLog" | "initialChangeCursor"
 		> {
-	readonly graph: Graph;
 	readonly name?: string;
 	readonly initial?: readonly IndexRow<K, V>[];
-	readonly collection?: CollectionOptionsWithoutGraphName<ReactiveIndexOptions>;
+	readonly collection?: CollectionOptionsWithoutName<ReactiveIndexOptions>;
 }
 
 /** Return value for D161 persistent reactiveList composition. */
@@ -532,6 +527,7 @@ export interface PersistentReactiveIndex<K, V> {
 }
 
 /** D161 convenience wrapper: passive load, sync restoreReactiveList, then sidecar persist.
+ * @param graph - The graph that builds the restored collection.
  * @param opts - Options that configure the helper.
  * @returns A `Promise<PersistentReactiveList<T>>` value.
  * @category adapters
@@ -541,6 +537,7 @@ export interface PersistentReactiveIndex<K, V> {
  * ```
  */
 export function openPersistentReactiveList<T = unknown>(
+	graph: Graph,
 	opts: OpenPersistentReactiveListOptions<T>,
 ): Promise<PersistentReactiveList<T>> {
 	const storagePrefix = opts.storagePrefix ?? opts.name ?? "reactive-collection";
@@ -551,12 +548,11 @@ export function openPersistentReactiveList<T = unknown>(
 			loaded.source === "empty" && opts.initial !== undefined
 				? { ...loaded, state: opts.initial }
 				: loaded;
-		const collection = restoreReactiveList<T>(state, {
+		const collection = restoreReactiveList<T>(graph, state, {
 			...(opts.collection ?? {}),
-			graph: opts.graph,
 			name: opts.name,
 		});
-		const persistence = persistReactiveCollection<T, "reactiveList">(opts.graph, collection, {
+		const persistence = persistReactiveCollection<T, "reactiveList">(graph, collection, {
 			...opts,
 			kind: "reactiveList",
 			name: opts.name ? `${opts.name}/persistence` : undefined,
@@ -569,6 +565,7 @@ export function openPersistentReactiveList<T = unknown>(
 }
 
 /** D161 convenience wrapper: passive load, sync restoreReactiveLog, then sidecar persist.
+ * @param graph - The graph that builds the restored collection.
  * @param opts - Options that configure the helper.
  * @returns A `Promise<PersistentReactiveLog<T>>` value.
  * @category adapters
@@ -578,6 +575,7 @@ export function openPersistentReactiveList<T = unknown>(
  * ```
  */
 export function openPersistentReactiveLog<T = unknown>(
+	graph: Graph,
 	opts: OpenPersistentReactiveLogOptions<T>,
 ): Promise<PersistentReactiveLog<T>> {
 	const storagePrefix = opts.storagePrefix ?? opts.name ?? "reactive-collection";
@@ -588,12 +586,11 @@ export function openPersistentReactiveLog<T = unknown>(
 			loaded.source === "empty" && opts.initial !== undefined
 				? { ...loaded, state: opts.initial }
 				: loaded;
-		const collection = restoreReactiveLog<T>(state, {
+		const collection = restoreReactiveLog<T>(graph, state, {
 			...(opts.collection ?? {}),
-			graph: opts.graph,
 			name: opts.name,
 		});
-		const persistence = persistReactiveCollection<T, "reactiveLog">(opts.graph, collection, {
+		const persistence = persistReactiveCollection<T, "reactiveLog">(graph, collection, {
 			...opts,
 			kind: "reactiveLog",
 			name: opts.name ? `${opts.name}/persistence` : undefined,
@@ -606,6 +603,7 @@ export function openPersistentReactiveLog<T = unknown>(
 }
 
 /** D161 convenience wrapper: passive load, sync restoreReactiveMap, then sidecar persist.
+ * @param graph - The graph that builds the restored collection.
  * @param opts - Options that configure the helper.
  * @returns A `Promise<PersistentReactiveMap<K, V>>` value.
  * @category adapters
@@ -615,6 +613,7 @@ export function openPersistentReactiveLog<T = unknown>(
  * ```
  */
 export function openPersistentReactiveMap<K = unknown, V = unknown>(
+	graph: Graph,
 	opts: OpenPersistentReactiveMapOptions<K, V>,
 ): Promise<PersistentReactiveMap<K, V>> {
 	const storagePrefix = opts.storagePrefix ?? opts.name ?? "reactive-collection";
@@ -625,12 +624,11 @@ export function openPersistentReactiveMap<K = unknown, V = unknown>(
 			loaded.source === "empty" && opts.initial !== undefined
 				? { ...loaded, state: opts.initial }
 				: loaded;
-		const collection = restoreReactiveMap<K, V>(state, {
+		const collection = restoreReactiveMap<K, V>(graph, state, {
 			...(opts.collection ?? {}),
-			graph: opts.graph,
 			name: opts.name,
 		});
-		const persistence = persistReactiveCollection<V, "reactiveMap">(opts.graph, collection, {
+		const persistence = persistReactiveCollection<V, "reactiveMap">(graph, collection, {
 			...opts,
 			kind: "reactiveMap",
 			name: opts.name ? `${opts.name}/persistence` : undefined,
@@ -643,6 +641,7 @@ export function openPersistentReactiveMap<K = unknown, V = unknown>(
 }
 
 /** D161 convenience wrapper: passive load, sync restoreReactiveIndex, then sidecar persist.
+ * @param graph - The graph that builds the restored collection.
  * @param opts - Options that configure the helper.
  * @returns A `Promise<PersistentReactiveIndex<K, V>>` value.
  * @category adapters
@@ -652,6 +651,7 @@ export function openPersistentReactiveMap<K = unknown, V = unknown>(
  * ```
  */
 export function openPersistentReactiveIndex<K = unknown, V = unknown>(
+	graph: Graph,
 	opts: OpenPersistentReactiveIndexOptions<K, V>,
 ): Promise<PersistentReactiveIndex<K, V>> {
 	const storagePrefix = opts.storagePrefix ?? opts.name ?? "reactive-collection";
@@ -662,12 +662,11 @@ export function openPersistentReactiveIndex<K = unknown, V = unknown>(
 			loaded.source === "empty" && opts.initial !== undefined
 				? { ...loaded, state: opts.initial }
 				: loaded;
-		const collection = restoreReactiveIndex<K, V>(state, {
+		const collection = restoreReactiveIndex<K, V>(graph, state, {
 			...(opts.collection ?? {}),
-			graph: opts.graph,
 			name: opts.name,
 		});
-		const persistence = persistReactiveCollection<V, "reactiveIndex">(opts.graph, collection, {
+		const persistence = persistReactiveCollection<V, "reactiveIndex">(graph, collection, {
 			...opts,
 			kind: "reactiveIndex",
 			name: opts.name ? `${opts.name}/persistence` : undefined,

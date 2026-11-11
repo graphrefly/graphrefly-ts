@@ -8,7 +8,6 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { batch } from "../batch/batch.js";
 import { type Ctx, depBatch, depLatest } from "../ctx/types.js";
 import { graph } from "../graph/graph.js";
 import type { Wave } from "../protocol/messages.js";
@@ -55,7 +54,7 @@ describe("C-28: sink requests run after the whole fanout", () => {
 		let readInBody: unknown;
 		a.subscribe((msgs) => {
 			if (result === undefined && msgs.some((m) => m[0] === "DATA" && m[1] === 1)) {
-				result = batch(() => {
+				result = g.batch(() => {
 					readInBody = a.cache;
 					a.set(5);
 					a.set(6);
@@ -86,7 +85,7 @@ describe("C-29: a batch delivers nothing before commit; its requests follow the 
 		const t = arrays();
 		b.subscribe(s.sink);
 		s.log.length = 0;
-		batch(() => {
+		g.batch(() => {
 			a.set(1);
 			b.subscribe(t.sink);
 			expect(a.cache).toBe(0);
@@ -105,7 +104,7 @@ describe("C-29: a batch delivers nothing before commit; its requests follow the 
 		a.subscribe(s.sink);
 		s.log.length = 0;
 		expect(() =>
-			batch(() => {
+			g.batch(() => {
 				a.set(1);
 				a.subscribe(t.sink);
 				throw new Error("body");
@@ -143,9 +142,9 @@ describe("C-29: a batch delivers nothing before commit; its requests follow the 
 		g.node<number>([a, b], (ctx) => ctx.down([["DATA", 1]]), { name: "n" }).subscribe(s.sink);
 		s.log.length = 0;
 		let inner: unknown;
-		batch(() => {
+		g.batch(() => {
 			a.set(1);
-			inner = batch(() => {
+			inner = g.batch(() => {
 				b.set(1);
 				return "inner";
 			});
@@ -160,7 +159,7 @@ describe("C-29: a batch delivers nothing before commit; its requests follow the 
 		const a = g.state(1, { name: "a" });
 		const b = g.state(0, { name: "b" });
 		const seen: unknown[] = [];
-		batch(() => {
+		g.batch(() => {
 			a.set((v) => {
 				seen.push(v);
 				return (v as number) + 1;
@@ -180,7 +179,7 @@ describe("C-29: a batch delivers nothing before commit; its requests follow the 
 		expect(a.cache).toBe(99);
 
 		expect(() =>
-			batch(() => {
+			g.batch(() => {
 				b.set(1);
 				a.set(() => {
 					throw new Error("fn");

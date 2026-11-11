@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { batch } from "../batch/batch.js";
 import type { CqrsStatus } from "../cqrs/index.js";
 import {
 	type CqrsQueuedCommandPayload,
@@ -21,7 +20,7 @@ describe("CQRS workQueue recipe (D350/D352/D353)", () => {
 		const dispatches = collectData(recipe.dispatches);
 		const commands = collectData(recipe.commands);
 
-		batch(() => {
+		g.batch(() => {
 			records.set(admittedRecord());
 			records.set({
 				kind: "work-claimed",
@@ -106,7 +105,7 @@ describe("CQRS workQueue recipe (D350/D352/D353)", () => {
 		const recipe = cqrsWorkQueueRecipe(g, { records, status });
 		const commands = collectData(recipe.commands);
 
-		batch(() => {
+		g.batch(() => {
 			records.set(admittedRecord());
 			records.set(claimedRecord(2, "lease-1", 1));
 		});
@@ -132,7 +131,7 @@ describe("CQRS workQueue recipe (D350/D352/D353)", () => {
 		const issues = collectData(recipe.issues);
 
 		status.set(statusFact("accepted", 1));
-		batch(() => {
+		g.batch(() => {
 			records.set(admittedRecord());
 			records.set(claimedRecord(2, "lease-1", 1));
 		});
@@ -158,7 +157,7 @@ describe("CQRS workQueue recipe (D350/D352/D353)", () => {
 		const recipe = cqrsWorkQueueRecipe(g, { records, status });
 		const commands = collectData(recipe.commands);
 
-		batch(() => {
+		g.batch(() => {
 			records.set(admittedRecord());
 			records.set(claimedRecord(2, "lease-1", 1));
 		});

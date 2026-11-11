@@ -10,14 +10,12 @@
 
 import { performance } from "node:perf_hooks";
 import {
-	batch,
 	type Ctx,
 	depLatest,
 	graph,
 	type Message,
 	type Node,
 	type NodeFn,
-	node,
 	type StateNode,
 } from "../index.js";
 
@@ -195,7 +193,7 @@ function boundaryFifoProbe(tasks = 20_000): string {
 	const g = graph();
 	const owner = g.state(0);
 	let ran = 0;
-	batch(() => {
+	g.batch(() => {
 		for (let i = 0; i < tasks; i++) owner.__deferBoundary(() => ran++);
 	});
 	return `tasks=${tasks}, ${expectEqual("drained", ran, tasks)}`;
@@ -203,10 +201,11 @@ function boundaryFifoProbe(tasks = 20_000): string {
 
 function retainedLifecycleProbe(nodes = 2_500, payloadBytes = 4_096): string {
 	let cleanupBytes = 0;
+	const g = graph();
 	for (let i = 0; i < nodes; i++) {
-		const src = node<number>([], null, { initial: i });
+		const src = g.node<number>([], null, { initial: i });
 		const payload = new Uint8Array(payloadBytes);
-		const d = node<number>([src], (ctx) => {
+		const d = g.node<number>([src], (ctx: Ctx) => {
 			ctx.signal.addEventListener(
 				"abort",
 				() => {

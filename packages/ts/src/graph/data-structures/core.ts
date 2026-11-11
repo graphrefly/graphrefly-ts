@@ -32,8 +32,7 @@
  */
 
 import { type Ctx, depBatch, depLiveBatch } from "../../ctx/types.js";
-import type { Dispatcher } from "../../dispatcher/index.js";
-import { Node, releaseRuntimeOfNode, StateNode } from "../../node/node.js";
+import type { Node } from "../../node/node.js";
 import { oneArrayPerRun } from "../../node/one-array-per-run.js";
 import { errorPayload } from "../../protocol/messages.js";
 import { type GraphCheckpointJson, registerBackendStateContributor } from "../checkpoint.js";
@@ -52,10 +51,6 @@ export interface CollectionBackend<S> {
 export interface CollectionCoreOptions {
 	/** Debug/inspection name; the delta/snapshot nodes derive `${name}.delta` / `${name}.snapshot`. */
 	name?: string;
-	/** Dispatcher for the core's nodes (default = process-global, D26). */
-	dispatcher?: Dispatcher;
-	/** Graph funnel for describe-visible input folds (D61). Required by *From/attach methods. */
-	graph?: Graph;
 }
 
 export interface CollectionCore<S, C> {
@@ -163,71 +158,55 @@ export class ViewMemoCache<K, V extends { dispose(): void }> {
 }
 
 /**
- * Build a D121 first-cut light view. The view declares `parent.delta -> view.delta ->
+ * Build a D121 first-cut light view in `graph`, as one topology group. The view declares `parent.delta -> view.delta ->
  * view.snapshot`; the pushed `delta` forwards parent delta events as the view's arm/update stream,
  * while `snapshot` reads the parent collection backend through the supplied materializer on demand.
  * No writable state/cache is exposed (D120).
  */
 export function lightReactiveView<C, S>(
+	graph: Graph,
 	parentDelta: Node<unknown>,
 	opts: LightReactiveViewOptions<S>,
 ): ReactiveView<C, S> {
-	const { dispatcher, factory, graph, materializeSnapshot, name, onDispose } = opts;
-	const base = dispatcher ? { dispatcher } : {};
-	const group = graph?.topologyGroup({ name: name ?? factory });
-	const deltaBody = oneArrayPerRun((ctx: Ctx): void => {
-		for (const change of (depBatch(ctx, 0) ?? []) as readonly C[]) {
-			ctx.down([["DATA", change]]);
-		}
+	const { factory, materializeSnapshot, name, onDispose } = opts;
+	const group = graph.topologyGroup({ name: name ?? factory });
+	const delta = group.node<C>(
+		[parentDelta],
+		oneArrayPerRun((ctx: Ctx): void => {
+			for (const change of (depBatch(ctx, 0) ?? []) as readonly C[]) {
+				ctx.down([["DATA", change]]);
+			}
+		}),
+		{
+			factory: `${factory}.delta`,
+			name: name ? `${name}.delta` : undefined,
+			meta: { kind: "collection_view_delta", factory },
+			partial: true,
+		},
+	);
+	const request = group.node<true>([], null, {
+		factory: `${factory}.request`,
+		name: name ? `${name}.request` : undefined,
+		meta: { kind: "collection_view_request", factory },
 	});
-	const delta = group
-		? group.node<C>([parentDelta], deltaBody, {
-				factory: `${factory}.delta`,
-				name: name ? `${name}.delta` : undefined,
-				meta: { kind: "collection_view_delta", factory },
-				partial: true,
-			})
-		: new Node<C>([parentDelta], deltaBody, {
-				...base,
-				factory: `${factory}.delta`,
-				name: name ? `${name}.delta` : undefined,
-				partial: true,
-			});
-
-	const request = group
-		? group.node<true>([], null, {
-				factory: `${factory}.request`,
-				name: name ? `${name}.request` : undefined,
-				meta: { kind: "collection_view_request", factory },
-			})
-		: new StateNode<true>([], null, {
-				...base,
-				factory: `${factory}.request`,
-				name: name ? `${name}.request` : undefined,
-			});
-	const snapshotBody = (ctx: Ctx): void => {
-		if (depLiveBatch(ctx, 1) === null) return;
-		try {
-			ctx.down([["DATA", materializeSnapshot()]]);
-		} catch (e) {
-			ctx.down([["ERROR", errorPayload(e, `${factory}.snapshot materializer failed`)]]);
-		}
-	};
-	const snapshot = group
-		? group.node<S>([delta as Node<unknown>, request as Node<unknown>], snapshotBody, {
-				factory: `${factory}.snapshot`,
-				name: name ? `${name}.snapshot` : undefined,
-				meta: { kind: "collection_view_snapshot", factory },
-				partial: true,
-				quiet: true,
-			})
-		: new Node<S>([delta as Node<unknown>, request as Node<unknown>], snapshotBody, {
-				...base,
-				factory: `${factory}.snapshot`,
-				name: name ? `${name}.snapshot` : undefined,
-				partial: true,
-				quiet: true,
-			});
+	const snapshot = group.node<S>(
+		[delta as Node<unknown>, request as Node<unknown>],
+		(ctx: Ctx): void => {
+			if (depLiveBatch(ctx, 1) === null) return;
+			try {
+				ctx.down([["DATA", materializeSnapshot()]]);
+			} catch (e) {
+				ctx.down([["ERROR", errorPayload(e, `${factory}.snapshot materializer failed`)]]);
+			}
+		},
+		{
+			factory: `${factory}.snapshot`,
+			name: name ? `${name}.snapshot` : undefined,
+			meta: { kind: "collection_view_snapshot", factory },
+			partial: true,
+			quiet: true,
+		},
+	);
 
 	let disposed = false;
 	return {
@@ -236,13 +215,7 @@ export function lightReactiveView<C, S>(
 		request,
 		dispose(): void {
 			if (disposed) return;
-			if (group) {
-				group.release({ reason: factory });
-			} else {
-				releaseRuntimeOfNode(snapshot as Node<unknown>);
-				releaseRuntimeOfNode(request as Node<unknown>);
-				releaseRuntimeOfNode(delta as Node<unknown>);
-			}
+			group.release({ reason: factory });
 			disposed = true;
 			onDispose?.();
 		},
@@ -250,75 +223,58 @@ export function lightReactiveView<C, S>(
 }
 
 /**
- * Build the shared core for a reactive structure (D60). `factory` names the nodes for describe
- * (D6/D51 auto-discovery). The structure passes its `backend` (any {@link CollectionBackend}) and
- * layers a typed method surface on top.
+ * Build the shared core for a reactive structure (D60) in `graph` (R-graph-domain@3: every node is
+ * built by a graph). `factory` names the nodes for describe (D6/D51 auto-discovery). The structure
+ * passes its `backend` (any {@link CollectionBackend}) and layers a typed method surface on top.
  */
 export function collectionCore<S, C>(
+	graph: Graph,
 	backend: CollectionBackend<S>,
 	factory: string,
 	opts: CollectionCoreOptions = {},
 	restore?: CollectionRestoreSpec,
 ): CollectionCore<S, C> {
-	const { name, dispatcher, graph } = opts;
-	const base: { dispatcher?: Dispatcher } = dispatcher ? { dispatcher } : {};
+	const { name } = opts;
 	let bindSeq = 0;
 
 	// DELTA backbone: a bare source (D60 #2a / review #2 — node([], null), no `initial`, so a late
 	// subscriber gets no fake "initial change"; state is the snapshot port's job).
-	const delta = graph
-		? graph.node<C>([], null, {
-				factory: `${factory}.delta`,
-				name: name ? `${name}.delta` : undefined,
-				meta: { kind: "collection_delta", collection: factory },
-				...(restore ? { recipe: { ref: restore.deltaRef, config: restore.config } } : {}),
-			})
-		: new StateNode<C>([], null, {
-				...base,
-				factory: `${factory}.delta`,
-				name: name ? `${name}.delta` : undefined,
-			});
+	const delta = graph.node<C>([], null, {
+		factory: `${factory}.delta`,
+		name: name ? `${name}.delta` : undefined,
+		meta: { kind: "collection_delta", collection: factory },
+		...(restore ? { recipe: { ref: restore.deltaRef, config: restore.config } } : {}),
+	});
 
 	// REQUEST state: a write asks the snapshot node for one materialization (graphrefly-ts:D172).
-	const request = graph
-		? graph.node<true>([], null, {
-				factory: `${factory}.request`,
-				name: name ? `${name}.request` : undefined,
-				meta: { kind: "collection_request", collection: factory },
-				...(restore ? { recipe: { ref: restore.requestRef, config: restore.config } } : {}),
-			})
-		: new StateNode<true>([], null, {
-				...base,
-				factory: `${factory}.request`,
-				name: name ? `${name}.request` : undefined,
-			});
+	const request = graph.node<true>([], null, {
+		factory: `${factory}.request`,
+		name: name ? `${name}.request` : undefined,
+		meta: { kind: "collection_request", collection: factory },
+		...(restore ? { recipe: { ref: restore.requestRef, config: restore.config } } : {}),
+	});
 
 	// SNAPSHOT quiet node: deps=[delta, request]. The fn IGNORES the delta value — it reads
 	// `backend.snapshot()` when a live request arrived (D60 #3), and only if the backend changed
 	// since the last delivery. `partial:true`: it must not gate on "all deps settled".
 	let deliveredVersion = backend.version;
-	const snapFn = (ctx: Ctx): void => {
-		if (depLiveBatch(ctx, 1) === null) return;
-		if (backend.version === deliveredVersion) return;
-		deliveredVersion = backend.version;
-		ctx.down([["DATA", backend.snapshot()]]);
-	};
-	const snapshot = graph
-		? graph.node<S>([delta as Node<unknown>, request as Node<unknown>], snapFn, {
-				quiet: true,
-				partial: true,
-				factory: `${factory}.snapshot`,
-				name: name ? `${name}.snapshot` : undefined,
-				meta: { kind: "collection_snapshot", collection: factory },
-				...(restore ? { recipe: { ref: restore.snapshotRef, config: restore.config } } : {}),
-			})
-		: new Node<S>([delta as Node<unknown>, request as Node<unknown>], snapFn, {
-				...base,
-				quiet: true,
-				partial: true,
-				factory: `${factory}.snapshot`,
-				name: name ? `${name}.snapshot` : undefined,
-			});
+	const snapshot = graph.node<S>(
+		[delta as Node<unknown>, request as Node<unknown>],
+		(ctx: Ctx): void => {
+			if (depLiveBatch(ctx, 1) === null) return;
+			if (backend.version === deliveredVersion) return;
+			deliveredVersion = backend.version;
+			ctx.down([["DATA", backend.snapshot()]]);
+		},
+		{
+			quiet: true,
+			partial: true,
+			factory: `${factory}.snapshot`,
+			name: name ? `${name}.snapshot` : undefined,
+			meta: { kind: "collection_snapshot", collection: factory },
+			...(restore ? { recipe: { ref: restore.snapshotRef, config: restore.config } } : {}),
+		},
+	);
 
 	if (restore !== undefined) {
 		registerBackendStateContributor(delta as Node<unknown>, restore.backendState);
@@ -330,10 +286,6 @@ export function collectionCore<S, C>(
 	}
 
 	function bindSource<V>(src: Node<V>, apply: (value: V) => void): () => void {
-		if (graph === undefined)
-			throw new Error(
-				"collectionCore.bindSource requires options.graph so the input fold is describe-visible (D61)",
-			);
 		// A graph-bound declared-dep folder (effect-shaped): reads each src batch value, applies it
 		// to the backend (apply mutates + emits the delta). src → folder is a real edge describe
 		// shows (D54/D61), not an internal subscribe island.

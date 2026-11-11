@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { batch } from "../batch/batch.js";
 import { depBatch } from "../ctx/types.js";
 import { graph } from "../graph/graph.js";
 import { canonicalTupleKey } from "../identity.js";
@@ -366,7 +365,7 @@ describe("WorkItem domain action admission and application (D239/D333-D343) — 
 				metadata: { capabilityGuardPolicyId: "capability-ready" },
 			}),
 		);
-		batch(() => {
+		g.batch(() => {
 			capabilityAdmissions.set(
 				capabilityAdmission("shared-id", "allowed", {
 					kind: "resource",

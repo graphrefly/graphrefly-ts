@@ -635,7 +635,7 @@ describe("checkpoint and restore: ported cases (TS layout, graphrefly-ts:D178)",
 
 	it("rejects a restore extension whose node has other dependencies than the checkpoint", () => {
 		const g = graph();
-		reactiveList<number>([1], { graph: g, name: "list" });
+		reactiveList<number>(g, [1], { name: "list" });
 		const checkpoint = g.checkpoint();
 		const snapshot = checkpoint.nodes.find((n) => n.id === "list.snapshot");
 		if (snapshot === undefined) throw new Error("missing list snapshot");
@@ -649,13 +649,13 @@ describe("checkpoint and restore: ported cases (TS layout, graphrefly-ts:D178)",
 describe("collection backends (TS restore extension, graphrefly-ts:D178)", () => {
 	it("restores each collection from its backendState", () => {
 		const original = graph();
-		const list = reactiveList<number>([1], { graph: original, name: "list" });
+		const list = reactiveList<number>(original, [1], { name: "list" });
 		list.append(2);
-		const index = reactiveIndex<string, number>({ graph: original, name: "idx" });
+		const index = reactiveIndex<string, number>(original, { name: "idx" });
 		index.upsert("a", 1, 10);
-		const log = reactiveLog<string>(["a"], { graph: original, name: "log" });
+		const log = reactiveLog<string>(original, ["a"], { name: "log" });
 		log.append("b");
-		const mapCollection = reactiveMap<string, number>({ graph: original, name: "map" });
+		const mapCollection = reactiveMap<string, number>(original, { name: "map" });
 		mapCollection.set("k", 42);
 		const restored = restoreGraph(original.checkpoint(), { registry: defaultRestoreRegistry });
 		const byId = Object.fromEntries(restored.checkpoint().nodes.map((n) => [n.id, n]));
@@ -672,7 +672,7 @@ describe("collection backends (TS restore extension, graphrefly-ts:D178)", () =>
 
 	it("the backend, not a saved snapshot value, is the collection's authority", () => {
 		const original = graph();
-		reactiveList<number>([1, 2], { graph: original, name: "list" });
+		reactiveList<number>(original, [1, 2], { name: "list" });
 		const checkpoint = original.checkpoint();
 		const snapshot = checkpoint.nodes.find((n) => n.id === "list.snapshot");
 		if (snapshot === undefined) throw new Error("missing list snapshot");
@@ -685,8 +685,8 @@ describe("collection backends (TS restore extension, graphrefly-ts:D178)", () =>
 
 	it("rejects malformed index and log backends", () => {
 		const original = graph();
-		reactiveIndex<string, number>({ graph: original, name: "idx" }).upsert("a", 1, 10);
-		reactiveLog<string>(["a", "b"], { graph: original, name: "log", maxSize: 2 });
+		reactiveIndex<string, number>(original, { name: "idx" }).upsert("a", 1, 10);
+		reactiveLog<string>(original, ["a", "b"], { name: "log", maxSize: 2 });
 		const checkpoint = original.checkpoint();
 		const idxDelta = checkpoint.nodes.find((n) => n.id === "idx.delta");
 		const logDelta = checkpoint.nodes.find((n) => n.id === "log.delta");
@@ -707,7 +707,7 @@ describe("collection backends (TS restore extension, graphrefly-ts:D178)", () =>
 
 	it("rejects malformed map backends", () => {
 		const g = graph();
-		reactiveMap<string, number>({ graph: g, name: "map" });
+		reactiveMap<string, number>(g, { name: "map" });
 		const checkpoint = g.checkpoint();
 		const intent = checkpoint.nodes.find((n) => n.id === "map.intent");
 		if (!intent) throw new Error("missing map intent");
@@ -726,10 +726,10 @@ describe("collection backends (TS restore extension, graphrefly-ts:D178)", () =>
 
 	it("refuses a map backend that would lose per-entry TTL or has duplicate JSON keys", () => {
 		const ttl = graph();
-		reactiveMap<string, number>({ graph: ttl, name: "map" }).set("ttl", 1, { ttl: 1000 });
+		reactiveMap<string, number>(ttl, { name: "map" }).set("ttl", 1, { ttl: 1000 });
 		expect(() => ttl.checkpoint()).toThrow(/cannot preserve per-entry TTL/);
 		const dup = graph();
-		const m = reactiveMap<{ id: number }, string>({ graph: dup, name: "map" });
+		const m = reactiveMap<{ id: number }, string>(dup, { name: "map" });
 		m.set({ id: 1 }, "first");
 		m.set({ id: 1 }, "second");
 		expect(() => dup.checkpoint()).toThrow(/duplicate strict-JSON keys/);

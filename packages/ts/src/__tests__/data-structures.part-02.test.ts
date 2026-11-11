@@ -11,12 +11,13 @@
  */
 
 import { describe, expect, it } from "vitest";
+import { Dispatcher } from "../dispatcher/index.js";
 import { combine } from "../graph/combinators.js";
 import { reactiveIndex } from "../graph/data-structures/reactive-index.js";
 import { reactiveList } from "../graph/data-structures/reactive-list.js";
 import { mergeReactiveLogs, reactiveLog, scanLog } from "../graph/data-structures/reactive-log.js";
 import { graph } from "../graph/graph.js";
-import { Dispatcher, type Message } from "../index.js";
+import type { Message } from "../index.js";
 import type { Node } from "../node/node.js";
 import { asState } from "./helpers/as-state.js";
 import { rewireOwnedNode } from "./helpers/owned-rewire.js";
@@ -50,7 +51,8 @@ function demand(request: Node<true>): void {
 
 describe("reactiveIndex (D60 #4) — ordered snapshot + Z reverse-lookup", () => {
 	it("rows are ordered by (secondary, primary); sync has/get are point reads", () => {
-		const idx = reactiveIndex<string, string>();
+		const g = graph();
+		const idx = reactiveIndex<string, string>(g);
 		idx.upsert("id2", 5, "b");
 		idx.upsert("id1", 10, "a");
 		idx.upsert("id3", 5, "c");
@@ -65,7 +67,8 @@ describe("reactiveIndex (D60 #4) — ordered snapshot + Z reverse-lookup", () =>
 	});
 
 	it("upsert returns insert-vs-update; rangeByPrimary scans the primary axis (Z sync read)", () => {
-		const idx = reactiveIndex<string, number>();
+		const g = graph();
+		const idx = reactiveIndex<string, number>(g);
 		expect(idx.upsert("b", 1, 2)).toBe(true);
 		expect(idx.upsert("b", 1, 3)).toBe(false);
 		idx.upsert("a", 1, 1);
@@ -74,10 +77,11 @@ describe("reactiveIndex (D60 #4) — ordered snapshot + Z reverse-lookup", () =>
 	});
 
 	it("range(start,end) is a D121 light view with forwarded delta + pulled snapshot", () => {
-		const idx = reactiveIndex<string, number>();
+		const g = graph();
+		const idx = reactiveIndex<string, number>(g);
 		const view = idx.range("a", "c");
-		const { msgs: deltaMsgs } = collect(view.delta);
-		const { msgs: snapshotMsgs } = collect(view.snapshot);
+		const { msgs: deltaMsgs, unsub: unsubDelta } = collect(view.delta);
+		const { msgs: snapshotMsgs, unsub: unsubSnapshot } = collect(view.snapshot);
 
 		idx.upsert("b", 1, 2);
 		idx.upsert("d", 1, 4);
@@ -92,15 +96,18 @@ describe("reactiveIndex (D60 #4) — ordered snapshot + Z reverse-lookup", () =>
 		demand(view.request);
 		expect(data(snapshotMsgs).at(-1)).toEqual([1, 2]);
 		expect(idx.range("a", "c")).toBe(view);
-		const numeric = reactiveIndex<number, number>();
+		const numeric = reactiveIndex<number, number>(g);
 		expect(numeric.range(0, 1)).toBe(numeric.range(-0, 1));
+		// A graph releases a view's node group only when it is quiescent (D124).
+		unsubDelta();
+		unsubSnapshot();
 		view.dispose();
 		expect(idx.range("a", "c")).not.toBe(view);
 	});
 
-	it("range light views register through the graph funnel when options.graph is present", () => {
+	it("range light views register through the graph funnel", () => {
 		const g = graph();
-		const idx = reactiveIndex<string, number>({ graph: g, name: "idx" });
+		const idx = reactiveIndex<string, number>(g, { name: "idx" });
 		idx.range("a", "z");
 
 		const snap = g.describe();
@@ -125,8 +132,7 @@ describe("reactiveIndex (D60 #4) — ordered snapshot + Z reverse-lookup", () =>
 
 	it("range viewCache evicts only memo refs, not live D121 view nodes", () => {
 		const g = graph();
-		const idx = reactiveIndex<string, number>({
-			graph: g,
+		const idx = reactiveIndex<string, number>(g, {
 			name: "idx",
 			viewCache: { maxEntries: 1 },
 		});
@@ -150,7 +156,8 @@ describe("reactiveIndex (D60 #4) — ordered snapshot + Z reverse-lookup", () =>
 	});
 
 	it("empty upsertMany/deleteMany are no-op deltas", () => {
-		const idx = reactiveIndex<string, number>();
+		const g = graph();
+		const idx = reactiveIndex<string, number>(g);
 		const { msgs } = collect(idx.delta);
 		msgs.length = 0;
 		idx.upsertMany([]);
@@ -160,6 +167,7 @@ describe("reactiveIndex (D60 #4) — ordered snapshot + Z reverse-lookup", () =>
 	});
 
 	it("upsertMany/deleteMany accept generator inputs and ignore missing deletes", () => {
+		const g = graph();
 		function* rows(): Generator<{ primary: string; secondary: number; value: number }> {
 			yield { primary: "b", secondary: 2, value: 20 };
 			yield { primary: "a", secondary: 1, value: 10 };
@@ -170,7 +178,7 @@ describe("reactiveIndex (D60 #4) — ordered snapshot + Z reverse-lookup", () =>
 			yield "also-missing";
 		}
 
-		const idx = reactiveIndex<string, number>();
+		const idx = reactiveIndex<string, number>(g);
 		const { msgs } = collect(idx.delta);
 		idx.upsertMany(rows());
 		idx.deleteMany(primaries());
@@ -184,7 +192,8 @@ describe("reactiveIndex (D60 #4) — ordered snapshot + Z reverse-lookup", () =>
 	});
 
 	it("updating comparator-equal primary objects removes the exact existing row", () => {
-		const idx = reactiveIndex<object, string>();
+		const g = graph();
+		const idx = reactiveIndex<object, string>(g);
 		const a = { id: 1 };
 		const b = { id: 2 };
 		idx.upsert(a, 1, "a");
@@ -196,7 +205,8 @@ describe("reactiveIndex (D60 #4) — ordered snapshot + Z reverse-lookup", () =>
 	});
 
 	it("byPrimary is an OPTIONAL reactive derived (pushed primary→value map)", () => {
-		const idx = reactiveIndex<string, number>();
+		const g = graph();
+		const idx = reactiveIndex<string, number>(g);
 		const { msgs } = collect(idx.byPrimary);
 		idx.upsert("a", 1, 10);
 		idx.upsert("b", 2, 20);
@@ -208,7 +218,8 @@ describe("reactiveIndex (D60 #4) — ordered snapshot + Z reverse-lookup", () =>
 	});
 
 	it("D73 secondary capacity evicts by (secondary,primary) order (primary tie-break)", () => {
-		const idx = reactiveIndex<string, number>({
+		const g = graph();
+		const idx = reactiveIndex<string, number>(g, {
 			capacity: { maxSize: 2, order: "secondary" },
 		});
 		const { msgs } = collect(idx.delta);
@@ -225,7 +236,8 @@ describe("reactiveIndex (D60 #4) — ordered snapshot + Z reverse-lookup", () =>
 	});
 
 	it("D73 primary capacity evicts by primary key order, independent from secondary order", () => {
-		const idx = reactiveIndex<string, number>({
+		const g = graph();
+		const idx = reactiveIndex<string, number>(g, {
 			capacity: { maxSize: 2, order: "primary" },
 		});
 		const { msgs } = collect(idx.delta);
@@ -242,7 +254,8 @@ describe("reactiveIndex (D60 #4) — ordered snapshot + Z reverse-lookup", () =>
 	});
 
 	it("D73 lru capacity touches on upsert/get/has, but NOT rangeByPrimary", () => {
-		const idx = reactiveIndex<string, number>({
+		const g = graph();
+		const idx = reactiveIndex<string, number>(g, {
 			capacity: { maxSize: 2, order: "lru" },
 		});
 		const { msgs } = collect(idx.delta);
@@ -268,7 +281,8 @@ describe("reactiveIndex (D60 #4) — ordered snapshot + Z reverse-lookup", () =>
 	});
 
 	it("D73 lru capacity treats an existing-key upsert as a touch", () => {
-		const idx = reactiveIndex<string, number>({
+		const g = graph();
+		const idx = reactiveIndex<string, number>(g, {
 			capacity: { maxSize: 2, order: "lru" },
 		});
 		const { msgs } = collect(idx.delta);
@@ -291,8 +305,7 @@ describe("reactiveIndex (D60 #4) — ordered snapshot + Z reverse-lookup", () =>
 
 	it("D73 static capacity maxSize installs a graph-visible policy/apply edge", () => {
 		const g = graph();
-		const idx = reactiveIndex<string, number>({
-			graph: g,
+		const idx = reactiveIndex<string, number>(g, {
 			name: "idx",
 			capacity: { maxSize: 2, order: "secondary" },
 		});
@@ -310,8 +323,7 @@ describe("reactiveIndex (D60 #4) — ordered snapshot + Z reverse-lookup", () =>
 	it("D73 Node-valued capacity maxSize is describe-visible and downsizing emits per-row delete", () => {
 		const g = graph();
 		const max = g.state(3, { name: "max" });
-		const idx = reactiveIndex<string, number>({
-			graph: g,
+		const idx = reactiveIndex<string, number>(g, {
 			name: "idx",
 			capacity: { maxSize: max, order: "primary" },
 		});
@@ -337,8 +349,7 @@ describe("reactiveIndex (D60 #4) — ordered snapshot + Z reverse-lookup", () =>
 	it("D73 per-row capacity deletes each send a wave after the capacity run (R-request-order)", () => {
 		const g = graph();
 		const max = g.state(3, { name: "max" });
-		const idx = reactiveIndex<string, number>({
-			graph: g,
+		const idx = reactiveIndex<string, number>(g, {
 			name: "idx",
 			capacity: { maxSize: max, order: "primary" },
 		});
@@ -357,21 +368,12 @@ describe("reactiveIndex (D60 #4) — ordered snapshot + Z reverse-lookup", () =>
 		]);
 	});
 
-	it("D73 Node-valued capacity maxSize requires graph binding", () => {
-		const g = graph();
-		const max = g.state(1);
-		expect(() =>
-			reactiveIndex<string, number>({ capacity: { maxSize: max, order: "secondary" } }),
-		).toThrow(/requires options.graph/);
-	});
-
 	it("D73 Node-valued capacity maxSize rejects foreign-graph deps", () => {
 		const g1 = graph();
 		const foreign = g1.state(2, { name: "foreignMax" });
 		const g2 = graph();
 		expect(() =>
-			reactiveIndex<string, number>({
-				graph: g2,
+			reactiveIndex<string, number>(g2, {
 				name: "idx",
 				capacity: { maxSize: foreign, order: "secondary" },
 			}),
@@ -382,8 +384,7 @@ describe("reactiveIndex (D60 #4) — ordered snapshot + Z reverse-lookup", () =>
 		const g = graph();
 		const max = g.state(2, { name: "max" });
 		const src = g.state({ primary: "seed", secondary: 0, value: 0 }, { name: "src" });
-		const idx = reactiveIndex<string, number>({
-			graph: g,
+		const idx = reactiveIndex<string, number>(g, {
 			name: "idx",
 			capacity: { maxSize: max, order: "primary" },
 		});
@@ -406,7 +407,8 @@ describe("reactiveIndex (D60 #4) — ordered snapshot + Z reverse-lookup", () =>
 
 describe("reactiveLog (D60 #5) — incremental view/scan + SENTINEL reject + declared-dep merge", () => {
 	it("append emits deltas; snapshot delivers the full array on demand", () => {
-		const log = reactiveLog<string>();
+		const g = graph();
+		const log = reactiveLog<string>(g);
 		const { msgs } = collect(log.snapshot);
 		log.append("a");
 		log.append("b");
@@ -415,7 +417,8 @@ describe("reactiveLog (D60 #5) — incremental view/scan + SENTINEL reject + dec
 	});
 
 	it("tail(n) is an incremental derived on the delta backbone", () => {
-		const log = reactiveLog<number>();
+		const g = graph();
+		const log = reactiveLog<number>(g);
 		const { msgs } = collect(log.tail(2));
 		log.append(1);
 		log.append(2);
@@ -424,7 +427,8 @@ describe("reactiveLog (D60 #5) — incremental view/scan + SENTINEL reject + dec
 	});
 
 	it("slice(start, stop?) is an incremental positional view on the delta backbone", () => {
-		const log = reactiveLog<number>([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+		const g = graph();
+		const log = reactiveLog<number>(g, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
 		const window = log.slice(2, 5);
 		const toEnd = log.slice(7);
 		const { msgs: windowMsgs } = collect(window);
@@ -440,10 +444,11 @@ describe("reactiveLog (D60 #5) — incremental view/scan + SENTINEL reject + dec
 	});
 
 	it("page(offset,limit) is a D121 light view with forwarded delta + pulled snapshot", () => {
-		const log = reactiveLog<number>([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+		const g = graph();
+		const log = reactiveLog<number>(g, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
 		const page = log.page(2, 3);
-		const { msgs: deltaMsgs } = collect(page.delta);
-		const { msgs: snapshotMsgs } = collect(page.snapshot);
+		const { msgs: deltaMsgs, unsub: unsubDelta } = collect(page.delta);
+		const { msgs: snapshotMsgs, unsub: unsubSnapshot } = collect(page.snapshot);
 
 		log.append(10);
 
@@ -451,15 +456,18 @@ describe("reactiveLog (D60 #5) — incremental view/scan + SENTINEL reject + dec
 		demand(page.request);
 		expect(data(snapshotMsgs).at(-1)).toEqual([2, 3, 4]);
 		expect(log.page(2, 3)).toBe(page);
+		// A graph releases a view's node group only when it is quiescent (D124).
+		unsubDelta();
+		unsubSnapshot();
 		page.dispose();
 		expect(log.page(2, 3)).not.toBe(page);
 		expect(() => log.page(-1, 3)).toThrow(RangeError);
 		expect(() => log.page(0, -1)).toThrow(RangeError);
 	});
 
-	it("page light views register through the graph funnel when options.graph is present", () => {
+	it("page light views register through the graph funnel", () => {
 		const g = graph();
-		const log = reactiveLog<number>([], { graph: g, name: "log" });
+		const log = reactiveLog<number>(g, [], { name: "log" });
 		const page = log.page(0, 2);
 
 		const snap = g.describe();
@@ -490,8 +498,7 @@ describe("reactiveLog (D60 #5) — incremental view/scan + SENTINEL reject + dec
 
 	it("page viewCache evicts only memo refs, not live D121 view nodes", () => {
 		const g = graph();
-		const log = reactiveLog<number>([0, 1, 2, 3], {
-			graph: g,
+		const log = reactiveLog<number>(g, [0, 1, 2, 3], {
 			name: "log",
 			viewCache: { maxEntries: 1 },
 		});
@@ -516,7 +523,7 @@ describe("reactiveLog (D60 #5) — incremental view/scan + SENTINEL reject + dec
 
 	it("graph-bound view dispose rejects registered downstream deps outside the release group", () => {
 		const g = graph();
-		const log = reactiveLog<number>([], { graph: g, name: "log" });
+		const log = reactiveLog<number>(g, [], { name: "log" });
 		const page = log.page(0, 2);
 		const downstream = g.node([page.snapshot as Node<unknown>], null, { name: "consumer" });
 
@@ -534,7 +541,8 @@ describe("reactiveLog (D60 #5) — incremental view/scan + SENTINEL reject + dec
 	});
 
 	it("slice(start, stop) is memoized by range and validates non-negative integer bounds", () => {
-		const log = reactiveLog<number>();
+		const g = graph();
+		const log = reactiveLog<number>(g);
 		const a = log.slice(1, 3);
 		const b = log.slice(1, 3);
 		const c = log.slice(1);
@@ -546,7 +554,8 @@ describe("reactiveLog (D60 #5) — incremental view/scan + SENTINEL reject + dec
 	});
 
 	it("slice(start, stop) remains positional after trimHead shifts the backend", () => {
-		const log = reactiveLog<number>([10, 20, 30, 40, 50, 60, 70, 80]);
+		const g = graph();
+		const log = reactiveLog<number>(g, [10, 20, 30, 40, 50, 60, 70, 80]);
 		const window = log.slice(2, 5);
 		const { msgs } = collect(window);
 		expect(data(msgs)).toEqual([[30, 40, 50]]);
@@ -557,7 +566,8 @@ describe("reactiveLog (D60 #5) — incremental view/scan + SENTINEL reject + dec
 	});
 
 	it("tail and slice do not replay stale construction snapshots when subscribed cold", () => {
-		const log = reactiveLog<number>([1, 2, 3]);
+		const g = graph();
+		const log = reactiveLog<number>(g, [1, 2, 3]);
 		const tail = log.tail(2);
 		const slice = log.slice(1);
 
@@ -572,7 +582,7 @@ describe("reactiveLog (D60 #5) — incremental view/scan + SENTINEL reject + dec
 
 	it("tail and slice views settle consistently from the same delta diamond", () => {
 		const g = graph();
-		const log = reactiveLog<number>();
+		const log = reactiveLog<number>(g);
 		const tail = log.tail(2);
 		const slice = log.slice(0, 3);
 		const joined = g.initNode(combine<readonly [readonly number[], readonly number[]]>(), [
@@ -589,20 +599,22 @@ describe("reactiveLog (D60 #5) — incremental view/scan + SENTINEL reject + dec
 		]);
 	});
 
-	it("tail/slice/scan helpers bind to the collection dispatcher (D80 vocabulary only; runtime stays structure-owned)", () => {
+	it("tail/slice/scan views use the graph's dispatcher (built beside the collection, D179)", () => {
 		const dispatcher = new CountingDispatcher();
-		const log = reactiveLog<number>([], { dispatcher });
-		expect(dispatcher.registerCount).toBe(1); // collectionCore snapshot pull node
+		const g = graph({ dispatcher });
+		const log = reactiveLog<number>(g, []);
+		const before = dispatcher.registerCount;
 
 		log.tail(2);
 		log.slice(1, 3);
 		log.scan(0, (acc, value) => acc + value);
 
-		expect(dispatcher.registerCount).toBe(4);
+		expect(dispatcher.registerCount - before).toBe(3);
 	});
 
 	it("scan folds incrementally; resets on clear", () => {
-		const log = reactiveLog<number>();
+		const g = graph();
+		const log = reactiveLog<number>(g);
 		const sum = log.scan(0, (acc, v) => acc + v);
 		const { msgs } = collect(sum);
 		log.append(1);
@@ -614,7 +626,8 @@ describe("reactiveLog (D60 #5) — incremental view/scan + SENTINEL reject + dec
 	});
 
 	it("scanLog is the standalone composition helper for log.scan", () => {
-		const log = reactiveLog<number>();
+		const g = graph();
+		const log = reactiveLog<number>(g);
 		const product = scanLog(log, 1, (acc, v) => acc * v);
 		const { msgs } = collect(product);
 
@@ -627,7 +640,8 @@ describe("reactiveLog (D60 #5) — incremental view/scan + SENTINEL reject + dec
 	});
 
 	it("scan refolds when maxSize overwrites the head without increasing length", () => {
-		const log = reactiveLog<number>([], { maxSize: 2 });
+		const g = graph();
+		const log = reactiveLog<number>(g, [], { maxSize: 2 });
 		const sum = log.scan(0, (acc, v) => acc + v);
 		const { msgs } = collect(sum);
 		log.append(1);
@@ -638,13 +652,15 @@ describe("reactiveLog (D60 #5) — incremental view/scan + SENTINEL reject + dec
 	});
 
 	it("append(undefined) throws — undefined is the substrate SENTINEL (R-data-payload)", () => {
-		const log = reactiveLog<number | undefined>();
+		const g = graph();
+		const log = reactiveLog<number | undefined>(g);
 		expect(() => log.append(undefined)).toThrow(TypeError);
 		expect(() => log.appendMany([1, undefined as unknown as number])).toThrow(TypeError);
 	});
 
 	it("maxSize ring-buffer head-trims on overflow", () => {
-		const log = reactiveLog<number>([], { maxSize: 2 });
+		const g = graph();
+		const log = reactiveLog<number>(g, [], { maxSize: 2 });
 		log.append(1);
 		log.append(2);
 		log.append(3); // evicts 1
@@ -652,7 +668,8 @@ describe("reactiveLog (D60 #5) — incremental view/scan + SENTINEL reject + dec
 	});
 
 	it("bulk log deltas carry defensive copies", () => {
-		const log = reactiveLog<number>();
+		const g = graph();
+		const log = reactiveLog<number>(g);
 		const { msgs } = collect(log.delta);
 		const values = [1, 2];
 		log.appendMany(values);
@@ -661,7 +678,8 @@ describe("reactiveLog (D60 #5) — incremental view/scan + SENTINEL reject + dec
 	});
 
 	it("empty log appendMany is a no-op delta where the array bulk API exists", () => {
-		const log = reactiveLog<number>([1]);
+		const g = graph();
+		const log = reactiveLog<number>(g, [1]);
 		const { msgs } = collect(log.delta);
 		msgs.length = 0;
 		log.appendMany([]);
@@ -670,7 +688,8 @@ describe("reactiveLog (D60 #5) — incremental view/scan + SENTINEL reject + dec
 	});
 
 	it("trimHead removes the oldest n", () => {
-		const log = reactiveLog<number>([1, 2, 3, 4]);
+		const g = graph();
+		const log = reactiveLog<number>(g, [1, 2, 3, 4]);
 		const { msgs } = collect(log.delta);
 		log.trimHead(2);
 		expect(data(msgs)).toEqual([{ kind: "trimHead", n: 2 }]);
@@ -678,8 +697,9 @@ describe("reactiveLog (D60 #5) — incremental view/scan + SENTINEL reject + dec
 	});
 
 	it("mergeReactiveLogs is a DECLARED-DEP merge of N delta streams (no island, D45)", () => {
-		const a = reactiveLog<string>();
-		const b = reactiveLog<string>();
+		const g = graph();
+		const a = reactiveLog<string>(g);
+		const b = reactiveLog<string>(g);
 		const merged = mergeReactiveLogs([a, b]);
 		const { msgs } = collect(merged);
 		a.append("a1");
@@ -695,7 +715,8 @@ describe("reactiveLog (D60 #5) — incremental view/scan + SENTINEL reject + dec
 
 describe("real factory names (D6/D60)", () => {
 	it("the snapshot/delta nodes carry reactiveList.* factory names", () => {
-		const list = reactiveList<number>();
+		const g = graph();
+		const list = reactiveList<number>(g);
 		expect((list.delta as Node<unknown> & { factory?: string }).factory).toBe("reactiveList.delta");
 		expect((list.snapshot as Node<unknown> & { factory?: string }).factory).toBe(
 			"reactiveList.snapshot",

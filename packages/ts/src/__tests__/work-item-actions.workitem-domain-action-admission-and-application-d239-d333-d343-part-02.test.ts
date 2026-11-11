@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { batch } from "../batch/batch.js";
 import { depBatch } from "../ctx/types.js";
 import { graph } from "../graph/graph.js";
 import type { BoundaryCapabilityKind } from "../inspection/boundary.js";
@@ -58,6 +57,7 @@ function setupActions() {
 		applyPolicies,
 	});
 	return {
+		g,
 		seed,
 		proposals,
 		decisions,
@@ -276,11 +276,11 @@ describe("WorkItem domain action admission and application (D239/D333-D343) — 
 			metadata: { executionInputRevision: 1, applyPolicyId: "apply-patch" },
 		});
 
-		batch(() => {
+		setup.g.batch(() => {
 			setup.proposals.set(proposal);
 			setup.proposals.set(proposal);
 		});
-		batch(() => {
+		setup.g.batch(() => {
 			setup.decisions.set(admissionDecision("decision-dup", "admission-dup", "proposal-dup"));
 			setup.decisions.set(admissionDecision("decision-dup", "admission-dup", "proposal-dup"));
 		});

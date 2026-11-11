@@ -9,20 +9,14 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { ctxRewireDiff } from "../ctx/types.js";
-import type { Ctx, Message, NodeFn } from "../index.js";
+import type { Ctx, Message } from "../index.js";
 import {
 	depBatch,
-	depCount,
 	depLatest,
-	depTerminal,
 	distinctUntilChanged,
 	filter,
 	fromIter,
 	graph,
-	isTerminalComplete,
-	type Node,
-	node,
 	take,
 } from "../index.js";
 import { addOwnedNodeDep, removeOwnedNodeDep, rewireOwnedNode } from "./helpers/owned-rewire.js";
@@ -43,10 +37,11 @@ function collect(n: { subscribe(s: (m: Message) => void): () => void }) {
 
 describe("C-3 INVALIDATE × ctx.state, manual INVALIDATE policy (R-invalidation)", () => {
 	it("cascades once, runs the function under the manual policy, preserves ctx.state, resets dep cached latest", () => {
+		const g = graph();
 		const statesAtRun: unknown[] = [];
 		let onInv = 0;
-		const s = node<number>([], null, { initial: 1 });
-		const d = node<number>(
+		const s = g.node<number>([], null, { initial: 1 });
+		const d = g.node<number>(
 			[s],
 			(ctx: Ctx) => {
 				if (ctx.invalidated[0]) {
@@ -86,14 +81,15 @@ describe("C-3 INVALIDATE × ctx.state, manual INVALIDATE policy (R-invalidation)
 
 describe("C-4 a sync leg and an async leg: the async result is a later wave, nothing waits across it (R-wave, R-invocation)", () => {
 	it("settles the async leg with the kernel's RESOLVED in A's wave; its result is a later wave", () => {
+		const g = graph();
 		let dRuns = 0;
 		let cctx: Ctx | null = null;
-		const a = node<number>([], null, { initial: 1 });
-		const b = node<number>([a], (ctx: Ctx) =>
+		const a = g.node<number>([], null, { initial: 1 });
+		const b = g.node<number>([a], (ctx: Ctx) =>
 			ctx.down([["DATA", (depLatest(ctx, 0) as number) + 10]]),
 		); // sync leg
 		const cOut: Message[] = [];
-		const c = node<number>(
+		const c = g.node<number>(
 			[a],
 			(ctx: Ctx) => {
 				cctx = ctx; // async leg: the result comes later through this ctx
@@ -105,7 +101,7 @@ describe("C-4 a sync leg and an async leg: the async result is a later wave, not
 				cOut.push(m);
 			}
 		});
-		const d = node<number>([b, c], (ctx: Ctx) => {
+		const d = g.node<number>([b, c], (ctx: Ctx) => {
 			dRuns++;
 			ctx.down([["DATA", (depLatest(ctx, 0) as number) + (depLatest(ctx, 1) as number)]]);
 		});
@@ -155,12 +151,13 @@ describe("C-6 a function's write to its own upstream is a later request", () => 
 
 describe("C-8 intra-graph runtime rewire (R-rewire / D42)", () => {
 	it("surgical subscribeDep (push-on-subscribe) → unsubscribeDep (drain) → idempotent replaceDeps; cache preserved", () => {
-		const a = node<number>([], null, { initial: 1 });
-		const b = node<number>([], null, { initial: 100 }); // B carries cached DATA
+		const g = graph();
+		const a = g.node<number>([], null, { initial: 1 });
+		const b = g.node<number>([], null, { initial: 100 }); // B carries cached DATA
 		const aOnly = (ctx: Ctx) => ctx.down([["DATA", depLatest(ctx, 0) as number]]);
 		const sum = (ctx: Ctx) =>
 			ctx.down([["DATA", (depLatest(ctx, 0) as number) + (depLatest(ctx, 1) as number)]]);
-		const d = node<number>([a], aOnly);
+		const d = g.node<number>([a], aOnly);
 		collect(d);
 		expect(d.cache).toBe(1); // (1) A settled → D ran
 
@@ -190,13 +187,14 @@ describe("C-8 intra-graph runtime rewire (R-rewire / D42)", () => {
 	});
 
 	it("rejects rewire on a terminal node (throw → graph-layer ERROR, D30)", () => {
-		const a = node<number>([], null, { initial: 1 });
+		const g = graph();
+		const a = g.node<number>([], null, { initial: 1 });
 		// D forwards A's value and completes on the value 2.
 		const id = (ctx: Ctx) => {
 			const v = depLatest(ctx, 0) as number;
 			ctx.down(v === 2 ? [["COMPLETE"]] : [["DATA", v]]);
 		};
-		const d = node<number>([a], id, { complete: "manual" });
+		const d = g.node<number>([a], id, { complete: "manual" });
 		collect(d);
 		a.set(2); // D terminal
 		expect(d.status.output).toBe("completed");
@@ -305,9 +303,10 @@ describe("C-12 occurrences stay DATA; RESOLVED is undirty-only (R-resolved-undir
 	});
 
 	it("RESOLVED is the kernel's alone: output carrying it is rejected (R-wave@2, D799)", () => {
-		const t = node<number>([], null, { initial: 0 });
+		const g = graph();
+		const t = g.node<number>([], null, { initial: 0 });
 		let rejected: unknown;
-		const s = node<number>([t], (ctx) => {
+		const s = g.node<number>([t], (ctx) => {
 			if (depBatch(ctx, 0)?.[0] !== 1) return ctx.down([["DATA", 1]]);
 			try {
 				ctx.down([["DATA", 2], ["RESOLVED"]]);

@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { batch } from "../batch/batch.js";
 import type { DataIssue } from "../data/index.js";
 import { graph } from "../graph/graph.js";
 import {
@@ -295,7 +294,7 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 9", () => {
 		});
 
 		effectRuns.set(effectRun({ effectRunId: "run-1", goal: { kind: "test" } }));
-		batch(() => {
+		g.batch(() => {
 			requestFacts.set(issued("request-1", "op-1", "executor", "llm-call"));
 			requestFacts.set({
 				kind: "status",
@@ -346,7 +345,7 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 9", () => {
 			attempt: 1,
 		};
 
-		batch(() => {
+		g.batch(() => {
 			outcomes.set(
 				fakeExecutorResult({
 					...base,
@@ -517,7 +516,7 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 9", () => {
 			}
 		});
 
-		batch(() => {
+		g.batch(() => {
 			requestFacts.set(issued("request-1", "op-1", "executor", "llm-call"));
 			requestFacts.set({
 				kind: "status",
@@ -572,7 +571,7 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 9", () => {
 			}
 		});
 
-		batch(() => {
+		g.batch(() => {
 			requestFacts.set(issued("request-raw-issue", "op-raw-issue", "executor", "tool-call"));
 			requestFacts.set({
 				kind: "status",
@@ -903,7 +902,7 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 9", () => {
 			}),
 		);
 
-		batch(() => {
+		g.batch(() => {
 			results.set({
 				kind: "effect-run-result",
 				resultId: "wrong-work-item",

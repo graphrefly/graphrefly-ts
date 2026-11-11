@@ -35,8 +35,10 @@ import {
 	type NodeFn,
 	terminalErrorValue,
 } from "../ctx/types.js";
+import type { Dispatcher } from "../dispatcher/index.js";
 import type { NodeCore } from "../node/core.js";
-import { Node, type NodeOptions, withNodeCore } from "../node/node.js";
+import { Node, type NodeOptions, withEnvironmentDrivers, withNodeCore } from "../node/node.js";
+import { nodeRuntimeHost } from "../node/node-runtime-host.js";
 import { errorPayload, type Message } from "../protocol/messages.js";
 import { type GraphCheckpointJson, toCheckpointJson } from "./checkpoint.js";
 import { eachInputArray } from "./each-input-array.js";
@@ -180,7 +182,7 @@ export function define<S, T>(
  * @category operators
  * @example
  * ```ts
- * import { initNode } from "@graphrefly/ts/operators";
+ * // internal: helpers call it inside a graph's construction scope; use `g.initNode(op, deps)`
  * ```
  */
 export function initNode<TIn, TOut>(
@@ -191,6 +193,27 @@ export function initNode<TIn, TOut>(
 	return makeInitNode(op, deps, opts);
 }
 
+/**
+ * @internal An operator node built in its dependencies' graph (R-graph-domain@3), for helpers
+ * that take nodes, not a graph. Every dependency must belong to the same graph.
+ */
+export function initNodeBeside<TIn, TOut>(
+	op: Operator<TIn, TOut>,
+	deps: readonly Node<unknown>[],
+	opts: NodeOptions<TOut> = {},
+): Node<TOut> {
+	const first = deps[0];
+	if (first === undefined)
+		throw new Error("initNode: an operator built beside its inputs needs one");
+	const host = nodeRuntimeHost(first);
+	for (const d of deps)
+		if (nodeRuntimeHost(d)._core !== host._core)
+			throw new Error("initNode: dependencies belong to different graphs; use a wire bridge");
+	return withEnvironmentDrivers(host._slot.environment, () =>
+		initNodeWithCore(host._core, op, deps, opts, undefined, host._slot.dispatcher),
+	);
+}
+
 /** @internal Graph-bound operator instantiation into a graph-local B49 core. */
 export function initNodeWithCore<TIn, TOut>(
 	core: NodeCore,
@@ -198,8 +221,9 @@ export function initNodeWithCore<TIn, TOut>(
 	deps: readonly Node<unknown>[],
 	opts: NodeOptions<TOut> = {},
 	acquired?: NodeAcquisition,
+	dispatcher?: Dispatcher,
 ): Node<TOut> {
-	return withNodeCore(core, () => makeInitNode(op, deps, opts, acquired));
+	return withNodeCore(core, () => makeInitNode(op, deps, opts, acquired), dispatcher);
 }
 
 function makeInitNode<TIn, TOut>(

@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { subscribeNodeValues } from "../adapters/store.js";
-import { batch } from "../batch/batch.js";
 import {
 	type EnvironmentPinnedExecutorProfile,
 	type EnvironmentPinnedExecutorRoute,
@@ -324,7 +323,7 @@ describe("execution environment targeting and local host gate (D603)", () => {
 		inputs.set(input());
 		profiles.set(profile());
 		routes.set(route());
-		batch(() => {
+		g.batch(() => {
 			admitted.set(candidate);
 			admitted.set(candidate);
 		});

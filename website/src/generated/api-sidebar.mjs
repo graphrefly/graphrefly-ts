@@ -5,10 +5,6 @@ export const apiSidebar = [
 		"collapsed": true,
 		"items": [
 			{
-				"label": "batch()",
-				"link": "/api/batch"
-			},
-			{
 				"label": "isTerminalComplete()",
 				"link": "/api/isterminalcomplete"
 			},
@@ -51,10 +47,6 @@ export const apiSidebar = [
 			{
 				"label": "Node",
 				"link": "/api/node"
-			},
-			{
-				"label": "dynamicNode()",
-				"link": "/api/dynamicnode"
 			},
 			{
 				"label": "defaultNodeVersionHash()",
@@ -303,10 +295,6 @@ export const apiSidebar = [
 			{
 				"label": "define()",
 				"link": "/api/define"
-			},
-			{
-				"label": "initNode()",
-				"link": "/api/initnode"
 			},
 			{
 				"label": "map()",
@@ -945,12 +933,12 @@ export const apiSidebar = [
 				"link": "/api/decodecanonicalwirebridgeenvelope"
 			},
 			{
-				"label": "decodeCanonicalWireEdgeFrame()",
-				"link": "/api/decodecanonicalwireedgeframe"
+				"label": "decodeCanonicalWireEdgeCause()",
+				"link": "/api/decodecanonicalwireedgecause"
 			},
 			{
-				"label": "encodeCanonicalWireEdgeFrame()",
-				"link": "/api/encodecanonicalwireedgeframe"
+				"label": "encodeCanonicalWireEdgeCause()",
+				"link": "/api/encodecanonicalwireedgecause"
 			},
 			{
 				"label": "encodeCanonicalWireBridgeEnvelope()",
@@ -961,8 +949,20 @@ export const apiSidebar = [
 				"link": "/api/remotecall"
 			},
 			{
-				"label": "wireEdgeGroup()",
-				"link": "/api/wireedgegroup"
+				"label": "wireEdgeGroupOut()",
+				"link": "/api/wireedgegroupout"
+			},
+			{
+				"label": "frameSink()",
+				"link": "/api/framesink"
+			},
+			{
+				"label": "frameSource()",
+				"link": "/api/framesource"
+			},
+			{
+				"label": "wireEdgeGroupIn()",
+				"link": "/api/wireedgegroupin"
 			},
 			{
 				"label": "wireBridgeIdempotencyKey()",

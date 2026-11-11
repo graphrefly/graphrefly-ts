@@ -2,7 +2,6 @@ import { mkdirSync, mkdtempSync, rmSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { batch } from "../batch/batch.js";
 import { toolProviderExecutionRecipe } from "../executors/tool-provider.js";
 import {
 	type HttpToolProviderDriver,
@@ -436,7 +435,7 @@ describe("tool-provider concrete adapters (D283/D359-D362)", () => {
 		});
 		const outcomes = collectData(runtime.outcomes);
 
-		batch(() => {
+		g.batch(() => {
 			inputs.set(
 				readyInput("http-test", "http.fetch", {
 					url: "https://api.example.test/data",

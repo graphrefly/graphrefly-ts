@@ -1,7 +1,6 @@
 /** Runnable application integration: node --import tsx examples/spending-alerts/causal-graded-demo.ts */
 import assert from "node:assert/strict";
 import { pathToFileURL } from "node:url";
-import { batch } from "../../packages/ts/src/batch/batch.js";
 import { Graph } from "../../packages/ts/src/graph/graph.js";
 import {
 	evaluationFixture,
@@ -127,7 +126,7 @@ export async function runGradedSpendingDemo() {
 		const evaluation = evaluationFixture();
 		const facts = policyFacts(evaluation);
 		sources.pack.set(evaluationPack([evaluation]));
-		batch(() => {
+		graph.batch(() => {
 			sources.current.set(facts.current);
 			sources.verification.set(facts.verification);
 			sources.local.set(facts.local);
@@ -156,7 +155,7 @@ export async function runGradedSpendingDemo() {
 		const evaluationB = evaluationFixture(0, "tea");
 		const factsB = policyFacts(evaluationB, bindingB);
 		sourcesB.pack.set(evaluationPack([evaluationB], bindingB));
-		batch(() => {
+		graph.batch(() => {
 			sourcesB.current.set(factsB.current);
 			sourcesB.verification.set(factsB.verification);
 			sourcesB.local.set(factsB.local);

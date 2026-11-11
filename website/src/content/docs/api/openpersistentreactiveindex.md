@@ -16,13 +16,17 @@ import { openPersistentReactiveIndex } from "@graphrefly/ts/adapters";
 ## Signature
 
 ```ts
-function openPersistentReactiveIndex(opts: OpenPersistentReactiveIndexOptions<K, V>): Promise<PersistentReactiveIndex<K, V>>
+function openPersistentReactiveIndex(
+	graph: Graph,
+	opts: OpenPersistentReactiveIndexOptions<K, V>,
+): Promise<PersistentReactiveIndex<K, V>>
 ```
 
 ## Parameters
 
 | Parameter | Type | Description |
 |---|---|---|
+| `graph` | `Graph` | The graph that builds the restored collection. |
 | `opts` | `OpenPersistentReactiveIndexOptions<K, V>` | Options that configure the helper. |
 
 ## Returns

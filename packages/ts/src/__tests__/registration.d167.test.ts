@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { batch } from "../batch/batch.js";
 import { depLatest, type NodeFn } from "../ctx/types.js";
 import { Dispatcher, type Handle } from "../dispatcher/index.js";
 import {
@@ -61,25 +60,6 @@ function pending(bus: ReturnType<typeof messageBus>) {
 }
 
 describe("D167 issued runtime identity and lifecycle", () => {
-	it("preserves graph-use results for owned, foreign, bare and unissued identities", () => {
-		const g = new Graph();
-		const other = new Graph();
-		const owned = g.state(2);
-		const foreign = other.state(3);
-		const bare = new Node([], null);
-		expect(() => assertGraphLocalNode(g, owned, "dep")).not.toThrow();
-		expect(() => assertGraphLocalNode(g, bare, "dep")).not.toThrow();
-		expect(() => assertGraphLocalNode(g, foreign, "dep")).toThrow(
-			"dep belongs to a different graph; cross-graph deps require a wire bridge",
-		);
-		for (const fake of [{}, { ...owned }, Object.create(owned)] as Node<unknown>[]) {
-			expect(() => assertGraphLocalNode(g, fake, "dep")).not.toThrow();
-			expect(() => checkpointStateOfNode(fake)).toThrow("unknown node state");
-		}
-		releaseRuntimeOfNode(bare);
-		releaseGraphNodes(g, [owned]);
-		releaseGraphNodes(other, [foreign]);
-	});
 	it("rejects graph use from release hooks while runtime access is still open", () => {
 		const g = new Graph();
 		const input = g.state(2, { name: "input" });
@@ -95,7 +75,7 @@ describe("D167 issued runtime identity and lifecycle", () => {
 		expect(() => assertGraphLocalNode(g, input, "dep")).toThrow("has been released");
 	});
 	it("keeps live bare access and rejects copies/prototype descendants without touching the original", () => {
-		const n = new Node([], null, { initial: 3 });
+		const n = new Graph().node([], null, { initial: 3 });
 		for (const fake of [{}, { ...n }, Object.create(n)] as Node<unknown>[]) {
 			expect(() => checkpointStateOfNode(fake)).toThrow("unknown node state");
 			expect(() => restoreStateOfNode(fake, {} as never)).toThrow("unknown node state");
@@ -114,7 +94,7 @@ describe("D167 issued runtime identity and lifecycle", () => {
 		releaseRuntimeOfNode(n);
 	});
 	it("marks release start before hooks, closes access later, and drops contributor", () => {
-		const n = new Node([], null);
+		const n = new Graph().node([], null);
 		const observations: unknown[] = [];
 		registerBackendStateContributor(n, () => {
 			observations.push("backend");
@@ -131,7 +111,7 @@ describe("D167 issued runtime identity and lifecycle", () => {
 	});
 	it("retains failure locators while closing all access without retry", () => {
 		const dispatcher = new CountingDispatcher();
-		const n = new Node([], idle, { dispatcher });
+		const n = new Graph({ dispatcher }).node([], idle);
 		const handle = n.handle;
 		const boom = new Error("unregister failed");
 		const unregister = vi.spyOn(dispatcher, "unregister").mockImplementation(() => {
@@ -247,7 +227,7 @@ describe("D167 known cold acquisitions", () => {
 			};
 			return original.call(this, slot, bad, acquired) as never;
 		});
-		expect(() => new Node([], idle, { dispatcher })).toThrow("partial slot");
+		expect(() => new Graph({ dispatcher }).node([], idle)).toThrow("partial slot");
 		expect(dispatcher.live.size).toBe(0);
 		expect(id).toBeDefined();
 		expect(() => core!.get(id!)).toThrow("unknown node slot");
@@ -357,7 +337,7 @@ describe("D167 exact command binding and existing D110 batch fate", () => {
 	});
 	it.each([false, true])("two deferred adds use actual deps; rollback=%s", (rollback) => {
 		const f = busFixture();
-		batch((ctx) => {
+		f.graph.batch((ctx) => {
 			pending(f.bus);
 			attachMessageBusCommandSource(f.graph, f.bus, f.a);
 			attachMessageBusCommandSource(f.graph, f.bus, f.b);
@@ -394,7 +374,7 @@ describe("D167 exact command binding and existing D110 batch fate", () => {
 			},
 			{ name: "active" },
 		);
-		batch(() => {
+		f.graph.batch(() => {
 			pending(f.bus);
 			const remove = attachMessageBusCommandSource(f.graph, f.bus, a);
 			remove();
@@ -405,7 +385,7 @@ describe("D167 exact command binding and existing D110 batch fate", () => {
 	it("rolled-back removal remains removable through the same disposer", () => {
 		const f = busFixture();
 		const remove = attachMessageBusCommandSource(f.graph, f.bus, f.a);
-		batch((ctx) => {
+		f.graph.batch((ctx) => {
 			pending(f.bus);
 			remove();
 			ctx.rollback();
@@ -426,7 +406,7 @@ describe("D167 exact command binding and existing D110 batch fate", () => {
 			duplicate = attachMessageBusCommandSource(f.graph, f.bus, f.a);
 		};
 		if (deferred)
-			batch(() => {
+			f.graph.batch(() => {
 				pending(f.bus);
 				add();
 			});
@@ -454,7 +434,7 @@ describe("D167 exact command binding and existing D110 batch fate", () => {
 		const f = busFixture();
 		const source = f.graph.state(1);
 		const binding = toTopic(f.graph, source, f.bus, "t", { name: "public" });
-		batch((ctx) => {
+		f.graph.batch((ctx) => {
 			pending(f.bus);
 			binding.release();
 			ctx.rollback();

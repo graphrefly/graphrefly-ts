@@ -4,7 +4,6 @@ import type {
 	SpendingBinding,
 	SpendingInputs,
 } from "../../examples/spending-alerts/causal-inputs.js";
-import { batch } from "../../packages/ts/src/batch/batch.js";
 import {
 	type ConstructionScope,
 	prepareConstruction,
@@ -105,7 +104,7 @@ export function referenceRun(
 		checkpointStateOfNode(graph.find("spending/causal/authority")!)
 			.privateState as RuntimeState<unknown>;
 	const send = (lane: ReferenceLane, ...values: unknown[]) =>
-		batch(() => {
+		graph.batch(() => {
 			for (const v of values) sources[lane].set(v);
 		});
 	const cleanup = () => {

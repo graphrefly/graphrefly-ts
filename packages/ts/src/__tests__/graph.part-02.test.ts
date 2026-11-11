@@ -16,6 +16,7 @@ import {
 	restoreGraph,
 	strictJsonCodec,
 } from "../index.js";
+import { buildBeside } from "../node/node.js";
 import { asState } from "./helpers/as-state.js";
 import { rewireOwnedNode } from "./helpers/owned-rewire.js";
 
@@ -397,7 +398,8 @@ describe("Graph.topologyGroup — graph-owned dynamic topology release (D152/D15
 		const other = graph().state(1, { name: "other" });
 		expect(() => group.add(other)).toThrow(/different graph/);
 
-		const bare = new Node([], null);
+		// An unregistered node of the same graph (R-graph-domain@3: no node is standalone).
+		const bare = buildBeside(registered, () => new Node([], null));
 		expect(() => group.add(bare)).toThrow(/not a registered graph node/);
 	});
 
@@ -587,12 +589,12 @@ describe("Graph.checkpoint — data shape (R-checkpoint / D802, TS layout D178)"
 
 	it("saves a collection's backend in backendState, not in private state (TS extension)", () => {
 		const g = graph();
-		const list = reactiveList<number>([1], { graph: g, name: "list" });
+		const list = reactiveList<number>(g, [1], { name: "list" });
 		list.append(2);
-		const index = reactiveIndex<string, number>({ graph: g, name: "idx" });
+		const index = reactiveIndex<string, number>(g, { name: "idx" });
 		index.upsert("b", 2, 20);
 		index.upsert("a", 1, 10);
-		const log = reactiveLog<string>(["a"], { graph: g, name: "log", maxSize: 3 });
+		const log = reactiveLog<string>(g, ["a"], { name: "log", maxSize: 3 });
 		log.append("b");
 
 		const byId = Object.fromEntries(g.checkpoint().nodes.map((n) => [n.id, n]));
@@ -612,8 +614,8 @@ describe("Graph.checkpoint — data shape (R-checkpoint / D802, TS layout D178)"
 
 	it("does not save a collection's helper values or lifetimes; its backend is the authority", () => {
 		const g = graph();
-		const list = reactiveList<number>([1], { graph: g, name: "list" });
-		const mapCollection = reactiveMap<string, number>({ graph: g, name: "map" });
+		const list = reactiveList<number>(g, [1], { name: "list" });
+		const mapCollection = reactiveMap<string, number>(g, { name: "map" });
 		mapCollection.set("k", 42);
 		collect(list.snapshot);
 		collect(mapCollection.snapshot);
@@ -633,14 +635,14 @@ describe("Graph.checkpoint — data shape (R-checkpoint / D802, TS layout D178)"
 
 	it("fails honestly when a collection backendState is not strict JSON", () => {
 		const g = graph();
-		reactiveList([1n], { graph: g, name: "big" });
+		reactiveList(g, [1n], { name: "big" });
 
 		expect(() => g.checkpoint()).toThrow(/big\.delta\.backendState.*strict JSON compatible/);
 	});
 
 	it("fails honestly when a reactiveIndex primary key cannot restore through D160", () => {
 		const g = graph();
-		const index = reactiveIndex<{ id: string }, number>({ graph: g, name: "idx" });
+		const index = reactiveIndex<{ id: string }, number>(g, { name: "idx" });
 		index.upsert({ id: "a" }, 1, 10);
 
 		expect(() => g.checkpoint()).toThrow(/backendState\[0\]\.primary.*JSON primitive/);
@@ -648,9 +650,8 @@ describe("Graph.checkpoint — data shape (R-checkpoint / D802, TS layout D178)"
 
 	it("gives deferred collection policy variants no recipe, so they are local-only", () => {
 		const g = graph();
-		reactiveList<number>([], { graph: g, name: "capped", maxSize: 2 });
-		reactiveIndex<string, number>({
-			graph: g,
+		reactiveList<number>(g, [], { name: "capped", maxSize: 2 });
+		reactiveIndex<string, number>(g, {
 			name: "limited",
 			capacity: { order: "primary", maxSize: 2 },
 		});

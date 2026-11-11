@@ -33,10 +33,11 @@ import {
 } from "../../ctx/types.js";
 import { strictCanonicalJsonBytes } from "../../json/codec.js";
 import { attachableInput } from "../../node/attachable-input.js";
-import { Node, StateNode } from "../../node/node.js";
+import { Node } from "../../node/node.js";
 import { oneArrayPerRun } from "../../node/one-array-per-run.js";
 import { errorPayload } from "../../protocol/messages.js";
 import { registerBackendStateContributor } from "../checkpoint.js";
+import type { Graph } from "../graph.js";
 import { initNode, type Operator } from "../operators.js";
 import {
 	deadlines,
@@ -79,8 +80,8 @@ interface ResolvedRetentionPolicy<K, V> {
 
 export interface ReactiveMapOptions<K = unknown, V = unknown> extends CollectionCoreOptions {
 	/**
-	 * LRU cap as a node-as-opt policy (D68). A static number is a constant policy config; a Node must
-	 * be graph-bound and becomes a declared dep of `reactiveMap.apply`.
+	 * LRU cap as a node-as-opt policy (D68). A static number is a constant policy config; a Node (of
+	 * the same graph) becomes a declared dep of `reactiveMap.apply`.
 	 */
 	maxSize?: ReactiveMapOpt<number>;
 	/**
@@ -316,38 +317,46 @@ class MapBackend<K, V> {
 }
 
 /**
- * Create a reactive map (D54/D60). DELTA stream of {@link MapChange} + lazy pull SNAPSHOT (a
- * `ReadonlyMap`) + request via {@link collectionCore}; this layer adds the typed map surface.
- * @param options - Options that configure the helper.
+ * Create a reactive map (D54/D60) in `graph`. DELTA stream of {@link MapChange} + lazy pull
+ * SNAPSHOT (a `ReadonlyMap`) + request; this layer adds the typed map surface.
+ * @param graph - The graph that builds the map's nodes.
+ * @param options - Optional name, LRU/TTL/retention policies, view memo policy, and clock.
  * @returns A `ReactiveMap<K, V>` value.
  * @category data-structures
  * @example
  * ```ts
+ * import { graph } from "@graphrefly/ts/graph";
  * import { reactiveMap } from "@graphrefly/ts/data-structures";
+ *
+ * const sessions = reactiveMap<string, number>(graph(), { maxSize: 1000 });
+ * sessions.set("alice", 1);
  * ```
  */
-export function reactiveMap<K, V>(options: ReactiveMapOptions<K, V> = {}): ReactiveMap<K, V> {
-	return createReactiveMap(options);
+export function reactiveMap<K, V>(
+	graph: Graph,
+	options: ReactiveMapOptions<K, V> = {},
+): ReactiveMap<K, V> {
+	return createReactiveMap(graph, options);
 }
 
 /** @internal D161 restore path: seed the backend without replaying public deltas. */
 export function restoreReactiveMapFromBackendState<K, V>(
+	graph: Graph,
 	initialEntries: readonly (readonly [K, V])[],
 	options: ReactiveMapOptions<K, V> = {},
 ): ReactiveMap<K, V> {
-	return createReactiveMap(options, initialEntries);
+	return createReactiveMap(graph, options, initialEntries);
 }
 
 function createReactiveMap<K, V>(
-	options: ReactiveMapOptions<K, V> = {},
+	graph: Graph,
+	options: ReactiveMapOptions<K, V>,
 	initialEntries: readonly (readonly [K, V])[] = [],
 ): ReactiveMap<K, V> {
-	const { maxSize, defaultTtl, retention, viewCache, now, name, dispatcher, graph } = options;
+	const { maxSize, defaultTtl, retention, viewCache, now, name } = options;
 	const backend = new MapBackend<K, V>({ now });
 	for (const [key, value] of initialEntries) backend.set(key, value);
-	const base = dispatcher ? { dispatcher } : {};
 	const restorable =
-		graph !== undefined &&
 		name !== undefined &&
 		maxSize === undefined &&
 		defaultTtl === undefined &&
@@ -388,17 +397,9 @@ function createReactiveMap<K, V>(
 			body: () => {},
 			opts: { initial: value },
 		};
-		if (graph) {
-			return graph.initNode(op, [], {
-				name: name ? `${name}.${label}` : undefined,
-				meta: { kind: "collection_policy", collection: "reactiveMap", policy: label },
-			});
-		}
-		return new StateNode<number>([], null, {
-			...base,
-			initial: value,
-			factory: `reactiveMap.${label}`,
+		return graph.initNode(op, [], {
 			name: name ? `${name}.${label}` : undefined,
+			meta: { kind: "collection_policy", collection: "reactiveMap", policy: label },
 		});
 	}
 
@@ -408,29 +409,16 @@ function createReactiveMap<K, V>(
 		validate: (v: number) => number,
 	): Node<number> | undefined {
 		if (opt === undefined) return undefined;
-		if (isNodeOpt(opt)) {
-			if (graph === undefined)
-				throw new Error(
-					`reactiveMap ${label} Node option requires options.graph so the policy edge is describe-visible (${label === "retentionPolicy" ? "D72" : "D68"})`,
-				);
-			return opt;
-		}
-		return constPolicyNode(label, validate(opt));
+		return isNodeOpt(opt) ? opt : constPolicyNode(label, validate(opt));
 	}
 
 	// The map's host input: its methods write intents here (graphrefly-ts:D175).
-	const intent = graph
-		? graph.node<MapIntent<K, V>>([], null, {
-				factory: "reactiveMap.intent",
-				name: name ? `${name}.intent` : undefined,
-				meta: { kind: "collection_intent", collection: "reactiveMap" },
-				...(restorable ? { recipe: { ref: "reactiveMap.intent" } } : {}),
-			})
-		: new StateNode<MapIntent<K, V>>([], null, {
-				...base,
-				factory: "reactiveMap.intent",
-				name: name ? `${name}.intent` : undefined,
-			});
+	const intent = graph.node<MapIntent<K, V>>([], null, {
+		factory: "reactiveMap.intent",
+		name: name ? `${name}.intent` : undefined,
+		meta: { kind: "collection_intent", collection: "reactiveMap" },
+		...(restorable ? { recipe: { ref: "reactiveMap.intent" } } : {}),
+	});
 	const lruPolicy = policyNode("lruPolicy", maxSize, validateMaxSize);
 	const ttlPolicy = policyNode("ttlPolicy", defaultTtl, validateTtl);
 	const retentionPolicy = policyNode(
@@ -487,7 +475,7 @@ function createReactiveMap<K, V>(
 		}
 	}
 
-	function scheduleTtl(ctx: Ctx, body: NodeFn): void {
+	function scheduleTtl(ctx: Ctx): void {
 		for (;;) {
 			const next = nextValidExpiry();
 			if (next === undefined) {
@@ -503,7 +491,7 @@ function createReactiveMap<K, V>(
 			if (ttlTimerDue === next.expiresAt) return;
 			if (ttlTimer) ctxRewireDiff(ctx, [], [ttlTimer]);
 			ttlTimerDue = next.expiresAt;
-			ttlTimer = initNode(timer(Math.max(0, next.expiresAt - backend.nowMs())), [], base);
+			ttlTimer = initNode(timer(Math.max(0, next.expiresAt - backend.nowMs())), []);
 			ctxRewireDiff(ctx, [ttlTimer]);
 			return;
 		}
@@ -590,7 +578,7 @@ function createReactiveMap<K, V>(
 				retention ? { maxSize: currentRetentionMaxSize, score: retention.score } : undefined,
 			),
 		);
-		scheduleTtl(ctx, applyBody);
+		scheduleTtl(ctx);
 	};
 
 	// The folders the map binds attach to its apply node, which rewires itself to them.
@@ -600,30 +588,19 @@ function createReactiveMap<K, V>(
 		body: applyBody,
 		opts: { partial: true, setup: folders.setup },
 	};
-	apply = graph
-		? graph.initNode(applyOp, policyInputs.deps as readonly Node<unknown>[], {
-				name: name ? `${name}.apply` : undefined,
-				meta: { kind: "collection_policy_apply", collection: "reactiveMap" },
-				...(restorable ? { recipe: { ref: "reactiveMap.apply" } } : {}),
-			})
-		: initNode(applyOp, policyInputs.deps, {
-				...base,
-				name: name ? `${name}.apply` : undefined,
-			});
+	apply = graph.initNode(applyOp, policyInputs.deps as readonly Node<unknown>[], {
+		name: name ? `${name}.apply` : undefined,
+		meta: { kind: "collection_policy_apply", collection: "reactiveMap" },
+		...(restorable ? { recipe: { ref: "reactiveMap.apply" } } : {}),
+	});
 
 	// REQUEST state the quiet snapshotPrep declares as a dependency (graphrefly-ts:D172).
-	const request = graph
-		? graph.node<true>([], null, {
-				factory: "reactiveMap.request",
-				name: name ? `${name}.request` : undefined,
-				meta: { kind: "collection_request", collection: "reactiveMap" },
-				...(restorable ? { recipe: { ref: "reactiveMap.request" } } : {}),
-			})
-		: new StateNode<true>([], null, {
-				...base,
-				factory: "reactiveMap.request",
-				name: name ? `${name}.request` : undefined,
-			});
+	const request = graph.node<true>([], null, {
+		factory: "reactiveMap.request",
+		name: name ? `${name}.request` : undefined,
+		meta: { kind: "collection_request", collection: "reactiveMap" },
+		...(restorable ? { recipe: { ref: "reactiveMap.request" } } : {}),
+	});
 	const snapshotPrepOp: Operator<unknown, SnapshotPrep<K, V>> = {
 		factory: "reactiveMap.snapshotPrep",
 		body: (ctx: Ctx) => {
@@ -639,21 +616,19 @@ function createReactiveMap<K, V>(
 			ctx.down([["DATA", { snapshot: backend.snapshot(), expired }]]);
 		},
 		opts: {
-			...base,
 			quiet: true,
 			partial: true,
 		},
 	};
-	const snapshotPrep = graph
-		? graph.initNode(snapshotPrepOp, [apply as Node<unknown>, request as Node<unknown>], {
-				name: name ? `${name}.snapshotPrep` : undefined,
-				meta: { kind: "collection_snapshot_prep", collection: "reactiveMap" },
-				...(restorable ? { recipe: { ref: "reactiveMap.snapshotPrep" } } : {}),
-			})
-		: initNode(snapshotPrepOp, [apply as Node<unknown>, request as Node<unknown>], {
-				...base,
-				name: name ? `${name}.snapshotPrep` : undefined,
-			});
+	const snapshotPrep = graph.initNode(
+		snapshotPrepOp,
+		[apply as Node<unknown>, request as Node<unknown>],
+		{
+			name: name ? `${name}.snapshotPrep` : undefined,
+			meta: { kind: "collection_snapshot_prep", collection: "reactiveMap" },
+			...(restorable ? { recipe: { ref: "reactiveMap.snapshotPrep" } } : {}),
+		},
+	);
 	const deltaOp: Operator<unknown, MapChange<K, V>> = {
 		factory: "reactiveMap.delta",
 		body: oneArrayPerRun((ctx: Ctx) => {
@@ -666,16 +641,11 @@ function createReactiveMap<K, V>(
 		}),
 		opts: { partial: true },
 	};
-	const delta = graph
-		? graph.initNode(deltaOp, [apply as Node<unknown>, snapshotPrep as Node<unknown>], {
-				name: name ? `${name}.delta` : undefined,
-				meta: { kind: "collection_delta", collection: "reactiveMap" },
-				...(restorable ? { recipe: { ref: "reactiveMap.delta" } } : {}),
-			})
-		: initNode(deltaOp, [apply as Node<unknown>, snapshotPrep as Node<unknown>], {
-				...base,
-				name: name ? `${name}.delta` : undefined,
-			});
+	const delta = graph.initNode(deltaOp, [apply as Node<unknown>, snapshotPrep as Node<unknown>], {
+		name: name ? `${name}.delta` : undefined,
+		meta: { kind: "collection_delta", collection: "reactiveMap" },
+		...(restorable ? { recipe: { ref: "reactiveMap.delta" } } : {}),
+	});
 	const snapshotOp: Operator<unknown, ReadonlyMap<K, V>> = {
 		factory: "reactiveMap.snapshot",
 		body: oneArrayPerRun((ctx: Ctx) => {
@@ -685,23 +655,16 @@ function createReactiveMap<K, V>(
 		}),
 		opts: { partial: true },
 	};
-	const snapshot = graph
-		? graph.initNode(snapshotOp, [snapshotPrep as Node<unknown>], {
-				name: name ? `${name}.snapshot` : undefined,
-				meta: { kind: "collection_snapshot", collection: "reactiveMap" },
-				...(restorable ? { recipe: { ref: "reactiveMap.snapshot" } } : {}),
-			})
-		: initNode(snapshotOp, [snapshotPrep as Node<unknown>], {
-				...base,
-				name: name ? `${name}.snapshot` : undefined,
-			});
+	const snapshot = graph.initNode(snapshotOp, [snapshotPrep as Node<unknown>], {
+		name: name ? `${name}.snapshot` : undefined,
+		meta: { kind: "collection_snapshot", collection: "reactiveMap" },
+		...(restorable ? { recipe: { ref: "reactiveMap.snapshot" } } : {}),
+	});
 	if (restorable) {
 		registerBackendStateContributor(intent as Node<unknown>, () => backend.checkpointEntries());
 	}
 	folders.bind(apply as Node<unknown>);
-	const releaseApply = graph
-		? graph.retain(apply, { reason: "reactiveMap.apply" })
-		: apply.subscribe(() => {});
+	const releaseApply = graph.retain(apply, { reason: "reactiveMap.apply" });
 	const binds: Array<() => void> = [];
 
 	function doSet(key: K, value: V, ttl?: number): void {
@@ -731,9 +694,7 @@ function createReactiveMap<K, V>(
 		const cached = selectMemo.get(predicate);
 		if (cached !== undefined) return cached;
 		let view: ReactiveView<MapChange<K, V>, ReadonlyMap<K, V>>;
-		view = lightReactiveView<MapChange<K, V>, ReadonlyMap<K, V>>(delta as Node<unknown>, {
-			dispatcher,
-			graph,
+		view = lightReactiveView<MapChange<K, V>, ReadonlyMap<K, V>>(graph, delta as Node<unknown>, {
 			factory: "reactiveMap.select",
 			name: name ? `${name}.select#${selectSeq++}` : undefined,
 			materializeSnapshot: () => selectedSnapshot(predicate),
@@ -788,10 +749,6 @@ function createReactiveMap<K, V>(
 		},
 
 		setFrom(src: Node<readonly [K, V]>): () => void {
-			if (graph === undefined)
-				throw new Error(
-					"reactiveMap.setFrom requires options.graph so the input fold is describe-visible (D61)",
-				);
 			const op: Operator<readonly [K, V], MapIntent<K, V>> = {
 				factory: "reactiveMap.bindSource",
 				body: oneArrayPerRun((ctx: Ctx) => {

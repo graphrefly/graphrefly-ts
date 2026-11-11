@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { batch } from "../batch/batch.js";
 import type { Ctx, Message } from "../index.js";
-import { depLatest, node } from "../index.js";
+import { depLatest, graph } from "../index.js";
 
 function collect(n: { subscribe(s: (m: Message) => void): () => void }) {
 	const msgs: Message[] = [];
@@ -16,8 +15,9 @@ const types = (msgs: Message[]) => msgs.map((m) => m[0]);
 
 describe("terminal (R-terminal, R-deps-terminal)", () => {
 	it("auto-COMPLETE when ALL deps complete", () => {
-		const a = node<number>([], null, { initial: 1 });
-		const d = node<number>([a], (ctx: Ctx) =>
+		const g = graph();
+		const a = g.node<number>([], null, { initial: 1 });
+		const d = g.node<number>([a], (ctx: Ctx) =>
 			ctx.down([["DATA", (depLatest(ctx, 0) as number) + 1]]),
 		);
 		const { msgs } = collect(d);
@@ -29,9 +29,10 @@ describe("terminal (R-terminal, R-deps-terminal)", () => {
 	});
 
 	it("requires ALL deps complete, not ANY", () => {
-		const a = node<number>([], null, { initial: 1 });
-		const b = node<number>([], null, { initial: 2 });
-		const d = node<number>([a, b], (ctx: Ctx) =>
+		const g = graph();
+		const a = g.node<number>([], null, { initial: 1 });
+		const b = g.node<number>([], null, { initial: 2 });
+		const d = g.node<number>([a, b], (ctx: Ctx) =>
 			ctx.down([["DATA", (depLatest(ctx, 0) as number) + (depLatest(ctx, 1) as number)]]),
 		);
 		const { msgs } = collect(d);
@@ -44,8 +45,9 @@ describe("terminal (R-terminal, R-deps-terminal)", () => {
 	});
 
 	it("auto-ERROR when any dep errors (errorWhenDepsError)", () => {
-		const a = node<number>([], null, { initial: 1 });
-		const d = node<number>([a], (ctx: Ctx) => ctx.down([["DATA", 1]]));
+		const g = graph();
+		const a = g.node<number>([], null, { initial: 1 });
+		const d = g.node<number>([a], (ctx: Ctx) => ctx.down([["DATA", 1]]));
 		const { msgs } = collect(d);
 		msgs.length = 0;
 		const err = new Error("boom");
@@ -55,7 +57,8 @@ describe("terminal (R-terminal, R-deps-terminal)", () => {
 	});
 
 	it("ERROR with undefined or boolean payload is rejected (R-data-payload)", () => {
-		const s = node<number>([], null, { initial: 1 });
+		const g = graph();
+		const s = g.node<number>([], null, { initial: 1 });
 		collect(s);
 		expect(() => s.error(undefined)).toThrow(/non-SENTINEL/);
 		expect(() => s.error(false)).toThrow(/non-boolean/);
@@ -63,7 +66,8 @@ describe("terminal (R-terminal, R-deps-terminal)", () => {
 	});
 
 	it("an ended node can be subscribed; its START snapshot carries its terminal (R-terminals)", () => {
-		const s = node<number>([], null, { initial: 1 });
+		const g = graph();
+		const s = g.node<number>([], null, { initial: 1 });
 		collect(s);
 		s.complete();
 		const late: unknown[] = [];
@@ -73,7 +77,8 @@ describe("terminal (R-terminal, R-deps-terminal)", () => {
 	});
 
 	it("host input to an ended node is refused and changes nothing (R-terminals)", () => {
-		const s = node<number>([], null, { initial: 1 });
+		const g = graph();
+		const s = g.node<number>([], null, { initial: 1 });
 		const { msgs } = collect(s);
 		s.complete();
 		expect(s.status.output).toBe("completed");
@@ -84,7 +89,7 @@ describe("terminal (R-terminal, R-deps-terminal)", () => {
 		expect(s.cache).toBe(1);
 		expect(s.status.output).toBe("completed");
 
-		const e = node<number>([], null, { initial: 7 });
+		const e = g.node<number>([], null, { initial: 7 });
 		const ce = collect(e);
 		e.error(new Error("boom"));
 		ce.msgs.length = 0;
@@ -98,9 +103,10 @@ describe("terminal (R-terminal, R-deps-terminal)", () => {
 
 describe("INVALIDATE (R-invalidation)", () => {
 	it("under the manual policy the function flushes and sends the INVALIDATE; idempotent", () => {
-		const a = node<number>([], null, { initial: 5 });
+		const g = graph();
+		const a = g.node<number>([], null, { initial: 5 });
 		let flushed = 0;
-		const d = node<number>(
+		const d = g.node<number>(
 			[a],
 			(ctx: Ctx) => {
 				if (ctx.invalidated[0]) {
@@ -129,7 +135,8 @@ describe("INVALIDATE (R-invalidation)", () => {
 	});
 
 	it("never-populated INVALIDATE is a no-op", () => {
-		const s = node<number>([], null); // no cache
+		const g = graph();
+		const s = g.node<number>([], null); // no cache
 		const { msgs } = collect(s);
 		msgs.length = 0;
 		s.invalidate();
@@ -139,10 +146,11 @@ describe("INVALIDATE (R-invalidation)", () => {
 
 describe("same-wave merge (R-same-wave-merge)", () => {
 	it("an array is split at its last INVALIDATE; what came before it is dropped (R-wave)", () => {
-		const s = node<number>([], null, { initial: 1 });
+		const g = graph();
+		const s = g.node<number>([], null, { initial: 1 });
 		const { msgs } = collect(s);
 		msgs.length = 0;
-		batch(() => {
+		g.batch(() => {
 			s.set(9);
 			s.invalidate();
 		});
@@ -151,10 +159,11 @@ describe("same-wave merge (R-same-wave-merge)", () => {
 	});
 
 	it("INVALIDATE + INVALIDATE collapse to one (Q9)", () => {
-		const s = node<number>([], null, { initial: 1 });
+		const g = graph();
+		const s = g.node<number>([], null, { initial: 1 });
 		const { msgs } = collect(s);
 		msgs.length = 0;
-		batch(() => {
+		g.batch(() => {
 			s.invalidate();
 			s.invalidate();
 		});
@@ -164,9 +173,10 @@ describe("same-wave merge (R-same-wave-merge)", () => {
 
 describe("ROM/RAM + cleanup (R-rom-ram, R-cleanup-hooks)", () => {
 	it("compute node clears cache on deactivation and runs its setup's cleanup", () => {
-		const a = node<number>([], null, { initial: 1 });
+		const g = graph();
+		const a = g.node<number>([], null, { initial: 1 });
 		let cleaned = 0;
-		const d = node<number>([a], (ctx: Ctx) => ctx.down([["DATA", 1]]), {
+		const d = g.node<number>([a], (ctx: Ctx) => ctx.down([["DATA", 1]]), {
 			setup: () => () => {
 				cleaned++;
 			},
@@ -180,7 +190,8 @@ describe("ROM/RAM + cleanup (R-rom-ram, R-cleanup-hooks)", () => {
 	});
 
 	it("state node retains cache across disconnect (ROM)", () => {
-		const s = node<number>([], null, { initial: 7 });
+		const g = graph();
+		const s = g.node<number>([], null, { initial: 7 });
 		const { unsub } = collect(s);
 		unsub();
 		expect(s.cache).toBe(7);

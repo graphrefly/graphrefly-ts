@@ -13,7 +13,7 @@ import type { OwnedConstruction } from "./construction-scope.js";
  * R-describe, R-fn-contract, R-edges-derived, R-meta-presentation.
  */
 
-import { type BatchCtx, batch as batchRun, currentBatch } from "../batch/batch.js";
+import { type BatchCtx, batchIn, currentBatch } from "../batch/batch.js";
 import { isWaveActive } from "../batch/boundary.js";
 import { type Ctx, depCount, depLatest, type NodeFn } from "../ctx/types.js";
 import { type Dispatcher, defaultDispatcher } from "../dispatcher/index.js";
@@ -526,9 +526,14 @@ export class Graph {
 		return node;
 	}
 
-	/** Declarative batch (D12): one wave, success→commit / throw→rollback. */
+	/**
+	 * Run a batch of this graph (R-request-order): the body runs at once and delivers nothing; its
+	 * writes to this graph's nodes commit as one wave when it returns, and a throw or
+	 * `bctx.rollback()` discards them. A write to another graph's node inside the body is that
+	 * graph's own request, not part of this commit (R-graph-domain@3).
+	 */
 	batch<T>(fn: (bctx: BatchCtx) => T): T {
-		const result = batchRun(fn);
+		const result = batchIn(this._core, fn);
 		// A body that returns a promise committed its synchronous part; later writes are separate.
 		if (typeof (result as { then?: unknown } | null | undefined)?.then === "function")
 			this._core.report?.({
@@ -949,7 +954,7 @@ export class Graph {
 	 * taken only at a wave boundary; inside a wave or an open batch body it is refused.
 	 */
 	checkpoint(): GraphCheckpoint {
-		if (isWaveActive() || currentBatch())
+		if (isWaveActive(this._core) || currentBatch(this._core))
 			throw new Error(
 				"checkpoint: a checkpoint is taken only at a wave boundary, not inside a wave or a batch body (R-checkpoint)",
 			);
@@ -1183,6 +1188,7 @@ export function restoreNodeInGraph<T = unknown>(
 
 /** D167: shared operations on an exact issued Graph host, with no copied graph indexes. */
 interface GraphRuntimeHost {
+	_core: NodeCore;
 	_byId: Map<string, Node<unknown>>;
 	_retiredIds: Set<string>;
 	_assertRegisteredNode(node: Node<unknown>, label: string): void;
@@ -1217,6 +1223,9 @@ class GraphRegistration implements GraphLifecycleRegistrar {
 	}
 	assertRegisteredNode(node: Node<unknown>, label: string): void {
 		this.host._assertRegisteredNode(node, label);
+	}
+	atWaveBoundary(): boolean {
+		return !isWaveActive(this.host._core) && !currentBatch(this.host._core);
 	}
 	readIncoming(nodes: ReadonlySet<Node<unknown>>): Pick<DescribeSnapshot, "edges"> {
 		const describe = this.graph.describe;
