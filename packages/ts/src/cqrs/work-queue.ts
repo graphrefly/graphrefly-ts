@@ -11,6 +11,7 @@ import { type Ctx, depBatch } from "../ctx/types.js";
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
 import type { Node } from "../node/node.js";
+import { oneArrayPerRun } from "../node/one-array-per-run.js";
 import type { WorkQueueCommand, WorkQueueRecord } from "../work-queue/index.js";
 
 export interface CqrsQueuedCommandPayload<TCommand = unknown> {
@@ -430,12 +431,12 @@ function project<T, TCommand>(
 ): Node<T> {
 	return graph.node<T>(
 		[runtime],
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			for (const fact of depBatch(ctx, 0) ?? []) {
 				const value = pick(fact as CqrsQueueFact<TCommand>);
 				if (value !== undefined) ctx.down([["DATA", value]]);
 			}
-		},
+		}),
 		{ name, factory, partial: true, complete: "manual", error: "manual" },
 	);
 }

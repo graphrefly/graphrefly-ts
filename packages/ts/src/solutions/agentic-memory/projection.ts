@@ -1,6 +1,7 @@
 import { depBatch, depLatest } from "../../ctx/types.js";
 import type { Graph } from "../../graph/graph.js";
 import type { Node } from "../../node/node.js";
+import { oneArrayPerRun } from "../../node/one-array-per-run.js";
 import type { MemoryRetrievalSnapshot } from "../../patterns/semantic-memory-graph.js";
 import { agenticStatusState, contextState, validateAndProjectRecords } from "./shared.js";
 import type {
@@ -20,11 +21,11 @@ export function solutionProjection<TFact, TSnapshot>(
 ): Node<TFact> {
 	return graph.node<TFact>(
 		[snapshot],
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			for (const raw of depBatch(ctx, 0) ?? []) {
 				ctx.down([["DATA", select(raw as TSnapshot)]]);
 			}
-		},
+		}),
 		{
 			name,
 			factory,
@@ -43,11 +44,11 @@ export function agenticMemoryProjection<TFact, T>(
 ): Node<TFact> {
 	return graph.node<TFact>(
 		[snapshot],
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			for (const raw of depBatch(ctx, 0) ?? []) {
 				ctx.down([["DATA", select(raw as AgenticMemoryProjectionSnapshot<T>)]]);
 			}
-		},
+		}),
 		{
 			name,
 			factory,
@@ -65,7 +66,7 @@ export function agenticMemoryContextProjection<T>(
 ): Node<AgenticMemoryContext<T>> {
 	return graph.node<AgenticMemoryContext<T>>(
 		[projection, retrieval],
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			const projectionFact = depLatest(ctx, 0) as AgenticMemoryProjectionSnapshot<T> | undefined;
 			const retrievalFacts = depBatch(ctx, 1) ?? [];
 			if (projectionFact === undefined || retrievalFacts.length === 0) return;
@@ -74,7 +75,7 @@ export function agenticMemoryContextProjection<T>(
 					["DATA", contextFromSnapshot(projectionFact, raw as MemoryRetrievalSnapshot<T>)],
 				]);
 			}
-		},
+		}),
 		{
 			name,
 			factory: "agenticMemoryContext",

@@ -11,6 +11,7 @@ import type { DataIssue } from "../../data/index.js";
 import type { Graph } from "../../graph/graph.js";
 import { canonicalTupleKey, compoundTupleKey } from "../../identity.js";
 import type { Node } from "../../node/node.js";
+import { oneArrayPerRun } from "../../node/one-array-per-run.js";
 import type {
 	AgentOutputEnvelope,
 	AgentRuntimeAuditRecord,
@@ -120,12 +121,12 @@ export function workItemWorkQueueRecipe(
 	const name = opts.name ?? "workItemWorkQueue";
 	const submitCommands = graph.node<WorkQueueCommand<WorkItemQueuedWorkPayload>>(
 		[opts.effectRequests],
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			for (const raw of depBatch(ctx, 0) ?? []) {
 				const request = raw as WorkItemEffectRequested;
 				ctx.down([["DATA", workItemSubmitCommand(request, opts.policy)]]);
 			}
-		},
+		}),
 		{ name: `${name}/submitCommands`, factory: "workItemWorkQueueSubmitCommands" },
 	);
 	const runtime = graph.node<WorkItemQueueFact>(
@@ -374,12 +375,12 @@ function project<T>(
 ): Node<T> {
 	return graph.node<T>(
 		[runtime],
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			for (const raw of depBatch(ctx, 0) ?? []) {
 				const selected = select(raw as WorkItemQueueFact);
 				if (selected !== undefined) ctx.down([["DATA", selected]]);
 			}
-		},
+		}),
 		{ name, factory, partial: true, complete: "manual", error: "manual" },
 	);
 }

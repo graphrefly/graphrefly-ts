@@ -3,6 +3,7 @@ import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
 import { canonicalTupleKey, compoundTupleKey, parseCanonicalTupleKey } from "../identity.js";
 import type { Node } from "../node/node.js";
+import { oneArrayPerRun } from "../node/one-array-per-run.js";
 import type {
 	AgentRuntimeAuditRecord,
 	EffectRun,
@@ -548,13 +549,13 @@ export function projectRuntimeFact<T, TOut>(
 ): Node<TOut> {
 	return graph.node<TOut>(
 		[runtime],
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			for (const fact of depBatch(ctx, 0) ?? []) {
 				const typed = fact as T;
 				const value = pick(typed);
 				if (value !== undefined) ctx.down([["DATA", value]]);
 			}
-		},
+		}),
 		{ name, factory },
 	);
 }

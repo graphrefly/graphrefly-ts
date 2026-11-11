@@ -2,6 +2,7 @@ import { type Ctx, depBatch } from "../ctx/types.js";
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
 import type { Node } from "../node/node.js";
+import { oneArrayPerRun } from "../node/one-array-per-run.js";
 import {
 	dataIssue,
 	forEachDepBatch,
@@ -56,7 +57,7 @@ export function structuredAgentDecisionInterpreter(
 	const requestFacts = opts.requestFacts ?? [];
 	const runtime = graph.node<StructuredAgentDecisionInterpreterFact>(
 		[outcomes, ...requestFacts],
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			const state = ctx.state.get<StructuredInterpreterState>() ?? {
 				requests: new Map<string, AgentRequestIssued>(),
 				issueSeq: 0,
@@ -173,7 +174,7 @@ export function structuredAgentDecisionInterpreter(
 				]);
 			}
 			ctx.state.set(state);
-		},
+		}),
 		{ name: `${name}/runtime`, factory: "structuredAgentDecisionInterpreter" },
 	);
 	return {

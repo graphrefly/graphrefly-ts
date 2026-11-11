@@ -17,6 +17,7 @@ import type {
 } from "../messaging/index.js";
 import { attachMessageBusDeferredCommandSink } from "../messaging/internal.js";
 import { type Node, requestDownAfterWave } from "../node/node.js";
+import { oneArrayPerRun } from "../node/one-array-per-run.js";
 import { availablePage, deadLetterPage, workSnapshot } from "./projections.js";
 import type { QueueEvent, RuntimeState, WorkState } from "./runtime-types.js";
 import type {
@@ -116,9 +117,9 @@ export function workQueue<T = unknown>(graph: Graph, opts: WorkQueueOptions<T>):
 	});
 	const commands = graph.node<WorkQueueCommand<T>>(
 		[],
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			for (const command of depBatch(ctx, 0) ?? []) ctx.down([["DATA", command]]);
-		},
+		}),
 		{
 			name: `${name}/commands`,
 			factory: "workQueueCommands",
@@ -145,7 +146,7 @@ export function workQueue<T = unknown>(graph: Graph, opts: WorkQueueOptions<T>):
 	});
 	const admissionPages = graph.node<MessageBusAvailablePage<T>>(
 		[admission.available, admissionKick, opts.bus.messages, opts.bus.status],
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			for (const page of depBatch(ctx, 0) ?? []) {
 				ctx.down([["DATA", page as MessageBusAvailablePage<T>]]);
 			}
@@ -164,7 +165,7 @@ export function workQueue<T = unknown>(graph: Graph, opts: WorkQueueOptions<T>):
 					["DATA", { limit: 100 }],
 				]);
 			}
-		},
+		}),
 		{
 			name: `${name}/admissionPages`,
 			factory: "workQueueAdmissionPages",
@@ -175,7 +176,7 @@ export function workQueue<T = unknown>(graph: Graph, opts: WorkQueueOptions<T>):
 	);
 	const runtime = graph.node<QueueEvent<T>>(
 		[commands, admissionPages],
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			for (const page of depBatch(ctx, 1) ?? []) {
 				for (const msg of (page as MessageBusAvailablePage<T>).messages) {
 					for (const event of admitMessage(opts, state, msg, now())) ctx.down([["DATA", event]]);
@@ -194,7 +195,7 @@ export function workQueue<T = unknown>(graph: Graph, opts: WorkQueueOptions<T>):
 					ctx.down([["DATA", event]]);
 				}
 			}
-		},
+		}),
 		{
 			name: `${name}/runtime`,
 			factory: "workQueueRuntime",
@@ -205,12 +206,12 @@ export function workQueue<T = unknown>(graph: Graph, opts: WorkQueueOptions<T>):
 	);
 	const records = graph.node<WorkQueueRecord<T>>(
 		[runtime],
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			for (const event of depBatch(ctx, 0) ?? []) {
 				const typed = event as QueueEvent<T>;
 				if (typed.kind === "record") ctx.down([["DATA", typed.record]]);
 			}
-		},
+		}),
 		{
 			name: `${name}/records`,
 			factory: "workQueueRecords",
@@ -220,12 +221,12 @@ export function workQueue<T = unknown>(graph: Graph, opts: WorkQueueOptions<T>):
 	);
 	const status = graph.node<WorkQueueStatus>(
 		[runtime],
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			for (const event of depBatch(ctx, 0) ?? []) {
 				const typed = event as QueueEvent<T>;
 				if (typed.kind === "status") ctx.down([["DATA", typed.status]]);
 			}
-		},
+		}),
 		{
 			name: `${name}/status`,
 			factory: "workQueueStatus",
@@ -235,12 +236,12 @@ export function workQueue<T = unknown>(graph: Graph, opts: WorkQueueOptions<T>):
 	);
 	const issues = graph.node<DataIssue>(
 		[runtime],
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			for (const event of depBatch(ctx, 0) ?? []) {
 				const typed = event as QueueEvent<T>;
 				if (typed.kind === "issue") ctx.down([["DATA", typed.issue]]);
 			}
-		},
+		}),
 		{
 			name: `${name}/issues`,
 			factory: "workQueueIssues",
@@ -250,12 +251,12 @@ export function workQueue<T = unknown>(graph: Graph, opts: WorkQueueOptions<T>):
 	);
 	const admissionAckCommands = graph.node<MessageBusCommand>(
 		[records],
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			for (const record of depBatch(ctx, 0) ?? []) {
 				const command = admissionAckCommand(record as WorkQueueRecord<T>);
 				if (command !== undefined) ctx.down([["DATA", command]]);
 			}
-		},
+		}),
 		{
 			name: `${name}/admissionAckCommands`,
 			factory: "workQueueAdmissionAckCommands",

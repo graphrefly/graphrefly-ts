@@ -11,6 +11,7 @@ import type { Graph } from "../graph/graph.js";
 import { canonicalTupleKey } from "../identity.js";
 import { attachableInput } from "../node/attachable-input.js";
 import type { Node } from "../node/node.js";
+import { oneArrayPerRun } from "../node/one-array-per-run.js";
 import {
 	attachMessageBusCommandSource,
 	getMessageBusState,
@@ -124,11 +125,11 @@ export function messageBus<TTopic extends string>(
 ): MessageBus<TTopic> {
 	const name = opts.name ?? "messageBus";
 	const initialTopics = uniqueTopics(opts.topics ?? []);
-	const commandBody: NodeFn = (ctx) => {
+	const commandBody: NodeFn = oneArrayPerRun((ctx) => {
 		for (let i = 0; i < depCount(ctx); i++) {
 			for (const command of depBatch(ctx, i) ?? []) ctx.down([["DATA", command]]);
 		}
-	};
+	});
 	const commandSources = attachableInput();
 	const commands = graph.node<MessageBusCommand>([], commandBody, {
 		name: `${name}/commands`,
@@ -156,13 +157,13 @@ export function messageBus<TTopic extends string>(
 	};
 	const runtime = graph.node<RuntimeEvent>(
 		[commands],
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			for (const command of depBatch(ctx, 0) ?? []) {
 				for (const event of reduceMessageBusCommand(state, command as MessageBusCommand)) {
 					ctx.down([["DATA", event]]);
 				}
 			}
-		},
+		}),
 		{
 			name: `${name}/runtime`,
 			factory: "messageBusRuntime",
@@ -173,12 +174,12 @@ export function messageBus<TTopic extends string>(
 	graph.retain(runtime, { reason: `${name}.messageBus.runtime` });
 	const messages = graph.node<MessageBusMessage>(
 		[runtime],
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			for (const event of depBatch(ctx, 0) ?? []) {
 				const typed = event as RuntimeEvent;
 				if (typed.kind === "message") ctx.down([["DATA", typed.message]]);
 			}
-		},
+		}),
 		{
 			name: `${name}/messages`,
 			factory: "messageBusMessages",
@@ -188,12 +189,12 @@ export function messageBus<TTopic extends string>(
 	);
 	const status = graph.node<MessageBusStatus>(
 		[runtime],
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			for (const event of depBatch(ctx, 0) ?? []) {
 				const typed = event as RuntimeEvent;
 				if (typed.kind === "status") ctx.down([["DATA", typed.status]]);
 			}
-		},
+		}),
 		{
 			name: `${name}/status`,
 			factory: "messageBusStatus",
@@ -203,12 +204,12 @@ export function messageBus<TTopic extends string>(
 	);
 	const issues = graph.node<DataIssue>(
 		[runtime],
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			for (const event of depBatch(ctx, 0) ?? []) {
 				const typed = event as RuntimeEvent;
 				if (typed.kind === "issue") ctx.down([["DATA", typed.issue]]);
 			}
-		},
+		}),
 		{
 			name: `${name}/issues`,
 			factory: "messageBusIssues",
@@ -369,7 +370,7 @@ export function messageBus<TTopic extends string>(
 			);
 			const cursor = graph.node<MessageBusCursor>(
 				[status],
-				(ctx) => {
+				oneArrayPerRun((ctx) => {
 					for (const fact of depBatch(ctx, 0) ?? []) {
 						const typed = fact as MessageBusStatus;
 						const subscriptionMoved =
@@ -383,7 +384,7 @@ export function messageBus<TTopic extends string>(
 							ctx.down([["DATA", cursorSnapshot(state, sub)]]);
 						}
 					}
-				},
+				}),
 				{
 					name: `${projectionName}/cursor`,
 					factory: "messageBusSubscriptionCursor",
@@ -458,7 +459,7 @@ export function toTopic<T, TTopic extends string>(
 	assertTopicKey(topic, "toTopic");
 	const commands = graph.node<MessageBusCommand<T>>(
 		[source],
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			for (const value of depBatch(ctx, 0) ?? []) {
 				const key = opts.keyOf?.(value);
 				const commandId = opts.commandIdOf?.(value);
@@ -475,7 +476,7 @@ export function toTopic<T, TTopic extends string>(
 					],
 				]);
 			}
-		},
+		}),
 		{
 			name: opts.name ?? `${state.name}/${topic}/toTopic`,
 			factory: "toTopic",

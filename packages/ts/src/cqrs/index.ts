@@ -12,6 +12,7 @@ import { depBatch } from "../ctx/types.js";
 import type { Graph } from "../graph/graph.js";
 import { compoundTupleKey } from "../identity.js";
 import type { Node } from "../node/node.js";
+import { oneArrayPerRun } from "../node/one-array-per-run.js";
 
 /** Command fact accepted by a CQRS bundle. */
 export interface CqrsCommand<T = unknown> {
@@ -386,7 +387,7 @@ export function cqrsProjection<TState, TEvent = unknown>(
 			: new Set(uniqueNames(opts.events, "cqrsProjection.events"));
 	const frames = graph.node<CqrsProjectionFrame<TState>>(
 		[source.events],
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			const state = ctx.state.get<{ value: TState }>() ?? { value: opts.initial };
 			for (const raw of depBatch(ctx, 0) ?? []) {
 				const event = raw as CqrsEvent<TEvent>;
@@ -425,7 +426,7 @@ export function cqrsProjection<TState, TEvent = unknown>(
 					return;
 				}
 			}
-		},
+		}),
 		{
 			name,
 			factory: "cqrsProjection",
@@ -436,12 +437,12 @@ export function cqrsProjection<TState, TEvent = unknown>(
 	);
 	const value = graph.node<TState>(
 		[frames],
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			for (const frame of depBatch(ctx, 0) ?? []) {
 				const typed = frame as CqrsProjectionFrame<TState>;
 				if (typed.kind === "value") ctx.down([["DATA", typed.state]]);
 			}
-		},
+		}),
 		{
 			name: `${name}/value`,
 			factory: "cqrsProjectionValue",
@@ -451,12 +452,12 @@ export function cqrsProjection<TState, TEvent = unknown>(
 	);
 	const errors = graph.node<CqrsProjectionError>(
 		[frames],
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			for (const frame of depBatch(ctx, 0) ?? []) {
 				const typed = frame as CqrsProjectionFrame<TState>;
 				if (typed.kind === "error") ctx.down([["DATA", typed.error]]);
 			}
-		},
+		}),
 		{
 			name: `${name}/errors`,
 			factory: "cqrsProjectionErrors",
@@ -466,7 +467,7 @@ export function cqrsProjection<TState, TEvent = unknown>(
 	);
 	const status = graph.node<CqrsProjectionStatus>(
 		[frames],
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			for (const frame of depBatch(ctx, 0) ?? []) {
 				const typed = frame as CqrsProjectionFrame<TState>;
 				if (typed.kind === "value") {
@@ -494,7 +495,7 @@ export function cqrsProjection<TState, TEvent = unknown>(
 					]);
 				}
 			}
-		},
+		}),
 		{
 			name: `${name}/status`,
 			factory: "cqrsProjectionStatus",
@@ -800,14 +801,14 @@ function runtimeProjection<TOut, TEvent>(
 ): Node<TOut> {
 	return graph.node<TOut>(
 		[runtime],
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			for (const fact of depBatch(ctx, 0) ?? []) {
 				const typed = fact as CqrsRuntimeFact<TEvent>;
 				if (typed.kind !== kind) continue;
 				const selected = select(typed);
 				if (selected !== undefined) ctx.down([["DATA", selected]]);
 			}
-		},
+		}),
 		{
 			name,
 			factory,

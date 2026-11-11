@@ -2,6 +2,7 @@ import { depBatch } from "../ctx/types.js";
 import type { Graph } from "../graph/graph.js";
 import { compoundTupleKey } from "../identity.js";
 import type { Node } from "../node/node.js";
+import { oneArrayPerRun } from "../node/one-array-per-run.js";
 import { effectRun } from "./agent-runtime.js";
 import {
 	deletePendingWorkItemEffectRequest,
@@ -33,7 +34,7 @@ export function workItemEffectRunProjector(
 	const name = opts.name ?? "workItemEffectRuns";
 	const runtime = graph.node<WorkItemEffectRunFact>(
 		[opts.workItems, opts.effectRequests],
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			const state = ctx.state.get<WorkItemEffectRunState>() ?? emptyWorkItemEffectRunState();
 			for (const raw of depBatch(ctx, 0) ?? []) {
 				const workItem = raw as WorkItemSeed;
@@ -184,7 +185,7 @@ export function workItemEffectRunProjector(
 				]);
 			}
 			ctx.state.set(state);
-		},
+		}),
 		{ name: `${name}/runtime`, factory: "workItemEffectRunProjector" },
 	);
 	return {

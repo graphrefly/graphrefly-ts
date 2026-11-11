@@ -16,6 +16,7 @@ import type {
 	MessageBusMessage,
 } from "../messaging/index.js";
 import type { Node } from "../node/node.js";
+import { oneArrayPerRun } from "../node/one-array-per-run.js";
 
 export interface CqrsMessagingPolicy<TPayload = unknown, TCommand = unknown> {
 	readonly command?: (
@@ -74,7 +75,7 @@ export function cqrsMessagingRecipe<TPayload = unknown, TCommand = unknown, TEve
 	const name = opts.name ?? "cqrsMessaging";
 	const runtime = graph.node<CqrsMessagingFact<TCommand>>(
 		[opts.deliveries],
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			for (const raw of depBatch(ctx, 0) ?? []) {
 				const page = raw as MessageBusAvailablePage<TPayload>;
 				for (const message of page.messages) {
@@ -87,7 +88,7 @@ export function cqrsMessagingRecipe<TPayload = unknown, TCommand = unknown, TEve
 					}
 				}
 			}
-		},
+		}),
 		{
 			name: `${name}/runtime`,
 			factory: "cqrsMessagingRuntime",
@@ -189,7 +190,7 @@ export function cqrsMessageAckCommands(
 		opts.issues === undefined
 			? [opts.commands, opts.status]
 			: [opts.commands, opts.status, opts.issues],
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			const deliveries =
 				ctx.state.get<Map<string, MessageBusDelivery[]>>() ??
 				new Map<string, MessageBusDelivery[]>();
@@ -216,7 +217,7 @@ export function cqrsMessageAckCommands(
 				}
 			}
 			ctx.state.set(deliveries);
-		},
+		}),
 		{
 			name: opts.name ?? "cqrsMessaging/ackCommands",
 			factory: "cqrsMessagingAckCommands",
@@ -249,7 +250,7 @@ export function cqrsEventOutboxCommands<TEvent>(
 ): Node<MessageBusCommand> {
 	return graph.node<MessageBusCommand>(
 		[events],
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			for (const event of depBatch(ctx, 0) ?? []) {
 				const typed = event as CqrsEvent<TEvent>;
 				ctx.down([
@@ -266,7 +267,7 @@ export function cqrsEventOutboxCommands<TEvent>(
 					],
 				]);
 			}
-		},
+		}),
 		{
 			name: opts.name ?? "cqrsMessaging/outboxCommands",
 			factory: "cqrsMessagingOutboxCommands",
@@ -285,12 +286,12 @@ function project<T, TCommand>(
 ): Node<T> {
 	return graph.node<T>(
 		[runtime],
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			for (const fact of depBatch(ctx, 0) ?? []) {
 				const value = pick(fact as CqrsMessagingFact<TCommand>);
 				if (value !== undefined) ctx.down([["DATA", value]]);
 			}
-		},
+		}),
 		{ name, factory, partial: true, complete: "manual", error: "manual" },
 	);
 }

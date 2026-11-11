@@ -7,6 +7,7 @@ import type {
 } from "../../packages/ts/src/graph/construction-scope.js";
 import type { Graph } from "../../packages/ts/src/graph/graph.js";
 import type { Node } from "../../packages/ts/src/node/node.js";
+import { oneArrayPerRun } from "../../packages/ts/src/node/one-array-per-run.js";
 import type { CausalBinding } from "../../packages/ts/src/solutions/causal-occurrence/capabilities.js";
 import { buildCausalNodes } from "../../packages/ts/src/solutions/causal-occurrence/construction.js";
 import type {
@@ -472,10 +473,10 @@ export function buildSpendingPublication<T>(
 	);
 	const publication = scope.node<Publication>(
 		[requestMaterialJoin],
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			for (const j of (depBatch(ctx, 0) ?? []) as JoinResult[])
 				ctx.down([["DATA", publicationFor(j, asOf)]]);
-		},
+		}),
 		{ name: projectionNames.publication, factory: "spendingPublication" },
 	);
 	return Object.freeze({ causal, requestMaterialJoin, publication });

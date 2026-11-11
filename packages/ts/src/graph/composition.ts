@@ -17,6 +17,7 @@ import {
 } from "../ctx/types.js";
 import { canonicalTupleKey } from "../identity.js";
 import type { Node, NodeOptions } from "../node/node.js";
+import { oneArrayPerRun } from "../node/one-array-per-run.js";
 import type { DescribeEdge, DescribeNode, DescribeSnapshot } from "./describe.js";
 import type { Graph, StateNode, SugarOpts } from "./graph.js";
 import { initNode, type Operator } from "./operators.js";
@@ -276,7 +277,7 @@ function stratifyBranchOperator<T, R>(
 			complete: "manual",
 			error: "manual",
 		},
-		body: (ctx: Ctx) => {
+		body: oneArrayPerRun((ctx: Ctx) => {
 			const sourceBatch = depBatch(ctx, 0);
 			const sourceTerminal = depTerminal(ctx, 0);
 			const rules = depLatest(ctx, 1) as R | undefined;
@@ -290,7 +291,7 @@ function stratifyBranchOperator<T, R>(
 			} else if (isTerminalError(sourceTerminal)) {
 				ctx.down([["ERROR", terminalErrorValue(sourceTerminal)]]);
 			}
-		},
+		}),
 	};
 }
 

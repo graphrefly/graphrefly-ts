@@ -11,6 +11,7 @@ import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
 import { canonicalTupleKey } from "../identity.js";
 import type { Node } from "../node/node.js";
+import { oneArrayPerRun } from "../node/one-array-per-run.js";
 import {
 	type AgentRuntimeAuditRecord,
 	type ExecutorProfile,
@@ -662,12 +663,12 @@ function project<T>(
 ): Node<T> {
 	return graph.node<T>(
 		[source],
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			for (const raw of depBatch(ctx, 0) ?? []) {
 				const value = pick(raw as GateFact);
 				if (value !== undefined) ctx.down([["DATA", value]]);
 			}
-		},
+		}),
 		{ name, factory, partial: true, complete: "manual", error: "manual" },
 	);
 }

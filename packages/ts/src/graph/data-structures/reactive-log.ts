@@ -20,6 +20,7 @@
 
 import { type Ctx, depBatch, depCount } from "../../ctx/types.js";
 import { type Node, node } from "../../node/node.js";
+import { oneArrayPerRun } from "../../node/one-array-per-run.js";
 import type { GraphCheckpointJson } from "../checkpoint.js";
 import { trimHeadOverflow } from "../policies/collection.js";
 import type { ViewCachePolicy } from "../policies/types.js";
@@ -367,12 +368,12 @@ export function mergeReactiveLogs<T>(logs: readonly ReactiveLog<T>[]): Node<LogC
 	const deps = logs.map((l) => l.delta as Node<unknown>);
 	return node<LogChange<T>>(
 		deps,
-		(ctx: Ctx) => {
+		oneArrayPerRun((ctx: Ctx) => {
 			for (let i = 0; i < depCount(ctx); i++) {
 				const b = depBatch(ctx, i);
 				if (b) for (const c of b) ctx.down([["DATA", c as LogChange<T>]]);
 			}
-		},
+		}),
 		{ factory: "mergeReactiveLogs", partial: true },
 	);
 }

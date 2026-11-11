@@ -2,6 +2,7 @@ import { type Ctx, depBatch } from "../ctx/types.js";
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
 import type { Node } from "../node/node.js";
+import { oneArrayPerRun } from "../node/one-array-per-run.js";
 import {
 	dataIssue,
 	forEachDepBatch,
@@ -139,32 +140,32 @@ export function requestSatisfactionProjector(
 	);
 	const status = graph.node<AgentRequestStatusChanged>(
 		[runtime],
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			for (const fact of depBatch(ctx, 0) ?? []) {
 				const typed = fact as AgentRequestSatisfactionFact;
 				if (typed.kind === "status") ctx.down([["DATA", typed.status]]);
 			}
-		},
+		}),
 		{ name: `${name}/status`, factory: "requestSatisfactionStatus" },
 	);
 	const issues = graph.node<DataIssue>(
 		[runtime],
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			for (const fact of depBatch(ctx, 0) ?? []) {
 				const typed = fact as AgentRequestSatisfactionFact;
 				if (typed.kind === "issue") ctx.down([["DATA", typed.issue]]);
 			}
-		},
+		}),
 		{ name: `${name}/issues`, factory: "requestSatisfactionIssues" },
 	);
 	const audit = graph.node<AgentRuntimeAuditRecord>(
 		[runtime],
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			for (const fact of depBatch(ctx, 0) ?? []) {
 				const typed = fact as AgentRequestSatisfactionFact;
 				if (typed.kind === "audit") ctx.down([["DATA", typed.audit]]);
 			}
-		},
+		}),
 		{ name: `${name}/audit`, factory: "requestSatisfactionAudit" },
 	);
 	return { status, issues, audit };

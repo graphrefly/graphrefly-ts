@@ -1,5 +1,6 @@
 import { type Ctx, depBatch, depLatest } from "../ctx/types.js";
 import type { Node } from "../node/node.js";
+import { oneArrayPerRun } from "../node/one-array-per-run.js";
 import { errorPayload } from "../protocol/messages.js";
 import { hasKvVersioned, type KvGeneration, type KvStorageTier } from "../storage/kv.js";
 import {
@@ -226,7 +227,7 @@ export function reactiveCascadingCache<K extends string, V>(
 
 	const status = g.node<CascadingCacheStatus<K>>(
 		[events],
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			const st = ctx.state.get<SeqState>() ?? { seq: 0 };
 			const batch = depBatch(ctx, 0) as readonly CascadingCacheEvent<K, V>[] | null;
 			if (batch === null) return;
@@ -280,7 +281,7 @@ export function reactiveCascadingCache<K extends string, V>(
 				}
 			}
 			ctx.state.set(st);
-		},
+		}),
 		{
 			name: `${baseName}.status`,
 			initial: { kind: "idle" },
@@ -291,7 +292,7 @@ export function reactiveCascadingCache<K extends string, V>(
 
 	const value = g.node<V | undefined>(
 		[events],
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			const st = ctx.state.get<SeqState>() ?? { seq: 0 };
 			const batch = depBatch(ctx, 0) as readonly CascadingCacheEvent<K, V>[] | null;
 			if (batch === null) return;
@@ -313,7 +314,7 @@ export function reactiveCascadingCache<K extends string, V>(
 				}
 			}
 			ctx.state.set(st);
-		},
+		}),
 		{
 			name: `${baseName}.value`,
 			meta,

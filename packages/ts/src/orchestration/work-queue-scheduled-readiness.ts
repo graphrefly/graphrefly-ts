@@ -3,6 +3,7 @@ import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
 import { canonicalTupleKey, compoundTupleKey, parseCanonicalTupleKey } from "../identity.js";
 import type { Node } from "../node/node.js";
+import { oneArrayPerRun } from "../node/one-array-per-run.js";
 import type {
 	WorkQueueCommand,
 	WorkQueueDerivedState,
@@ -371,7 +372,7 @@ export function workQueueLeaseExpirationCommandProjector<T = unknown>(
 	const name = opts.name ?? "workQueueLeaseExpirationCommands";
 	const runtime = graph.node<WorkQueueLeaseExpirationCommandFact<T>>(
 		[opts.candidates],
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			const state =
 				ctx.state.get<WorkQueueLeaseExpirationCommandProjectorState<T>>() ??
 				leaseExpirationCommandState<T>();
@@ -397,7 +398,7 @@ export function workQueueLeaseExpirationCommandProjector<T = unknown>(
 			}
 			ctx.down([["DATA", { kind: "views", views: buildLeaseCommandViews(state) }]]);
 			ctx.state.set(state);
-		},
+		}),
 		{
 			name: `${name}/runtime`,
 			factory: "workQueueLeaseExpirationCommandProjector",

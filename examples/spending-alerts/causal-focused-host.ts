@@ -9,6 +9,7 @@ import {
 } from "../../packages/ts/src/graph/construction-scope.js";
 import type { Graph } from "../../packages/ts/src/graph/graph.js";
 import type { Node } from "../../packages/ts/src/node/node.js";
+import { oneArrayPerRun } from "../../packages/ts/src/node/one-array-per-run.js";
 import type {
 	CausalEffectOutcome,
 	CausalQuiescence,
@@ -39,7 +40,6 @@ import {
 	proposalForMaterial,
 	type RequestMaterial,
 } from "./causal-publication.js";
-
 import { type OfflineAlertResource, SpendingResource } from "./causal-resource.js";
 
 export { OfflineAlertResource } from "./causal-resource.js";
@@ -236,7 +236,7 @@ export function buildOfflineSpendingHost(
 	);
 	const packFacts = scope.node<Checked<EvaluationPack>>(
 		[inputs.evaluations.pack],
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			if (
 				packFacts.deps.length !== 1 ||
 				packFacts.deps[0] !== inputs.evaluations.pack ||
@@ -283,7 +283,7 @@ export function buildOfflineSpendingHost(
 				}
 				ctx.down([["DATA", value]]);
 			}
-		},
+		}),
 		{ name: `${name}/hostPackFacts`, factory: "offlineSpendingHostPackFacts" },
 	);
 

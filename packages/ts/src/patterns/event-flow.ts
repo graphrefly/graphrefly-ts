@@ -14,6 +14,7 @@ import { canonicalTupleKey } from "../identity.js";
 import type { EventMessage, MessageEnvelope } from "../messaging/index.js";
 import { eventMessageIssue } from "../messaging/index.js";
 import type { Node } from "../node/node.js";
+import { oneArrayPerRun } from "../node/one-array-per-run.js";
 import type { Message } from "../protocol/messages.js";
 
 export interface EventFlowSource<T = unknown> {
@@ -235,7 +236,7 @@ export function eventFlowProjection<TState, TPayload = unknown>(
 		| { readonly kind: "high-water"; readonly highWater: EventFlowHighWater }
 	>(
 		[records],
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			const state = ctx.state.get<{
 				value: TState;
 				highWater: EventFlowHighWater;
@@ -291,7 +292,7 @@ export function eventFlowProjection<TState, TPayload = unknown>(
 				}
 			}
 			ctx.state.set(state);
-		},
+		}),
 		{
 			name: `${name}/runtime`,
 			factory: "eventFlowProjectionRuntime",
@@ -484,12 +485,12 @@ function runtimeProjection<TOut, T>(
 ): Node<TOut> {
 	return graph.node<TOut>(
 		[runtime],
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			for (const fact of depBatch(ctx, 0) ?? []) {
 				const typed = fact as EventFlowRuntimeFact<T>;
 				if (typed.kind === kind) ctx.down([["DATA", valueOfRuntimeFact(typed) as TOut]]);
 			}
-		},
+		}),
 		{ name, factory, complete: "manual", error: "manual" },
 	);
 }
@@ -504,12 +505,12 @@ function projectionRuntime<TOut, TFact extends { readonly kind: string }>(
 ): Node<TOut> {
 	return graph.node<TOut>(
 		[runtime],
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			for (const fact of depBatch(ctx, 0) ?? []) {
 				const typed = fact as TFact;
 				if (typed.kind === kind) ctx.down([["DATA", map(typed as never)]]);
 			}
-		},
+		}),
 		{ name, factory, complete: "manual", error: "manual" },
 	);
 }

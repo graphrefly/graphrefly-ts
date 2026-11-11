@@ -7,6 +7,7 @@ import type { Graph, TopologyGroup } from "../graph/graph.js";
 import { compoundTupleKey } from "../identity.js";
 import { type AttachableInput, attachableInput } from "../node/attachable-input.js";
 import type { Node } from "../node/node.js";
+import { oneArrayPerRun } from "../node/one-array-per-run.js";
 import type { Message } from "../protocol/messages.js";
 import type {
 	ProcessAuditRecord,
@@ -307,11 +308,11 @@ export function processEffectRunner<TEffect = unknown, TResult = unknown>(
 	const topology = graph.topologyGroup({ name: `${name}.effectRunner` });
 	const requests = topology.node<ProcessEffectRequest<TEffect>>(
 		[process.effectRequests],
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			for (const request of depBatch(ctx, 0) ?? []) {
 				ctx.down([["DATA", request as ProcessEffectRequest<TEffect>]]);
 			}
-		},
+		}),
 		{
 			name: `${name}/requests`,
 			factory: "processEffectRunnerRequests",
@@ -322,7 +323,7 @@ export function processEffectRunner<TEffect = unknown, TResult = unknown>(
 	);
 	const runtime = topology.node<ProcessEffectRunnerFact<TResult>>(
 		[...opts.outcomes],
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			for (let i = 0; i < opts.outcomes.length; i += 1) {
 				for (const raw of depBatch(ctx, i) ?? []) {
 					const parsed = parseProcessEffectOutcome<TResult>(raw);
@@ -341,7 +342,7 @@ export function processEffectRunner<TEffect = unknown, TResult = unknown>(
 					ctx.down([["DATA", { kind: "command", command }]]);
 				}
 			}
-		},
+		}),
 		{
 			name: `${name}/runtime`,
 			factory: "processEffectRunner",
@@ -373,7 +374,7 @@ export function processEffectRunner<TEffect = unknown, TResult = unknown>(
 	);
 	const status = topology.node<ProcessEffectRunnerStatus>(
 		[requests, runtime],
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			let state =
 				ctx.state.get<ProcessEffectRunnerState>() ??
 				({ requested: 0, commanded: 0, rejected: 0 } satisfies ProcessEffectRunnerState);
@@ -432,7 +433,7 @@ export function processEffectRunner<TEffect = unknown, TResult = unknown>(
 				}
 			}
 			ctx.state.set(state);
-		},
+		}),
 		{
 			name: `${name}/status`,
 			factory: "processEffectRunnerStatus",
@@ -508,12 +509,12 @@ function processEffectRunnerProjection<T, TResult>(
 ): Node<T> {
 	return topology.node<T>(
 		[runtime],
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			for (const fact of depBatch(ctx, 0) ?? []) {
 				const value = pick(fact as ProcessEffectRunnerFact<TResult>);
 				if (value !== undefined) ctx.down([["DATA", value]]);
 			}
-		},
+		}),
 		{
 			name,
 			factory,
@@ -804,12 +805,12 @@ function processProjection<TOut, TState, TEvent, TEffect>(
 ): Node<TOut> {
 	return graph.node<TOut>(
 		[runtime],
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			for (const raw of depBatch(ctx, 0) ?? []) {
 				const selected = select(raw as ProcessRuntimeFact<TState, TEvent, TEffect>);
 				if (selected !== undefined) ctx.down([["DATA", selected]]);
 			}
-		},
+		}),
 		{ name, factory, complete: "manual", error: "manual" },
 	);
 }

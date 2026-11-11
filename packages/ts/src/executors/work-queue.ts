@@ -10,6 +10,7 @@ import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
 import { canonicalTupleKey } from "../identity.js";
 import type { Node } from "../node/node.js";
+import { oneArrayPerRun } from "../node/one-array-per-run.js";
 import type {
 	AgentRequestIssued,
 	ExecutorOutcome,
@@ -129,12 +130,12 @@ export function executorWorkQueueRecipe(
 			? undefined
 			: graph.node<WorkQueueCommand<ExecutorQueuedDispatchPayload>>(
 					[opts.requests],
-					(ctx) => {
+					oneArrayPerRun((ctx) => {
 						for (const raw of depBatch(ctx, 0) ?? []) {
 							const request = raw as AgentRequestIssued;
 							ctx.down([["DATA", executorSubmitCommand(request, opts.policy)]]);
 						}
-					},
+					}),
 					{ name: `${name}/submitCommands`, factory: "executorWorkQueueSubmitCommands" },
 				);
 	const runtime = graph.node<ExecutorQueueFact>(
@@ -398,12 +399,12 @@ function project<T>(
 ): Node<T> {
 	return graph.node<T>(
 		[runtime],
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			for (const raw of depBatch(ctx, 0) ?? []) {
 				const selected = select(raw as ExecutorQueueFact);
 				if (selected !== undefined) ctx.down([["DATA", selected]]);
 			}
-		},
+		}),
 		{ name, factory, partial: true, complete: "manual", error: "manual" },
 	);
 }

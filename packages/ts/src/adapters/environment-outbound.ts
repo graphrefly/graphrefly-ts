@@ -17,6 +17,7 @@ import type {
 import type { Graph } from "../graph/graph.js";
 import { nextRetryDelayMs, retryPolicy, shouldRetry } from "../graph/resilience.js";
 import type { Node } from "../node/node.js";
+import { oneArrayPerRun } from "../node/one-array-per-run.js";
 import { errorPayload } from "../protocol/messages.js";
 import type {
 	HttpRequestOf,
@@ -102,24 +103,24 @@ function outboundNodes<TValue, TResult>(
 	);
 	const attempts = graph.node<number>(
 		[events],
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			for (const event of depBatch(ctx, 0) ?? []) {
 				const typed = event as OutboundEvent<TValue, TResult>;
 				if ("attempt" in typed) ctx.down([["DATA", typed.attempt]]);
 			}
 			forwardError(ctx);
-		},
+		}),
 		{ name: `${name}/attempts`, factory: "outboundAttempts", error: "manual" },
 	);
 	const errors = graph.node<unknown>(
 		[events],
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			for (const event of depBatch(ctx, 0) ?? []) {
 				const typed = event as OutboundEvent<TValue, TResult>;
 				if ("error" in typed) ctx.down([["DATA", typed.error]]);
 			}
 			forwardError(ctx);
-		},
+		}),
 		{ name: `${name}/errors`, factory: "outboundErrors", error: "manual" },
 	);
 	return { events, status, attempts, errors };

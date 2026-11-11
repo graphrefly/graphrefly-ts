@@ -21,6 +21,7 @@ import {
 	shouldRetry,
 } from "../graph/resilience.js";
 import type { Node } from "../node/node.js";
+import { oneArrayPerRun } from "../node/one-array-per-run.js";
 import { errorPayload } from "../protocol/messages.js";
 import { runCancel } from "./environment-outbound.js";
 import type {
@@ -183,7 +184,7 @@ function webSocketSessionEventNode(
 ): Node<WebSocketSessionEvent> {
 	return graph.node<WebSocketSessionEvent>(
 		[command],
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			const state = initWebSocketSessionState(ctx);
 
 			const emitOutbound = (fact: WebSocketSessionOutbound) => {
@@ -523,7 +524,7 @@ function webSocketSessionEventNode(
 					]);
 				}
 			}
-		},
+		}),
 		{ name: `${name}/events`, factory: "webSocketSessionEvents" },
 	);
 }
@@ -537,17 +538,17 @@ function webSocketSessionNodes(
 ): WebSocketSessionBundle {
 	const inbound = graph.node<WebSocketSessionInbound>(
 		[events],
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			for (const raw of depBatch(ctx, 0) ?? []) {
 				const event = raw as WebSocketSessionEvent;
 				if (event.kind === "message") ctx.down([["DATA", event.message]]);
 			}
-		},
+		}),
 		{ name: `${name}/inbound`, factory: "webSocketSessionInbound" },
 	);
 	const lifecycle = graph.node<WebSocketSessionLifecycle>(
 		[events],
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			for (const raw of depBatch(ctx, 0) ?? []) {
 				const event = raw as WebSocketSessionEvent;
 				if (event.kind === "attempt") {
@@ -584,17 +585,17 @@ function webSocketSessionNodes(
 					ctx.down([["DATA", event]]);
 				}
 			}
-		},
+		}),
 		{ name: `${name}/lifecycle`, factory: "webSocketSessionLifecycle" },
 	);
 	const outbound = graph.node<WebSocketSessionOutbound>(
 		[events],
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			for (const raw of depBatch(ctx, 0) ?? []) {
 				const event = raw as WebSocketSessionEvent;
 				if (event.kind === "outbound") ctx.down([["DATA", event.fact]]);
 			}
-		},
+		}),
 		{ name: `${name}/outbound`, factory: "webSocketSessionOutbound" },
 	);
 	const status = graph.node<WebSocketSessionStatus>(
@@ -661,22 +662,22 @@ function webSocketSessionNodes(
 	);
 	const errors = graph.node<unknown>(
 		[events],
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			for (const raw of depBatch(ctx, 0) ?? []) {
 				const event = raw as WebSocketSessionEvent;
 				if ("error" in event) ctx.down([["DATA", event.error]]);
 			}
-		},
+		}),
 		{ name: `${name}/errors`, factory: "webSocketSessionErrors" },
 	);
 	const attempts = graph.node<number>(
 		[events],
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			for (const raw of depBatch(ctx, 0) ?? []) {
 				const event = raw as WebSocketSessionEvent;
 				if (event.kind === "attempt") ctx.down([["DATA", event.attempt]]);
 			}
-		},
+		}),
 		{ name: `${name}/attempts`, factory: "webSocketSessionAttempts" },
 	);
 	return {

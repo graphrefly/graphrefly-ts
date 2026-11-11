@@ -15,6 +15,7 @@ import type {
 	MessageBusMessage,
 } from "../messaging/index.js";
 import type { Node } from "../node/node.js";
+import { oneArrayPerRun } from "../node/one-array-per-run.js";
 import type { ProcessCommand, ProcessEvent, ProcessStatus } from "../orchestration/index.js";
 
 export interface OrchestrationMessagingPolicy<TPayload = unknown, TCommand = unknown> {
@@ -77,7 +78,7 @@ export function orchestrationMessagingRecipe<
 	const name = opts.name ?? "orchestrationMessaging";
 	const runtime = graph.node<OrchestrationMessagingFact<TCommand>>(
 		[opts.deliveries],
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			for (const raw of depBatch(ctx, 0) ?? []) {
 				const page = raw as MessageBusAvailablePage<TPayload>;
 				for (const message of page.messages) {
@@ -90,7 +91,7 @@ export function orchestrationMessagingRecipe<
 					}
 				}
 			}
-		},
+		}),
 		{
 			name: `${name}/runtime`,
 			factory: "orchestrationMessagingRuntime",
@@ -199,7 +200,7 @@ export function orchestrationMessageAckCommands(
 		opts.issues === undefined
 			? [opts.commands, opts.status]
 			: [opts.commands, opts.status, opts.issues],
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			const deliveries =
 				ctx.state.get<Map<string, MessageBusDelivery[]>>() ??
 				new Map<string, MessageBusDelivery[]>();
@@ -229,7 +230,7 @@ export function orchestrationMessageAckCommands(
 				}
 			}
 			ctx.state.set(deliveries);
-		},
+		}),
 		{
 			name: opts.name ?? "orchestrationMessaging/ackCommands",
 			factory: "orchestrationMessagingAckCommands",
@@ -262,7 +263,7 @@ export function processEventOutboxCommands<TEvent>(
 ): Node<MessageBusCommand> {
 	return graph.node<MessageBusCommand>(
 		[events],
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			for (const event of depBatch(ctx, 0) ?? []) {
 				const typed = event as ProcessEvent<TEvent>;
 				ctx.down([
@@ -279,7 +280,7 @@ export function processEventOutboxCommands<TEvent>(
 					],
 				]);
 			}
-		},
+		}),
 		{
 			name: opts.name ?? "orchestrationMessaging/outboxCommands",
 			factory: "orchestrationMessagingOutboxCommands",
@@ -298,12 +299,12 @@ function project<T, TCommand>(
 ): Node<T> {
 	return graph.node<T>(
 		[runtime],
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			for (const fact of depBatch(ctx, 0) ?? []) {
 				const value = pick(fact as OrchestrationMessagingFact<TCommand>);
 				if (value !== undefined) ctx.down([["DATA", value]]);
 			}
-		},
+		}),
 		{ name, factory, partial: true, complete: "manual", error: "manual" },
 	);
 }

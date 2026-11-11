@@ -3,6 +3,7 @@ import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
 import { canonicalTupleKey, compoundTupleKey } from "../identity.js";
 import type { Node } from "../node/node.js";
+import { oneArrayPerRun } from "../node/one-array-per-run.js";
 import {
 	dataIssue,
 	forbiddenDataKeys,
@@ -473,7 +474,7 @@ export function toolProviderPolicyResolutionProjector(
 	const catalogStart = routeStart + routeDeps.length;
 	const runtime = graph.node<ToolProviderPolicyResolutionFact>(
 		[opts.requestFacts, ...routeDeps, ...catalogDeps],
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			const state = ctx.state.get<ToolProviderPolicyResolutionState>() ?? {
 				requests: new Map<string, AgentRequestIssued>(),
 				routes: new Map<string, ExecutorRoute>(),
@@ -541,7 +542,7 @@ export function toolProviderPolicyResolutionProjector(
 				}
 			}
 			ctx.state.set(state);
-		},
+		}),
 		{ name: `${name}/runtime`, factory: "toolProviderPolicyResolutionProjector", partial: true },
 	);
 	const resolutions = projectRuntimeFact(

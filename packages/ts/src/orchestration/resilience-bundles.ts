@@ -10,6 +10,7 @@ import {
 } from "../graph/resilience.js";
 import { timeout as timeoutOperator } from "../graph/time.js";
 import type { Node } from "../node/node.js";
+import { oneArrayPerRun } from "../node/one-array-per-run.js";
 
 export type ResilienceEvent =
 	| { readonly kind: "attempt"; readonly attempt: number }
@@ -120,12 +121,12 @@ export function retryStatusBundle(
 	);
 	const errors = graph.node<unknown>(
 		[events],
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			for (const raw of depBatch(ctx, 0) ?? []) {
 				const event = raw as ResilienceEvent;
 				if ("error" in event) ctx.down([["DATA", event.error]]);
 			}
-		},
+		}),
 		{ name: `${name}/errors`, factory: "retryErrors" },
 	);
 	return { status, errors };
@@ -187,12 +188,12 @@ export function breakerBundle(
 	);
 	const allowed = graph.node<boolean>(
 		[status],
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			const statusBatch = depBatch(ctx, 0) ?? [];
 			for (const value of statusBatch) {
 				ctx.down([["DATA", (value as BreakerStatus).state !== "open"]]);
 			}
-		},
+		}),
 		{ name: `${name}/allowed`, factory: "breakerAllowed" },
 	);
 	return { status, allowed };

@@ -1,6 +1,7 @@
 import { type Ctx, depBatch } from "../ctx/types.js";
 import type { Graph } from "../graph/graph.js";
 import type { Node } from "../node/node.js";
+import { oneArrayPerRun } from "../node/one-array-per-run.js";
 
 /** A value proposed for a correlated admission handoff (graphrefly-ts:D147). */
 export interface AdmissionHandoffCandidate<T> {
@@ -669,12 +670,12 @@ function projectRuntimeFact<T, R, TOut>(
 ): Node<TOut> {
 	return graph.node<TOut>(
 		[runtime],
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			for (const raw of depBatch(ctx, 0) ?? []) {
 				const value = pick(raw as AdmissionHandoffRuntimeFact<T, R>);
 				if (value !== undefined) ctx.down([["DATA", value]]);
 			}
-		},
+		}),
 		{ name, factory, complete: "manual", error: "manual" },
 	);
 }

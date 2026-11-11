@@ -15,6 +15,7 @@
 import { type Ctx, depBatch, depCount, depLatest } from "../../ctx/types.js";
 import { attachableInput } from "../../node/attachable-input.js";
 import { Node, node } from "../../node/node.js";
+import { oneArrayPerRun } from "../../node/one-array-per-run.js";
 import { errorPayload } from "../../protocol/messages.js";
 import type { Operator } from "../operators.js";
 import type { OrderedCapacityPolicy, ReactiveOpt, ViewCachePolicy } from "../policies/types.js";
@@ -570,7 +571,7 @@ function createReactiveIndex<K, V = unknown>(
 				{ primary: K; secondary: unknown; value: V }
 			> = {
 				factory: "reactiveIndex.bindSource",
-				body: (ctx: Ctx) => {
+				body: oneArrayPerRun((ctx: Ctx) => {
 					try {
 						for (const r of (depBatch(ctx, 0) ?? []) as readonly {
 							primary: K;
@@ -582,7 +583,7 @@ function createReactiveIndex<K, V = unknown>(
 					} catch (e) {
 						ctx.down([["ERROR", errorPayload(e, "reactiveIndex.bindSource failed")]]);
 					}
-				},
+				}),
 			};
 			const folder = graph.initNode(op, [src], {
 				name: name ? `${name}.bind#${bindSeq++}` : undefined,

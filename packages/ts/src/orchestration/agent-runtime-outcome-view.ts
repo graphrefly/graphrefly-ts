@@ -3,6 +3,7 @@ import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
 import { canonicalTupleKey, compoundTupleKey } from "../identity.js";
 import type { Node } from "../node/node.js";
+import { oneArrayPerRun } from "../node/one-array-per-run.js";
 import {
 	dataIssue,
 	projectRuntimeFact,
@@ -49,7 +50,7 @@ export function executorOutcomeViewProjector(
 	} satisfies Required<ExecutorOutcomeViewPolicy>;
 	const runtime = graph.node<ExecutorOutcomeViewFact>(
 		[opts.outcomes],
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			for (const raw of depBatch(ctx, 0) ?? []) {
 				const outcome = raw as ExecutorOutcome;
 				const projection = executorOutcomeViewProjectionFromOutcome(outcome, policy);
@@ -76,7 +77,7 @@ export function executorOutcomeViewProjector(
 					ctx.down([["DATA", { kind: "issue", issue } satisfies ExecutorOutcomeViewFact]]);
 				}
 			}
-		},
+		}),
 		{ name: `${name}/runtime`, factory: "executorOutcomeViewProjector" },
 	);
 	return {

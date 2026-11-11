@@ -15,6 +15,7 @@
 import { type Ctx, depBatch, depCount, depLatest } from "../../ctx/types.js";
 import { attachableInput } from "../../node/attachable-input.js";
 import { Node } from "../../node/node.js";
+import { oneArrayPerRun } from "../../node/one-array-per-run.js";
 import { errorPayload } from "../../protocol/messages.js";
 import type { Operator } from "../operators.js";
 import { trimHeadOverflow } from "../policies/collection.js";
@@ -354,7 +355,7 @@ export function reactiveList<T>(
 				);
 			const op: Operator<T, T> = {
 				factory: "reactiveList.bindSource",
-				body: (ctx: Ctx) => {
+				body: oneArrayPerRun((ctx: Ctx) => {
 					try {
 						for (const value of (depBatch(ctx, 0) ?? []) as readonly T[]) {
 							ctx.down([["DATA", value]]);
@@ -362,7 +363,7 @@ export function reactiveList<T>(
 					} catch (e) {
 						ctx.down([["ERROR", errorPayload(e, "reactiveList.bindSource failed")]]);
 					}
-				},
+				}),
 			};
 			const folder = graph.initNode(op, [src], {
 				name: options.name ? `${options.name}.bind#${bindSeq++}` : undefined,

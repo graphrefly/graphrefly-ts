@@ -34,6 +34,7 @@ import {
 import { strictCanonicalJsonBytes } from "../../json/codec.js";
 import { attachableInput } from "../../node/attachable-input.js";
 import { Node } from "../../node/node.js";
+import { oneArrayPerRun } from "../../node/one-array-per-run.js";
 import { errorPayload } from "../../protocol/messages.js";
 import { registerBackendStateContributor } from "../checkpoint.js";
 import { initNode, type Operator } from "../operators.js";
@@ -657,14 +658,14 @@ function createReactiveMap<K, V>(
 			});
 	const deltaOp: Operator<unknown, MapChange<K, V>> = {
 		factory: "reactiveMap.delta",
-		body: (ctx: Ctx) => {
+		body: oneArrayPerRun((ctx: Ctx) => {
 			for (const change of depBatch(ctx, 0) ?? []) {
 				ctx.down([["DATA", change as MapChange<K, V>]]);
 			}
 			for (const prep of depBatch(ctx, 1) ?? []) {
 				for (const change of (prep as SnapshotPrep<K, V>).expired) ctx.down([["DATA", change]]);
 			}
-		},
+		}),
 		opts: { partial: true },
 	};
 	const delta = graph
@@ -679,11 +680,11 @@ function createReactiveMap<K, V>(
 			});
 	const snapshotOp: Operator<unknown, ReadonlyMap<K, V>> = {
 		factory: "reactiveMap.snapshot",
-		body: (ctx: Ctx) => {
+		body: oneArrayPerRun((ctx: Ctx) => {
 			for (const prep of depBatch(ctx, 0) ?? []) {
 				ctx.down([["DATA", (prep as SnapshotPrep<K, V>).snapshot]]);
 			}
-		},
+		}),
 		opts: { partial: true },
 	};
 	const snapshot = graph
@@ -797,7 +798,7 @@ function createReactiveMap<K, V>(
 				);
 			const op: Operator<readonly [K, V], MapIntent<K, V>> = {
 				factory: "reactiveMap.bindSource",
-				body: (ctx: Ctx) => {
+				body: oneArrayPerRun((ctx: Ctx) => {
 					try {
 						for (const [k, v] of (depBatch(ctx, 0) ?? []) as readonly (readonly [K, V])[]) {
 							ctx.down([["DATA", { kind: "set", key: k, value: v }]]);
@@ -805,7 +806,7 @@ function createReactiveMap<K, V>(
 					} catch (e) {
 						ctx.down([["ERROR", errorPayload(e, "reactiveMap.bindSource failed")]]);
 					}
-				},
+				}),
 			};
 			const folder = graph.initNode(op, [src], {
 				name: name ? `${name}.bind#${bindSeq++}` : undefined,

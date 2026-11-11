@@ -3,6 +3,7 @@ import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
 import { canonicalTupleKey, compoundTupleKey } from "../identity.js";
 import type { Node } from "../node/node.js";
+import { oneArrayPerRun } from "../node/one-array-per-run.js";
 import {
 	dataIssue,
 	forbiddenAdapterInputMaterialIssues,
@@ -102,7 +103,7 @@ export function toolProviderAdapterInputProjector(
 	const resolutionStart = catalogStart + catalogDeps.length;
 	const runtime = graph.node<ToolProviderAdapterInputFact>(
 		[opts.requestFacts, ...routeDeps, ...catalogDeps, ...opts.policyResolutions],
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			const state = ctx.state.get<ToolProviderAdapterInputState>() ?? {
 				requests: new Map<string, AgentRequestIssued>(),
 				routes: new Map<string, ExecutorRoute>(),
@@ -170,7 +171,7 @@ export function toolProviderAdapterInputProjector(
 				]);
 			}
 			ctx.state.set(state);
-		},
+		}),
 		{ name: `${name}/runtime`, factory: "toolProviderAdapterInputProjector", partial: true },
 	);
 	const inputs = projectRuntimeFact(

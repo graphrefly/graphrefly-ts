@@ -3,6 +3,7 @@ import { depLatest, depWaves, type NodeFn } from "../../packages/ts/src/ctx/type
 import type { DataIssue } from "../../packages/ts/src/data/index.js";
 import type { ConstructionScope } from "../../packages/ts/src/graph/construction-scope.js";
 import type { Node } from "../../packages/ts/src/node/node.js";
+import { oneArrayPerRun } from "../../packages/ts/src/node/one-array-per-run.js";
 import { SENTINEL } from "../../packages/ts/src/protocol/messages.js";
 import {
 	type ArrivalFrame,
@@ -71,25 +72,29 @@ export function project<T, U>(
 	input: Node<BusinessFrame<T>>,
 	fn: (v: T, e: Evaluation) => U,
 ): Node<BusinessFrame<U>> {
-	return make(name, [input], (ctx) => {
-		for (const raw of depWaves(ctx, 0).flat()) {
-			if (raw === SENTINEL) {
-				ctx.down([["DATA", frame([], [], false)]]);
-				continue;
+	return make(
+		name,
+		[input],
+		oneArrayPerRun((ctx) => {
+			for (const raw of depWaves(ctx, 0).flat()) {
+				if (raw === SENTINEL) {
+					ctx.down([["DATA", frame([], [], false)]]);
+					continue;
+				}
+				const f = raw as BusinessFrame<T>;
+				ctx.down([
+					[
+						"DATA",
+						frame(
+							f.rows.map((r) => ({ evaluation: r.evaluation, value: fn(r.value, r.evaluation) })),
+							f.issues,
+							f.valid,
+						),
+					],
+				]);
 			}
-			const f = raw as BusinessFrame<T>;
-			ctx.down([
-				[
-					"DATA",
-					frame(
-						f.rows.map((r) => ({ evaluation: r.evaluation, value: fn(r.value, r.evaluation) })),
-						f.issues,
-						f.valid,
-					),
-				],
-			]);
-		}
-	});
+		}),
+	);
 }
 /** Finite exact-key join; invalid DATA and native invalidation revoke the corresponding input. */
 export function join<T>(
@@ -174,40 +179,44 @@ export function checked<T>(
 	kind: Parameters<typeof checkInput>[0],
 	binding: SpendingBinding,
 ): Node<Checked<T>> {
-	return make(name, [source], (ctx) => {
-		let state = ctx.state.get<{ seen: Map<string, string>; conflicts: Set<string> }>();
-		if (!state) {
-			state = { seen: new Map(), conflicts: new Set() };
-			ctx.state.set(state);
-		}
-		for (const raw of depWaves(ctx, 0).flat()) {
-			let result: Checked<T> =
-				raw === SENTINEL
-					? { valid: false, issue: issue(`invalidated-${kind}`) }
-					: checkInput<T>(kind, raw, binding);
-			// Each valid DATA is a complete available frame, never a patch over old permissions.
-			// Only receipt identity/conflict evidence survives replacement and invalidation.
-			if (result.valid && kind === "verification") {
-				for (const entry of (result.value as { receipts: unknown[] }).receipts) {
-					const key = canonicalMaterial((entry as { receiptRef: unknown }).receiptRef),
-						text = canonicalMaterial(entry),
-						prior = state.seen.get(key);
-					if (prior !== undefined && prior !== text) state.conflicts.add(key);
-					if (state.conflicts.has(key)) {
-						result = { valid: false, issue: issue("receipt-identity-conflict") };
-						break;
-					}
-					if (prior === undefined && state.seen.size >= 64) {
-						result = { valid: false, issue: issue("receipt-lifetime-capacity") };
-						break;
-					}
-					state.seen.set(key, text);
-				}
+	return make(
+		name,
+		[source],
+		oneArrayPerRun((ctx) => {
+			let state = ctx.state.get<{ seen: Map<string, string>; conflicts: Set<string> }>();
+			if (!state) {
+				state = { seen: new Map(), conflicts: new Set() };
+				ctx.state.set(state);
 			}
-			ctx.state.set(state);
-			ctx.down([["DATA", result]]);
-		}
-	});
+			for (const raw of depWaves(ctx, 0).flat()) {
+				let result: Checked<T> =
+					raw === SENTINEL
+						? { valid: false, issue: issue(`invalidated-${kind}`) }
+						: checkInput<T>(kind, raw, binding);
+				// Each valid DATA is a complete available frame, never a patch over old permissions.
+				// Only receipt identity/conflict evidence survives replacement and invalidation.
+				if (result.valid && kind === "verification") {
+					for (const entry of (result.value as { receipts: unknown[] }).receipts) {
+						const key = canonicalMaterial((entry as { receiptRef: unknown }).receiptRef),
+							text = canonicalMaterial(entry),
+							prior = state.seen.get(key);
+						if (prior !== undefined && prior !== text) state.conflicts.add(key);
+						if (state.conflicts.has(key)) {
+							result = { valid: false, issue: issue("receipt-identity-conflict") };
+							break;
+						}
+						if (prior === undefined && state.seen.size >= 64) {
+							result = { valid: false, issue: issue("receipt-lifetime-capacity") };
+							break;
+						}
+						state.seen.set(key, text);
+					}
+				}
+				ctx.state.set(state);
+				ctx.down([["DATA", result]]);
+			}
+		}),
+	);
 }
 export interface MessageValue {
 	readonly message: string;
@@ -230,7 +239,7 @@ export function buildBusiness(make: MakeNode, inputs: SpendingInputs, binding: S
 	const evaluationSelections = make<BusinessFrame<Evaluation>>(
 		"evaluationSelections",
 		[inputs.evaluations.pack, inputs.evaluations.arrivals],
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			let state = ctx.state.get<{
 				pack?: EvaluationPack;
 				text?: string;
@@ -298,7 +307,7 @@ export function buildBusiness(make: MakeNode, inputs: SpendingInputs, binding: S
 				emitPending();
 			}
 			if (problems.length) ctx.down([["DATA", frame([], problems, false)]]);
-		},
+		}),
 	);
 	const transaction = project(
 		make,

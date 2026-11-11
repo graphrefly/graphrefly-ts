@@ -2,6 +2,7 @@ import { depBatch } from "../ctx/types.js";
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
 import type { Node } from "../node/node.js";
+import { oneArrayPerRun } from "../node/one-array-per-run.js";
 import {
 	boundPublicText,
 	cloneGraphVisibleMaterial,
@@ -226,7 +227,7 @@ export function agentRequestLedgerViews(
 	);
 	const issues = graph.node<DataIssue>(
 		[facts],
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			for (const raw of depBatch(ctx, 0) ?? []) {
 				const fact = raw as AgentRequestFact;
 				if (fact.kind === "rejected") ctx.down([["DATA", sanitizeAdapterInputIssue(fact.issue)]]);
@@ -236,12 +237,12 @@ export function agentRequestLedgerViews(
 					}
 				}
 			}
-		},
+		}),
 		{ name: `${name}/issues`, factory: "agentRequestLedgerIssues" },
 	);
 	const audit = graph.node<AgentRuntimeAuditRecord>(
 		[facts],
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			let seq = ctx.state.get<number>() ?? 0;
 			for (const raw of depBatch(ctx, 0) ?? []) {
 				seq += 1;
@@ -258,7 +259,7 @@ export function agentRequestLedgerViews(
 				]);
 			}
 			ctx.state.set(seq);
-		},
+		}),
 		{ name: `${name}/audit`, factory: "agentRequestLedgerAudit" },
 	);
 	return { views, issues, audit };

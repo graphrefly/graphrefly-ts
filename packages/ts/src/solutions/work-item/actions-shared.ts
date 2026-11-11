@@ -3,6 +3,7 @@ import type { DataIssue } from "../../data/index.js";
 import type { Graph } from "../../graph/graph.js";
 import { canonicalTupleKey, compoundTupleKey } from "../../identity.js";
 import type { Node } from "../../node/node.js";
+import { oneArrayPerRun } from "../../node/one-array-per-run.js";
 import type { AgentRuntimeAuditRecord, SourceRef } from "../../orchestration/agent-runtime.js";
 import type { WorkItemDomainActionStatus } from "./actions-types.js";
 
@@ -38,12 +39,12 @@ export function project<TFact, TSelected>(
 ): Node<TSelected> {
 	return graph.node<TSelected>(
 		[runtime],
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			for (const raw of depBatch(ctx, 0) ?? []) {
 				const selected = select(raw as TFact);
 				if (selected !== undefined) ctx.down([["DATA", selected]]);
 			}
-		},
+		}),
 		{ name, factory, partial: true, complete: "manual", error: "manual" },
 	);
 }

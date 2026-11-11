@@ -3,6 +3,7 @@ import type { DataIssue } from "../../data/index.js";
 import type { ConstructionScope, StartupFact } from "../../graph/construction-scope.js";
 import type { Graph } from "../../graph/graph.js";
 import type { Node } from "../../node/node.js";
+import { oneArrayPerRun } from "../../node/one-array-per-run.js";
 import type {
 	CausalCurrentness,
 	CausalEffectConservation,
@@ -98,7 +99,7 @@ export function createCausalCapabilities<T>(
 ): FullCausalCapability<T> {
 	const causalQuiescence = scope.node<Omit<CausalQuiescence, "retainedEvidence">>(
 		[ports.quiescence],
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			for (const raw of depBatch(ctx, 0) ?? []) {
 				const value = raw as CausalQuiescence;
 				// Explicit payload projection, not a type cast over retained evidence.
@@ -116,7 +117,7 @@ export function createCausalCapabilities<T>(
 					],
 				]);
 			}
-		},
+		}),
 		{ name: `${name}/causal-quiescence`, factory: "causalLifecycleQuiescence" },
 	);
 	const identity = Object.freeze({

@@ -1,6 +1,7 @@
 import { type Ctx, depBatch } from "../../ctx/types.js";
 import type { Graph } from "../../graph/graph.js";
 import type { Node } from "../../node/node.js";
+import { oneArrayPerRun } from "../../node/one-array-per-run.js";
 import type { SourceRef } from "../../orchestration/agent-runtime.js";
 import type { WorkItemDomainActionApplication } from "./actions-types.js";
 import { immutableClone, project } from "./scheduling-shared.js";
@@ -2132,7 +2133,7 @@ export function workspaceProposalFamilyApplicationDiagnosticProjector(
 		| undefined
 	>(
 		deps,
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			const state = familyProjectionState(ctx);
 			ingestDiagnosticInputFacts(ctx, state, depKinds);
 			for (const diagnostic of projectWorkspaceProposalFamilyApplicationDiagnostics({
@@ -2148,7 +2149,7 @@ export function workspaceProposalFamilyApplicationDiagnosticProjector(
 				ctx.down([["DATA", { kind: "diagnostic", value: diagnostic }]]);
 			}
 			ctx.state.set(state);
-		},
+		}),
 		runtimeOptions(name, "workspaceProposalFamilyApplicationDiagnosticProjector"),
 	);
 	return {
@@ -2225,7 +2226,7 @@ export function workspaceProposalRepairReviewProjector(
 		| undefined
 	>(
 		deps,
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			const state = familyProjectionState(ctx);
 			ingestDiagnosticInputFacts(ctx, state, depKinds);
 			for (const request of projectWorkspaceProposalRepairReviewRequests({
@@ -2239,7 +2240,7 @@ export function workspaceProposalRepairReviewProjector(
 				ctx.down([["DATA", { kind: "repair-review-request", value: request }]]);
 			}
 			ctx.state.set(state);
-		},
+		}),
 		runtimeOptions(name, "workspaceProposalRepairReviewProjector"),
 	);
 	return {
@@ -2488,7 +2489,7 @@ export function workspaceProposalRepairReviewDecisionRecordingProjector(
 		| undefined
 	>(
 		deps,
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			const state = familyProjectionState(ctx);
 			ingestDiagnosticInputFacts(ctx, state, depKinds);
 			for (const result of projectWorkspaceProposalRepairReviewDecisionRecordings({
@@ -2509,7 +2510,7 @@ export function workspaceProposalRepairReviewDecisionRecordingProjector(
 				}
 			}
 			ctx.state.set(state);
-		},
+		}),
 		runtimeOptions(name, "workspaceProposalRepairReviewDecisionRecordingProjector"),
 	);
 	return {
@@ -2549,7 +2550,7 @@ export function workspaceProposalRepairReviewStatusProjector(
 		| undefined
 	>(
 		deps,
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			const state = familyProjectionState(ctx);
 			ingestDiagnosticInputFacts(ctx, state, depKinds);
 			for (const status of projectWorkspaceProposalRepairReviewStatuses({
@@ -2566,7 +2567,7 @@ export function workspaceProposalRepairReviewStatusProjector(
 				ctx.down([["DATA", { kind: "repair-review-status", value: status }]]);
 			}
 			ctx.state.set(state);
-		},
+		}),
 		runtimeOptions(name, "workspaceProposalRepairReviewStatusProjector"),
 	);
 	return {
@@ -2787,14 +2788,14 @@ export function workspaceProposalProjectionReleaseDiagnosticProjector(
 		| undefined
 	>(
 		[opts.releases],
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			for (const raw of depBatch(ctx, 0) ?? []) {
 				const validation = validateWorkspaceProposalProjectionReleaseMaterial(raw);
 				if (validation.status !== "blocked") continue;
 				const diagnostic = workspaceProposalProjectionReleaseDiagnosticFromValidation(validation);
 				ctx.down([["DATA", { kind: "projection-release-diagnostic", value: diagnostic }]]);
 			}
-		},
+		}),
 		runtimeOptions(name, "workspaceProposalProjectionReleaseDiagnosticProjector"),
 	);
 	return {
@@ -2888,7 +2889,7 @@ export function workspaceProposalFamilyApplicationReadModelsProjector(
 		| undefined
 	>(
 		deps,
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			const state = familyProjectionState(ctx);
 			ingestDiagnosticInputFacts(ctx, state, depKinds);
 			for (const readModel of projectWorkspaceProposalFamilyApplicationReadModels({
@@ -2907,7 +2908,7 @@ export function workspaceProposalFamilyApplicationReadModelsProjector(
 				ctx.down([["DATA", { kind: "read-model", value: readModel }]]);
 			}
 			ctx.state.set(state);
-		},
+		}),
 		runtimeOptions(name, "workspaceProposalFamilyApplicationReadModelsProjector"),
 	);
 	return {
@@ -3146,7 +3147,7 @@ export function workspaceProposalFamilyOutcomeDetailSupplyProjector(
 		| undefined
 	>(
 		deps,
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			const state = ctx.state.get<{
 				readonly requests: Map<string, WorkspaceProposalFamilyOutcomeDetailSupplyRequest>;
 				readonly suppliedOutcomes: Map<string, WorkspaceProposalFamilyOutcomeRecord>;
@@ -3181,7 +3182,7 @@ export function workspaceProposalFamilyOutcomeDetailSupplyProjector(
 				ctx.down([["DATA", { kind: "outcome-detail-supply-result", value: result }]]);
 			}
 			ctx.state.set(state);
-		},
+		}),
 		runtimeOptions(name, "workspaceProposalFamilyOutcomeDetailSupplyProjector"),
 	);
 	return {
@@ -3245,7 +3246,7 @@ export function workspaceProposalRepairActionDescriptorProjector(
 		| undefined
 	>(
 		deps,
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			const state = familyProjectionState(ctx);
 			ingestDiagnosticInputFacts(ctx, state, depKinds);
 			for (const descriptor of projectWorkspaceProposalRepairActionDescriptors({
@@ -3260,7 +3261,7 @@ export function workspaceProposalRepairActionDescriptorProjector(
 				ctx.down([["DATA", { kind: "repair-action-descriptor", value: descriptor }]]);
 			}
 			ctx.state.set(state);
-		},
+		}),
 		runtimeOptions(name, "workspaceProposalRepairActionDescriptorProjector"),
 	);
 	return {
@@ -3892,7 +3893,7 @@ export function workspaceProposalRepairActionDisplayPolicyAdvisoryProjector(
 		| undefined
 	>(
 		deps,
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			const state = ctx.state.get<{
 				readonly descriptors: Map<string, WorkspaceProposalRepairActionDescriptor>;
 				readonly requests: Map<string, WorkspaceProposalRepairReviewRequest>;
@@ -3963,7 +3964,7 @@ export function workspaceProposalRepairActionDisplayPolicyAdvisoryProjector(
 				ctx.down([["DATA", { kind: "repair-action-display-policy-advisory", value: advisory }]]);
 			}
 			ctx.state.set(state);
-		},
+		}),
 		runtimeOptions(name, "workspaceProposalRepairActionDisplayPolicyAdvisoryProjector"),
 	);
 	return {
@@ -4250,7 +4251,7 @@ export function workspaceProposalRepairActionIntentProjector(
 		| undefined
 	>(
 		deps,
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			const state = repairActionIntentGraphState(ctx);
 			ingestRepairActionIntentGraphFacts(ctx, state, opts.statuses !== undefined);
 			if (opts.releases !== undefined) {
@@ -4288,7 +4289,7 @@ export function workspaceProposalRepairActionIntentProjector(
 				ctx.down([["DATA", { kind: "repair-action-intent-validation-result", value: result }]]);
 			}
 			ctx.state.set(state);
-		},
+		}),
 		runtimeOptions(name, "workspaceProposalRepairActionIntentProjector"),
 	);
 	return {
@@ -4324,7 +4325,7 @@ export function workspaceProposalRepairSuccessorProposalIntakePreviewProjector(
 		| undefined
 	>(
 		deps,
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			const state = repairActionIntentGraphState(ctx);
 			ingestRepairActionIntentGraphFacts(ctx, state, opts.statuses !== undefined);
 			if (opts.releases !== undefined) {
@@ -4370,7 +4371,7 @@ export function workspaceProposalRepairSuccessorProposalIntakePreviewProjector(
 				ctx.down([["DATA", { kind: "successor-proposal-intake-preview", value: preview }]]);
 			}
 			ctx.state.set(state);
-		},
+		}),
 		runtimeOptions(name, "workspaceProposalRepairSuccessorProposalIntakePreviewProjector"),
 	);
 	return {
@@ -4419,7 +4420,7 @@ export function workspaceProposalRepairSuccessorProposalReadyRequestPreparationP
 		| undefined
 	>(
 		deps,
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			const state = repairSuccessorPreparationGraphState<TDraft>(ctx);
 			for (const raw of depBatch(ctx, 0) ?? []) {
 				const preview = raw as WorkspaceProposalRepairSuccessorProposalIntakePreview;
@@ -4479,7 +4480,7 @@ export function workspaceProposalRepairSuccessorProposalReadyRequestPreparationP
 				}
 			}
 			ctx.state.set(state);
-		},
+		}),
 		runtimeOptions(
 			name,
 			"workspaceProposalRepairSuccessorProposalReadyRequestPreparationProjector",

@@ -10,6 +10,7 @@
 import { depBatch, depLatest } from "../ctx/types.js";
 import type { Graph } from "../graph/graph.js";
 import type { Node } from "../node/node.js";
+import { oneArrayPerRun } from "../node/one-array-per-run.js";
 import type { FactId, MemoryAnswer, MemoryFragment } from "./semantic-memory.js";
 import type {
 	KnowledgeGraphCursor,
@@ -409,13 +410,13 @@ function retrievalProjection<TFact, T>(
 ): Node<TFact> {
 	return graph.node<TFact>(
 		[snapshot],
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			for (const raw of depBatch(ctx, 0) ?? []) {
 				const fact = raw as MemoryRetrievalSnapshot<T>;
 				const selected = select(fact);
 				if (selected !== undefined) ctx.down([["DATA", selected]]);
 			}
-		},
+		}),
 		{
 			name,
 			factory,
@@ -434,11 +435,11 @@ function kgProjection<TFact>(
 ): Node<TFact> {
 	return graph.node<TFact>(
 		[snapshot],
-		(ctx) => {
+		oneArrayPerRun((ctx) => {
 			for (const raw of depBatch(ctx, 0) ?? []) {
 				ctx.down([["DATA", select(raw as KnowledgeGraphSnapshot)]]);
 			}
-		},
+		}),
 		{
 			name,
 			factory,
