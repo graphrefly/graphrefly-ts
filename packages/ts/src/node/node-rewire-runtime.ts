@@ -63,26 +63,19 @@ export function nodeRequestRewireDiff<T>(
 	});
 }
 
-/**
- * Internal: package code that owns a node changes its declared dependencies from outside, such as
- * a collection adding a folder or the held bridge attaching a source. Not public: a host changes a
- * node's definition with replace.
- */
-export function rewireOwnedNode(node: Node<unknown>, deps: Node<unknown>[], fn?: NodeFn): void {
-	nodeRuntimeHost(node)._rewire(deps, fn, { declare: true });
-}
-
-export function addOwnedNodeDep(node: Node<unknown>, dep: Node<unknown>, fn?: NodeFn): void {
-	const current = node.deps;
-	rewireOwnedNode(node, current.includes(dep) ? [...current] : [...current, dep], fn);
-}
-
-export function removeOwnedNodeDep(node: Node<unknown>, dep: Node<unknown>, fn?: NodeFn): void {
-	rewireOwnedNode(
-		node,
-		node.deps.filter((d) => d !== dep),
-		fn,
-	);
+/** Internal: apply a rewire by difference now, from inside a request; dropped after a close. */
+export function nodeApplyRewireDiff<T>(
+	self: NodeRuntimeHost<T>,
+	signal: AbortSignal,
+	add: readonly Node<unknown>[],
+	remove: readonly Node<unknown>[],
+): void {
+	if (self._released || signal.aborted) return;
+	const current = self._slot.deps;
+	const deps = current.filter((d) => !remove.includes(d));
+	for (const d of add) if (!deps.includes(d)) deps.push(d);
+	if (deps.length === current.length && deps.every((d, i) => d === current[i])) return;
+	self._rewire(deps);
 }
 
 export function nodeRewire<T>(

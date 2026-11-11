@@ -9,6 +9,7 @@ import { depBatch, depCount, type NodeFn } from "../ctx/types.js";
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
 import { canonicalTupleKey } from "../identity.js";
+import { attachableInput } from "../node/attachable-input.js";
 import type { Node } from "../node/node.js";
 import {
 	attachMessageBusCommandSource,
@@ -128,12 +129,15 @@ export function messageBus<TTopic extends string>(
 			for (const command of depBatch(ctx, i) ?? []) ctx.down([["DATA", command]]);
 		}
 	};
+	const commandSources = attachableInput();
 	const commands = graph.node<MessageBusCommand>([], commandBody, {
 		name: `${name}/commands`,
 		factory: "messageBusCommands",
 		complete: "manual",
 		error: "manual",
+		setup: commandSources.setup,
 	});
+	commandSources.bind(commands as Node<unknown>);
 	const state: MessageBusState = {
 		graph,
 		name,
@@ -148,6 +152,7 @@ export function messageBus<TTopic extends string>(
 		deadLetters: [],
 		deadLetterSeq: 0,
 		commandBody,
+		commandSources,
 	};
 	const runtime = graph.node<RuntimeEvent>(
 		[commands],

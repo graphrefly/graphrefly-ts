@@ -14,7 +14,7 @@ import {
 	strictJsonCodec,
 } from "../index.js";
 import { eachMessage } from "../node/each-message.js";
-import { addOwnedNodeDep } from "../node/node-rewire-runtime.js";
+import { addOwnedNodeDep } from "./helpers/owned-rewire.js";
 
 function collect(n: { subscribe(s: (m: Message) => void): () => void }) {
 	const msgs: Message[] = [];

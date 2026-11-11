@@ -1,6 +1,7 @@
 import { deferAfterBatchForTarget } from "../batch/batch.js";
 import type { NodeFn } from "../ctx/types.js";
 import type { Graph } from "../graph/graph.js";
+import type { AttachableInput } from "../node/attachable-input.js";
 import { eachMessage } from "../node/each-message.js";
 import type { Node } from "../node/node.js";
 import { validateNodeRewire } from "../node/node-rewire-runtime.js";
@@ -11,6 +12,7 @@ export interface MessageBusInternalState {
 	readonly graph: Graph;
 	readonly name: string;
 	readonly commandBody: NodeFn;
+	readonly commandSources: AttachableInput;
 }
 
 const busStates = new WeakMap<object, MessageBusInternalState>();
@@ -33,42 +35,9 @@ export function attachMessageBusCommandSource(
 	if (state.graph !== graph) throw new Error("messageBus: command source graph must match");
 	const busCommands = (bus as { readonly commands?: Node<MessageBusCommand> }).commands;
 	if (busCommands === undefined) throw new Error("messageBus: missing commands node");
-	const host = nodeRuntimeHost(busCommands);
-	// Each helper invocation can acquire this binding only when its add actually commits.
-	// A duplicate add creates no second lease, including two queued adds of the same identity.
-	let ownsBinding = false;
-	const nextDeps = (add: boolean): Node<unknown>[] =>
-		add
-			? busCommands.deps.includes(commands)
-				? [...busCommands.deps]
-				: [...busCommands.deps, commands]
-			: busCommands.deps.filter((dep) => dep !== commands);
-	const apply = (add: boolean, deferred: boolean) => {
-		const present = busCommands.deps.includes(commands);
-		if (add ? present : !ownsBinding || !present) return;
-		host._assertNotReleased("rewire");
-		const next = nextDeps(add);
-		validateNodeRewire(host, next);
-		try {
-			host._rewire(next, state.commandBody, { declare: true });
-		} finally {
-			// Rewire may commit deps before dependency activation throws. Retain actual ownership.
-			ownsBinding = busCommands.deps.includes(commands);
-		}
-	};
-	const request = (add: boolean) => {
-		if (!add && (!ownsBinding || !busCommands.deps.includes(commands))) {
-			// A pending add may still acquire this lease at the same existing boundary.
-			// Otherwise this is already absent; no mutation checks or second lease are needed.
-			deferAfterBatchForTarget(busCommands, () => apply(false, true));
-			return;
-		}
-		host._assertNotReleased("rewire");
-		validateNodeRewire(host, nextDeps(add));
-		if (!deferAfterBatchForTarget(busCommands, () => apply(add, true))) apply(add, false);
-	};
-	request(true);
-	return () => request(false);
+	// The bus command node rewires itself to its attached sources (no graph-level rewire). A
+	// duplicate attach adds no second binding, and only the attach that added it detaches it.
+	return state.commandSources.attach(commands as Node<unknown>);
 }
 
 export function attachMessageBusDeferredCommandSink(

@@ -13,7 +13,6 @@ import { Graph } from "../graph/graph.js";
 import { NodeCore, type NodeId } from "../node/core.js";
 import { eachMessage } from "../node/each-message.js";
 import { Node } from "../node/node.js";
-import { rewireOwnedNode } from "../node/node-rewire-runtime.js";
 import { nodeRuntimeHost } from "../node/node-runtime-host.js";
 import { checkpointStateOfNode, subscriberCountOfNode } from "../node/runtime-accessors.js";
 import {
@@ -30,6 +29,7 @@ import {
 	causalOccurrenceBundle,
 	causalOccurrenceDigest,
 } from "../solutions/causal-occurrence.js";
+import { rewireOwnedNode } from "./helpers/owned-rewire.js";
 
 afterEach(() => vi.restoreAllMocks());
 

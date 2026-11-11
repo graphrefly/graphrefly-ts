@@ -13,8 +13,8 @@
  */
 
 import { type Ctx, depBatch, depCount, depLatest } from "../../ctx/types.js";
+import { attachableInput } from "../../node/attachable-input.js";
 import { Node, node } from "../../node/node.js";
-import { addOwnedNodeDep, removeOwnedNodeDep } from "../../node/node-rewire-runtime.js";
 import { errorPayload } from "../../protocol/messages.js";
 import type { Operator } from "../operators.js";
 import type { OrderedCapacityPolicy, ReactiveOpt, ViewCachePolicy } from "../policies/types.js";
@@ -398,12 +398,14 @@ function createReactiveIndex<K, V = unknown>(
 		enforceCapacity();
 	};
 
+	// The folders the collection binds attach to its apply node, which rewires itself to them.
+	const folders = attachableInput();
 	function ensureApply(): Node<IndexChange<K, V>> {
 		if (apply !== undefined) return apply;
 		const op: Operator<unknown, IndexChange<K, V>> = {
 			factory: "reactiveIndex.capacityPolicy",
 			body: applyBody,
-			opts: { partial: true },
+			opts: { partial: true, setup: folders.setup },
 		};
 		const deps = capacityPolicy ? [capacityPolicy as Node<unknown>] : [];
 		apply = graph
@@ -415,8 +417,10 @@ function createReactiveIndex<K, V = unknown>(
 					...base,
 					factory: "reactiveIndex.capacityPolicy",
 					partial: true,
+					setup: folders.setup,
 					name: name ? `${name}.capacityPolicy` : undefined,
 				});
+		folders.bind(apply as Node<unknown>);
 		releaseApply = graph
 			? graph.retain(apply, { reason: "reactiveIndex.capacityPolicy" })
 			: apply.subscribe(() => {});
@@ -585,13 +589,13 @@ function createReactiveIndex<K, V = unknown>(
 				meta: { kind: "collection_bind_source", collection: "reactiveIndex" },
 			});
 			bindDeps.add(folder as Node<unknown>);
-			const applyNode = ensureApply();
-			addOwnedNodeDep(applyNode, folder as Node<unknown>, applyBody);
+			ensureApply();
+			const detach = folders.attach(folder as Node<unknown>);
 			let active = true;
 			const dispose = () => {
 				if (!active) return;
 				active = false;
-				removeOwnedNodeDep(applyNode, folder as Node<unknown>, applyBody);
+				detach();
 			};
 			binds.push(dispose);
 			return dispose;

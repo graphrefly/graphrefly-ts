@@ -3,8 +3,8 @@ import { prepareConstruction } from "../graph/construction-scope.js";
 import { Graph, releaseGraphNodes } from "../graph/graph.js";
 import type { TopologyEvent } from "../graph/inspect.js";
 import { Node } from "../node/node.js";
-import { rewireOwnedNode } from "../node/node-rewire-runtime.js";
 import { releaseRuntimeOfNode } from "../node/runtime-accessors.js";
+import { rewireOwnedNode } from "./helpers/owned-rewire.js";
 
 const graphs: Graph[] = [];
 const bare: Node<unknown>[] = [];

@@ -7,7 +7,6 @@ import { Graph } from "../graph/graph.js";
 import { stableJsonString } from "../json/codec.js";
 import { eachMessage } from "../node/each-message.js";
 import type { Node } from "../node/node.js";
-import { removeOwnedNodeDep } from "../node/node-rewire-runtime.js";
 import type { Message } from "../protocol/messages.js";
 import {
 	assertCausalOccurrenceTopology,
@@ -30,6 +29,7 @@ import {
 	causalOccurrenceDigest,
 	causalOccurrenceRequiredEdges,
 } from "../solutions/causal-occurrence.js";
+import { removeOwnedNodeDep } from "./helpers/owned-rewire.js";
 
 const digest = (char: string) => `sha256:${char.repeat(64)}`;
 const problem = (code: string): DataIssue => ({

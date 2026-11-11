@@ -25,7 +25,7 @@ import { Dispatcher, type Handle } from "../dispatcher/index.js";
 import { ColdConstructionError, ConstructionScope } from "../graph/construction-scope.js";
 import { Graph } from "../graph/graph.js";
 import { eachMessage } from "../node/each-message.js";
-import { removeOwnedNodeDep } from "../node/node-rewire-runtime.js";
+import { removeOwnedNodeDep } from "./helpers/owned-rewire.js";
 
 it("scheduler failure before write retains known no-submit without executing", async () => {
 	const run = runHost();

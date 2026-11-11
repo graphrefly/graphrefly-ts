@@ -11,6 +11,7 @@
 import { performance } from "node:perf_hooks";
 import {
 	batch,
+	type Ctx,
 	depLatest,
 	graph,
 	type Message,
@@ -20,7 +21,6 @@ import {
 	type StateNode,
 } from "../index.js";
 import { eachMessage } from "../node/each-message.js";
-import { rewireOwnedNode } from "../node/node-rewire-runtime.js";
 
 interface ProbeResult {
 	name: string;
@@ -178,9 +178,14 @@ function rewireChurnProbe(turns = 10_000): string {
 	const body: NodeFn = (ctx) => {
 		ctx.down([["DATA", (depLatest(ctx, 0) as number) + 1]]);
 	};
-	const d = g.node<number>([a], body);
+	let kept: Ctx | undefined;
+	const d = g.node<number>([a], body, {
+		setup: (ctx) => {
+			kept = ctx;
+		},
+	});
 	const sink = subscribeCounts(d);
-	for (let i = 0; i < turns; i++) rewireOwnedNode(d, [i % 2 === 0 ? b : a], body);
+	for (let i = 0; i < turns; i++) kept?.rewire([i % 2 === 0 ? b : a]);
 	const delivered = sink.dataCount();
 	const expected = turns + 1;
 	sink.unsubscribe();

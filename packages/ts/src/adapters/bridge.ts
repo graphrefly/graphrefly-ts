@@ -6,6 +6,7 @@
  * state is surfaced through graph-visible attempts/status/errors nodes.
  */
 
+import type { NodeFn } from "../ctx/types.js";
 import { type Ctx, depBatch } from "../ctx/types.js";
 import type { Graph } from "../graph/graph.js";
 import {
@@ -114,7 +115,7 @@ export type {
 	WireBridgeStatus,
 } from "./bridge-types.js";
 
-import { rewireOwnedNode } from "../node/node-rewire-runtime.js";
+import { nodeRuntimeHost } from "../node/node-runtime-host.js";
 import {
 	guardedInboundNode,
 	invalidIngress,
@@ -146,6 +147,15 @@ import {
 	validateInboundEnvelope,
 	validatePayloadForType,
 } from "./bridge-validation.js";
+
+/**
+ * The held bridge (phase 6 of graphrefly-ts:D797-KERNEL-MIGRATION-TS) still changes its command
+ * and inbound nodes' declared dependencies from outside, through the internal rewire. A deviation
+ * kept minimal until the root settles the bridge model; the kernel has no graph-level rewire.
+ */
+function heldBridgeRewire(node: Node<unknown>, deps: Node<unknown>[], fn: NodeFn): void {
+	nodeRuntimeHost(node)._rewire(deps, fn, { declare: true });
+}
 
 const bridgeCommandSources = new WeakMap<
 	WireBridgeBundle<unknown, unknown>,
@@ -1219,10 +1229,10 @@ function attachWireBridgeCommandSource<TOutbound, TInbound>(
 	const previousSources = [...sources];
 	if (!sources.includes(source)) sources.push(source);
 	try {
-		rewireOwnedNode(bridge.command, [...sources], wireBridgeCommandSourceFn(sources.length));
+		heldBridgeRewire(bridge.command, [...sources], wireBridgeCommandSourceFn(sources.length));
 	} catch (error) {
 		sources.splice(0, sources.length, ...previousSources);
-		rewireOwnedNode(
+		heldBridgeRewire(
 			bridge.command,
 			[...previousSources],
 			wireBridgeCommandSourceFn(previousSources.length),
@@ -1245,14 +1255,14 @@ function detachWireBridgeCommandSource<TOutbound, TInbound>(
 	const nextSources = sources.filter((candidate) => candidate !== source);
 	sources.splice(0, sources.length, ...nextSources);
 	try {
-		rewireOwnedNode(
+		heldBridgeRewire(
 			bridge.command,
 			[...nextSources],
 			wireBridgeCommandSourceFn(nextSources.length),
 		);
 	} catch (error) {
 		sources.splice(0, sources.length, ...previousSources);
-		rewireOwnedNode(
+		heldBridgeRewire(
 			bridge.command,
 			[...previousSources],
 			wireBridgeCommandSourceFn(previousSources.length),
@@ -1275,14 +1285,14 @@ function attachWireBridgeInboundSource<TOutbound, TInbound>(
 	const previousSources = [...sources];
 	if (!sources.includes(source)) sources.push(source);
 	try {
-		rewireOwnedNode(
+		heldBridgeRewire(
 			wireBridgeInboundTarget(bridge),
 			[...sources],
 			wireBridgeInboundSourceFn(sources.length),
 		);
 	} catch (error) {
 		sources.splice(0, sources.length, ...previousSources);
-		rewireOwnedNode(
+		heldBridgeRewire(
 			wireBridgeInboundTarget(bridge),
 			[...previousSources],
 			wireBridgeInboundSourceFn(previousSources.length),
@@ -1307,14 +1317,14 @@ function detachWireBridgeInboundSource<TOutbound, TInbound>(
 	const nextSources = sources.filter((candidate) => candidate !== source);
 	sources.splice(0, sources.length, ...nextSources);
 	try {
-		rewireOwnedNode(
+		heldBridgeRewire(
 			wireBridgeInboundTarget(bridge),
 			[...nextSources],
 			wireBridgeInboundSourceFn(nextSources.length),
 		);
 	} catch (error) {
 		sources.splice(0, sources.length, ...previousSources);
-		rewireOwnedNode(
+		heldBridgeRewire(
 			wireBridgeInboundTarget(bridge),
 			[...previousSources],
 			wireBridgeInboundSourceFn(previousSources.length),

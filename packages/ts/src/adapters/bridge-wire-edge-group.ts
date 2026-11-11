@@ -1,8 +1,8 @@
+import type { NodeFn } from "../ctx/types.js";
 import { type Ctx, depBatch, depLiveWaves, depWaves } from "../ctx/types.js";
 import type { Graph } from "../graph/graph.js";
 import { compoundTupleKey } from "../identity.js";
 import type { Node } from "../node/node.js";
-import { rewireOwnedNode } from "../node/node-rewire-runtime.js";
 import { nodeRuntimeHost } from "../node/node-runtime-host.js";
 import { SENTINEL } from "../protocol/messages.js";
 import type { CanonicalWireEdgeFrame } from "./bridge-protobuf.js";
@@ -12,6 +12,15 @@ import type {
 	WireBridgeEnvelope,
 	WireBridgeProtobufData,
 } from "./bridge-types.js";
+
+/**
+ * The held bridge (phase 6 of graphrefly-ts:D797-KERNEL-MIGRATION-TS) still changes its command
+ * and inbound nodes' declared dependencies from outside, through the internal rewire. A deviation
+ * kept minimal until the root settles the bridge model; the kernel has no graph-level rewire.
+ */
+function heldBridgeRewire(node: Node<unknown>, deps: Node<unknown>[], fn: NodeFn): void {
+	nodeRuntimeHost(node)._rewire(deps, fn, { declare: true });
+}
 
 export interface WireEdgeGroupEdge {
 	readonly edgeId: string;
@@ -261,7 +270,7 @@ export function wireEdgeGroup(
 	let releaseInboundProjectorDrain: (() => void) | undefined = graph.retain(inboundProjectorDrain, {
 		reason: `${name}.wireEdgeGroup.inboundProjectorDrain`,
 	});
-	rewireOwnedNode(bridge.command, [commands], commandSourceFn());
+	heldBridgeRewire(bridge.command, [commands], commandSourceFn());
 	let released = false;
 	return {
 		inbound,
@@ -269,7 +278,7 @@ export function wireEdgeGroup(
 		issues,
 		release() {
 			if (released) return;
-			rewireOwnedNode(bridge.command, [], commandSourceFn());
+			heldBridgeRewire(bridge.command, [], commandSourceFn());
 			const commit = () => {
 				topology.release({ reason: `${name}.wireEdgeGroup.release` });
 				released = true;
@@ -281,7 +290,7 @@ export function wireEdgeGroup(
 					releaseInboundProjectorDrain === undefined ||
 					!isPrivateReleaseBlock(error, inboundProjectorDrainName)
 				) {
-					rewireOwnedNode(bridge.command, [commands], commandSourceFn());
+					heldBridgeRewire(bridge.command, [commands], commandSourceFn());
 					throw error;
 				}
 				const releasePrivateDrain = releaseInboundProjectorDrain;
@@ -290,7 +299,7 @@ export function wireEdgeGroup(
 				try {
 					commit();
 				} catch (commitError) {
-					rewireOwnedNode(bridge.command, [commands], commandSourceFn());
+					heldBridgeRewire(bridge.command, [commands], commandSourceFn());
 					try {
 						releaseInboundProjectorDrain = graph.retain(inboundProjectorDrain, {
 							reason: `${name}.wireEdgeGroup.inboundProjectorDrain`,

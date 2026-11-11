@@ -11,7 +11,11 @@ import {
 } from "../ctx/types.js";
 import type { Wave } from "../protocol/messages.js";
 import type { Node } from "./node.js";
-import { nodeRequestRewire, nodeRequestRewireDiff } from "./node-rewire-runtime.js";
+import {
+	nodeApplyRewireDiff,
+	nodeRequestRewire,
+	nodeRequestRewireDiff,
+} from "./node-rewire-runtime.js";
 import type { NodeRuntimeHost } from "./node-runtime-host.js";
 import { terminalView, validateNodeOutput } from "./protocol-guards.js";
 import { withEnvironmentDrivers, withNodeCore } from "./runtime-accessors.js";
@@ -82,6 +86,7 @@ export function nodeMakeCtx<T>(
 			create: <U>(factory: () => Node<U>) =>
 				withEnvironmentDrivers(self._slot.environment, () => withNodeCore(self._core, factory)),
 			rewireDiff: (add, remove) => nodeRequestRewireDiff(self, signal, add, remove),
+			rewireDiffNow: (add, remove) => nodeApplyRewireDiff(self, signal, add, remove),
 		},
 	};
 	setCtxDepWaveOrigin(ctx, { live: snapshot?.waveLive ?? self._dep.waveLive });

@@ -37,7 +37,6 @@ import {
 import { Graph } from "../graph/graph.js";
 import { eachMessage } from "../node/each-message.js";
 import type { Node } from "../node/node.js";
-import { removeOwnedNodeDep } from "../node/node-rewire-runtime.js";
 import { checkpointStateOfNode } from "../node/runtime-accessors.js";
 import type { CausalBinding } from "../solutions/causal-occurrence/capabilities.js";
 import {
@@ -50,6 +49,7 @@ import type {
 	RuntimeState,
 } from "../solutions/causal-occurrence/contracts.js";
 import { causalOccurrenceDigest } from "../solutions/causal-occurrence/identity.js";
+import { removeOwnedNodeDep } from "./helpers/owned-rewire.js";
 
 vi.mock("node:crypto", async (importOriginal) => {
 	const original = await importOriginal<typeof import("node:crypto")>();

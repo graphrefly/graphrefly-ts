@@ -28,7 +28,7 @@ import {
 	rebindEvaluation,
 } from "../../../../scripts/fixtures/spending-preset-scenarios.js";
 import { eachMessage } from "../node/each-message.js";
-import { removeOwnedNodeDep } from "../node/node-rewire-runtime.js";
+import { removeOwnedNodeDep } from "./helpers/owned-rewire.js";
 
 type Mutable<T> = { -readonly [K in keyof T]: Mutable<T[K]> };
 type Run = ReturnType<typeof presetRun> | ReturnType<typeof referenceRun>;

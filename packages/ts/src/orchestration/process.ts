@@ -2,11 +2,12 @@
  * Graph-visible ProcessBundle orchestration helpers (D136/D156).
  */
 
-import { depBatch, type NodeFn } from "../ctx/types.js";
+import { depBatch, depCount, type NodeFn } from "../ctx/types.js";
 import type { Graph, TopologyGroup } from "../graph/graph.js";
 import { compoundTupleKey } from "../identity.js";
+import { type AttachableInput, attachableInput } from "../node/attachable-input.js";
 import type { Node } from "../node/node.js";
-import { rewireOwnedNode } from "../node/node-rewire-runtime.js";
+import type { Message } from "../protocol/messages.js";
 import type {
 	ProcessAuditRecord,
 	ProcessBundle,
@@ -79,13 +80,9 @@ type ProcessEffectRunnerFact<TResult = unknown> =
 	  }
 	| { readonly kind: "error"; readonly error: ProcessEffectRunnerError };
 
-interface AttachedProcessCommandSources<TCommand> {
-	sources: Node<ProcessCommand<TCommand>>[];
-}
-
 const processCommandSources = new WeakMap<
 	ProcessBundle<unknown, unknown, unknown, unknown>,
-	AttachedProcessCommandSources<unknown>
+	{ readonly input: AttachableInput; readonly detaches: Map<Node<unknown>, () => void> }
 >();
 
 /**
@@ -121,12 +118,34 @@ export function processBundle<
 	const name = opts.name ?? "process";
 	const now = opts.now ?? Date.now;
 	const topology = graph.topologyGroup({ name: `${name}.process` });
-	const command = topology.node<ProcessCommand<TCommand>>([], null, {
-		name: `${name}/command`,
-		factory: "processCommand",
+	// The host's dispatches are a state input; the command node forwards it and every attached
+	// command source, which it rewires itself to (no graph-level rewire, R-request-order).
+	const dispatchInput = topology.node<ProcessCommand<TCommand>>([], null, {
+		name: `${name}/dispatch`,
+		factory: "processDispatch",
 		complete: "manual",
 		error: "manual",
 	});
+	const commandSources = attachableInput();
+	const commandDetaches = new Map<Node<unknown>, () => void>();
+	const command = topology.node<ProcessCommand<TCommand>>(
+		[dispatchInput],
+		(ctx) => {
+			const out: Message[] = [];
+			for (let i = 0; i < depCount(ctx); i += 1)
+				for (const next of depBatch(ctx, i) ?? []) out.push(["DATA", next]);
+			if (out.length > 0) ctx.down(out);
+		},
+		{
+			name: `${name}/command`,
+			factory: "processCommand",
+			partial: true,
+			complete: "manual",
+			error: "manual",
+			setup: commandSources.setup,
+		},
+	);
+	commandSources.bind(command as Node<unknown>);
 	const runtime = topology.node<ProcessRuntimeFact<TState, TEvent, TEffect>>(
 		[command],
 		(ctx) => {
@@ -232,7 +251,7 @@ export function processBundle<
 		errors,
 		cursor,
 		dispatch(next) {
-			command.down([["DATA", next]]);
+			dispatchInput.down([["DATA", next]]);
 			return next;
 		},
 		release() {
@@ -254,7 +273,7 @@ export function processBundle<
 	};
 	processCommandSources.set(
 		bundle as unknown as ProcessBundle<unknown, unknown, unknown, unknown>,
-		{ sources: [] },
+		{ input: commandSources, detaches: commandDetaches },
 	);
 	return bundle;
 }
@@ -615,20 +634,8 @@ function attachProcessCommandSource(
 	if (attached === undefined) {
 		throw new Error("processEffectRunner: process command source registry missing");
 	}
-	const sources = attached.sources as Node<ProcessCommand<unknown>>[];
-	const previousSources = [...sources];
-	if (!sources.includes(source)) sources.push(source);
-	try {
-		rewireOwnedNode(process.command, [...sources], processCommandSourceFn(sources.length));
-	} catch (error) {
-		sources.splice(0, sources.length, ...previousSources);
-		rewireOwnedNode(
-			process.command,
-			[...previousSources],
-			processCommandSourceFn(previousSources.length),
-		);
-		throw error;
-	}
+	if (attached.detaches.has(source as Node<unknown>)) return;
+	attached.detaches.set(source as Node<unknown>, attached.input.attach(source as Node<unknown>));
 }
 
 function detachProcessCommandSource(
@@ -639,32 +646,9 @@ function detachProcessCommandSource(
 	if (attached === undefined) {
 		throw new Error("processEffectRunner: process command source registry missing");
 	}
-	const sources = attached.sources as Node<ProcessCommand<unknown>>[];
-	if (!sources.includes(source)) return;
-	const previousSources = [...sources];
-	const nextSources = sources.filter((candidate) => candidate !== source);
-	sources.splice(0, sources.length, ...nextSources);
-	try {
-		rewireOwnedNode(process.command, [...nextSources], processCommandSourceFn(nextSources.length));
-	} catch (error) {
-		sources.splice(0, sources.length, ...previousSources);
-		rewireOwnedNode(
-			process.command,
-			[...previousSources],
-			processCommandSourceFn(previousSources.length),
-		);
-		throw error;
-	}
-}
-
-function processCommandSourceFn(sourceCount: number) {
-	return (ctx: Parameters<NodeFn>[0]) => {
-		for (let i = 0; i < sourceCount; i += 1) {
-			for (const command of depBatch(ctx, i) ?? []) {
-				ctx.down([["DATA", command as ProcessCommand<unknown>]]);
-			}
-		}
-	};
+	const detach = attached.detaches.get(source as Node<unknown>);
+	attached.detaches.delete(source as Node<unknown>);
+	detach?.();
 }
 
 function processRuntimeDraft<TState>(

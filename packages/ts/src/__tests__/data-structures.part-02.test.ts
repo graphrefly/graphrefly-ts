@@ -19,7 +19,7 @@ import { graph } from "../graph/graph.js";
 import { Dispatcher, type Message } from "../index.js";
 import { eachMessage } from "../node/each-message.js";
 import type { Node } from "../node/node.js";
-import { rewireOwnedNode } from "../node/node-rewire-runtime.js";
+import { rewireOwnedNode } from "./helpers/owned-rewire.js";
 
 const _types = (m: Message[]) => m.map((x) => x[0]);
 const data = <T>(m: Message[]): T[] =>

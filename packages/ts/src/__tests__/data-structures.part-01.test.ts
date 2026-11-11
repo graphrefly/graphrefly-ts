@@ -685,11 +685,13 @@ describe("reactiveMap (D60 #3) — lazy TTL + LRU + delete-reason", () => {
 		const src = g.node<readonly [string, number]>([], null, { name: "src" });
 		const m = reactiveMap<string, number>({ graph: g, name: "map" });
 		m.setFrom(src as Node<readonly [string, number]>);
+		expect(g.describe().edges).toContainEqual({ from: "map.bind#0", to: "map.apply" });
 
 		expect(() => src.down([["DATA", 1 as unknown as readonly [string, number]]])).not.toThrow();
 		expect(m.size).toBe(0);
 		expect(g.describe().edges).toContainEqual({ from: "src", to: "map.bind#0" });
-		expect(g.describe().edges).toContainEqual({ from: "map.bind#0", to: "map.apply" });
+		// The apply node ended with the folder's ERROR; its closed lifetime is back on its declared
+		// dependencies (R-lifetime), so the attached folder is no longer one.
 		expect(g.describe().nodes.find((n) => n.id === "map.bind#0")?.factory).toBe(
 			"reactiveMap.bindSource",
 		);

@@ -26,11 +26,7 @@ import {
 	take,
 } from "../index.js";
 import { eachMessage } from "../node/each-message.js";
-import {
-	addOwnedNodeDep,
-	removeOwnedNodeDep,
-	rewireOwnedNode,
-} from "../node/node-rewire-runtime.js";
+import { addOwnedNodeDep, removeOwnedNodeDep, rewireOwnedNode } from "./helpers/owned-rewire.js";
 
 const types = (msgs: Message[]) => msgs.map((m) => m[0]);
 const data = (msgs: Message[]) =>

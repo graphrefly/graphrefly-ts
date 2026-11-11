@@ -7,7 +7,7 @@ import {
 	startConstruction,
 } from "../graph/construction-scope.js";
 import { Graph } from "../graph/graph.js";
-import { rewireOwnedNode } from "../node/node-rewire-runtime.js";
+import { rewireOwnedNode } from "./helpers/owned-rewire.js";
 
 for (const closingEdge of ["receipt-to-guard", "authority-to-receipt"] as const) {
 	it(`rejects the proposed quiet outcome cycle while cold: ${closingEdge}`, () => {

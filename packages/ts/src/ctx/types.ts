@@ -61,6 +61,8 @@ export interface CtxNodeBinding {
 	create<T>(factory: () => Node<T>): Node<T>;
 	/** Internal: a rewire by difference, computed when the request runs. */
 	rewireDiff(add: readonly Node<unknown>[], remove: readonly Node<unknown>[]): void;
+	/** Internal: a rewire by difference applied now, from inside a request; failures throw. */
+	rewireDiffNow(add: readonly Node<unknown>[], remove: readonly Node<unknown>[]): void;
 }
 
 /** @internal Operators grow and shrink their inner set by difference (R-request-order order). */

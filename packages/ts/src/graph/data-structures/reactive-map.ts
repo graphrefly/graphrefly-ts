@@ -32,8 +32,8 @@ import {
 	type NodeFn,
 } from "../../ctx/types.js";
 import { strictCanonicalJsonBytes } from "../../json/codec.js";
+import { attachableInput } from "../../node/attachable-input.js";
 import { Node } from "../../node/node.js";
-import { addOwnedNodeDep, removeOwnedNodeDep } from "../../node/node-rewire-runtime.js";
 import { errorPayload } from "../../protocol/messages.js";
 import { registerBackendStateContributor } from "../checkpoint.js";
 import { initNode, type Operator } from "../operators.js";
@@ -594,10 +594,12 @@ function createReactiveMap<K, V>(
 		scheduleTtl(ctx, applyBody);
 	};
 
+	// The folders the map binds attach to its apply node, which rewires itself to them.
+	const folders = attachableInput();
 	const applyOp: Operator<unknown, MapChange<K, V>> = {
 		factory: "reactiveMap.apply",
 		body: applyBody,
-		opts: { partial: true },
+		opts: { partial: true, setup: folders.setup },
 	};
 	apply = graph
 		? graph.initNode(applyOp, policyInputs.deps as readonly Node<unknown>[], {
@@ -697,6 +699,7 @@ function createReactiveMap<K, V>(
 	if (restorable) {
 		registerBackendStateContributor(intent as Node<unknown>, () => backend.checkpointEntries());
 	}
+	folders.bind(apply as Node<unknown>);
 	const releaseApply = graph
 		? graph.retain(apply, { reason: "reactiveMap.apply" })
 		: apply.subscribe(() => {});
@@ -809,12 +812,12 @@ function createReactiveMap<K, V>(
 				meta: { kind: "collection_bind_source", collection: "reactiveMap" },
 			});
 			bindDeps.add(folder as Node<unknown>);
-			addOwnedNodeDep(apply, folder as Node<unknown>, applyBody);
+			const detach = folders.attach(folder as Node<unknown>);
 			let active = true;
 			const dispose = () => {
 				if (!active) return;
 				active = false;
-				removeOwnedNodeDep(apply, folder as Node<unknown>, applyBody);
+				detach();
 			};
 			binds.push(dispose);
 			return dispose;

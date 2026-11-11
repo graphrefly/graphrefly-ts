@@ -13,8 +13,8 @@
  */
 
 import { type Ctx, depBatch, depCount, depLatest } from "../../ctx/types.js";
+import { attachableInput } from "../../node/attachable-input.js";
 import { Node } from "../../node/node.js";
-import { addOwnedNodeDep, removeOwnedNodeDep } from "../../node/node-rewire-runtime.js";
 import { errorPayload } from "../../protocol/messages.js";
 import type { Operator } from "../operators.js";
 import { trimHeadOverflow } from "../policies/collection.js";
@@ -231,12 +231,14 @@ export function reactiveList<T>(
 		enforceCapacity();
 	};
 
+	// The folders the collection binds attach to its apply node, which rewires itself to them.
+	const folders = attachableInput();
 	function ensureApply(): Node<ListChange<T>> {
 		if (apply !== undefined) return apply;
 		const op: Operator<unknown, ListChange<T>> = {
 			factory: "reactiveList.capacityPolicy",
 			body: applyBody,
-			opts: { partial: true },
+			opts: { partial: true, setup: folders.setup },
 		};
 		const deps = capacityPolicy ? [capacityPolicy as Node<unknown>] : [];
 		apply = graph
@@ -248,8 +250,10 @@ export function reactiveList<T>(
 					...base,
 					factory: "reactiveList.capacityPolicy",
 					partial: true,
+					setup: folders.setup,
 					name: options.name ? `${options.name}.capacityPolicy` : undefined,
 				});
+		folders.bind(apply as Node<unknown>);
 		releaseApply = graph
 			? graph.retain(apply, { reason: "reactiveList.capacityPolicy" })
 			: apply.subscribe(() => {});
@@ -365,13 +369,13 @@ export function reactiveList<T>(
 				meta: { kind: "collection_bind_source", collection: "reactiveList" },
 			});
 			bindDeps.add(folder as Node<unknown>);
-			const applyNode = ensureApply();
-			addOwnedNodeDep(applyNode, folder as Node<unknown>, applyBody);
+			ensureApply();
+			const detach = folders.attach(folder as Node<unknown>);
 			let active = true;
 			const dispose = () => {
 				if (!active) return;
 				active = false;
-				removeOwnedNodeDep(applyNode, folder as Node<unknown>, applyBody);
+				detach();
 			};
 			binds.push(dispose);
 			return dispose;

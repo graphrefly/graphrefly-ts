@@ -24,9 +24,9 @@ import {
 	plainBusiness,
 } from "../../../../scripts/fixtures/spending-preset-plain.js";
 import { eachMessage } from "../node/each-message.js";
-import { removeOwnedNodeDep } from "../node/node-rewire-runtime.js";
 import { assertCausalCapabilities } from "../solutions/causal-occurrence/capabilities.js";
 import type { CausalEvidence } from "../solutions/causal-occurrence/contracts.js";
+import { removeOwnedNodeDep } from "./helpers/owned-rewire.js";
 
 const extraStops: (() => void)[] = [];
 const runs: ReturnType<typeof presetRun>[] = [];
