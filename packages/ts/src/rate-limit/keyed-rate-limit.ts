@@ -1,5 +1,6 @@
 /** D651 focused keyed rate-limit contracts and graph-visible admission correlation. */
 import { depBatch } from "../ctx/types.js";
+import { eachInputArray } from "../graph/each-input-array.js";
 import type { Graph } from "../graph/graph.js";
 import { compoundTupleKey } from "../identity.js";
 import { strictCanonicalJsonBytes, strictJsonCodec } from "../json/codec.js";
@@ -1006,10 +1007,9 @@ function runtimeProjection<TFact extends KeyedRateLimitRuntimeFact>(
 	return graph.node<TFact>(
 		[runtime],
 		(ctx) => {
-			for (const raw of depBatch(ctx, 0) ?? []) {
-				const fact = raw as KeyedRateLimitRuntimeFact;
-				if (predicate(fact)) ctx.down([["DATA", fact]]);
-			}
+			eachInputArray<KeyedRateLimitRuntimeFact>(ctx, 0, (fact, out) => {
+				if (predicate(fact)) out.push(["DATA", fact]);
+			});
 		},
 		{
 			name,

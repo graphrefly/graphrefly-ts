@@ -14,6 +14,7 @@ import { canonicalTupleKey } from "../identity.js";
 import type { EventMessage, MessageEnvelope } from "../messaging/index.js";
 import { eventMessageIssue } from "../messaging/index.js";
 import type { Node } from "../node/node.js";
+import type { Message } from "../protocol/messages.js";
 
 export interface EventFlowSource<T = unknown> {
 	readonly source: string;
@@ -168,15 +169,19 @@ export function eventFlow<T = unknown>(
 					highWater: new Map(),
 				} satisfies EventFlowRuntimeState);
 			ctx.state.persist(true);
+			// A run's facts go out as one array, so a first subscriber's snapshot holds them all
+			// (R-subscription).
+			const out: Message[] = [];
 			for (let i = 0; i < sources.length; i++) {
 				const source = sources[i];
 				for (const raw of depBatch(ctx, i) ?? []) {
 					reduceEventSource(raw, source.source, flowId, now(), state, (fact) =>
-						ctx.down([["DATA", fact as EventFlowRuntimeFact<T>]]),
+						out.push(["DATA", fact as EventFlowRuntimeFact<T>]),
 					);
 				}
 			}
 			ctx.state.set(state);
+			if (out.length > 0) ctx.down(out);
 		},
 		{
 			name: `${name}/runtime`,

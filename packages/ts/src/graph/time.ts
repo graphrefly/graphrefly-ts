@@ -53,6 +53,7 @@ import {
 } from "../ctx/types.js";
 import type { Node } from "../node/node.js";
 import { errorPayload } from "../protocol/messages.js";
+import { eachInputArray } from "./each-input-array.js";
 import { exhaustMap, mergeMap, switchMap } from "./higher-order.js";
 import { filter, initNode, map, merge, type Operator } from "./operators.js";
 import { fromAny, interval, type NodeInput, of, timer } from "./sources.js";
@@ -321,7 +322,9 @@ export function timeout<S>(source: Node<S>, ms: number): Node<S> {
 			// a source value forwards as-is and resets the idle window.
 			const sb = srcBatch as readonly S[] | null;
 			if (sb != null && sb.length > 0) {
-				for (const v of sb) ctx.down([["DATA", v]]);
+				eachInputArray(ctx, 0, (v, out) => {
+					out.push(["DATA", v]);
+				});
 				const old = st.timer;
 				const next = makeTimer();
 				st.timer = next;

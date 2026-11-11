@@ -43,8 +43,10 @@ export function nodeSubscribeDepAt<T>(
 ): void {
 	const idx0 = self._slot.deps.indexOf(depNode);
 	const box = { v: idx0 };
-	let ignoreInitialPush = opts.seedRestored === true;
-	if (ignoreInitialPush && idx0 !== -1) self._seedRestoredDepAt(idx0, depNode);
+	// A seeded restore holds what the dependency held at the checkpoint; a dependency that held
+	// nothing and has something after activating gives real input through its snapshot.
+	if (opts.seedRestored === true && idx0 !== -1) self._seedRestoredDepAt(idx0, depNode);
+	let ignoreInitialPush = opts.seedRestored === true && nodeRuntimeHost(depNode)._value.hasData;
 	const dependent: import("../ctx/types.js").DependentSink = (msg, delivery) => {
 		if (ignoreInitialPush && delivery?.snapshot === true) return;
 		if (ignoreInitialPush) ignoreInitialPush = false;

@@ -35,6 +35,7 @@ import {
 } from "../ctx/types.js";
 import type { Node } from "../node/node.js";
 import { errorPayload } from "../protocol/messages.js";
+import { eachInputArray } from "./each-input-array.js";
 import { initNode, type Operator } from "./operators.js";
 import { fromAsyncIter, fromIter, fromPromise, type NodeInput, of } from "./sources.js";
 
@@ -160,10 +161,10 @@ function mapOperator<TIn, TOut>(
 			const queue = st.queue;
 
 			// 1. forward any inner DATA this wave (index-independent — flatten whichever inner fired).
-			for (let i = 1; i < depCount(ctx); i++) {
-				const b = depBatch(ctx, i);
-				if (b && b.length > 0) for (const v of b) ctx.down([["DATA", v]]);
-			}
+			for (let i = 1; i < depCount(ctx); i++)
+				eachInputArray(ctx, i, (v, out) => {
+					out.push(["DATA", v]);
+				});
 
 			// D81: source ERROR / inner ERROR are terminal operator edges. Detach live inners first,
 			// then emit ERROR. Same-wave inner DATA that preceded the terminal is forwarded above.
@@ -416,10 +417,10 @@ export function repeat<S>(factory: () => NodeInput<S>, count: number): Operator<
 				inner: null,
 			}) as RepeatState;
 			// 1. forward the current inner's DATA this wave (the inner is the sole dep once wired).
-			for (let i = 0; i < depCount(ctx); i++) {
-				const b = depBatch(ctx, i);
-				if (b && b.length > 0) for (const v of b) ctx.down([["DATA", v]]);
-			}
+			for (let i = 0; i < depCount(ctx); i++)
+				eachInputArray(ctx, i, (v, out) => {
+					out.push(["DATA", v]);
+				});
 			// 2. activation: mint round 0's inner.
 			if (!st.started) {
 				st.started = true;

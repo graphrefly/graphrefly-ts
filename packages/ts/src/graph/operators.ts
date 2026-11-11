@@ -29,6 +29,7 @@ import {
 	depCount,
 	depLatest,
 	depTerminal,
+	depWaves,
 	isTerminalComplete,
 	isTerminalError,
 	type NodeFn,
@@ -36,8 +37,9 @@ import {
 } from "../ctx/types.js";
 import type { NodeCore } from "../node/core.js";
 import { Node, type NodeOptions, withNodeCore } from "../node/node.js";
-import { errorPayload } from "../protocol/messages.js";
+import { errorPayload, type Message } from "../protocol/messages.js";
 import { type GraphCheckpointJson, toCheckpointJson } from "./checkpoint.js";
+import { eachInputArray } from "./each-input-array.js";
 import type { GraphRestoreDefinition, GraphRestoreEntry, GraphRestoreRegistry } from "./restore.js";
 
 /**
@@ -281,9 +283,9 @@ function mapFromFunction<S, T>(
 		factory: "map",
 		...(restore ? { restore } : {}),
 		body: (ctx) => {
-			const b = depBatch(ctx, 0);
-			if (!b) return;
-			for (const v of b) ctx.down([["DATA", fn(v as S)]]);
+			eachInputArray<S>(ctx, 0, (v, out) => {
+				out.push(["DATA", fn(v)]);
+			});
 		},
 	};
 }
@@ -308,9 +310,9 @@ export function filter<S>(pred: (v: S) => boolean): Operator<S, S> {
 	return {
 		factory: "filter",
 		body: (ctx) => {
-			const b = depBatch(ctx, 0);
-			if (!b) return;
-			for (const v of b) if (pred(v as S)) ctx.down([["DATA", v]]);
+			eachInputArray<S>(ctx, 0, (v, out) => {
+				if (pred(v)) out.push(["DATA", v]);
+			});
 		},
 	};
 }
@@ -336,13 +338,12 @@ export function scan<S, T>(reducer: (acc: T, v: S) => T, seed: T): Operator<S, T
 	return {
 		factory: "scan",
 		body: (ctx) => {
-			const b = depBatch(ctx, 0);
-			if (!b) return;
+			if (depWaves(ctx, 0).length === 0) return;
 			let acc = ctx.state.get<T>() ?? seed;
-			for (const v of b) {
-				acc = reducer(acc, v as S);
-				ctx.down([["DATA", acc]]);
-			}
+			eachInputArray<S>(ctx, 0, (v, out) => {
+				acc = reducer(acc, v);
+				out.push(["DATA", acc]);
+			});
 			ctx.state.set(acc);
 		},
 	};
@@ -371,15 +372,15 @@ export function take<S>(n: number): Operator<S, S> {
 				ctx.down([["COMPLETE"]]);
 				return;
 			}
-			const b = depBatch(ctx, 0);
-			if (!b) return;
 			let count = ctx.state.get<number>() ?? 0;
 			if (count >= n) return; // already satisfied
-			for (const v of b) {
-				if (count >= n) break;
+			eachInputArray(ctx, 0, (v, out) => {
 				count += 1;
-				ctx.down(count >= n ? [["DATA", v], ["COMPLETE"]] : [["DATA", v]]);
-			}
+				out.push(["DATA", v]);
+				if (count < n) return;
+				out.push(["COMPLETE"]);
+				return false;
+			});
 			ctx.state.set(count);
 		},
 	};
@@ -403,17 +404,15 @@ export function distinctUntilChanged<S>(eq: (a: S, b: S) => boolean = Object.is)
 	return {
 		factory: "distinctUntilChanged",
 		body: (ctx) => {
-			const b = depBatch(ctx, 0);
-			if (!b) return;
 			const prev = ctx.state.get<{ v: S }>();
 			let last = prev?.v;
 			let hasLast = prev !== undefined;
-			for (const v of b as readonly S[]) {
-				if (hasLast && eq(last as S, v)) continue;
+			eachInputArray<S>(ctx, 0, (v, out) => {
+				if (hasLast && eq(last as S, v)) return;
 				last = v;
 				hasLast = true;
-				ctx.down([["DATA", v]]);
-			}
+				out.push(["DATA", v]);
+			});
 			if (hasLast) ctx.state.set({ v: last as S });
 		},
 	};
@@ -438,12 +437,20 @@ export function merge<T>(): Operator<T, T> {
 		factory: "merge",
 		opts: { partial: true },
 		body: (ctx) => {
-			for (let i = 0; i < depCount(ctx); i++) {
-				const b = depBatch(ctx, i);
-				if (b && b.length > 0) {
-					for (const v of b) ctx.down([["DATA", v]]);
-				}
+			// The first run of a lifetime sends its dependencies' snapshots as one array, which a first
+			// subscriber receives as the snapshot (R-subscription); later input keeps its arrays.
+			if (ctx.state.get<boolean>() === undefined) {
+				ctx.state.set(true);
+				const out: Message[] = [];
+				for (let i = 0; i < depCount(ctx); i++)
+					for (const v of depBatch(ctx, i) ?? []) out.push(["DATA", v]);
+				if (out.length > 0) ctx.down(out);
+				return;
 			}
+			for (let i = 0; i < depCount(ctx); i++)
+				eachInputArray(ctx, i, (v, out) => {
+					out.push(["DATA", v]);
+				});
 		},
 	};
 }
@@ -496,16 +503,14 @@ export function pairwise<S>(): Operator<S, readonly [S, S]> {
 	return {
 		factory: "pairwise",
 		body: (ctx) => {
-			const b = depBatch(ctx, 0);
-			if (!b) return;
 			const st = ctx.state.get<{ prev: S }>();
 			let prev = st?.prev;
 			let hasPrev = st !== undefined;
-			for (const v of b as readonly S[]) {
-				if (hasPrev) ctx.down([["DATA", [prev as S, v] as const]]);
+			eachInputArray<S>(ctx, 0, (v, out) => {
+				if (hasPrev) out.push(["DATA", [prev as S, v] as const]);
 				prev = v;
 				hasPrev = true;
-			}
+			});
 			if (hasPrev) ctx.state.set({ prev: prev as S });
 		},
 	};
@@ -524,16 +529,14 @@ export function skip<S>(n: number): Operator<S, S> {
 	return {
 		factory: "skip",
 		body: (ctx) => {
-			const b = depBatch(ctx, 0);
-			if (!b) return;
 			let count = ctx.state.get<number>() ?? 0;
-			for (const v of b) {
+			eachInputArray(ctx, 0, (v, out) => {
 				if (count < n) {
 					count += 1;
-					continue;
+					return;
 				}
-				ctx.down([["DATA", v]]);
-			}
+				out.push(["DATA", v]);
+			});
 			ctx.state.set(count);
 		},
 	};
@@ -554,15 +557,14 @@ export function takeWhile<S>(pred: (v: S) => boolean): Operator<S, S> {
 	return {
 		factory: "takeWhile",
 		body: (ctx) => {
-			const b = depBatch(ctx, 0);
-			if (!b) return;
-			for (const v of b as readonly S[]) {
-				if (pred(v)) ctx.down([["DATA", v]]);
-				else {
-					ctx.down([["COMPLETE"]]);
+			eachInputArray<S>(ctx, 0, (v, out) => {
+				if (pred(v)) {
+					out.push(["DATA", v]);
 					return;
 				}
-			}
+				out.push(["COMPLETE"]);
+				return false;
+			});
 		},
 	};
 }
@@ -718,12 +720,10 @@ export function tap<S>(fnOrObserver: ((v: S) => void) | TapObserver<S>): Operato
 		return {
 			factory: "tap",
 			body: (ctx) => {
-				const b = depBatch(ctx, 0);
-				if (b)
-					for (const v of b) {
-						fn(v as S);
-						ctx.down([["DATA", v]]);
-					}
+				eachInputArray<S>(ctx, 0, (v, out) => {
+					fn(v);
+					out.push(["DATA", v]);
+				});
 			},
 		};
 	}
@@ -736,12 +736,10 @@ export function tap<S>(fnOrObserver: ((v: S) => void) | TapObserver<S>): Operato
 		},
 		body: (ctx) => {
 			// Values that arrived with the terminal in the same array come first (R-wave order).
-			const b = depBatch(ctx, 0);
-			if (b)
-				for (const v of b) {
-					obs.data?.(v as S);
-					ctx.down([["DATA", v]]);
-				}
+			eachInputArray<S>(ctx, 0, (v, out) => {
+				obs.data?.(v);
+				out.push(["DATA", v]);
+			});
 			const terminal = depTerminal(ctx, 0);
 			if (isTerminalComplete(terminal)) {
 				obs.complete?.();
@@ -777,16 +775,14 @@ export function onFirstData<S>(
 	return {
 		factory: "onFirstData",
 		body: (ctx) => {
-			const b = depBatch(ctx, 0);
-			if (!b) return;
 			let fired = ctx.state.get<boolean>() ?? false;
-			for (const v of b) {
-				if (!fired && where(v as S)) {
+			eachInputArray<S>(ctx, 0, (v, out) => {
+				if (!fired && where(v)) {
 					fired = true;
-					fn(v as S);
+					fn(v);
 				}
-				ctx.down([["DATA", v]]);
-			}
+				out.push(["DATA", v]);
+			});
 			ctx.state.set(fired);
 		},
 	};
@@ -848,18 +844,14 @@ export function settle<S>(opts: SettleOpts<S>): Operator<S, S> {
 			};
 			if (st.done) return;
 			st.waves++;
-			const b = depBatch(ctx, 0);
 			let sawChange = false;
-			if (b && b.length > 0) {
-				for (const v of b) {
-					const next = v as S;
-					const isChange = !st.hasValue || equals == null || !equals(st.last as S, next);
-					if (isChange) sawChange = true;
-					st.last = next;
-					st.hasValue = true;
-					ctx.down([["DATA", next]]);
-				}
-			}
+			eachInputArray<S>(ctx, 0, (next, out) => {
+				const isChange = !st.hasValue || equals == null || !equals(st.last as S, next);
+				if (isChange) sawChange = true;
+				st.last = next;
+				st.hasValue = true;
+				out.push(["DATA", next]);
+			});
 			st.quiet = sawChange ? 0 : st.quiet + 1;
 			const settled = st.hasValue && st.quiet >= quietWaves;
 			const exhausted = maxWaves != null && st.waves >= maxWaves;
@@ -905,9 +897,10 @@ export function rescue<S>(recover: (err: unknown) => S): Operator<S, S> {
 			error: "manual",
 		},
 		body: (ctx) => {
-			const b = depBatch(ctx, 0);
 			const terminal = depTerminal(ctx, 0);
-			if (b) for (const v of b) ctx.down([["DATA", v]]);
+			eachInputArray(ctx, 0, (v, out) => {
+				out.push(["DATA", v]);
+			});
 			if (isTerminalComplete(terminal)) {
 				ctx.down([["COMPLETE"]]);
 			} else if (isTerminalError(terminal)) {
@@ -976,7 +969,9 @@ export function valve<S>(opts?: ValveOpts): Operator<S, S> {
 
 			if (controlValue) {
 				if (srcBatch && srcBatch.length > 0) {
-					for (const v of srcBatch) ctx.down([["DATA", v]]);
+					eachInputArray(ctx, 0, (v, out) => {
+						out.push(["DATA", v]);
+					});
 				} else {
 					// Gate just opened this wave (control fired, source didn't): re-emit the last source value.
 					const srcLatest = depLatest(ctx, 0);

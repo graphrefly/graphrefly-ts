@@ -98,6 +98,27 @@ describe("C-16: a quiet node absorbs its input waves without leaving dependents 
 	});
 });
 
+describe("R-subscription: subscribing activates first; the first array is START plus the snapshot", () => {
+	it("a source's activation array reaches its first sink in the START array", () => {
+		const source = node<number>([], (ctx) =>
+			ctx.down([["DATA", 1], ["DATA", 1], ["DATA", 1], ["COMPLETE"]]),
+		);
+		const s = arrays();
+		source.subscribe(s.sink);
+		expect(s.log).toEqual([[["START"], ["DATA", 1], ["DATA", 1], ["DATA", 1], ["COMPLETE"]]]);
+	});
+
+	it("arrays an activation sent before the sink joined are not delivered separately", () => {
+		const source = node<number>([], (ctx) => {
+			ctx.down([["DATA", 1]]);
+			ctx.down([["DATA", 2]]);
+		});
+		const s = arrays();
+		source.subscribe(s.sink);
+		expect(s.log).toEqual([[["START"], ["DATA", 2]]]);
+	});
+});
+
 describe("C-23: ctx.waveData, ctx.terminal and the latest value are the function's only input", () => {
 	it("gives each dependency its arrays, terminal and latest value", () => {
 		const captures: { waves: unknown[][][]; terminal: unknown[]; latest: unknown[] }[] = [];

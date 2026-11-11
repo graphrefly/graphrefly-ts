@@ -16,7 +16,7 @@
 import type { Ctx } from "../ctx/types.js";
 import { eachMessage } from "../node/each-message.js";
 import type { Node, NodeOptions } from "../node/node.js";
-import { errorPayload } from "../protocol/messages.js";
+import { errorPayload, type Message } from "../protocol/messages.js";
 import { toCheckpointJson } from "./checkpoint.js";
 import type {
 	DriverCancel,
@@ -1041,8 +1041,9 @@ export function of<T = never>(...values: T[]): Operator<never, T> {
 	return source<T>(
 		"of",
 		(ctx) => {
-			for (const value of values) ctx.down([["DATA", value]]);
-			ctx.down([["COMPLETE"]]);
+			// One array: what a source sends at activation reaches a first subscriber as its snapshot
+			// (R-subscription).
+			ctx.down([...values.map((value) => ["DATA", value] as Message), ["COMPLETE"]]);
 		},
 		{ pool: "sync" },
 	);
@@ -1066,17 +1067,19 @@ export function fromIter<T>(iterable: Iterable<T>): Operator<never, T> {
 	return source<T>(
 		"fromIter",
 		(ctx) => {
-			// A throwing iterator is this source's ERROR after the values it gave (a throw out of the
-			// setup would drop them, R-failure).
+			// One array (R-subscription), ending with COMPLETE, or with ERROR after the values the
+			// iterator gave if it throws (a throw out of the setup would drop them, R-failure).
+			const out: Message[] = [];
 			try {
-				for (const v of iterable) ctx.down([["DATA", v]]);
+				for (const v of iterable) out.push(["DATA", v]);
+				out.push(["COMPLETE"]);
 			} catch (error) {
-				ctx.down([
-					["ERROR", errorPayload(error, "fromIter iterator threw without a valid error payload")],
+				out.push([
+					"ERROR",
+					errorPayload(error, "fromIter iterator threw without a valid error payload"),
 				]);
-				return;
 			}
-			ctx.down([["COMPLETE"]]);
+			ctx.down(out);
 		},
 		{ pool: "sync" },
 	);

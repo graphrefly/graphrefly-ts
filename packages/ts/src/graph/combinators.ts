@@ -32,6 +32,8 @@ import {
 	isTerminalNone,
 	terminalErrorValue,
 } from "../ctx/types.js";
+import type { Message } from "../protocol/messages.js";
+import { eachInputArray } from "./each-input-array.js";
 import type { Operator } from "./operators.js";
 
 /**
@@ -88,7 +90,9 @@ export function withLatestFrom<A, B>(): Operator<unknown, readonly [A, B]> {
 			// Primary values first (a secondary-only wave, or no secondary yet, sends nothing), then the
 			// primary's COMPLETE when it came in the same array.
 			if (b0 && sec !== undefined)
-				for (const v of b0) ctx.down([["DATA", [v, sec] as readonly [A, B]]]);
+				eachInputArray(ctx, 0, (v, out) => {
+					out.push(["DATA", [v, sec] as readonly [A, B]]);
+				});
 			if (isTerminalComplete(depTerminal(ctx, 0))) ctx.down([["COMPLETE"]]);
 		},
 	};
@@ -132,17 +136,16 @@ export function zip<T extends readonly unknown[]>(): Operator<unknown, T> {
 				if (b) for (const v of b) st.queues[i].push(v);
 				if (isTerminalComplete(depTerminal(ctx, i))) st.terminal[i] = true;
 			}
+			// The tuples a run forms go out as one array, with COMPLETE last if a dep is drained.
+			const out: Message[] = [];
 			while (st.queues.every((q) => q.length > 0)) {
-				ctx.down([["DATA", st.queues.map((q) => q.shift()) as unknown as T]]);
+				out.push(["DATA", st.queues.map((q) => q.shift()) as unknown as T]);
 			}
 			ctx.state.set(st);
 			// A terminal dep whose queue is now drained can never contribute another tuple → COMPLETE.
-			for (let i = 0; i < n; i++) {
-				if (st.terminal[i] && st.queues[i].length === 0) {
-					ctx.down([["COMPLETE"]]);
-					return;
-				}
-			}
+			if (st.terminal.some((ended, i) => ended && st.queues[i].length === 0))
+				out.push(["COMPLETE"]);
+			if (out.length > 0) ctx.down(out);
 		},
 	};
 }
@@ -179,21 +182,27 @@ export function concat<S>(): Operator<S, S> {
 				pending: [],
 				secondDone: false,
 			};
+			// What a run plays goes out as one array, with COMPLETE last when the second dep is done.
+			const out: Message[] = [];
+			const play = (values: readonly unknown[] | null) => {
+				if (values) for (const v of values) out.push(["DATA", v]);
+			};
 			if (st.phase === 0) {
-				if (firstBatch) for (const v of firstBatch) ctx.down([["DATA", v]]);
+				play(firstBatch);
 				if (secondBatch) for (const v of secondBatch) st.pending.push(v as S);
 				if (isTerminalComplete(secondTerminal)) st.secondDone = true;
 				if (isTerminalComplete(firstTerminal)) {
 					st.phase = 1;
-					for (const v of st.pending) ctx.down([["DATA", v]]);
+					play(st.pending);
 					st.pending = [];
-					if (st.secondDone) ctx.down([["COMPLETE"]]);
+					if (st.secondDone) out.push(["COMPLETE"]);
 				}
 			} else {
-				if (secondBatch) for (const v of secondBatch) ctx.down([["DATA", v]]);
-				if (isTerminalComplete(secondTerminal)) ctx.down([["COMPLETE"]]);
+				play(secondBatch);
+				if (isTerminalComplete(secondTerminal)) out.push(["COMPLETE"]);
 			}
 			ctx.state.set(st);
+			if (out.length > 0) ctx.down(out);
 		},
 	};
 }
@@ -253,9 +262,10 @@ export function race<S>(): Operator<S, S> {
 			if (st.winner === null) return;
 			// The winner's values, then its terminal when it came in the same array (also in the
 			// wave that picked it).
-			const b = depBatch(ctx, st.winner);
 			const terminal = depTerminal(ctx, st.winner);
-			if (b) for (const v of b) ctx.down([["DATA", v]]);
+			eachInputArray(ctx, st.winner, (v, out) => {
+				out.push(["DATA", v]);
+			});
 			if (isTerminalComplete(terminal)) ctx.down([["COMPLETE"]]);
 			else if (isTerminalError(terminal)) ctx.down([["ERROR", terminalErrorValue(terminal)]]);
 		},
@@ -322,19 +332,23 @@ export function bufferCount<S>(count: number): Operator<S, S[]> {
 		body: (ctx) => {
 			const b = depBatch(ctx, 0);
 			const buf = ctx.state.get<S[]>() ?? [];
+			// The buffers a run fills go out as one array, with the remainder and COMPLETE at the end.
+			const out: Message[] = [];
 			if (b) {
 				for (const v of b) {
 					buf.push(v as S);
-					if (buf.length >= count) ctx.down([["DATA", buf.splice(0, buf.length)]]);
+					if (buf.length >= count) out.push(["DATA", buf.splice(0, buf.length)]);
 				}
 			}
 			if (isTerminalComplete(depTerminal(ctx, 0))) {
-				if (buf.length > 0) ctx.down([["DATA", [...buf]]]);
+				if (buf.length > 0) out.push(["DATA", [...buf]]);
 				ctx.state.set([]);
-				ctx.down([["COMPLETE"]]);
+				out.push(["COMPLETE"]);
+				ctx.down(out);
 				return;
 			}
 			ctx.state.set(buf);
+			if (out.length > 0) ctx.down(out);
 		},
 	};
 }

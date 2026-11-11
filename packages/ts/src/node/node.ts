@@ -341,15 +341,21 @@ export class Node<T = unknown> {
 		// just inc/dec the depth.
 		enterWave();
 		try {
+			let left = false;
 			const unsubscribe = () => {
-				if (!this._lifecycle.subscribers.delete(subscriber)) return;
+				if (left) return;
+				left = true;
+				this._lifecycle.subscribers.delete(subscriber);
 				if (this._lifecycle.subscribers.size === 0) this._deactivate();
 			};
-			// D161: ownership precedes START, the snapshot and dependency activation.
+			// D161: ownership precedes dependency activation, START and the snapshot.
 			acquisition?.record(unsubscribe);
+			// R-subscription / R-lifetime: subscribing activates an inactive node first, so the first
+			// array is START plus the snapshot as the activation left it; arrays the activation sent
+			// before this subscriber joined are not delivered to it separately. An ended node's
+			// function never runs again.
+			if (!this._lifecycle.activated && this._value.terminal === undefined) this._activate();
 			this._lifecycle.subscribers.add(subscriber);
-			// R-subscription / R-terminals: an ended node can be subscribed; its snapshot carries its
-			// last values and then its terminal, and its function never runs again.
 			const terminal = this._value.terminal;
 			const start: Message[] = [
 				["START"],
@@ -370,10 +376,6 @@ export class Node<T = unknown> {
 						snapshot: true,
 					});
 			}
-			// R-subscription / R-lifetime: subscribing activates an inactive node; the activation's
-			// run is a wave of its own after the START array (see the phase 2 report: the reference
-			// activates before START, which open question Q-START-ORDER is about).
-			if (!this._lifecycle.activated && this._value.terminal === undefined) this._activate();
 
 			return unsubscribe;
 		} finally {

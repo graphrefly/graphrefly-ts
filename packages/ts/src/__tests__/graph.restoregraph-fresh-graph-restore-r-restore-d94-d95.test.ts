@@ -257,8 +257,8 @@ describe("restoreGraph — fresh graph restore (R-restore / D94 / D95)", () => {
 			restored.find("mapped") as { subscribe(s: (m: Message) => void): () => void },
 		);
 
-		// START comes first; the activation's run is a wave of its own (open question on order).
-		expect(types(msgs)).toEqual(["START", "PENDING", "DATA"]);
+		// R-subscription: activation comes first, so the first array is START plus its snapshot.
+		expect(types(msgs)).toEqual(["START", "DATA"]);
 		expect(restored.find("mapped")?.cache).toBe(2);
 	});
 
@@ -283,8 +283,9 @@ describe("restoreGraph — fresh graph restore (R-restore / D94 / D95)", () => {
 		});
 		const msgs = collect(restoredMapped);
 
-		expect(types(msgs)).toEqual(["START", "DATA", "PENDING", "DATA"]);
-		expect(msgs.filter((m) => m[0] === "DATA").map((m) => m[1])).toEqual([2, 11]);
+		// R-subscription: the activation's run happens before the sink joins; it sees the snapshot.
+		expect(types(msgs)).toEqual(["START", "DATA"]);
+		expect(msgs.filter((m) => m[0] === "DATA").map((m) => m[1])).toEqual([11]);
 		expect(restored.find("mapped")?.cache).toBe(11);
 	});
 

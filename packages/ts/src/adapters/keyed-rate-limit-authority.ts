@@ -1,7 +1,9 @@
 import { depBatch } from "../ctx/types.js";
+import { eachInputArray } from "../graph/each-input-array.js";
 import type { Graph } from "../graph/graph.js";
 import { compoundTupleKey } from "../identity.js";
 import type { Node } from "../node/node.js";
+import type { Message } from "../protocol/messages.js";
 import {
 	assertKeyedRateLimitOutcome,
 	assertKeyedRateLimitRequest,
@@ -166,6 +168,14 @@ export function attachKeyedRateLimitAuthority(
 				} satisfies KeyedRateLimitAuthorityAdapterRuntimeState);
 			state.active = true;
 			ctx.state.set(state);
+			// What a run sends goes out as one array, so a first subscriber's snapshot holds it all
+			// (R-subscription); a completion that arrives after the run is a wave of its own.
+			let inRun = true;
+			const pending: Message[] = [];
+			const send = (msgs: readonly Message[]): void => {
+				if (inRun) pending.push(...msgs);
+				else ctx.down(msgs);
+			};
 			for (const raw of depBatch(ctx, 0) ?? []) {
 				if (!state.active) break;
 				let request: KeyedRateLimitRequest;
@@ -173,7 +183,7 @@ export function attachKeyedRateLimitAuthority(
 					request = assertKeyedRateLimitRequest(raw);
 				} catch {
 					state.failed += 1;
-					ctx.down([
+					send([
 						["DATA", adapterError("malformed-request")],
 						["DATA", adapterStatus(state, "failed")],
 						["DATA", adapterCursor(state)],
@@ -183,7 +193,7 @@ export function attachKeyedRateLimitAuthority(
 				if (state.inFlight.size >= maxInFlight) {
 					state.failed += 1;
 					state.overflowed += 1;
-					ctx.down([
+					send([
 						["DATA", adapterError("request-overflow", request.requestId)],
 						["DATA", adapterStatus(state, "failed", request.requestId)],
 						["DATA", adapterCursor(state)],
@@ -197,7 +207,7 @@ export function attachKeyedRateLimitAuthority(
 				let completionDeliveryError: unknown = NO_COMPLETION_ERROR;
 				state.inFlight.add(attempt);
 				try {
-					ctx.down([
+					send([
 						["DATA", request],
 						["DATA", adapterStatus(state, "requested", request.requestId)],
 						["DATA", adapterCursor(state)],
@@ -218,7 +228,7 @@ export function attachKeyedRateLimitAuthority(
 						facts: readonly KeyedRateLimitAuthorityAdapterFact[],
 					): void => {
 						try {
-							ctx.down(facts.map((fact) => ["DATA", fact] as const));
+							send(facts.map((fact) => ["DATA", fact] as const));
 						} catch (error) {
 							completionDeliveryError = error;
 							throw error;
@@ -279,7 +289,7 @@ export function attachKeyedRateLimitAuthority(
 					state.inFlight.delete(attempt);
 					state.failed += 1;
 					const unavailable = unavailableOutcome(request, "authority-threw");
-					ctx.down([
+					send([
 						["DATA", adapterError("authority-threw", request.requestId)],
 						["DATA", unavailable],
 						["DATA", adapterStatus(state, "failed", request.requestId, unavailable.outcomeId)],
@@ -287,6 +297,8 @@ export function attachKeyedRateLimitAuthority(
 					]);
 				}
 			}
+			inRun = false;
+			if (pending.length > 0) ctx.down(pending);
 		},
 		{
 			name: `${name}/events`,
@@ -458,10 +470,9 @@ function adapterProjection<TFact extends KeyedRateLimitAuthorityAdapterFact>(
 	return graph.node<TFact>(
 		[events],
 		(ctx) => {
-			for (const raw of depBatch(ctx, 0) ?? []) {
-				const fact = raw as KeyedRateLimitAuthorityAdapterFact;
-				if (predicate(fact)) ctx.down([["DATA", fact]]);
-			}
+			eachInputArray<KeyedRateLimitAuthorityAdapterFact>(ctx, 0, (fact, out) => {
+				if (predicate(fact)) out.push(["DATA", fact]);
+			});
 		},
 		{
 			name,

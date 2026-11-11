@@ -346,7 +346,8 @@ describe("D161 graph construction ownership", () => {
 		expect(owner.phase).toBe("faulted");
 		expect(owner.roots.find((r) => r.node === target)?.unsubscribe).toBeTypeOf("function");
 		expect(subscriberCountOfNode(target)).toBe(1);
-		if (failAt === "START") expect(host._lifecycle.activated).toBe(false);
+		// R-subscription: activation comes before START, so a failed START finds the node activated.
+		if (failAt === "START") expect(host._lifecycle.activated).toBe(true);
 	});
 
 	it("retains failed deep dependency leases without disturbing a shared existing subscriber", () => {

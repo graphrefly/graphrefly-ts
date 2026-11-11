@@ -3,6 +3,7 @@ import type { ConstructionScope, StartupFact } from "../../graph/construction-sc
 import type { Graph } from "../../graph/graph.js";
 import type { Node } from "../../node/node.js";
 import { merge } from "../../operators/index.js";
+import type { Message } from "../../protocol/messages.js";
 import {
 	type CausalBinding,
 	causalBinding,
@@ -175,6 +176,7 @@ export function buildCausalNodes<T>(
 			// One transition per input array, in order: a delivery brings a wave's arrays to one run
 			// (R-wave), and each array is an arrival step whose pending work the next step may need.
 			let state = ctx.state.get<RuntimeState<T>>();
+			const firstRun = state === undefined;
 			const outputs: AuthorityFact<T>[] = [];
 			let committedViewChanged = false;
 			const waves = depWaves(ctx, 0);
@@ -194,9 +196,11 @@ export function buildCausalNodes<T>(
 			);
 			state.committedEffects = committedEffects;
 			ctx.state.set(state);
-			// Commit once before publishing each fact in its original wave.
-			for (const output of outputs)
-				ctx.down([
+			// Commit once before publishing each fact in its original wave. A lifetime's first run sends
+			// its facts as one array, so a projection that joins afterwards has them all in its snapshot
+			// (R-subscription).
+			const facts = outputs.map(
+				(output) =>
 					[
 						"DATA",
 						Object.freeze({
@@ -204,8 +208,10 @@ export function buildCausalNodes<T>(
 							fact: Object.freeze(output),
 							committedEffects: committedEffects!,
 						}),
-					],
-				]);
+					] as Message,
+			);
+			if (firstRun && facts.length > 0) ctx.down(facts);
+			else for (const fact of facts) ctx.down([fact]);
 			if (committedViewChanged && outputs.length === 0)
 				ctx.down([
 					[

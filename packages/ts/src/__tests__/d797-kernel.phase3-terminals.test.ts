@@ -329,7 +329,7 @@ describe("C-40: an ended node can be subscribed and depended on", () => {
 		d.subscribe(ds.sink);
 		expect(dRuns).toBe(1);
 		expect(d.status.output).toBe("completed");
-		expect(ds.log.at(-1)).toEqual([["PENDING"], ["COMPLETE"]]);
+		expect(ds.log).toEqual([[["START"], ["DATA", 1], ["COMPLETE"]]]);
 
 		let eRuns = 0;
 		const en = node<number>([t], () => {
