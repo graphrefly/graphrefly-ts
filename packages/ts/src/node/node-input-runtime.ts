@@ -162,8 +162,9 @@ function nodeTerminalPolicy<T>(self: NodeRuntimeHost<T>, t: unknown): "auto" | "
  *    INVALIDATE that reached it earlier in the wave takes effect first;
  * 2. auto INVALIDATE: an input's INVALIDATE invalidates the node without running its function;
  * 3. the function runs on what remains: values, a terminal under the manual policy, an
- *    INVALIDATE under the manual policy, or the first run of a lifetime (`force` for activation
- *    and rewire);
+ *    INVALIDATE under the manual policy, the first run of a lifetime (`force` for activation
+ *    and rewire), or, under auto COMPLETE, the last dependency's terminal even when it is the
+ *    run's only input (graphrefly:D806 (1), R-terminals@1, C-17);
  * 4. auto COMPLETE: once every dependency has ended, COMPLETE follows the run's output;
  * 5. a node marked pending that sent nothing gets the kernel's one RESOLVED.
  * All of it goes out as one delivery, so a dependent settles once on it.
@@ -193,6 +194,7 @@ export function nodeSettle<T>(self: NodeRuntimeHost<T>, force: boolean): void {
 			: [];
 
 	let out: Message[][] = [];
+	const allEnded = n > 0 && self._dep.terminal.every((t) => t !== undefined);
 	// The first-run gate holds the function's input until it opens, so the first run sees it all.
 	let gateOpen = true;
 	if (self._slot.handle === null) {
@@ -204,18 +206,22 @@ export function nodeSettle<T>(self: NodeRuntimeHost<T>, force: boolean): void {
 		const manualTerminal = self._dep.terminalInput.some(
 			(t) => t !== undefined && nodeTerminalPolicy(self, t) === "manual",
 		);
+		const lastTerminal =
+			self._slot.completePolicy === "auto" &&
+			allEnded &&
+			self._dep.terminalInput.some((t) => t !== undefined);
 		const runs =
 			gateOpen &&
 			(force ||
 				!self._wave.hasCalledFnOnce ||
 				self._dep.waveData.some((w) => w.length > 0) ||
 				manualTerminal ||
+				lastTerminal ||
 				(anyInvalidated && self._slot.invalidatePolicy === "manual"));
 		if (runs) out = nodeInvoke(self);
 	}
 	if (gateOpen) nodeConsumeInput(self);
 
-	const allEnded = n > 0 && self._dep.terminal.every((t) => t !== undefined);
 	const endsItself = out.some((a) => a.some((m) => isTerminal(m[0])));
 	if (self._slot.completePolicy === "auto" && allEnded && !endsItself) out.push([["COMPLETE"]]);
 	nodeSettleOutput(self, lead, out, wasDirty);

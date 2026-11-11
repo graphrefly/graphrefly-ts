@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { Ctx, Message } from "../index.js";
 import { depLatest, graph } from "../index.js";
+import type { Wave } from "../protocol/messages.js";
 
-function collect(n: { subscribe(s: (m: Message) => void): () => void }) {
+function collect(n: { subscribe(s: (m: Wave) => void): () => void }) {
 	const msgs: Message[] = [];
 	const unsub = n.subscribe((incoming) => {
 		for (const m of incoming) {
@@ -23,8 +24,10 @@ describe("terminal (R-terminal, R-deps-terminal)", () => {
 		const { msgs } = collect(d);
 		msgs.length = 0;
 		a.complete();
-		// R-wave: a terminal array carries the kernel's PENDING like a value array.
-		expect(types(msgs)).toEqual(["PENDING", "COMPLETE"]);
+		// graphrefly:D806 (1): under auto COMPLETE the run that sees the last terminal calls the
+		// function, also when the terminal is its only input; this function sends on every run, so
+		// it sends once more before the COMPLETE. Each array carries the kernel's PENDING.
+		expect(types(msgs)).toEqual(["PENDING", "DATA", "PENDING", "COMPLETE"]);
 		expect(d.status.output).toBe("completed");
 	});
 
