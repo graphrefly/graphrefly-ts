@@ -20,6 +20,7 @@ import {
 	type StateNode,
 } from "../index.js";
 import { eachMessage } from "../node/each-message.js";
+import { rewireOwnedNode } from "../node/node-rewire-runtime.js";
 
 interface ProbeResult {
 	name: string;
@@ -179,7 +180,7 @@ function rewireChurnProbe(turns = 10_000): string {
 	};
 	const d = g.node<number>([a], body);
 	const sink = subscribeCounts(d);
-	for (let i = 0; i < turns; i++) d.replaceDeps([i % 2 === 0 ? b : a], body);
+	for (let i = 0; i < turns; i++) rewireOwnedNode(d, [i % 2 === 0 ? b : a], body);
 	const delivered = sink.dataCount();
 	const expected = turns + 1;
 	sink.unsubscribe();

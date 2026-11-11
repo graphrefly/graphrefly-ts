@@ -1,62 +1,104 @@
-import { currentBoundaryBatchToken, deferAfterBatchForTarget } from "../batch/batch.js";
-import { deferRewire } from "../batch/boundary.js";
+import { deferAfterBatchForTarget, request } from "../batch/batch.js";
 import type { NodeFn } from "../ctx/types.js";
-import { errorPayload, SENTINEL } from "../protocol/messages.js";
+import { errorPayload, type Message, SENTINEL } from "../protocol/messages.js";
+import { makeDepBookkeeping } from "./core.js";
 import type { Node } from "./node.js";
-import type { NodeRuntimeHost } from "./node-runtime-host.js";
+import { nodeCallSink } from "./node-output-runtime.js";
+import { type NodeRuntimeHost, nodeRuntimeHost } from "./node-runtime-host.js";
 import { notifyTopologyDepsChanged } from "./runtime-accessors.js";
-import type { RewireOp } from "./types.js";
+import type { NodeDefinition, ReplaceOptions } from "./types.js";
 
-export function nodeRequestRewireNext<T>(self: NodeRuntimeHost<T>, op: RewireOp): void {
-	deferRewire(self._core, () => self._applyRewireNext(op), {
-		batchToken: currentBoundaryBatchToken(),
+/** R-request-order: refused at once for a duplicate, the node itself, or a node that depends on it. */
+function assertRewireList<T>(self: NodeRuntimeHost<T>, deps: readonly Node<unknown>[]): void {
+	if (new Set(deps).size !== deps.length) throw new Error("rewire: duplicate dependency");
+	const node = self as unknown as Node<unknown>;
+	for (const d of deps) {
+		if (d === node || self._reachableUpstream(d, node))
+			throw new Error("rewire: a dependency is the node itself or depends on it");
+		self._assertRewireDepOwner(d);
+	}
+}
+
+function nodeQueueRewire<T>(
+	self: NodeRuntimeHost<T>,
+	signal: AbortSignal,
+	next: (current: readonly Node<unknown>[]) => Node<unknown>[],
+): void {
+	// R-request-order: dropped if its lifetime has closed when asked for or when it runs.
+	if (signal.aborted) return;
+	request(self._core, () => {
+		if (self._released || signal.aborted) return;
+		const current = self._slot.deps;
+		try {
+			const deps = next(current);
+			if (deps.length === current.length && deps.every((d, i) => d === current[i])) return;
+			self._rewire(deps);
+		} catch (e) {
+			self._down([["ERROR", errorPayload(e, "rewire failed")]]);
+		}
 	});
 }
 
-export function nodeApplyRewireNext<T>(self: NodeRuntimeHost<T>, op: RewireOp): void {
-	if (self._released) return;
-	try {
-		// D62 / R-rewire-deferred: terminal seals output but does NOT cancel queued topology.
-		// Public/immediate rewire of a terminal node still rejects; the exception is only for
-		// self-triggered ops already issued before terminal and now draining at the boundary.
-		if (op.kind === "add") {
-			const next = self._slot.deps.includes(op.dep)
-				? [...self._slot.deps]
-				: [...self._slot.deps, op.dep];
-			self._rewire(next, op.fn, { allowTerminalOwner: true });
-		} else if (op.kind === "remove") {
-			self._rewire(
-				self._slot.deps.filter((d) => d !== op.dep),
-				op.fn,
-				{ allowTerminalOwner: true },
-			);
-		} else {
-			self._rewire(self._dedupDeps(op.deps), op.fn, { allowTerminalOwner: true });
-		}
-	} catch (e) {
-		// An invalid deferred op (cycle / self / duplicate) surfaces as
-		// an ERROR on this node (D30-consistent) rather than stranding the rest of the drain
-		// queue. Reachable only on misuse — higher-order operator inners are fresh, acyclic
-		// leaf sources. Coerce a SENTINEL reason (a rewire fn that `throw undefined`s) to a real
-		// Error so _down's R-data-payload guard does not itself throw out of the drain.
-		self._down([["ERROR", errorPayload(e, "rewireNext op failed")]]);
-	}
+/** R-request-order: ctx.rewire(deps). */
+export function nodeRequestRewire<T>(
+	self: NodeRuntimeHost<T>,
+	signal: AbortSignal,
+	deps: Node<unknown>[],
+): void {
+	assertRewireList(self, deps);
+	nodeQueueRewire(self, signal, () => deps);
+}
+
+/** Internal: a rewire by difference for operators, computed when the request runs. */
+export function nodeRequestRewireDiff<T>(
+	self: NodeRuntimeHost<T>,
+	signal: AbortSignal,
+	add: readonly Node<unknown>[],
+	remove: readonly Node<unknown>[],
+): void {
+	nodeQueueRewire(self, signal, (current) => {
+		const out = current.filter((d) => !remove.includes(d));
+		for (const d of add) if (!out.includes(d)) out.push(d);
+		return out;
+	});
+}
+
+/**
+ * Internal: package code that owns a node changes its declared dependencies from outside, such as
+ * a collection adding a folder or the held bridge attaching a source. Not public: a host changes a
+ * node's definition with replace.
+ */
+export function rewireOwnedNode(node: Node<unknown>, deps: Node<unknown>[], fn?: NodeFn): void {
+	nodeRuntimeHost(node)._rewire(deps, fn, { declare: true });
+}
+
+export function addOwnedNodeDep(node: Node<unknown>, dep: Node<unknown>, fn?: NodeFn): void {
+	const current = node.deps;
+	rewireOwnedNode(node, current.includes(dep) ? [...current] : [...current, dep], fn);
+}
+
+export function removeOwnedNodeDep(node: Node<unknown>, dep: Node<unknown>, fn?: NodeFn): void {
+	rewireOwnedNode(
+		node,
+		node.deps.filter((d) => d !== dep),
+		fn,
+	);
 }
 
 export function nodeRewire<T>(
 	self: NodeRuntimeHost<T>,
 	newDeps: Node<unknown>[],
-	fn: NodeFn,
-	opts: { allowTerminalOwner?: boolean } = {},
+	fn?: NodeFn,
+	opts: { declare?: boolean } = {},
 ): boolean {
 	const node = self as unknown as Node<unknown>;
-	validateNodeRewire(self, newDeps, opts);
+	validateNodeRewire(self, newDeps);
 	const oldDeps = self._slot.deps;
 	const added = newDeps.filter((d) => !oldDeps.includes(d));
 
 	if (
 		deferAfterBatchForTarget(node, () => {
-			self._rewire(newDeps, fn, { ...opts, allowTerminalOwner: true });
+			self._rewire(newDeps, fn, opts);
 		})
 	) {
 		return true;
@@ -72,9 +114,12 @@ export function nodeRewire<T>(
 		// a rewire-heavy graph (CSP-2.7 *Map) no longer leaks a handle per swap. Register
 		// first, then unregister the old: self._slot.handle never points at a freed slot, and a
 		// null old handle (a passthrough/state node gaining a fn) has nothing to free.
-		const oldHandle = self._slot.handle;
-		self._slot.handle = self._slot.dispatcher.register(fn, self._slot.pool);
-		if (oldHandle !== null) self._slot.dispatcher.unregister(oldHandle);
+		if (fn !== undefined) {
+			const oldHandle = self._slot.handle;
+			self._slot.handle = self._slot.dispatcher.register(fn, self._slot.pool);
+			if (oldHandle !== null) self._slot.dispatcher.unregister(oldHandle);
+			self._slot.fn = fn;
+		}
 
 		const removed = oldDeps.filter((d) => !newDeps.includes(d));
 		let removedDirtyContributor = false;
@@ -121,6 +166,7 @@ export function nodeRewire<T>(
 			}
 		}
 		self._slot.deps = newDeps;
+		if (opts.declare === true) self._slot.declaredDeps = newDeps;
 		self._dep.batch = newBatch;
 		self._dep.prev = newPrev;
 		self._dep.hasData = newHasData;
@@ -169,14 +215,10 @@ export function nodeRewire<T>(
 }
 
 /** Internal adapters validate at call time and repeat against actual deps at commit. */
-export function validateNodeRewire<T>(
-	self: NodeRuntimeHost<T>,
-	newDeps: Node<unknown>[],
-	opts: { allowTerminalOwner?: boolean } = {},
-): void {
+export function validateNodeRewire<T>(self: NodeRuntimeHost<T>, newDeps: Node<unknown>[]): void {
 	const node = self as unknown as Node<unknown>;
 	// ── rejects (R-rewire / D42) ──
-	if (self._value.terminal !== undefined && !opts.allowTerminalOwner)
+	if (self._value.terminal !== undefined)
 		throw new Error(
 			"rewire: node is terminal (completed/errored) — cannot rewire (R-rewire / D42)",
 		);
@@ -185,9 +227,7 @@ export function validateNodeRewire<T>(
 			"rewire: mid-fn topology mutation — a fn mutating its own deps mid-wave is the feedback cycle (R-rewire / D37)",
 		);
 	if (self._wave.inDepMutation)
-		throw new Error(
-			"rewire: reentrant dep mutation — another replaceDeps/subscribeDep/unsubscribeDep is in flight (R-rewire)",
-		);
+		throw new Error("rewire: reentrant dep mutation — another rewire is in flight (R-rewire)");
 	if (newDeps.includes(node)) throw new Error("rewire: self-dependency rejected (R-rewire / D42)");
 	const oldDeps = self._slot.deps;
 	const added = newDeps.filter((d) => !oldDeps.includes(d));
@@ -199,4 +239,131 @@ export function validateNodeRewire<T>(
 		// R-terminals: an ended node can be added; its snapshot carries its terminal.
 		self._assertRewireDepOwner(d);
 	}
+}
+
+/**
+ * R-request-order / R-node: replace gives the node a new instance under the same id, subscribers
+ * and policies: new dependencies, function, setup and recipe, and no values, terminal, private
+ * state or lifetime. An active node closes its old lifetime (signal, cleanup) and runs the new
+ * instance as on a first activation; its sinks receive START and the new snapshot, and its
+ * dependents receive the snapshot as their input from a new instance. A request.
+ */
+export function nodeReplace<T>(
+	self: NodeRuntimeHost<T>,
+	deps: Node<unknown>[],
+	fn: NodeFn,
+	opts: ReplaceOptions = {},
+): void {
+	if (self._slot.handle === null && self._slot.declaredDeps.length === 0)
+		throw new Error("replace: a state node has no definition to replace");
+	assertRewireList(self, deps);
+	request(self._core, () => {
+		if (self._released) return;
+		assertRewireList(self, deps);
+		nodeApplyReplace(self, [...deps], fn, opts);
+	});
+}
+
+function nodeApplyReplace<T>(
+	self: NodeRuntimeHost<T>,
+	deps: Node<unknown>[],
+	fn: NodeFn,
+	opts: ReplaceOptions,
+): void {
+	const node = self as unknown as Node<unknown>;
+	const active = self._lifecycle.activated;
+	// Close the old instance's lifetime: abort its signal; its dependencies are released after the
+	// new ones are acquired, so a shared upstream stays active; then its cleanup runs.
+	const lifetime = self._lifetime;
+	lifetime.controller?.abort();
+	const cleanup = lifetime.cleanup;
+	lifetime.controller = null;
+	lifetime.cleanup = undefined;
+	lifetime.setupDone = false;
+	const oldDeps = self._slot.deps;
+	const oldUnsubs = self._dep.unsubs;
+	for (const box of self._dep.idxBoxes) if (box) box.v = -1;
+	// The new instance.
+	const oldHandle = self._slot.handle;
+	self._slot.handle = self._slot.dispatcher.register(fn, self._slot.pool);
+	if (oldHandle !== null) self._slot.dispatcher.unregister(oldHandle);
+	self._slot.fn = fn;
+	self._slot.setup = opts.setup;
+	self._slot.recipe = opts.recipe;
+	self._slot.deps = deps;
+	self._slot.declaredDeps = deps;
+	Object.assign(self._dep, makeDepBookkeeping(deps.length));
+	self._value.cache = undefined;
+	self._value.hasData = false;
+	self._value.lastArray = [];
+	self._value.terminal = undefined;
+	self._wave.hasCalledFnOnce = false;
+	self._wave.pending = 0;
+	self._wave.emittedDirtyThisWave = false;
+	self._restoredActivationPending = false;
+	self._syncCtx = null;
+	if (active) {
+		self._wave.activating = true;
+		try {
+			for (const dep of deps) self._subscribeDepAt(dep);
+		} finally {
+			self._wave.activating = false;
+		}
+		self._wave.rewireRunPending = false;
+	}
+	for (const u of oldUnsubs) u?.();
+	if (cleanup !== undefined) {
+		lifetime.closing = true;
+		try {
+			cleanup();
+		} catch (error) {
+			try {
+				self._core.report?.({ source: `cleanup of ${self._slot.name ?? "node"}`, error });
+			} catch {
+				// a reporter that throws is ignored
+			}
+		} finally {
+			lifetime.closing = false;
+		}
+	}
+	self._privateState.value = SENTINEL;
+	notifyTopologyDepsChanged(node, oldDeps, deps);
+	if (!active) return; // the next subscription activates the new instance
+
+	// The first run, as at a first activation: it sets the retained values only.
+	const subscribers = self._lifecycle.subscribers;
+	self._lifecycle.subscribers = new Set();
+	try {
+		if (self._wave.pending === 0) self._runWave();
+	} finally {
+		self._lifecycle.subscribers = subscribers;
+	}
+	// Every subscriber receives START and the new instance's snapshot, also after an old terminal.
+	const terminal = self._value.terminal;
+	const snapshot: Message[] = [
+		...self._value.lastArray.map((v) => ["DATA", v] as Message),
+		...(terminal === undefined
+			? []
+			: [(terminal === true ? ["COMPLETE"] : ["ERROR", terminal]) as Message]),
+	];
+	if (snapshot.length > 0) self._markDependents();
+	const start: Message[] = [["START"], ...snapshot];
+	for (const sub of [...subscribers]) {
+		if (sub.kind === "sink") nodeCallSink(self, sub, start);
+		else {
+			const wave = {};
+			for (let i = 0; i < start.length; i++)
+				sub.fn(start[i] as Message, { wave, last: i === start.length - 1, snapshot: true });
+		}
+	}
+}
+
+/** R-node: the current definition: declared dependencies, the instance's function, setup, recipe. */
+export function nodeDefinition<T>(self: NodeRuntimeHost<T>): NodeDefinition {
+	return {
+		deps: [...self._slot.declaredDeps],
+		fn: self._slot.fn,
+		setup: self._slot.setup,
+		recipe: self._slot.recipe,
+	};
 }

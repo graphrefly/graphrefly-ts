@@ -4,10 +4,10 @@
  *
  * Each projects every outer value to an INNER source and flattens the inners' emissions. The
  * inner sources are wired as runtime DEPS via the deferred-self-rewire substrate affordance
- * (`ctx.rewireNext`, D47) — NOT an internal subscribe (D45 bans that; it would create a describe
+ * (`ctx.rewire`, D47) — NOT an internal subscribe (D45 bans that; it would create a describe
  * island). Growing/shrinking the dep set is deferred to the committed wave boundary, so a fn
  * never mutates its own topology mid-run (that is the D37 feedback-cycle ERROR). An inner that
- * COMPLETEs is `unsubscribeDep`'d → its source `_deactivate`s + fires `onDeactivation`: that is the
+ * COMPLETEs is `rewire away`'d → its source `_deactivate`s + fires `onDeactivation`: that is the
  * cancellation / abortInFlight basis (switchMap drops the superseded inner's WORK, not just its
  * output; mergeMap bounds memory). Built on the bare `node` primitive via the {@link Operator}
  * factory shape + the `g.initNode` funnel (D43), so the real factory name shows in describe.
@@ -15,7 +15,7 @@
  * Lifecycle folding (D47/D81): the manual COMPLETE and ERROR policies — the operator owns completion (emit COMPLETE only when the SOURCE is
  * done AND no inner is live / pending), and observes source/inner ERROR so it can remove every live
  * inner before emitting ERROR. Those removals drain after terminal via D62: terminal seals output,
- * while helper-owned upstream work still sees unsubscribeDep->_deactivate->onDeactivation teardown.
+ * while helper-owned upstream work still sees rewire away->_deactivate->onDeactivation teardown.
  *
  * Alignment: each run issues REMOVES before ADDS so the per-node FIFO drain keeps the operator's
  * tracked inner list aligned with the live dep order across the intermediate boundary waves (a
@@ -25,6 +25,7 @@
 import {
 	CTX_NODE_BINDING,
 	type Ctx,
+	ctxRewireDiff,
 	depBatch,
 	depCount,
 	depTerminal,
@@ -72,7 +73,7 @@ function uniqueNodes(nodes: readonly Node<unknown>[]): Node<unknown>[] {
 }
 
 function cleanupAllInners<TIn>(ctx: Ctx, st: MapState<TIn>, body: NodeFn): void {
-	for (const inner of uniqueNodes(st.inners)) ctx.rewireNext.unsubscribeDep(inner, body);
+	for (const inner of uniqueNodes(st.inners)) ctxRewireDiff(ctx, [], [inner]);
 	st.inners = [];
 	st.queue.length = 0;
 	st.sourceDone = true;
@@ -138,7 +139,7 @@ function normalizeConcurrent(factory: string, concurrent: number | undefined): n
 
 /**
  * The shared higher-order machinery. The operator depends on the source S at index 0; inner
- * sources occupy indices 1.. (added/removed at runtime via ctx.rewireNext). The body is
+ * sources occupy indices 1.. (added/removed at runtime via ctx.rewire). The body is
  * SELF-CATCHING (D30) and re-supplies itself on every rewire (the initNode wrap covers only the
  * first run; the re-supplied fn must stay self-catching).
  */
@@ -196,7 +197,7 @@ function mapOperator<TIn, TOut>(
 			const enqueueMerge = (v: TIn) => {
 				if (maxConcurrent === Number.POSITIVE_INFINITY && queue.length === 0) {
 					const inner = make(v);
-					// a projector returning an ALREADY-LIVE Node is already merged: subscribeDep is
+					// a projector returning an ALREADY-LIVE Node is already merged: rewire to is
 					// set-idempotent, so double-tracking it in `inners` would desync the
 					// inners[i] <-> deps[i+1] map permanently. Skip the duplicate.
 					if (!canTrackInner(inner)) return;
@@ -262,8 +263,8 @@ function mapOperator<TIn, TOut>(
 
 			// 4. issue REMOVES before ADDS (alignment): a removed dep is silent + applies before the
 			//    added dep's push-on-subscribe settle wave, so the tracked list stays aligned.
-			for (const r of toRemove) ctx.rewireNext.unsubscribeDep(r, body);
-			for (const a of toAdd) ctx.rewireNext.subscribeDep(a, body);
+			for (const r of toRemove) ctxRewireDiff(ctx, [], [r]);
+			for (const a of toAdd) ctxRewireDiff(ctx, [a]);
 
 			// 5. completion: the SOURCE is done AND nothing is live or pending → COMPLETE (D47 folding;
 			//    a queued/just-added inner keeps it open). If terminal output happens in a wave that
@@ -385,17 +386,17 @@ interface RepeatState {
  * re-RUN the source. RxJS `repeat` re-subscribes the COLD source = a fresh subscription each round;
  * the GraphReFly analogue is a fresh node per round → a factory. (A `repeat(count)`-over-a-Node
  * shape remains deferred: D47's no-net-change-is-a-no-op makes
- * `unsubscribeDep(S)+subscribeDep(S)` on the SAME boundary cancel out. D115 keeps the model to
+ * `rewire away(S)+rewire to(S)` on the SAME boundary cancel out. D115 keeps the model to
  * ordinary unsubscribe plus a later subscribe, so same-node repeat needs a separate future design.)
  *
  * Mechanism (reuses the D47 self-rewire substrate, like the *Map family; NOT an internal subscribe,
- * D45): on activation it mints round 0's inner via `ctx.rewireNext.subscribeDep`; each round's inner DATA
+ * D45): on activation it mints round 0's inner via `ctx.rewire.rewire to`; each round's inner DATA
  * is forwarded; on the inner's COMPLETE (the manual COMPLETE policy)
- * it unsubscribeDep's the finished inner and, if rounds remain, subscribeDep's a FRESH `factory()` inner (a
+ * it rewire away's the finished inner and, if rounds remain, rewire to's a FRESH `factory()` inner (a
  * distinct node → a real net change, not the no-op same-node case); after the last round it emits
  * COMPLETE. An inner ERROR auto-forwards (the auto ERROR policy → repeat errors). The body is
  * SELF-CATCHING (D30) and re-supplied on every rewire. The factory MUST mint a FRESH node per call
- * (a factory returning the same Node makes unsubscribeDep+subscribeDep a net-zero no-op → repeat wedges).
+ * (a factory returning the same Node makes rewire away+rewire to a net-zero no-op → repeat wedges).
  * @param factory - factory value used by the helper.
  * @param count - count value used by the helper.
  * @returns A `Operator<never, S>` value.
@@ -428,19 +429,19 @@ export function repeat<S>(factory: () => NodeInput<S>, count: number): Operator<
 				const inner = fromAnyInCtx(ctx, factory());
 				st.inner = inner;
 				ctx.state.set(st);
-				ctx.rewireNext.subscribeDep(inner, body);
+				ctxRewireDiff(ctx, [inner]);
 				return;
 			}
 			// 3. inner COMPLETE → next round or terminal COMPLETE.
 			if (st.inner !== null && isTerminalComplete(depTerminal(ctx, 0))) {
 				const old = st.inner;
-				ctx.rewireNext.unsubscribeDep(old, body); // bound the finished round's inner
+				ctxRewireDiff(ctx, [], [old]); // bound the finished round's inner
 				if (st.round + 1 < count) {
 					st.round += 1;
 					const next = fromAnyInCtx(ctx, factory());
 					st.inner = next;
 					ctx.state.set(st);
-					ctx.rewireNext.subscribeDep(next, body);
+					ctxRewireDiff(ctx, [next]);
 				} else {
 					st.inner = null;
 					ctx.state.set(st);

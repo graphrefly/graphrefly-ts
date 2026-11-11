@@ -30,7 +30,6 @@ export type {
 	Ctx,
 	CtxState,
 	NodeFn,
-	RewireNext,
 	Sink,
 	TerminalData,
 	WaveData,

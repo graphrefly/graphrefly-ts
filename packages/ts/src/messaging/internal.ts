@@ -46,11 +46,11 @@ export function attachMessageBusCommandSource(
 	const apply = (add: boolean, deferred: boolean) => {
 		const present = busCommands.deps.includes(commands);
 		if (add ? present : !ownsBinding || !present) return;
-		host._assertNotReleased("replaceDeps");
+		host._assertNotReleased("rewire");
 		const next = nextDeps(add);
-		validateNodeRewire(host, next, { allowTerminalOwner: deferred });
+		validateNodeRewire(host, next);
 		try {
-			host._rewire(next, state.commandBody, { allowTerminalOwner: deferred });
+			host._rewire(next, state.commandBody, { declare: true });
 		} finally {
 			// Rewire may commit deps before dependency activation throws. Retain actual ownership.
 			ownsBinding = busCommands.deps.includes(commands);
@@ -63,7 +63,7 @@ export function attachMessageBusCommandSource(
 			deferAfterBatchForTarget(busCommands, () => apply(false, true));
 			return;
 		}
-		host._assertNotReleased("replaceDeps");
+		host._assertNotReleased("rewire");
 		validateNodeRewire(host, nextDeps(add));
 		if (!deferAfterBatchForTarget(busCommands, () => apply(add, true))) apply(add, false);
 	};

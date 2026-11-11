@@ -59,6 +59,17 @@ export const CTX_NODE_BINDING: unique symbol = Symbol("graphrefly.ctx.nodeBindin
 export interface CtxNodeBinding {
 	readonly dispatcher: Dispatcher;
 	create<T>(factory: () => Node<T>): Node<T>;
+	/** Internal: a rewire by difference, computed when the request runs. */
+	rewireDiff(add: readonly Node<unknown>[], remove: readonly Node<unknown>[]): void;
+}
+
+/** @internal Operators grow and shrink their inner set by difference (R-request-order order). */
+export function ctxRewireDiff(
+	ctx: Ctx,
+	add: readonly Node<unknown>[],
+	remove: readonly Node<unknown>[] = [],
+): void {
+	ctx[CTX_NODE_BINDING]?.rewireDiff(add, remove);
 }
 
 /** Per-dep wave projections: dep -> waves -> values/SENTINEL markers. */
@@ -122,25 +133,6 @@ export interface CtxState {
 }
 
 /**
- * Deferred SELF-rewire (R-rewire-deferred / D47). A node fn may, DURING its run, request a
- * mutation of its OWN dep set; the request is QUEUED and applied at the committed wave boundary
- * (after the current wave settles / batch commit) as a fresh wave, reusing
- * R-rewire surgical/Option-C semantics (D42). This is the ONLY legal self-triggered rewire — an
- * IMMEDIATE in-fn `node.subscribeDep/unsubscribeDep/replaceDeps` is the D37 mid-fn feedback-cycle ERROR. An
- * added cached dep pushes `[PENDING,DATA]` on the boundary wave (R-push-subscribe); a removed dep
- * is drained and, if it loses its last subscriber, `_deactivate`s + fires `onDeactivation`
- * (input-side teardown — the basis for higher-order operator cancellation / abortInFlight).
- */
-export interface RewireNext {
-	/** Defer subscribing to a dep (paired with the re-supplied fn — positional fn-deps lock, SD-1). */
-	subscribeDep(dep: Node<unknown>, fn: NodeFn): void;
-	/** Defer unsubscribing from a dep (its source is torn down if it loses its last subscriber). */
-	unsubscribeDep(dep: Node<unknown>, fn: NodeFn): void;
-	/** Defer replacing the whole dep set (surgical: kept deps untouched, removed drained, added fresh-subscribe). */
-	replaceDeps(deps: Node<unknown>[], fn: NodeFn): void;
-}
-
-/**
  * The single argument to a node fn: `(ctx) => void` (R-fn-contract / D8). All emission
  * is explicit via `ctx.down`; there is no return-value framing.
  */
@@ -177,11 +169,13 @@ export interface Ctx {
 	/** Graph-owned environment drivers for source/adapter boundaries (D130/D131). */
 	environment(): EnvironmentDrivers;
 	/**
-	 * Deferred SELF-rewire (R-rewire-deferred / D47) — the substrate affordance higher-order
-	 * operators (switchMap/mergeMap/concatMap/exhaustMap/flatMap) use to grow/shrink their own
-	 * inner-source dep set in response to their own data. Always present; see {@link RewireNext}.
+	 * R-request-order: change this node's own dependencies for its current lifetime. A request:
+	 * it runs after the wave, and is dropped if the lifetime has closed. The instance keeps its
+	 * values, private state and function; kept dependencies keep their records, removed ones are
+	 * released silently, and added ones are acquired, their snapshots given to the function as one
+	 * input wave. When the lifetime closes the dependencies go back to the declared ones.
 	 */
-	rewireNext: RewireNext;
+	rewire(deps: readonly Node<unknown>[]): void;
 	/**
 	 * Read a dep's latest value by index (dynamicNode only, R-dynamic-node / D35).
 	 * Present only on dynamicNode fns; all declared deps still participate in wave

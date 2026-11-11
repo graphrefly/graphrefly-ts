@@ -9,6 +9,7 @@
  */
 
 import { describe, expect, it } from "vitest";
+import { ctxRewireDiff } from "../ctx/types.js";
 import type { Ctx, Message, NodeFn } from "../index.js";
 import {
 	depBatch,
@@ -25,6 +26,11 @@ import {
 	take,
 } from "../index.js";
 import { eachMessage } from "../node/each-message.js";
+import {
+	addOwnedNodeDep,
+	removeOwnedNodeDep,
+	rewireOwnedNode,
+} from "../node/node-rewire-runtime.js";
 
 const types = (msgs: Message[]) => msgs.map((m) => m[0]);
 const data = (msgs: Message[]) =>
@@ -155,13 +161,13 @@ describe("C-8 intra-graph runtime rewire (R-rewire / D42)", () => {
 		collect(d);
 		expect(d.cache).toBe(1); // (1) A settled → D ran
 
-		d.subscribeDep(b, sum); // (2) subscribeDep(B): B cached → push-on-subscribe → D recomputes
+		addOwnedNodeDep(d, b, sum); // (2) subscribeDep(B): B cached → push-on-subscribe → D recomputes
 		expect(d.cache).toBe(101); // 1 + 100
 
 		b.down([["DATA", 50]]); // (3) B drives D
 		expect(d.cache).toBe(51); // 1 + 50
 
-		d.unsubscribeDep(a, aOnly); // (4) unsubscribeDep(A) → deps = [B]
+		removeOwnedNodeDep(d, a, aOnly); // (4) unsubscribeDep(A) → deps = [B]
 		expect(d.cache).toBe(51); // cache PRESERVED (A was not dirty — no recompute)
 
 		a.down([["DATA", 9]]); // (5) A no longer drives D — its edge is drained
@@ -175,7 +181,7 @@ describe("C-8 intra-graph runtime rewire (R-rewire / D42)", () => {
 			runs++;
 			ctx.down([["DATA", depLatest(ctx, 0) as number]]);
 		};
-		d.replaceDeps([b], f); // (6) replaceDeps to the current set → idempotent
+		rewireOwnedNode(d, [b], f); // (6) replaceDeps to the current set → idempotent
 		expect(runs).toBe(0); // no spurious recompute
 		expect(d.cache).toBe(7);
 	});
@@ -186,237 +192,7 @@ describe("C-8 intra-graph runtime rewire (R-rewire / D42)", () => {
 		const d = node<number>([a], id, { complete: "manual" });
 		collect(d);
 		d.down([["COMPLETE"]]); // D terminal
-		expect(() => d.replaceDeps([a], id)).toThrow(/terminal/);
-	});
-});
-
-// C-11 (D47 / R-rewire-deferred): a node fn's SELF-triggered dep-set mutation via ctx.rewireNext
-// is deferred to the committed wave boundary (never mutating _deps mid-run, never the D37 in-fn
-// reject), drained as a fresh wave; added cached inners push [PENDING,DATA] without re-arming the
-// gate; removed inners are drained + _deactivate (onDeactivation = abortInFlight). D62: queued
-// rewireNext still drains if OP goes terminal; terminal seals output, not topology. The substrate
-// prerequisite for the higher-order *Map operators. Distinct from C-8 (external/immediate rewire).
-describe("C-11 higher-order inner rewire at the wave boundary (R-rewire-deferred / D47/D62)", () => {
-	// Inners are leaf sources whose activation + deactivation are observable (cancellation visible).
-	function makeInner(seed?: number) {
-		let ictx: Ctx | null = null;
-		let activated = false;
-		let deactivated = false;
-		const n = node<number>([], (ctx) => {
-			ictx = ctx;
-			activated = true;
-			ctx.signal.addEventListener(
-				"abort",
-				() => {
-					deactivated = true;
-				},
-				{ once: true },
-			);
-			if (seed !== undefined) ctx.down([["DATA", seed]]);
-		});
-		return {
-			node: n,
-			emit: (v: number) => (ictx as Ctx).down([["DATA", v]]),
-			complete: () => (ictx as Ctx).down([["COMPLETE"]]),
-			isActivated: () => activated,
-			isDeactivated: () => deactivated,
-		};
-	}
-
-	// A merge-style OP: spawn+add an inner per S DATA, forward inner DATA, remove a completed inner.
-	function mergeOp(s: Node<number>) {
-		const inners: Node<number>[] = [];
-		const opFn: NodeFn = (ctx) => {
-			const removals: Node<number>[] = [];
-			for (let i = 1; i < depCount(ctx); i++) {
-				const b = depBatch(ctx, i);
-				if (b) for (const v of b) ctx.down([["DATA", v as number]]);
-				if (isTerminalComplete(depTerminal(ctx, i))) removals.push(inners[i - 1]);
-			}
-			const sv = depBatch(ctx, 0);
-			if (sv && sv.length > 0) {
-				const inner = makeInner((sv[sv.length - 1] as number) * 10);
-				inners.push(inner.node);
-				ctx.rewireNext.subscribeDep(inner.node, opFn);
-			}
-			for (const r of removals) {
-				inners.splice(inners.indexOf(r), 1);
-				ctx.rewireNext.unsubscribeDep(r, opFn);
-			}
-		};
-		return node<number>([s], opFn, {
-			complete: "manual",
-		});
-	}
-
-	it("(steps 1-3) subscribeDep deferred to the boundary; added cached inner pushes [PENDING,DATA], gate not re-armed", () => {
-		const s = node<number>([], null);
-		let opRuns = 0;
-		const inners: Node<number>[] = [];
-		const opFn: NodeFn = (ctx) => {
-			opRuns++;
-			for (let i = 1; i < depCount(ctx); i++) {
-				const b = depBatch(ctx, i);
-				if (b) for (const v of b) ctx.down([["DATA", v as number]]);
-			}
-			const sv = depBatch(ctx, 0);
-			if (sv && sv.length > 0) {
-				const inner = makeInner((sv[sv.length - 1] as number) * 10);
-				inners.push(inner.node);
-				// mid-run: _deps is NOT mutated — the inner is not yet wired/activated.
-				expect(inner.isActivated()).toBe(false);
-				ctx.rewireNext.subscribeDep(inner.node, opFn);
-				expect(inner.isActivated()).toBe(false); // still deferred after the request
-			}
-		};
-		const op = node<number>([s], opFn, {
-			complete: "manual",
-		});
-		const { msgs } = collect(op);
-
-		s.down([["DATA", 1]]); // step 1: request subscribeDep(innerA); step 2: drain wires it; step 3: forward
-		expect(types(msgs)).toContain("PENDING"); // step 2 boundary wave is two-phase…
-		expect(data(msgs)).toEqual([10]); // …innerA's seed (1*10) forwarded as DATA
-
-		opRuns = 0;
-		s.down([["DATA", 2]]); // gate NOT re-armed: S alone re-drives the fn (and adds innerB)
-		expect(opRuns).toBeGreaterThan(0);
-	});
-
-	it("(step 7) an inner COMPLETE removes it (bounding); OP does not COMPLETE while S is live", () => {
-		const s = node<number>([], null);
-		const op = mergeOp(s);
-		const { msgs } = collect(op);
-
-		s.down([["DATA", 5]]); // add innerA (seed 50 forwarded)
-		expect(data(msgs)).toContain(50);
-		msgs.length = 0;
-
-		s.down([["DATA", 6]]); // add innerB (seed 60 forwarded)
-		expect(data(msgs)).toContain(60);
-
-		// OP stays live: S is still live, completeWhenDepsComplete:false → no terminal cascade.
-		expect(op.status.output).not.toBe("completed");
-		expect(types(msgs)).not.toContain("COMPLETE");
-	});
-
-	it("(steps 4-6, switch) replaceDeps tears down the superseded inner's source and forwards only the new one", () => {
-		const s = node<number>([], null);
-		const innerA = makeInner(10);
-		const innerB = makeInner(20);
-		let current: Node<number> | null = null;
-		const opFn: NodeFn = (ctx) => {
-			for (let i = 1; i < depCount(ctx); i++) {
-				const b = depBatch(ctx, i);
-				if (b) for (const v of b) ctx.down([["DATA", v as number]]);
-			}
-			const sv = depBatch(ctx, 0);
-			if (sv && sv.length > 0) {
-				current = (sv[sv.length - 1] as number) === 1 ? innerA.node : innerB.node;
-				ctx.rewireNext.replaceDeps([s, current], opFn);
-			}
-		};
-		const op = node<number>([s], opFn, {
-			complete: "manual",
-		});
-		const { msgs } = collect(op);
-
-		s.down([["DATA", 1]]); // → innerA live (seed 10 forwarded)
-		expect(data(msgs)).toContain(10);
-		expect(innerA.isActivated()).toBe(true);
-		msgs.length = 0;
-
-		s.down([["DATA", 2]]); // switch → innerB; innerA's SOURCE torn down (not masked)
-		expect(innerB.isActivated()).toBe(true);
-		expect(innerA.isDeactivated()).toBe(true);
-		expect(data(msgs)).toEqual([20]); // ONLY the current inner forwarded
-		msgs.length = 0;
-
-		innerA.emit(999); // the superseded inner is DRAINED — no stale forward survives
-		expect(data(msgs)).toEqual([]);
-	});
-
-	it("(variant) an IMMEDIATE in-fn self-rewire is the D37 feedback cycle → graph-layer ERROR (not rewireNext)", () => {
-		const g = graph();
-		const a = g.state(1);
-		const x = g.state(9);
-		let op: Node<number>;
-		// g.derived carries the D30 value-throw→ERROR boundary; the fn does an IMMEDIATE self-subscribeDep
-		// (NOT ctx.rewireNext) mid-run → the D37 reject throws → graph layer converts it to ERROR.
-		op = g.derived([a], (av) => {
-			op.subscribeDep(x, (c) => c.down([["DATA", depLatest(c, 0) as number]]));
-			return av as number;
-		});
-		let escaped = false;
-		try {
-			op.subscribe(() => {});
-		} catch {
-			escaped = true; // the substrate throw must be caught by the graph layer (D30), not escape
-		}
-		expect(escaped).toBe(false);
-		expect(op.status.output).toBe("errored");
-	});
-
-	it("(variant) a terminal OP still drains its pending rewireNext queue; terminal seals output", () => {
-		const s = node<number>([], null);
-		const inner = makeInner(1);
-		const opFn: NodeFn = (ctx) => {
-			if (depBatch(ctx, 0)) {
-				ctx.rewireNext.subscribeDep(inner.node, opFn); // queued…
-				ctx.down([["COMPLETE"]]); // …then OP goes terminal THIS wave
-			}
-		};
-		const op = node<number>([s], opFn, {
-			complete: "manual",
-		});
-		const { msgs } = collect(op);
-		s.down([["DATA", 1]]);
-		expect(op.status.output).toBe("completed");
-		expect(inner.isActivated()).toBe(true); // D62: queued subscribeDep drains after terminal
-		expect(op.deps).toContain(inner.node);
-		msgs.length = 0;
-		inner.emit(2);
-		expect(msgs).toEqual([]); // terminal output guard: no post-terminal DATA escapes
-	});
-
-	it("(variant) a terminal OP drains a queued unsubscribeDep, releasing helper-owned work", () => {
-		const s = node<number>([], null);
-		const inner = makeInner(1);
-		let added = false;
-		const opFn: NodeFn = (ctx) => {
-			if (!added && depBatch(ctx, 0)) {
-				added = true;
-				ctx.rewireNext.subscribeDep(inner.node, opFn);
-				return;
-			}
-			if (isTerminalComplete(depTerminal(ctx, 0))) {
-				ctx.rewireNext.unsubscribeDep(inner.node, opFn);
-				ctx.down([["COMPLETE"]]);
-			}
-		};
-		const op = node<number>([s], opFn, {
-			complete: "manual",
-		});
-		collect(op);
-		s.down([["DATA", 1]]);
-		expect(inner.isActivated()).toBe(true);
-		s.down([["COMPLETE"]]);
-		expect(op.status.output).toBe("completed");
-		expect(op.deps).not.toContain(inner.node);
-		expect(inner.isDeactivated()).toBe(true);
-	});
-
-	it("(variant) a no-net-change rewireNext is a no-op (no drain loop)", () => {
-		const a = node<number>([], null, { initial: 1 });
-		let runs = 0;
-		const op = node<number>([a], function opFn(ctx) {
-			runs++;
-			if (runs < 5) ctx.rewireNext.replaceDeps([a], opFn); // identical dep set every run
-			ctx.down([["DATA", depLatest(ctx, 0) as number]]);
-		});
-		collect(op);
-		expect(runs).toBe(1); // the idempotent replaceDeps changes nothing → no fresh wave → no loop
-		expect(op.cache).toBe(1);
+		expect(() => rewireOwnedNode(d, [a], id)).toThrow(/terminal/);
 	});
 });
 

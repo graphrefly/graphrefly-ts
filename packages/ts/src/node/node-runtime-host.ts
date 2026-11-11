@@ -16,7 +16,6 @@ import type {
 } from "./core.js";
 import type { Node } from "./node.js";
 import type { SubscriptionAcquisition } from "./owned-acquisition.js";
-import type { RewireOp } from "./types.js";
 
 export interface NodeRuntimeHost<T = unknown> {
 	_core: NodeCore;
@@ -34,12 +33,10 @@ export interface NodeRuntimeHost<T = unknown> {
 	_restoredActivationPending: boolean;
 	_released: boolean;
 	_assertNotReleased(op: string): void;
-	_requestRewireNext(op: RewireOp): void;
-	_applyRewireNext(op: RewireOp): void;
 	_dedupDeps(deps: Node<unknown>[]): Node<unknown>[];
 	_reachableUpstream(from: Node<unknown>, target: Node<unknown>): boolean;
 	_assertRewireDepOwner(dep: Node<unknown>): void;
-	_rewire(newDeps: Node<unknown>[], fn: NodeFn, opts?: { allowTerminalOwner?: boolean }): boolean;
+	_rewire(newDeps: Node<unknown>[], fn?: NodeFn, opts?: { declare?: boolean }): boolean;
 	_activate(): void;
 	_subscribeOwned(subscriber: Subscriber, acquisition?: SubscriptionAcquisition): () => void;
 	_subscribeDepAt(depNode: Node<unknown>, opts?: { seedRestored?: boolean }): void;

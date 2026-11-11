@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { batch } from "../batch/batch.js";
 import { deferRewire } from "../batch/boundary.js";
-import { depLatest } from "../ctx/types.js";
+import { ctxRewireDiff, depLatest } from "../ctx/types.js";
 import { Dispatcher, type Handle } from "../dispatcher/index.js";
 import {
 	ColdConstructionError,
@@ -13,6 +13,7 @@ import { Graph } from "../graph/graph.js";
 import { NodeCore, type NodeId } from "../node/core.js";
 import { eachMessage } from "../node/each-message.js";
 import { Node } from "../node/node.js";
+import { rewireOwnedNode } from "../node/node-rewire-runtime.js";
 import { nodeRuntimeHost } from "../node/node-runtime-host.js";
 import { checkpointStateOfNode, subscriberCountOfNode } from "../node/runtime-accessors.js";
 import {
@@ -158,7 +159,7 @@ describe("D161 graph construction ownership", () => {
 			if (event.path !== "causal/issues") return;
 			const authority = f.graph.find("causal/authority")!;
 			expect(authority.status.cache).toBe("empty");
-			authority.replaceDeps([], null);
+			rewireOwnedNode(authority, [], null);
 			changed = true;
 		});
 		expect(f.graph.describe).toBe(Graph.prototype.describe);
@@ -691,7 +692,7 @@ describe("D161 graph construction ownership", () => {
 			(ctx) => {
 				if (ctx.state.get() === undefined) {
 					ctx.state.set(true);
-					ctx.rewireNext.subscribeDep(b);
+					ctxRewireDiff(ctx, [b]);
 				}
 			},
 			{ name: "rewired/root" },

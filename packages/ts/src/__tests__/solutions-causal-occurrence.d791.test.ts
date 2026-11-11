@@ -7,6 +7,7 @@ import { Graph } from "../graph/graph.js";
 import { stableJsonString } from "../json/codec.js";
 import { eachMessage } from "../node/each-message.js";
 import type { Node } from "../node/node.js";
+import { removeOwnedNodeDep } from "../node/node-rewire-runtime.js";
 import type { Message } from "../protocol/messages.js";
 import {
 	assertCausalOccurrenceTopology,
@@ -1415,7 +1416,7 @@ describe("causal topology exact-string index", () => {
 				if (authority && !changed) {
 					changed = true;
 					expect(authority.status.cache).toBe("empty");
-					authority.unsubscribeDep(this.find("causal/arrivals")!, () => {
+					removeOwnedNodeDep(authority, this.find("causal/arrivals")!, () => {
 						calls += 1;
 					});
 				}

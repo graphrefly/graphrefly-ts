@@ -24,6 +24,7 @@ import {
 	plainBusiness,
 } from "../../../../scripts/fixtures/spending-preset-plain.js";
 import { eachMessage } from "../node/each-message.js";
+import { removeOwnedNodeDep } from "../node/node-rewire-runtime.js";
 import { assertCausalCapabilities } from "../solutions/causal-occurrence/capabilities.js";
 import type { CausalEvidence } from "../solutions/causal-occurrence/contracts.js";
 
@@ -525,7 +526,7 @@ describe("D165 actual dependency removal", () => {
 				}),
 			),
 		);
-		node.unsubscribeDep(node.deps[0], fn as import("../ctx/types.js").NodeFn);
+		removeOwnedNodeDep(node, node.deps[0], fn as import("../ctx/types.js").NodeFn);
 		const e = evaluationFixture();
 		r.send("pack", evaluationPack([e]));
 		r.drive(e);

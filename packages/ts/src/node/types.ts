@@ -105,8 +105,19 @@ export interface NodeRestoreState {
 	readonly version: NodeVersion | false;
 }
 
-/** A queued deferred self-rewire op (R-rewire-deferred / D47), drained at the wave boundary. */
-export type RewireOp =
-	| { kind: "add"; dep: Node<unknown>; fn: NodeFn }
-	| { kind: "remove"; dep: Node<unknown>; fn: NodeFn }
-	| { kind: "set"; deps: Node<unknown>[]; fn: NodeFn };
+/** R-node: what replace gives a new instance besides its dependencies and function. */
+export interface ReplaceOptions {
+	// biome-ignore lint/suspicious/noConfusingVoidType: a setup returns its cleanup or nothing.
+	readonly setup?: (ctx: Ctx) => (() => void) | undefined | void;
+	/** An opaque description of how the instance was built; the kernel stores it and never reads it. */
+	readonly recipe?: unknown;
+}
+
+/** R-node: a node's current definition; reading it changes nothing. */
+export interface NodeDefinition {
+	readonly deps: readonly Node<unknown>[];
+	readonly fn: NodeFn | null;
+	// biome-ignore lint/suspicious/noConfusingVoidType: a setup returns its cleanup or nothing.
+	readonly setup: ((ctx: Ctx) => (() => void) | undefined | void) | undefined;
+	readonly recipe: unknown;
+}

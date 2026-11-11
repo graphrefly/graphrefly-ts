@@ -1,8 +1,13 @@
 import { SENTINEL } from "../protocol/messages.js";
+import { makeDepBookkeeping } from "./core.js";
 import type { Node } from "./node.js";
 import { type NodeRuntimeHost, nodeRuntimeHost } from "./node-runtime-host.js";
 import type { RuntimeReleaseFailure } from "./owned-acquisition.js";
-import { closeNodeRegistration, setRuntimeReleaseFailures } from "./runtime-accessors.js";
+import {
+	closeNodeRegistration,
+	notifyTopologyDepsChanged,
+	setRuntimeReleaseFailures,
+} from "./runtime-accessors.js";
 import type { Status } from "./types.js";
 
 export function nodeActivate<T>(self: NodeRuntimeHost<T>): void {
@@ -120,6 +125,13 @@ export function nodeCloseLifetime<T>(
 	self._dep.unsubs = [];
 	self._dep.idxBoxes = [];
 	for (const u of unsubs) if (u) run(u, "subscription");
+	// R-lifetime: a ctx.rewire belongs to its lifetime; closing puts the declared dependencies back.
+	if (!self._released && self._slot.deps !== self._slot.declaredDeps) {
+		const prev = self._slot.deps;
+		self._slot.deps = self._slot.declaredDeps;
+		Object.assign(self._dep, makeDepBookkeeping(self._slot.deps.length));
+		notifyTopologyDepsChanged(self as unknown as Node<unknown>, prev, self._slot.deps);
+	}
 	lifetime.closing = true;
 	if (cleanup !== undefined) {
 		if (onError !== undefined) run(cleanup, "deactivation");

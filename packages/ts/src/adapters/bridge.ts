@@ -114,6 +114,7 @@ export type {
 	WireBridgeStatus,
 } from "./bridge-types.js";
 
+import { rewireOwnedNode } from "../node/node-rewire-runtime.js";
 import {
 	guardedInboundNode,
 	invalidIngress,
@@ -1218,10 +1219,11 @@ function attachWireBridgeCommandSource<TOutbound, TInbound>(
 	const previousSources = [...sources];
 	if (!sources.includes(source)) sources.push(source);
 	try {
-		bridge.command.replaceDeps([...sources], wireBridgeCommandSourceFn(sources.length));
+		rewireOwnedNode(bridge.command, [...sources], wireBridgeCommandSourceFn(sources.length));
 	} catch (error) {
 		sources.splice(0, sources.length, ...previousSources);
-		bridge.command.replaceDeps(
+		rewireOwnedNode(
+			bridge.command,
 			[...previousSources],
 			wireBridgeCommandSourceFn(previousSources.length),
 		);
@@ -1243,10 +1245,15 @@ function detachWireBridgeCommandSource<TOutbound, TInbound>(
 	const nextSources = sources.filter((candidate) => candidate !== source);
 	sources.splice(0, sources.length, ...nextSources);
 	try {
-		bridge.command.replaceDeps([...nextSources], wireBridgeCommandSourceFn(nextSources.length));
+		rewireOwnedNode(
+			bridge.command,
+			[...nextSources],
+			wireBridgeCommandSourceFn(nextSources.length),
+		);
 	} catch (error) {
 		sources.splice(0, sources.length, ...previousSources);
-		bridge.command.replaceDeps(
+		rewireOwnedNode(
+			bridge.command,
 			[...previousSources],
 			wireBridgeCommandSourceFn(previousSources.length),
 		);
@@ -1268,13 +1275,15 @@ function attachWireBridgeInboundSource<TOutbound, TInbound>(
 	const previousSources = [...sources];
 	if (!sources.includes(source)) sources.push(source);
 	try {
-		wireBridgeInboundTarget(bridge).replaceDeps(
+		rewireOwnedNode(
+			wireBridgeInboundTarget(bridge),
 			[...sources],
 			wireBridgeInboundSourceFn(sources.length),
 		);
 	} catch (error) {
 		sources.splice(0, sources.length, ...previousSources);
-		wireBridgeInboundTarget(bridge).replaceDeps(
+		rewireOwnedNode(
+			wireBridgeInboundTarget(bridge),
 			[...previousSources],
 			wireBridgeInboundSourceFn(previousSources.length),
 		);
@@ -1298,13 +1307,15 @@ function detachWireBridgeInboundSource<TOutbound, TInbound>(
 	const nextSources = sources.filter((candidate) => candidate !== source);
 	sources.splice(0, sources.length, ...nextSources);
 	try {
-		wireBridgeInboundTarget(bridge).replaceDeps(
+		rewireOwnedNode(
+			wireBridgeInboundTarget(bridge),
 			[...nextSources],
 			wireBridgeInboundSourceFn(nextSources.length),
 		);
 	} catch (error) {
 		sources.splice(0, sources.length, ...previousSources);
-		wireBridgeInboundTarget(bridge).replaceDeps(
+		rewireOwnedNode(
+			wireBridgeInboundTarget(bridge),
 			[...previousSources],
 			wireBridgeInboundSourceFn(previousSources.length),
 		);

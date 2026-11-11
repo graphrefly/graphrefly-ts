@@ -25,6 +25,7 @@ import { Dispatcher, type Handle } from "../dispatcher/index.js";
 import { ColdConstructionError, ConstructionScope } from "../graph/construction-scope.js";
 import { Graph } from "../graph/graph.js";
 import { eachMessage } from "../node/each-message.js";
+import { removeOwnedNodeDep } from "../node/node-rewire-runtime.js";
 
 it("scheduler failure before write retains known no-submit without executing", async () => {
 	const run = runHost();
@@ -80,7 +81,7 @@ it("removing a real guard dependency faults without positional fallback", async 
 	try {
 		await drain();
 		expect(fn).toBeTypeOf("function");
-		run.host.guard.unsubscribeDep(run.host.guard.deps[2], fn as NodeFn);
+		removeOwnedNodeDep(run.host.guard, run.host.guard.deps[2], fn as NodeFn);
 		run.drive([evaluationFixture()]);
 		await drain();
 		expect(run.calls).toHaveLength(0);

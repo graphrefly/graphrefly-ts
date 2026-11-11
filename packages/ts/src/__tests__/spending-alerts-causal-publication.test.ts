@@ -37,6 +37,7 @@ import {
 import { Graph } from "../graph/graph.js";
 import { eachMessage } from "../node/each-message.js";
 import type { Node } from "../node/node.js";
+import { removeOwnedNodeDep } from "../node/node-rewire-runtime.js";
 import { checkpointStateOfNode } from "../node/runtime-accessors.js";
 import type { CausalBinding } from "../solutions/causal-occurrence/capabilities.js";
 import {
@@ -513,7 +514,7 @@ describe("private publication material-v1", () => {
 		f.admit(a);
 		const n = out.values.length;
 		const join = f.built.requestMaterialJoin;
-		join.unsubscribeDep(join.deps[index], f.joinFn);
+		removeOwnedNodeDep(join, join.deps[index], f.joinFn);
 		if (index === 0) f.frame([a.material]);
 		else f.send("effectOutcomes", a.outcome);
 		expect(out.values.slice(n).some((v) => v.rows.some((r) => r.material === "matched"))).toBe(

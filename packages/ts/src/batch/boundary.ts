@@ -1,7 +1,7 @@
 /**
  * The wave-owner boundary + deferred self-rewire drain (R-rewire-deferred / D47).
  *
- * `ctx.rewireNext` defers a node's OWN dep-set mutation to the COMMITTED wave boundary.
+ * `ctx.rewire` defers a node's OWN dep-set mutation to the COMMITTED wave boundary.
  * The substrate has no such boundary on the raw call stack, so this module establishes one:
  * a module-global re-entrant DEPTH counter — the TS analogue of the Rust `WaveScope` /
  * `with_wave_owner` (graphrefly-rs B25, flagged forward-load-bearing for exactly this). JS is
@@ -21,11 +21,11 @@
  * belongs to one graph-local core. Standalone nodes keep their private core. Within a core, FIFO
  * issue order still gives the R-rewire-deferred drain order, and the scheduler records one core
  * token per queued task so mixed-core legal batches keep their enqueue order. Each queued mutation
- * runs as a fresh wave whose own `ctx.rewireNext` calls re-enqueue and drain in the same loop.
+ * runs as a fresh wave whose own `ctx.rewire` calls re-enqueue and drain in the same loop.
  *
  * C-25 / D110: queued boundary work is tagged with the batch frame that caused it (when any).
  * The drain applies only committed tasks; rollback drops the batch's tasks. Besides
- * `ctx.rewireNext`, a quiet node's in-run output is queued here (R-wave). Zero behavior change
+ * `ctx.rewire`, a quiet node's in-run output is queued here (R-wave). Zero behavior change
  * when nothing is queued: the drain is one empty-queue check per outermost wave (F-PERF).
  */
 
@@ -97,7 +97,7 @@ export function dropBoundaryTasksForBatch(batchToken: object): void {
 
 function drain(): void {
 	// Each applied rewire runs a fresh wave (its own depth-bracketed cascade) which may itself
-	// enqueue more rewireNext requests — appended and drained by this same FIFO loop
+	// enqueue more ctx.rewire requests — appended and drained by this same FIFO loop
 	// (DrainExactlyOnce). The depth++ around apply() prevents the fresh wave's own outermost
 	// exit from re-entering drain (this loop owns the draining). A net-changing op re-issued
 	// every boundary (oscillation) is a user-level runaway, like an infinite producer — NOT a

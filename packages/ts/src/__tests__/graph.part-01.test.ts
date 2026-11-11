@@ -20,6 +20,7 @@ import {
 	withBlueprintProvenance,
 } from "../index.js";
 import { eachMessage } from "../node/each-message.js";
+import { rewireOwnedNode } from "../node/node-rewire-runtime.js";
 
 function collect(n: { subscribe(s: (m: Message) => void): () => void }) {
 	const msgs: Message[] = [];
@@ -200,7 +201,7 @@ describe("Graph.topology — pure structure snapshot (D173)", () => {
 		const b = g.state(2, { name: "b" });
 		const d = g.node([a], (ctx) => ctx.down([["DATA", depLatest(ctx, 0)]]), { name: "d" });
 
-		d.replaceDeps([b], (ctx) => ctx.down([["DATA", depLatest(ctx, 0)]]));
+		rewireOwnedNode(d, [b], (ctx) => ctx.down([["DATA", depLatest(ctx, 0)]]));
 
 		const topology = g.topology();
 		expect(topology.nodes.find((node) => node.id === "d")?.deps).toEqual(["b"]);

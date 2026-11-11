@@ -6,6 +6,7 @@ import { depBatch, type NodeFn } from "../ctx/types.js";
 import type { Graph, TopologyGroup } from "../graph/graph.js";
 import { compoundTupleKey } from "../identity.js";
 import type { Node } from "../node/node.js";
+import { rewireOwnedNode } from "../node/node-rewire-runtime.js";
 import type {
 	ProcessAuditRecord,
 	ProcessBundle,
@@ -618,10 +619,11 @@ function attachProcessCommandSource(
 	const previousSources = [...sources];
 	if (!sources.includes(source)) sources.push(source);
 	try {
-		process.command.replaceDeps([...sources], processCommandSourceFn(sources.length));
+		rewireOwnedNode(process.command, [...sources], processCommandSourceFn(sources.length));
 	} catch (error) {
 		sources.splice(0, sources.length, ...previousSources);
-		process.command.replaceDeps(
+		rewireOwnedNode(
+			process.command,
 			[...previousSources],
 			processCommandSourceFn(previousSources.length),
 		);
@@ -643,10 +645,11 @@ function detachProcessCommandSource(
 	const nextSources = sources.filter((candidate) => candidate !== source);
 	sources.splice(0, sources.length, ...nextSources);
 	try {
-		process.command.replaceDeps([...nextSources], processCommandSourceFn(nextSources.length));
+		rewireOwnedNode(process.command, [...nextSources], processCommandSourceFn(nextSources.length));
 	} catch (error) {
 		sources.splice(0, sources.length, ...previousSources);
-		process.command.replaceDeps(
+		rewireOwnedNode(
+			process.command,
 			[...previousSources],
 			processCommandSourceFn(previousSources.length),
 		);

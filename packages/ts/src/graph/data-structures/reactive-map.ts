@@ -23,6 +23,7 @@
 
 import {
 	type Ctx,
+	ctxRewireDiff,
 	depBatch,
 	depCount,
 	depLiveBatch,
@@ -32,6 +33,7 @@ import {
 } from "../../ctx/types.js";
 import { strictCanonicalJsonBytes } from "../../json/codec.js";
 import { Node } from "../../node/node.js";
+import { addOwnedNodeDep, removeOwnedNodeDep } from "../../node/node-rewire-runtime.js";
 import { errorPayload } from "../../protocol/messages.js";
 import { registerBackendStateContributor } from "../checkpoint.js";
 import { initNode, type Operator } from "../operators.js";
@@ -490,7 +492,7 @@ function createReactiveMap<K, V>(
 		for (;;) {
 			const next = nextValidExpiry();
 			if (next === undefined) {
-				if (ttlTimer) ctx.rewireNext.unsubscribeDep(ttlTimer, body);
+				if (ttlTimer) ctxRewireDiff(ctx, [], [ttlTimer]);
 				ttlTimer = null;
 				ttlTimerDue = undefined;
 				return;
@@ -500,10 +502,10 @@ function createReactiveMap<K, V>(
 				continue;
 			}
 			if (ttlTimerDue === next.expiresAt) return;
-			if (ttlTimer) ctx.rewireNext.unsubscribeDep(ttlTimer, body);
+			if (ttlTimer) ctxRewireDiff(ctx, [], [ttlTimer]);
 			ttlTimerDue = next.expiresAt;
 			ttlTimer = initNode(timer(Math.max(0, next.expiresAt - backend.nowMs())), [], base);
-			ctx.rewireNext.subscribeDep(ttlTimer, body);
+			ctxRewireDiff(ctx, [ttlTimer]);
 			return;
 		}
 	}
@@ -575,7 +577,7 @@ function createReactiveMap<K, V>(
 				dep === ttlTimer &&
 				((depBatch(ctx, i)?.length ?? 0) > 0 || isTerminalComplete(depTerminal(ctx, i)))
 			) {
-				if (ttlTimer) ctx.rewireNext.unsubscribeDep(ttlTimer, applyBody);
+				if (ttlTimer) ctxRewireDiff(ctx, [], [ttlTimer]);
 				ttlTimer = null;
 				ttlTimerDue = undefined;
 				emitExpired(ctx, backend.pruneExpired());
@@ -807,12 +809,12 @@ function createReactiveMap<K, V>(
 				meta: { kind: "collection_bind_source", collection: "reactiveMap" },
 			});
 			bindDeps.add(folder as Node<unknown>);
-			apply.subscribeDep(folder as Node<unknown>, applyBody);
+			addOwnedNodeDep(apply, folder as Node<unknown>, applyBody);
 			let active = true;
 			const dispose = () => {
 				if (!active) return;
 				active = false;
-				apply.unsubscribeDep(folder as Node<unknown>, applyBody);
+				removeOwnedNodeDep(apply, folder as Node<unknown>, applyBody);
 			};
 			binds.push(dispose);
 			return dispose;

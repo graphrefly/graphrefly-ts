@@ -33,11 +33,14 @@ import {
 	withEnvironmentDrivers,
 	withNodeCore,
 } from "../node/node.js";
+import { nodeDefinition, nodeReplace } from "../node/node-rewire-runtime.js";
+import { nodeRuntimeHost } from "../node/node-runtime-host.js";
 import {
 	constructionAcquisitions,
 	failNodeAcquisition,
 	type NodeAcquisition,
 } from "../node/owned-acquisition.js";
+import type { NodeDefinition, ReplaceOptions } from "../node/types.js";
 import type { NodeVersioningPolicy } from "../node/versioning.js";
 import { errorPayload, messageTier, SENTINEL } from "../protocol/messages.js";
 import {
@@ -528,6 +531,38 @@ export class Graph {
 			opts,
 			(nodeOpts) => new Node<void>([...deps], ctxFn, nodeOpts),
 		);
+	}
+
+	/**
+	 * R-request-order / R-node: give a computed node a new instance under the same id, subscribers
+	 * and policies, with these dependencies and function and, in `opts`, its setup and recipe (or
+	 * none). The node keeps its subscribers, which receive START and the new snapshot. A request:
+	 * during a wave it waits for the wave to end. Refused for a state node, a duplicate dependency,
+	 * and a dependency that is the node itself or depends on it.
+	 */
+	replace<T>(
+		target: Node<T> | string,
+		deps: readonly Node<unknown>[],
+		fn: NodeFn,
+		opts: ReplaceOptions = {},
+	): void {
+		const node = this._resolveTarget(target, "replace");
+		this._assertDepsLocal(deps, `dep of replaced '${node.name ?? "node"}'`);
+		nodeReplace(nodeRuntimeHost(node), [...deps], fn, opts);
+	}
+
+	/** R-node: a node's current definition (declared dependencies, function, setup, recipe). */
+	definition(target: Node<unknown> | string): NodeDefinition {
+		return nodeDefinition(nodeRuntimeHost(this._resolveTarget(target, "definition")));
+	}
+
+	private _resolveTarget<T>(target: Node<T> | string, op: string): Node<T> {
+		const node = typeof target === "string" ? (this.find(target) as Node<T> | undefined) : target;
+		if (node === undefined || !this._entries.has(node as Node<unknown>))
+			throw new Error(
+				`${op}: no node '${String(typeof target === "string" ? target : target.name)}' in this graph`,
+			);
+		return node;
 	}
 
 	/** Declarative batch (D12): one wave, success→commit / throw→rollback. */

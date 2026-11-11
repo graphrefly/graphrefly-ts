@@ -25,6 +25,7 @@ import {
 	restoreRegistry,
 } from "../index.js";
 import { eachMessage } from "../node/each-message.js";
+import { addOwnedNodeDep, rewireOwnedNode } from "../node/node-rewire-runtime.js";
 
 const types = (msgs: Message[]) => msgs.map((m) => m[0]);
 const data = (msgs: Message[]) =>
@@ -111,89 +112,6 @@ describe("C-17 — absorbed-error dep counts as terminal for auto-COMPLETE (B42 
 
 // C-22 (R-rewire-batch-boundary / D67): if a node has an uncommitted batched settle slice, an
 // external rewire request waits until the batch commits, so the old slice is not overwritten.
-describe("C-22 — batch commit precedes rewire requested during the open batch (R-rewire-batch-boundary / D67)", () => {
-	it("commits the old batched DATA before applying the rewire's fresh DATA", () => {
-		const a = node<number>([], null, { initial: 1 });
-		const b = node<number>([], null, { initial: 10 });
-		const fwd: NodeFn = (ctx) => ctx.down([["DATA", depLatest(ctx, 0) as number]]);
-		const d = node<number>([a], fwd);
-		const { msgs } = collect(d);
-		msgs.length = 0;
-
-		batch(() => {
-			d.down([["DATA", 2]]);
-			d.replaceDeps([b], fwd);
-			expect(d.deps[0]).toBe(a);
-			expect(data(msgs)).toEqual([]);
-		});
-
-		expect(data(msgs)).toEqual([2, 10]);
-		expect(d.deps[0]).toBe(b);
-		expect(d.cache).toBe(10);
-	});
-
-	it("does not apply a deferred rewire when the batch rolls back", () => {
-		const a = node<number>([], null, { initial: 1 });
-		const b = node<number>([], null, { initial: 10 });
-		const fwd: NodeFn = (ctx) => ctx.down([["DATA", depLatest(ctx, 0) as number]]);
-		const d = node<number>([a], fwd);
-		const { msgs } = collect(d);
-		msgs.length = 0;
-
-		batch((bctx) => {
-			d.down([["DATA", 2]]);
-			d.replaceDeps([b], fwd);
-			bctx.rollback();
-		});
-
-		expect(d.deps[0]).toBe(a);
-		expect(data(msgs)).toEqual([]);
-		expect(d.cache).toBe(1);
-	});
-
-	it("applies an accepted rewire after a terminal batch slice while terminal output stays sealed", () => {
-		const a = node<number>([], null, { initial: 1 });
-		const b = node<number>([], null, { initial: 10 });
-		const fwd: NodeFn = (ctx) => ctx.down([["DATA", depLatest(ctx, 0) as number]]);
-		const d = node<number>([a], fwd, { complete: "manual" });
-		const { msgs } = collect(d);
-		msgs.length = 0;
-
-		batch(() => {
-			d.down([["COMPLETE"]]);
-			d.replaceDeps([b], fwd);
-			expect(d.deps[0]).toBe(a);
-		});
-
-		expect(d.status.output).toBe("completed");
-		expect(d.deps[0]).toBe(b);
-		expect(types(msgs)).toEqual(["PENDING", "COMPLETE"]);
-		msgs.length = 0;
-		b.down([["DATA", 11]]);
-		expect(msgs).toEqual([]);
-	});
-
-	it("returns the future index for an subscribeDep deferred behind a batch commit", () => {
-		const a = node<number>([], null, { initial: 1 });
-		const b = node<number>([], null, { initial: 10 });
-		const sum: NodeFn = (ctx) =>
-			ctx.down([
-				["DATA", ((depLatest(ctx, 0) as number) ?? 0) + ((depLatest(ctx, 1) as number) ?? 0)],
-			]);
-		const d = node<number>([a], (ctx) => ctx.down([["DATA", depLatest(ctx, 0) as number]]));
-		collect(d);
-
-		let idx = -2;
-		batch(() => {
-			d.down([["DATA", 2]]);
-			idx = d.subscribeDep(b, sum);
-			expect(d.deps).toEqual([a]);
-		});
-
-		expect(idx).toBe(1);
-		expect(d.deps).toEqual([a, b]);
-	});
-});
 
 // C-24 (R-snapshot/R-restore, D83/D117): restore is state-preserving. A restored dep-bearing
 // node's first post-restore activation wires deps, but the restored deps' push-on-subscribe DATA

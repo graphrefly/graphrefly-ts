@@ -11,6 +11,7 @@ import {
 } from "../ctx/types.js";
 import type { Wave } from "../protocol/messages.js";
 import type { Node } from "./node.js";
+import { nodeRequestRewire, nodeRequestRewireDiff } from "./node-rewire-runtime.js";
 import type { NodeRuntimeHost } from "./node-runtime-host.js";
 import { terminalView, validateNodeOutput } from "./protocol-guards.js";
 import { withEnvironmentDrivers, withNodeCore } from "./runtime-accessors.js";
@@ -50,7 +51,7 @@ export function nodeMakeCtx<T>(
 	const ctx: Ctx = {
 		// Wave-owner boundary (D47): a SYNC fn's emit nests under the public entry that drove
 		// it (cheap inc/dec, no early drain); an ASYNC-pool fn re-enters here from its stashed
-		// ctx at depth 0, so this is the boundary that drains any rewireNext it issued.
+		// ctx at depth 0, so this is the boundary that drains any ctx.rewire it issued.
 		down: (msgs) => {
 			if (self._released || signal.aborted) return;
 			validateNodeOutput(msgs);
@@ -74,17 +75,13 @@ export function nodeMakeCtx<T>(
 		state: self._makeState(),
 		signal,
 		environment: () => self._slot.environment,
-		// R-rewire-deferred (D47): defer a self-dep-set mutation to the committed boundary.
-		rewireNext: {
-			subscribeDep: (dep, fn) => self._requestRewireNext({ kind: "add", dep, fn }),
-			unsubscribeDep: (dep, fn) => self._requestRewireNext({ kind: "remove", dep, fn }),
-			replaceDeps: (deps, fn) => self._requestRewireNext({ kind: "set", deps, fn }),
-		},
+		rewire: (deps) => nodeRequestRewire(self, signal, [...deps]),
 		[CTX_DEP_CACHE]: { latest: snapshot?.latest ?? self._dep.prev },
 		[CTX_NODE_BINDING]: {
 			dispatcher: self._slot.dispatcher,
 			create: <U>(factory: () => Node<U>) =>
 				withEnvironmentDrivers(self._slot.environment, () => withNodeCore(self._core, factory)),
+			rewireDiff: (add, remove) => nodeRequestRewireDiff(self, signal, add, remove),
 		},
 	};
 	setCtxDepWaveOrigin(ctx, { live: snapshot?.waveLive ?? self._dep.waveLive });

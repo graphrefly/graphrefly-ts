@@ -29,7 +29,19 @@ export function nodeReceiveFromDep<T>(
 ): void {
 	if (self._released) return;
 	const t = msg[0];
-	if (t === "START") return;
+	if (t === "START") {
+		// R-subscription: a new instance of this dependency (a replace) starts its record over.
+		self._dep.waveData[idx] = [];
+		self._dep.waveLive[idx] = [];
+		self._dep.waveTokens[idx] = undefined;
+		self._dep.batch[idx] = null;
+		self._dep.prev[idx] = SENTINEL;
+		self._dep.hasData[idx] = false;
+		self._dep.terminal[idx] = undefined;
+		self._dep.terminalInput[idx] = undefined;
+		self._dep.invalidated[idx] = false;
+		return;
+	}
 	// R-terminals: an ended node's function never runs again; its input is dropped.
 	if (self._value.terminal !== undefined) return;
 	const last = delivery?.last ?? true;
@@ -114,8 +126,8 @@ export function nodeSettleRewire<T>(self: NodeRuntimeHost<T>): void {
 		!(self._slot.partial || self._allDepsSettled())
 	)
 		return;
-	self._markDirty(); // phase 1 (no-op if already dirty, e.g. unsubscribeDep auto-settle)
-	nodeSettle(self, true); // phase 2: fn → DATA, or the kernel's RESOLVED
+	// R-request-order: the added dependencies' snapshots are one ordinary input wave.
+	nodeSettle(self, false);
 }
 
 export function nodeTryRun<T>(self: NodeRuntimeHost<T>): void {

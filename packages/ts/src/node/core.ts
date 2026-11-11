@@ -1,4 +1,4 @@
-import type { Ctx, DependentSink, Sink } from "../ctx/types.js";
+import type { Ctx, DependentSink, NodeFn, Sink } from "../ctx/types.js";
 import type { Dispatcher, Handle } from "../dispatcher/index.js";
 import type { EnvironmentDrivers } from "../graph/environment.js";
 import type { Wave } from "../protocol/messages.js";
@@ -98,6 +98,11 @@ export interface BoundaryState {
 }
 
 export interface NodeSlot<_T> {
+	/** R-node: the instance's declared dependencies; a lifetime's rewire goes back to them. */
+	declaredDeps: Node<unknown>[];
+	/** R-node: the current instance's function and recipe, read by definition(). */
+	fn: NodeFn | null;
+	recipe: unknown;
 	id: NodeId;
 	deps: Node<unknown>[];
 	handle: Handle | null;
@@ -232,7 +237,7 @@ export class NodeCore {
 		this.versionStates[id] = undefined;
 	}
 
-	/** @internal B49: graph-local deferred-boundary queue (rewireNext/quiet output/batch-after-commit). */
+	/** @internal B49: graph-local deferred-boundary queue (ctx.rewire/quiet output/batch-after-commit). */
 	enqueueBoundaryTask(task: BoundaryTask): void {
 		this.boundary.queue.push(task);
 	}

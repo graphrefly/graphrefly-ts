@@ -28,6 +28,7 @@ import {
 	rebindEvaluation,
 } from "../../../../scripts/fixtures/spending-preset-scenarios.js";
 import { eachMessage } from "../node/each-message.js";
+import { removeOwnedNodeDep } from "../node/node-rewire-runtime.js";
 
 type Mutable<T> = { -readonly [K in keyof T]: Mutable<T[K]> };
 type Run = ReturnType<typeof presetRun> | ReturnType<typeof referenceRun>;
@@ -339,7 +340,7 @@ for (const name of ["score", "material", "store", "assessment", "evidence"] as c
 			}),
 		);
 		try {
-			node.unsubscribeDep(node.deps[0], fn as import("../ctx/types.js").NodeFn);
+			removeOwnedNodeDep(node, node.deps[0], fn as import("../ctx/types.js").NodeFn);
 			const e = evaluationFixture(),
 				f = policyFacts(e);
 			r.send("pack", evaluationPack([e]));

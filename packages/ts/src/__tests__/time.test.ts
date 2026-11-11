@@ -258,7 +258,7 @@ describe("B41 tail — audit / auditTime / timeout / bufferTime", () => {
 		expect(bufferTime<number>(s, 100).factory).toBe("bufferTime");
 	});
 
-	it("timeout exposes its live helper timer through describe/render, then removes it on terminal cleanup", () => {
+	it("timeout exposes its live helper timer through describe/render, and releases it when it ends", () => {
 		const g = graph({ name: "time" });
 		const s = g.node<number>([], null, { name: "src" });
 		const t = timeout<number>(s, 100);
@@ -275,10 +275,13 @@ describe("B41 tail — audit / auditTime / timeout / bufferTime", () => {
 		expect(armed.nodes.some((node) => node.factory === "timer")).toBe(true);
 		expect(describeToAscii(armed)).toContain("timer");
 
-		s.down([["COMPLETE"]]); // terminal-drain releases timeout's helper-owned timer.
+		s.down([["COMPLETE"]]);
 		const completed = g.describe();
 		expect(types(msgs)).toContain("COMPLETE");
 		expect(completed.nodes.some((node) => node.factory === "timeout")).toBe(true);
-		expect(completed.nodes.some((node) => node.factory === "timer")).toBe(false);
+		// R-lifetime: the ended timeout released its timers and is back on its declared dependencies,
+		// which name its first timer; nothing holds that timer active.
+		const timers = completed.nodes.filter((node) => node.factory === "timer");
+		expect(timers.every((node) => node.status?.lifecycle === "inactive")).toBe(true);
 	});
 });

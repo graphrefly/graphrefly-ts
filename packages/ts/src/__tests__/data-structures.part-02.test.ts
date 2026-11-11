@@ -19,6 +19,7 @@ import { graph } from "../graph/graph.js";
 import { Dispatcher, type Message } from "../index.js";
 import { eachMessage } from "../node/each-message.js";
 import type { Node } from "../node/node.js";
+import { rewireOwnedNode } from "../node/node-rewire-runtime.js";
 
 const _types = (m: Message[]) => m.map((x) => x[0]);
 const data = <T>(m: Message[]): T[] =>
@@ -518,7 +519,7 @@ describe("reactiveLog (D60 #5) — incremental view/scan + SENTINEL reject + dec
 		expect(() => page.dispose()).toThrow(/consumer.*still depends.*log\.page#0\.snapshot/);
 		expect(g.describe().nodes.map((n) => n.id)).toContain("log.page#0.snapshot");
 
-		downstream.replaceDeps([], () => {});
+		rewireOwnedNode(downstream, [], () => {});
 		page.dispose();
 		const after = g.describe();
 		expect(after.nodes.map((n) => n.id)).not.toContain("log.page#0.delta");

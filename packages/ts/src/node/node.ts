@@ -78,7 +78,7 @@ import {
 	nodeMarkDependents,
 	nodePublish,
 } from "./node-output-runtime.js";
-import { nodeApplyRewireNext, nodeRequestRewireNext, nodeRewire } from "./node-rewire-runtime.js";
+import { nodeRewire } from "./node-rewire-runtime.js";
 import { nodeRuntimeHost } from "./node-runtime-host.js";
 import {
 	constructionAcquisitions,
@@ -93,7 +93,7 @@ import {
 	takeConstructingEnvironmentDrivers,
 	takeConstructingNodeCore,
 } from "./runtime-accessors.js";
-import type { NodeOptions, RewireOp, Status } from "./types.js";
+import type { NodeOptions, Status } from "./types.js";
 import {
 	cloneNodeVersion,
 	createNodeVersion,
@@ -161,8 +161,6 @@ export class Node<T = unknown> {
 		void node._dep;
 		void node._lifetime;
 		void node._restoredActivationPending;
-		void node._requestRewireNext;
-		void node._applyRewireNext;
 		void node._reachableUpstream;
 		void node._assertRewireDepOwner;
 		void node._subscribeDepAt;
@@ -234,6 +232,9 @@ export class Node<T = unknown> {
 					invalidatePolicy: opts.invalidate ?? "auto",
 					quiet: opts.quiet ?? false,
 					setup: opts.setup,
+					declaredDeps: deps,
+					fn: typeof handleOrFn === "function" ? handleOrFn : null,
+					recipe: undefined,
 					dynamic: opts.dynamic ?? false,
 					name: opts.name,
 					factory: opts.factory,
@@ -357,7 +358,7 @@ export class Node<T = unknown> {
 	): () => void {
 		this._assertNotReleased("subscribe");
 		// Wave-owner boundary (R-rewire-deferred / D47): the activation cascade can run fns that
-		// issue ctx.rewireNext; the OUTERMOST exit drains them. Nested subscribes (dep wiring)
+		// issue ctx.rewire; the OUTERMOST exit drains them. Nested subscribes (dep wiring)
 		// just inc/dec the depth.
 		enterWave();
 		try {
@@ -456,45 +457,6 @@ export class Node<T = unknown> {
 
 	// ── rewire (R-rewire / D42): intra-graph runtime topology mutation ──
 
-	/**
-	 * Replace this node's deps atomically (surgical, Option-C). Requires an explicit
-	 * `fn` (SD-1 fn-deps pairing — user fns read dep input positionally). Kept deps
-	 * keep their subscription + per-dep state; only removed deps unsubscribe and only
-	 * added deps fresh-subscribe (push-on-subscribe for an added cached dep). The
-	 * first-run gate and cache are PRESERVED (R-rewire Q2/Q7). Intra-graph only (D22).
-	 */
-	replaceDeps(newDeps: Node<unknown>[], fn: NodeFn): void {
-		this._assertNotReleased("replaceDeps");
-		this._rewire(this._dedupDeps(newDeps), fn);
-	}
-
-	/** Subscribe to one dep (special case of replaceDeps); returns its index. fn required (SD-1). */
-	subscribeDep(depNode: Node<unknown>, fn: NodeFn): number {
-		this._assertNotReleased("subscribeDep");
-		const next = this._slot.deps.includes(depNode)
-			? [...this._slot.deps]
-			: [...this._slot.deps, depNode];
-		const deferred = this._rewire(next, fn);
-		return deferred ? next.indexOf(depNode) : this._slot.deps.indexOf(depNode);
-	}
-
-	/** Unsubscribe from one dep (special case of replaceDeps); idempotent if absent (fn swap still applies). */
-	unsubscribeDep(depNode: Node<unknown>, fn: NodeFn): void {
-		this._assertNotReleased("unsubscribeDep");
-		this._rewire(
-			this._slot.deps.filter((d) => d !== depNode),
-			fn,
-		);
-	}
-
-	private _requestRewireNext(op: RewireOp): void {
-		nodeRequestRewireNext(nodeRuntimeHost(this), op);
-	}
-
-	private _applyRewireNext(op: RewireOp): void {
-		nodeApplyRewireNext(nodeRuntimeHost(this), op);
-	}
-
 	private _dedupDeps(deps: Node<unknown>[]): Node<unknown>[] {
 		const seen = new Set<Node<unknown>>();
 		const out: Node<unknown>[] = [];
@@ -515,7 +477,11 @@ export class Node<T = unknown> {
 			if (n === target) return true;
 			if (seen.has(n)) continue;
 			seen.add(n);
-			for (const d of nodeRuntimeHost(n)._slot.deps) stack.push(d);
+			// R-request-order: through current and declared dependencies, since a closing lifetime
+			// puts the declared ones back.
+			const slot = nodeRuntimeHost(n)._slot;
+			for (const d of slot.deps) stack.push(d);
+			for (const d of slot.declaredDeps) stack.push(d);
 		}
 		return false;
 	}
@@ -531,8 +497,8 @@ export class Node<T = unknown> {
 
 	private _rewire(
 		newDeps: Node<unknown>[],
-		fn: NodeFn,
-		opts: { allowTerminalOwner?: boolean } = {},
+		fn?: NodeFn,
+		opts: { declare?: boolean } = {},
 	): boolean {
 		return nodeRewire(nodeRuntimeHost(this), newDeps, fn, opts);
 	}

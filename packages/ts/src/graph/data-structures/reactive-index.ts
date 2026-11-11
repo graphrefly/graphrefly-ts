@@ -14,6 +14,7 @@
 
 import { type Ctx, depBatch, depCount, depLatest } from "../../ctx/types.js";
 import { Node, node } from "../../node/node.js";
+import { addOwnedNodeDep, removeOwnedNodeDep } from "../../node/node-rewire-runtime.js";
 import { errorPayload } from "../../protocol/messages.js";
 import type { Operator } from "../operators.js";
 import type { OrderedCapacityPolicy, ReactiveOpt, ViewCachePolicy } from "../policies/types.js";
@@ -585,12 +586,12 @@ function createReactiveIndex<K, V = unknown>(
 			});
 			bindDeps.add(folder as Node<unknown>);
 			const applyNode = ensureApply();
-			applyNode.subscribeDep(folder as Node<unknown>, applyBody);
+			addOwnedNodeDep(applyNode, folder as Node<unknown>, applyBody);
 			let active = true;
 			const dispose = () => {
 				if (!active) return;
 				active = false;
-				applyNode.unsubscribeDep(folder as Node<unknown>, applyBody);
+				removeOwnedNodeDep(applyNode, folder as Node<unknown>, applyBody);
 			};
 			binds.push(dispose);
 			return dispose;

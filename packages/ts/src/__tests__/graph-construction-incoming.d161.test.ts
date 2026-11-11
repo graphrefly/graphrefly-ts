@@ -3,6 +3,7 @@ import { prepareConstruction } from "../graph/construction-scope.js";
 import { Graph, releaseGraphNodes } from "../graph/graph.js";
 import type { TopologyEvent } from "../graph/inspect.js";
 import { Node } from "../node/node.js";
+import { rewireOwnedNode } from "../node/node-rewire-runtime.js";
 import { releaseRuntimeOfNode } from "../node/runtime-accessors.js";
 
 const graphs: Graph[] = [];
@@ -48,7 +49,7 @@ describe("D161 B1 incoming inspection", () => {
 	it("captures only actual acquired targets, reading current deps before the manifest is complete", () => {
 		const f = fixture();
 		f.g.node([f.a], null, { name: "view/decoy" });
-		f.root.replaceDeps([f.b], null);
+		rewireOwnedNode(f.root, [f.b], null);
 		expect(f.scope.readIncoming().edges).toEqual([{ from: "b", to: "view/root" }]);
 		expect(f.g.find("view/future")).toBeUndefined();
 		expect(f.root.status.cache).toBe("empty");
@@ -93,7 +94,7 @@ describe("D161 B1 incoming inspection", () => {
 
 	it("retains a target's unregistered live dependency rather than substituting its old registered dep", () => {
 		const f = fixture();
-		f.root.replaceDeps([hidden()], null);
+		rewireOwnedNode(f.root, [hidden()], null);
 		expect(f.scope.readIncoming().edges).toEqual([{ from: "~hidden#0", to: "view/root" }]);
 		expect(f.g.describe().nodes.find((n) => n.id === "view/root")?.deps).toEqual(["~hidden#0"]);
 	});
@@ -103,7 +104,7 @@ describe("D161 B1 incoming inspection", () => {
 		const child = graph();
 		f.g.mount(child, { at: "child" });
 		const read = vi.spyOn(child, "describe").mockImplementation((opts, prefix) => {
-			f.root.replaceDeps([f.b], null);
+			rewireOwnedNode(f.root, [f.b], null);
 			return nativeDescribe.call(child, opts, prefix);
 		});
 		expect(f.scope.readIncoming().edges).toEqual([

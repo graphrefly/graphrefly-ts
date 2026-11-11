@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { ctxRewireDiff } from "../ctx/types.js";
 import type { Ctx, Message } from "../index.js";
 import {
 	batch,
@@ -13,6 +14,7 @@ import {
 	strictJsonCodec,
 } from "../index.js";
 import { eachMessage } from "../node/each-message.js";
+import { addOwnedNodeDep } from "../node/node-rewire-runtime.js";
 
 function collect(n: { subscribe(s: (m: Message) => void): () => void }) {
 	const msgs: Message[] = [];
@@ -384,7 +386,7 @@ describe("B49 core-slot migration", () => {
 		const foreign = graph().state(2);
 
 		expect(() =>
-			d.subscribeDep(foreign, (ctx: Ctx) => ctx.down([["DATA", depLatest(ctx, 0)]])),
+			addOwnedNodeDep(d, foreign, (ctx: Ctx) => ctx.down([["DATA", depLatest(ctx, 0)]])),
 		).toThrow(/different graph/);
 		expect(d.deps).toEqual([a]);
 	});
@@ -398,7 +400,7 @@ describe("B49 core-slot migration", () => {
 			[trigger],
 			function opFn(ctx) {
 				if (depLatest(ctx, 0) === 1) {
-					ctx.rewireNext.subscribeDep(inner, opFn);
+					ctxRewireDiff(ctx, [inner]);
 					queuedInsideRun = boundaryTaskCount(coreOf(op));
 				}
 			},
@@ -432,13 +434,13 @@ describe("B49 core-slot migration", () => {
 		const opA = node<number>(
 			[sourceA],
 			function opAFn(ctx) {
-				if (depBatch(ctx, 0)) ctx.rewireNext.subscribeDep(innerA1, opAFn);
-				if (depBatch(ctx, 1)) ctx.rewireNext.subscribeDep(innerA2, opAFn);
+				if (depBatch(ctx, 0)) ctxRewireDiff(ctx, [innerA1]);
+				if (depBatch(ctx, 1)) ctxRewireDiff(ctx, [innerA2]);
 			},
 			{ complete: "manual" },
 		);
 		const opB = node<number>([sourceB], function opBFn(ctx) {
-			if (depBatch(ctx, 0)) ctx.rewireNext.subscribeDep(innerB1, opBFn);
+			if (depBatch(ctx, 0)) ctxRewireDiff(ctx, [innerB1]);
 		});
 		opA.subscribe(() => {});
 		opB.subscribe(() => {});

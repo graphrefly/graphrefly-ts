@@ -7,6 +7,7 @@ import {
 	startConstruction,
 } from "../graph/construction-scope.js";
 import { Graph } from "../graph/graph.js";
+import { rewireOwnedNode } from "../node/node-rewire-runtime.js";
 
 for (const closingEdge of ["receipt-to-guard", "authority-to-receipt"] as const) {
 	it(`rejects the proposed quiet outcome cycle while cold: ${closingEdge}`, () => {
@@ -31,11 +32,11 @@ for (const closingEdge of ["receipt-to-guard", "authority-to-receipt"] as const)
 			quiet: true,
 		});
 		scope.node([guard, receipt], fn, { name: "controller", partial: true });
-		if (closingEdge === "receipt-to-guard") authority.replaceDeps([input, receipt], fn);
+		if (closingEdge === "receipt-to-guard") rewireOwnedNode(authority, [input, receipt], fn);
 		let failure: unknown;
 		try {
-			if (closingEdge === "receipt-to-guard") receipt.replaceDeps([guard], null);
-			else authority.replaceDeps([input, receipt], fn);
+			if (closingEdge === "receipt-to-guard") rewireOwnedNode(receipt, [guard], null);
+			else rewireOwnedNode(authority, [input, receipt], fn);
 		} catch (error) {
 			failure = error;
 		}

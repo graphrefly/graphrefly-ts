@@ -18,6 +18,7 @@ import {
 	timer,
 } from "../index.js";
 import { eachMessage } from "../node/each-message.js";
+import { rewireOwnedNode } from "../node/node-rewire-runtime.js";
 
 function collect(n: { subscribe(s: (m: Message) => void): () => void }) {
 	const msgs: Message[] = [];
@@ -278,7 +279,7 @@ describe("restoreGraph — fresh graph restore (R-restore / D94 / D95)", () => {
 			replaceDeps(deps: unknown[], fn: (ctx: Ctx) => void): void;
 			subscribe(s: (m: Message) => void): () => void;
 		};
-		restoredMapped.replaceDeps([src2], (ctx) => {
+		rewireOwnedNode(restoredMapped, [src2], (ctx) => {
 			ctx.down([["DATA", 11]]);
 		});
 		const msgs = collect(restoredMapped);

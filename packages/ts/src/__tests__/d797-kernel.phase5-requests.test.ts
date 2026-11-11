@@ -2,12 +2,14 @@
  * D797 kernel migration, phase 5 (graphrefly-ts:D797-KERNEL-MIGRATION-TS): the request queue.
  *
  * TS harness for the request-order clauses of the root scenarios C-6, C-28, C-29 and C-34 in
- * ~/src/graphrefly/spec/conformance.jsonl, against R-request-order@2.
+ * ~/src/graphrefly/spec/conformance.jsonl, against R-request-order@2, and the rewire and replace
+ * scenarios C-11, C-35, C-37 and C-40's replace clause, against R-request-order@2, R-lifetime@2
+ * and R-node@2.
  */
 
 import { describe, expect, it } from "vitest";
 import { batch } from "../batch/batch.js";
-import { depLatest } from "../ctx/types.js";
+import { type Ctx, depBatch, depLatest } from "../ctx/types.js";
 import { graph } from "../graph/graph.js";
 import type { Wave } from "../protocol/messages.js";
 
@@ -231,5 +233,197 @@ describe("C-34: a subscribe made during a fanout runs after it", () => {
 		t.set(1);
 		expect(order).toEqual(["x", "y", "z"]);
 		expect(z.log).toEqual([[["START"], ["DATA", 1], ["COMPLETE"]]]);
+	});
+});
+
+describe("C-35: rewire keeps the instance and runs between waves", () => {
+	function setup() {
+		const g = graph();
+		const b = g.state(1, { name: "b" });
+		const c = g.state(10, { name: "c" });
+		const e = g.state(0, { name: "e" });
+		e.complete();
+		const gNode = g.state<number>(undefined as unknown as number, { name: "g" });
+		let kept: Ctx | undefined;
+		const runs: unknown[][] = [];
+		const d = g.node<number>(
+			[b],
+			(ctx) => {
+				kept = ctx;
+				runs.push(ctx.waveData.map((w) => w.flat()));
+				ctx.state.set(((ctx.state.get<number>() ?? 0) as number) + 1);
+				ctx.down([["DATA", (depLatest(ctx, 0) as number) * 1]]);
+			},
+			{ name: "d" },
+		);
+		const sink: Wave[] = [];
+		const stop = d.subscribe((msgs) => sink.push(msgs));
+		return { g, b, c, e, gNode, d, runs, sink, stop, ctx: () => kept as Ctx };
+	}
+
+	it("adds, reorders, removes and refuses as the rule says; the definition stays", () => {
+		const f = setup();
+		f.runs.length = 0;
+		f.sink.length = 0;
+		f.ctx().rewire([f.b, f.c]);
+		expect(f.runs).toEqual([[[], [10]]]); // C's snapshot is one ordinary input wave
+		expect(f.sink.some((a) => a[0]?.[0] === "START")).toBe(false);
+		expect(f.d.deps).toEqual([f.b, f.c]);
+		f.runs.length = 0;
+		f.ctx().rewire([f.c, f.b]); // reorder: records kept, no run
+		expect(f.runs).toEqual([]);
+		f.ctx().rewire([f.c]); // remove B silently
+		expect(f.runs).toEqual([]);
+		f.b.set(2);
+		expect(f.runs).toEqual([]); // B no longer drives D
+		f.c.set(11);
+		expect(f.runs).toHaveLength(1);
+		f.runs.length = 0;
+		f.ctx().rewire([f.c]); // the current list: nothing
+		expect(f.runs).toEqual([]);
+		f.ctx().rewire([f.c, f.gNode]); // G has no snapshot: no run
+		expect(f.runs).toEqual([]);
+		f.gNode.set(5);
+		expect(f.runs).toHaveLength(1);
+		expect(() => f.ctx().rewire([f.c, f.c])).toThrow(/duplicate/);
+		expect(() => f.ctx().rewire([f.d])).toThrow(/itself/);
+		const after = f.g.node<number>([f.d], () => {}, { name: "after" });
+		after.subscribe(() => {});
+		expect(() => f.ctx().rewire([f.c, after])).toThrow(/depends on it/);
+		expect(f.g.definition(f.d).deps).toEqual([f.b]);
+	});
+
+	it("goes back to the declared dependencies when the lifetime closes; old ctx rewires drop", () => {
+		const f = setup();
+		f.ctx().rewire([f.c]);
+		const old = f.ctx();
+		f.stop();
+		expect(f.d.deps).toEqual([f.b]);
+		f.d.subscribe(() => {});
+		expect(f.d.deps).toEqual([f.b]);
+		old.rewire([f.c]); // through the closed lifetime's ctx: dropped
+		expect(f.d.deps).toEqual([f.b]);
+	});
+
+	it("a rewire asked for inside the function waits until the wave ends", () => {
+		const g = graph();
+		const a = g.state(0, { name: "a" });
+		const extra = g.state(7, { name: "extra" });
+		const seen: number[] = [];
+		const d = g.node<number>([a], (ctx) => {
+			seen.push(ctx.waveData.length);
+			if (depLatest(ctx, 0) === 1 && ctx.waveData.length === 1) ctx.rewire([a, extra]);
+		});
+		d.subscribe(() => {});
+		a.set(1);
+		expect(seen).toEqual([1, 1, 2]); // the rewire's run comes after the wave that asked
+	});
+
+	it("adding an ended dependency gives its snapshot, so its COMPLETE counts", () => {
+		const g = graph();
+		const s = g.state(1, { name: "s" });
+		const e = g.state(2, { name: "e" });
+		e.complete();
+		let kept: Ctx | undefined;
+		const d = g.node<number>([s], (ctx) => {
+			kept = ctx;
+		});
+		d.subscribe(() => {});
+		kept?.rewire([s, e]);
+		expect(d.status.output).toBe("open"); // S has not ended
+		s.complete();
+		expect(d.status.output).toBe("completed");
+	});
+});
+
+describe("C-11: a node rewires itself from its function, for its lifetime", () => {
+	it("forwards the inner, releases the old inner, and starts again on [S] in a new lifetime", () => {
+		const g = graph();
+		const s = g.state<string>(undefined as unknown as string, { name: "s" });
+		const inners = new Map<string, ReturnType<typeof g.state<number>>>();
+		const innerOf = (v: string) => {
+			let inner = inners.get(v);
+			if (inner === undefined) {
+				inner = g.state<number>(undefined as unknown as number, { name: `inner-${v}` });
+				inners.set(v, inner);
+			}
+			return inner;
+		};
+		const out: Wave[] = [];
+		const op = g.node<number>(
+			[s],
+			(ctx) => {
+				ctx.state.set("kept");
+				for (const v of depBatch(ctx, 0) ?? []) ctx.rewire([s, innerOf(v as string)]);
+				for (let i = 1; i < ctx.waveData.length; i++)
+					for (const x of depBatch(ctx, i) ?? []) ctx.down([["DATA", x as number]]);
+			},
+			{ name: "op", complete: "manual" },
+		);
+		const stop = op.subscribe((msgs) => out.push(msgs));
+		s.set("a");
+		expect(op.deps).toEqual([s, inners.get("a")]);
+		const innerA = inners.get("a") as ReturnType<typeof g.state<number>>;
+		innerA.set(1);
+		expect(out.at(-1)).toEqual([["PENDING"], ["DATA", 1]]);
+		s.set("b");
+		expect(op.deps).toEqual([s, inners.get("b")]);
+		expect((innerA as unknown as { _subscriberCount(): number })._subscriberCount()).toBe(0);
+		expect(op.cache).toBe(1); // OP keeps its value across the rewires
+		stop();
+		// The lifetime closed: back on the declared [S].
+		expect(op.deps).toEqual([s]);
+		// The new lifetime starts on [S]; its first run sees S's snapshot and rewires again.
+		op.subscribe(() => {});
+		expect(op.deps).toEqual([s, inners.get("b")]);
+	});
+});
+
+describe("C-37: a closed lifetime revokes old work while the node remains", () => {
+	it("rewire keeps the lifetime; after a close the old ctx.down is dropped", () => {
+		const g = graph();
+		const a = g.state(1, { name: "a" });
+		const b = g.state(2, { name: "b" });
+		const ctxs: Ctx[] = [];
+		const n = g.node<number>([a], (ctx) => {
+			ctxs.push(ctx);
+		});
+		const log: Wave[] = [];
+		const stop = n.subscribe((msgs) => log.push(msgs));
+		const first = ctxs[0] as Ctx;
+		first.rewire([a, b]);
+		first.down([["DATA", 9]]); // late output from before the rewire, same lifetime
+		expect(log.at(-1)).toEqual([["PENDING"], ["DATA", 9]]);
+		stop();
+		n.subscribe((msgs) => log.push(msgs));
+		const count = log.length;
+		first.down([["DATA", 10]]);
+		expect(log).toHaveLength(count);
+		expect(n.deps).toEqual([a]);
+		expect(ctxs.at(-1)).not.toBe(first);
+	});
+});
+
+describe("C-40: replace gives an ended node a new instance", () => {
+	it("its sink receives START and the new snapshot after the old COMPLETE", () => {
+		const g = graph();
+		const s = g.state(1, { name: "s" });
+		s.complete();
+		const t = g.state(5, { name: "t" });
+		const d = g.node<number>([s], (ctx) => ctx.down([["DATA", depLatest(ctx, 0) as number]]), {
+			name: "d",
+		});
+		const log: Wave[] = [];
+		d.subscribe((msgs) => log.push(msgs));
+		expect(d.status.output).toBe("completed");
+		g.replace(d, [t], (ctx) => ctx.down([["DATA", (depLatest(ctx, 0) as number) * 2]]), {
+			recipe: { ref: "double" },
+		});
+		expect(log.at(-1)).toEqual([["START"], ["DATA", 10]]);
+		expect(d.status.output).toBe("open");
+		expect(g.definition(d)).toMatchObject({ deps: [t], recipe: { ref: "double" } });
+		t.set(6);
+		expect(d.cache).toBe(12);
+		expect(() => g.replace(s, [], () => {})).toThrow(/state node/);
 	});
 });
