@@ -3,7 +3,7 @@
  *
  * Focused substrate units for the wave-boundary-deferred dep-set mutation that higher-order
  * operators (switchMap/mergeMap/...) build on: defer-not-immediate, drain at the committed
- * boundary, added cached inner pushes [DIRTY,DATA] with the gate NOT re-armed, removed inner
+ * boundary, added cached inner pushes [PENDING,DATA] with the gate NOT re-armed, removed inner
  * drains + deactivates (onDeactivation = abortInFlight), terminal-drains-queue (D62), no-net-change
  * no-op, and the immediate in-fn path still throwing (D37). The exhaustive interleavings are the
  * TLA+ model (~/src/graphrefly/formal/wave_rewire_deferred.tla); the canonical scenario is C-11.
@@ -77,7 +77,7 @@ describe("ctx.rewireNext — defer + drain (R-rewire-deferred / D47)", () => {
 		expect(inner.isActivated()).toBe(true); // post-boundary: drained → inner wired + activated
 	});
 
-	it("the added cached inner pushes [DIRTY,DATA] and is forwarded; the gate is NOT re-armed", () => {
+	it("the added cached inner pushes [PENDING,DATA] and is forwarded; the gate is NOT re-armed", () => {
 		const inner = makeInner(); // no seed — emits on demand
 		const s = node<number>([], null); // no initial
 		let opRuns = 0;
@@ -99,7 +99,7 @@ describe("ctx.rewireNext — defer + drain (R-rewire-deferred / D47)", () => {
 		opRuns = 0;
 
 		inner.emit(7); // inner DATA → op forwards as a two-phase wave
-		expect(types(msgs)).toEqual(["DIRTY", "DATA"]); // glitch-free, R-dirty-before-data
+		expect(types(msgs)).toEqual(["PENDING", "DATA"]); // glitch-free, R-dirty-before-data
 		expect(data(msgs)).toEqual([7]);
 
 		// gate NOT re-armed: S alone re-drives op without waiting on the added inner again.
@@ -253,7 +253,12 @@ describe("ctx.rewireNext — switch (replaceDeps) + terminal + no-net-change (D4
 			op.subscribeDep(x, opFn); // IMMEDIATE self-rewire mid-fn → feedback cycle
 			ctx.down([["DATA", depLatest(ctx, 0) as number]]);
 		});
-		expect(() => collect(op)).toThrow(/mid-fn|feedback/);
+		// R-failure@3: the rejected immediate self-rewire is op's ERROR, not a host throw.
+		const { msgs } = collect(op);
+		expect(op.status).toBe("errored");
+		expect(String((msgs.find((m) => m[0] === "ERROR") as ["ERROR", Error])[1].message)).toMatch(
+			/mid-fn|feedback/,
+		);
 	});
 });
 

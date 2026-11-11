@@ -42,7 +42,7 @@ for (const mode of ["off", "summary"] as const)
 		it("owns exact cold topology and five real view fields", () => {
 			const r = run(mode),
 				{ view, capabilities } = r.built.consume;
-			expect(r.owner.nodes).toHaveLength(mode === "off" ? 53 : 54);
+			expect(r.owner.nodes).toHaveLength(mode === "off" ? 50 : 51);
 			expect(r.owner.roots).toHaveLength(2);
 			expect(r.owner.phase).toBe("started");
 			expect(Object.keys(view)).toEqual([

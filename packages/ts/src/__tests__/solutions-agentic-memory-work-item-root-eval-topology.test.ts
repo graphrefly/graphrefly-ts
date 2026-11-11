@@ -341,6 +341,35 @@ function clone(snapshot: DescribeSnapshot): DescribeSnapshot {
 	return structuredClone(snapshot);
 }
 
+/**
+ * R-failure@3 (graphrefly-ts:D172): a fail-closed check inside a root eval node's function is that
+ * node's ERROR, not a throw out of the write; the write returns and the ERROR names the check.
+ */
+function expectGraphRejects(
+	topology: {
+		readonly graph: {
+			observe(): { subscribe(sink: (e: { msg: readonly unknown[] }) => void): () => void };
+		};
+	},
+	write: () => void,
+	pattern: RegExp,
+): void {
+	const errors: string[] = [];
+	const stop = topology.graph.observe().subscribe((event) => {
+		if (event.msg[0] === "ERROR")
+			errors.push(String((event.msg[1] as Error | undefined)?.message ?? event.msg[1]));
+	});
+	try {
+		expect(write).not.toThrow();
+	} finally {
+		stop();
+	}
+	expect(
+		errors.some((message) => pattern.test(message)),
+		errors.join("; "),
+	).toBe(true);
+}
+
 describe("D140-qualified D122 one-root verification diagnostics", () => {
 	it("keeps Eval lifecycle flags factory-owned and ordinary no-output settlement implicit", () => {
 		const source = readFileSync(
@@ -635,35 +664,41 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 
 	it("fails closed inside the root Graph instead of composing a simulated or stale profile", () => {
 		const exact = createCurrentExactModelHarnessProfileInput();
-		expect(() =>
-			createRootEvalTopology({
-				profileInput: {
-					...exact,
-					currentImplementationManifestDigest: `sha256:${"0".repeat(64)}`,
-				},
-				currentKeyBefore: ROOT_EVAL_NO_NETWORK_CURRENT_KEY_BEFORE,
-			}),
-		).toThrow(/manifest is not current/u);
+		expect(
+			() =>
+				createRootEvalTopology({
+					profileInput: {
+						...exact,
+						currentImplementationManifestDigest: `sha256:${"0".repeat(64)}`,
+					},
+					currentKeyBefore: ROOT_EVAL_NO_NETWORK_CURRENT_KEY_BEFORE,
+				}),
+			// R-failure@3: the manifest check inside the profile node is that node's ERROR; until
+			// phase 3 of the D797 migration lets an ended node be subscribed (C-34, C-40), the next
+			// acquisition of it refuses the ended node instead of carrying its message.
+		).toThrow(/manifest is not current|non-resubscribable/u);
 		const { qualificationDigest: _qualificationDigest, ...qualificationMaterial } =
 			exact.qualifications[0]!;
 		const forgedQualificationMaterial = {
 			...qualificationMaterial,
 			qualificationRef: "profile-qualification.caller-minted",
 		};
-		expect(() =>
-			createRootEvalTopology({
-				profileInput: {
-					...exact,
-					qualifications: [
-						{
-							...forgedQualificationMaterial,
-							qualificationDigest: empiricalStrictJsonDigest(forgedQualificationMaterial),
-						},
-					],
-				},
-				currentKeyBefore: ROOT_EVAL_NO_NETWORK_CURRENT_KEY_BEFORE,
-			}),
-		).toThrow(/not the exact no-network-qualified tuple/u);
+		expect(
+			() =>
+				createRootEvalTopology({
+					profileInput: {
+						...exact,
+						qualifications: [
+							{
+								...forgedQualificationMaterial,
+								qualificationDigest: empiricalStrictJsonDigest(forgedQualificationMaterial),
+							},
+						],
+					},
+					currentKeyBefore: ROOT_EVAL_NO_NETWORK_CURRENT_KEY_BEFORE,
+				}),
+			// Same as above until phase 3 (C-34, C-40).
+		).toThrow(/not the exact no-network-qualified tuple|non-resubscribable/u);
 		expect(() => createRootEvalTopology({} as never)).toThrow();
 	});
 
@@ -3655,7 +3690,7 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 				sourceTechnicalExcludedReplicates: [1, 2, 3, 4, 5],
 				finding: "operationally-inconclusive",
 			});
-			expect(targetMessages).not.toContain("DIRTY");
+			expect(targetMessages).not.toContain("PENDING");
 			expect(targetMessages).not.toContain("DATA");
 		} finally {
 			stop();
@@ -3893,17 +3928,20 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 				.slice(afterFirst)
 				.map((value) => (value as { completedWorkItems: number }).completedWorkItems),
 		).toEqual([2, 3]);
-		expect(() =>
-			topology.nodes.cleanup.down([
-				[
-					"DATA",
-					{
-						...fact,
-						resultDigest: empiricalStrictJsonDigest({ result: "contradiction" }),
-					},
-				],
-			]),
-		).toThrow(/contradictory cleanup/u);
+		expectGraphRejects(
+			topology,
+			() =>
+				topology.nodes.cleanup.down([
+					[
+						"DATA",
+						{
+							...fact,
+							resultDigest: empiricalStrictJsonDigest({ result: "contradiction" }),
+						},
+					],
+				]),
+			/contradictory cleanup/u,
+		);
 		stop();
 	});
 
@@ -4388,17 +4426,20 @@ describe("D154 adaptive route settlement and coherent terminal QA", () => {
 			expect(spacings).toHaveLength(1);
 			expect(empiricalStrictJsonDigest(budgets.at(-1))).toBe(budgetBefore);
 			expect(budgets.at(-1)?.policyQualifiedNonbillableCount).toBe(0);
-			expect(() =>
-				input.down([
-					[
-						"DATA",
-						{
-							...candidate!,
-							resultDigest: empiricalSha256("contradictory response"),
-						},
-					],
-				]),
-			).toThrow(/replay|conflict/u);
+			expectGraphRejects(
+				topology,
+				() =>
+					input.down([
+						[
+							"DATA",
+							{
+								...candidate!,
+								resultDigest: empiricalSha256("contradictory response"),
+							},
+						],
+					]),
+				/replay|conflict/u,
+			);
 			expect(budgets.at(-1)?.policyQualifiedNonbillableCount).toBe(0);
 		} finally {
 			controller.abort(new Error("D154 cost replay fixture cleanup"));
@@ -4493,18 +4534,21 @@ describe("D154 adaptive route settlement and coherent terminal QA", () => {
 		);
 		try {
 			await flushUntil(() => callbacks.length === 1);
-			expect(() =>
-				namedNode(topology, "eval/provider/pacing-clock").down([
-					[
-						"DATA",
-						{
-							kind: "eval-provider-pacing-clock",
-							phase: "ready",
-							readiness: { ...readiness!, pacingRevision: 0 },
-						},
-					],
-				]),
-			).toThrow(/scheduled occurrence/);
+			expectGraphRejects(
+				topology,
+				() =>
+					namedNode(topology, "eval/provider/pacing-clock").down([
+						[
+							"DATA",
+							{
+								kind: "eval-provider-pacing-clock",
+								phase: "ready",
+								readiness: { ...readiness!, pacingRevision: 0 },
+							},
+						],
+					]),
+				/scheduled occurrence/,
+			);
 			expect(providers).toBe(1);
 		} finally {
 			controller.abort(new Error("D154 stale clock fixture cleanup"));

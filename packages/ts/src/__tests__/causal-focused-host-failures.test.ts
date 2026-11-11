@@ -25,49 +25,6 @@ import { Dispatcher, type Handle } from "../dispatcher/index.js";
 import { ColdConstructionError, ConstructionScope } from "../graph/construction-scope.js";
 import { Graph } from "../graph/graph.js";
 
-for (const changed of ["lower-watermark", "different-policy", "higher-watermark"] as const) {
-	it(`final currentness checks ${changed} after admission before execution`, async () => {
-		const run = runHost();
-		const lock = Symbol("hold-final-guard");
-		try {
-			await drain();
-			run.host.guard.up([["PAUSE", lock]]);
-			const e = evaluationFixture();
-			run.drive([e]);
-			expect([...run.state().effects.values()][0].admission?.state).toBe("admitted");
-			expect(run.calls).toHaveLength(0);
-			const original = policyFacts(e).current;
-			run.send("current", {
-				...original,
-				current: original.current.map((f) => ({
-					...f,
-					...(changed === "different-policy"
-						? { policyRef: { ...f.policyRef, id: "other-policy-same-digest" } }
-						: { watermark: e.occurrence.revision + (changed === "higher-watermark" ? 1 : -1) }),
-				})),
-			});
-			run.host.guard.up([["RESUME", lock]]);
-			await drain();
-			if (changed === "higher-watermark") {
-				expect(run.calls).toHaveLength(1);
-				run.pending.resolve({ bytesWritten: Buffer.byteLength(run.calls[0]) });
-				await drain();
-				expect([...run.state().effects.values()][0].outcome?.state).toBe("succeeded");
-			} else {
-				expect(run.calls).toHaveLength(0);
-				const record = [...run.state().effects.values()][0];
-				expect(record.outcome).toMatchObject({
-					...record.proposal,
-					admissionRef: record.admission!.admissionRef,
-					state: "cancelled",
-					result: { kind: "error", error: { code: "spending-host/final-guard" } },
-				});
-			}
-		} finally {
-			run.teardown();
-		}
-	});
-}
 it("scheduler failure before write retains known no-submit without executing", async () => {
 	const run = runHost();
 	try {
@@ -122,11 +79,8 @@ it("removing a real guard dependency faults without positional fallback", async 
 	try {
 		await drain();
 		expect(fn).toBeTypeOf("function");
-		const lock = Symbol("hold-guard");
-		run.host.guard.up([["PAUSE", lock]]);
-		run.drive([evaluationFixture()]);
 		run.host.guard.unsubscribeDep(run.host.guard.deps[2], fn as NodeFn);
-		run.host.guard.up([["RESUME", lock]]);
+		run.drive([evaluationFixture()]);
 		await drain();
 		expect(run.calls).toHaveLength(0);
 		expect(run.host.inspect().fault).toBe("guard-dependency-mismatch");

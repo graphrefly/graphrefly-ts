@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Ctx, Message } from "../index.js";
-import { node } from "../index.js";
+import { depLatest, node } from "../index.js";
 
 function collect(n: { subscribe(s: (m: Message) => void): () => void }) {
 	const msgs: Message[] = [];
@@ -16,39 +16,10 @@ describe("QA fixes", () => {
 		expect(() => s.down([["DATA", undefined as unknown as number]])).toThrow(/non-SENTINEL/);
 	});
 
-	it("EC2: rejects DATA + RESOLVED in one wave (R-resolved-undirty tier-3 exclusivity)", () => {
+	it("EC2: rejects RESOLVED in node output; only the kernel sends it (R-wave@2)", () => {
 		const s = node<number>([], null, { initial: 1 });
 		collect(s);
-		expect(() => s.down([["DATA", 2], ["RESOLVED"]])).toThrow(/tier-3 exclusivity/);
-	});
-
-	it("EC3: dep INVALIDATE after DIRTY (before any DATA) un-wedges downstream", () => {
-		const a = node<number>([], null, { initial: 1 });
-		const b = node<number>([], null); // uncached -> first-run gate holds d forever
-		const d = node<number>([a, b], (ctx: Ctx) => ctx.down([["DATA", 1]]));
-		const { msgs } = collect(d);
-		expect(d.cache).toBeUndefined(); // gate held (b never settled)
-		msgs.length = 0;
-
-		a.down([["DIRTY"]]); // d goes dirty, broadcasts DIRTY (pending=1)
-		expect(types(msgs)).toEqual(["DIRTY"]);
-
-		a.down([["INVALIDATE"]]); // a had data -> emits INVALIDATE to d -> d un-wedges
-		expect(types(msgs)).toEqual(["DIRTY", "RESOLVED"]); // downstream un-dirtied, not stuck
-		expect(d.status).toBe("sentinel");
-	});
-
-	it("BH3: terminal while paused discards the buffer (no post-terminal DATA on resume)", () => {
-		const s = node<number>([], null, { initial: 0, pausable: "resumeAll" });
-		const { msgs } = collect(s);
-		msgs.length = 0;
-		const L = Symbol("L");
-		s.up([["PAUSE", L]]);
-		s.down([["DATA", 1]]); // buffered (resumeAll)
-		s.down([["COMPLETE"]]); // terminal bypasses buffer + discards it
-		expect(types(msgs)).toContain("COMPLETE");
-		s.up([["RESUME", L]]); // resume -> terminal guard -> no drain
-		expect(types(msgs)).not.toContain("DATA"); // buffered DATA never delivered post-terminal
+		expect(() => s.down([["DATA", 2], ["RESOLVED"]])).toThrow(/kernel/);
 	});
 
 	it("BH6: INVALIDATE clears the replay buffer (no stale replay)", () => {
@@ -61,17 +32,22 @@ describe("QA fixes", () => {
 		expect(types(msgs)).toEqual(["START"]); // no stale DATA replayed
 	});
 
-	it("WEDGE: a passthrough over a RESOLVED-only dep balances its DIRTY (R-resolved-undirty / D49)", () => {
+	it("WEDGE: a passthrough over a RESOLVED-only dep balances its PENDING (R-resolved-undirty / D49)", () => {
 		// Regression for the D49-widened wedge: a passthrough wire (deps, no fn) that broadcast
-		// DIRTY then receives an undirty RESOLVED from its dep (no DATA in the batch) must emit a
-		// balancing RESOLVED, not leave a dangling DIRTY. Under D49 a dep emits a bare RESOLVED on
+		// PENDING then receives an undirty RESOLVED from its dep (no DATA in the batch) must emit a
+		// balancing RESOLVED, not leave a dangling PENDING. Under D49 a dep emits a bare RESOLVED on
 		// every filter-reject / distinctUntilChanged-dup / no-emit fn, so this fires constantly.
-		const dep = node<number>([], null, { initial: 1 });
+		const src = node<number>([], null, { initial: 0 });
+		// dep sends nothing for an odd value, so the kernel settles it with RESOLVED.
+		const dep = node<number>([src], (ctx: Ctx) => {
+			const v = depLatest(ctx, 0) as number;
+			if (v % 2 === 0) ctx.down([["DATA", v]]);
+		});
 		const pass = node<number>([dep], null); // passthrough wire (_handle === null)
 		const { msgs } = collect(pass);
 		msgs.length = 0;
-		dep.down([["RESOLVED"]]); // dep settles with no value → DIRTY then RESOLVED to the passthrough
-		expect(types(msgs)).toEqual(["DIRTY", "RESOLVED"]); // balanced, not a dangling ["DIRTY"]
+		src.down([["DATA", 1]]); // dep settles with no value → PENDING then RESOLVED to the passthrough
+		expect(types(msgs)).toEqual(["PENDING", "RESOLVED"]); // balanced, not a dangling ["PENDING"]
 		expect(pass.status).not.toBe("dirty"); // un-wedged
 	});
 });

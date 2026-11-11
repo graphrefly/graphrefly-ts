@@ -1,6 +1,5 @@
 import type { DataIssue } from "../data/index.js";
 import type { Node } from "../node/node.js";
-import type { LockId } from "../protocol/messages.js";
 
 export interface MessageEnvelope<T = unknown> {
 	readonly topic: string;
@@ -266,19 +265,25 @@ export interface MessageBusAvailableParams extends MessageBusPageParams {
 	readonly afterSeq?: number;
 }
 
-export interface MessageBusPullProjection<TPage> {
+/**
+ * A page projection served on request (graphrefly-ts:D172): `snapshot` is a quiet node that
+ * declares `snapshotRequest` as a dependency and sends one page per live write to it, computed
+ * with the written params.
+ */
+export interface MessageBusRequestProjection<TPage, TParams = MessageBusPageParams> {
 	readonly snapshot: Node<TPage>;
-	readonly snapshotPullId: LockId;
+	readonly snapshotRequest: Node<TParams>;
 	readonly status: Node<MessageBusStatus>;
 	readonly issues: Node<DataIssue>;
 }
 
 export interface MessageBusTopicProjection<T = unknown>
-	extends MessageBusPullProjection<MessageBusTopicPage<T>> {}
+	extends MessageBusRequestProjection<MessageBusTopicPage<T>, MessageBusTopicParams> {}
 
 export interface MessageBusSubscription<T = unknown> {
 	readonly available: Node<MessageBusAvailablePage<T>>;
-	readonly availablePullId: LockId;
+	/** Each live write asks `available` for one page with the written params. */
+	readonly availableRequest: Node<MessageBusAvailableParams>;
 	readonly cursor: Node<MessageBusCursor>;
 	readonly status: Node<MessageBusStatus>;
 	readonly issues: Node<DataIssue>;
@@ -303,10 +308,12 @@ export interface MessageBus<TTopic extends string = string> {
 		topic: TTopic | string,
 		opts?: { name?: string },
 	): MessageBusTopicProjection<T>;
-	catalog(opts?: { name?: string }): MessageBusPullProjection<MessageBusCatalogPage>;
+	catalog(opts?: {
+		name?: string;
+	}): MessageBusRequestProjection<MessageBusCatalogPage, MessageBusCatalogParams>;
 	deadLetter<T = unknown>(opts?: {
 		name?: string;
-	}): MessageBusPullProjection<MessageBusDeadLetterPage<T>>;
+	}): MessageBusRequestProjection<MessageBusDeadLetterPage<T>, MessageBusDeadLetterParams>;
 	subscription<T = unknown>(opts: {
 		topic: TTopic | string;
 		subscriptionId: string;

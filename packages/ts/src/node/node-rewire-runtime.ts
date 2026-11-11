@@ -1,7 +1,6 @@
 import { currentBoundaryBatchToken, deferAfterBatchForTarget } from "../batch/batch.js";
 import { deferRewire } from "../batch/boundary.js";
 import type { NodeFn } from "../ctx/types.js";
-import type { Wave } from "../protocol/messages.js";
 import { errorPayload, SENTINEL } from "../protocol/messages.js";
 import type { Node } from "./node.js";
 import { type NodeRuntimeHost, nodeRuntimeHost } from "./node-runtime-host.js";
@@ -11,25 +10,7 @@ import type { RewireOp } from "./types.js";
 export function nodeRequestRewireNext<T>(self: NodeRuntimeHost<T>, op: RewireOp): void {
 	deferRewire(self._core, () => self._applyRewireNext(op), {
 		batchToken: currentBoundaryBatchToken(),
-		isReady: () => !self._hasBoundaryPauseLock(),
 	});
-}
-
-export function nodeRequestUpNext<T>(
-	self: NodeRuntimeHost<T>,
-	msgs: Wave,
-	towardDep?: number,
-): void {
-	deferRewire(
-		self._core,
-		() => {
-			if (!self._released) self._up(msgs, towardDep);
-		},
-		{
-			batchToken: currentBoundaryBatchToken(),
-			isReady: () => !self._hasBoundaryPauseLock(),
-		},
-	);
 }
 
 export function nodeApplyRewireNext<T>(self: NodeRuntimeHost<T>, op: RewireOp): void {
@@ -175,8 +156,8 @@ export function nodeRewire<T>(
 	}
 
 	// Atomic post-mutation settle (outside the reentrancy guard so a fresh wave runs
-	// normally): ONE two-phase DIRTY→DATA recompute if any added dep delivered data or a
-	// sole-dirty dep was removed; else the zero-dep un-dirty via _down (pause/batch-safe).
+	// normally): ONE two-phase PENDING→DATA recompute if any added dep delivered data or a
+	// sole-dirty dep was removed; else the zero-dep un-dirty via _down (batch-safe).
 	if (self._wave.rewireRunPending) {
 		self._wave.rewireRunPending = false;
 		self._settleRewire();

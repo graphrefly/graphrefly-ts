@@ -58,7 +58,7 @@ describe("observe helpers — read-only egress sugar (R-observe / D39)", () => {
 
 	it("filterObserve forwards matching events and preserves source unsubscribe", () => {
 		const events: ObserveEvent[] = [
-			{ path: "a", msg: ["DIRTY"], tier: 2, seq: 1 },
+			{ path: "a", msg: ["PENDING"], tier: 2, seq: 1 },
 			{ path: "a", msg: ["DATA", 1], tier: 3, seq: 2 },
 			{ path: "b", msg: ["DATA", 2], tier: 3, seq: 3 },
 			{ path: "a", msg: ["DATA", 3], tier: 3, seq: 4 },
@@ -86,15 +86,15 @@ describe("observe helpers — read-only egress sugar (R-observe / D39)", () => {
 			{ path: "b", msg: ["DATA", 2], tier: 3, seq: 4 },
 			{ path: "b", msg: ["DATA", 2], tier: 3, seq: 5 },
 			{ path: "a", msg: ["DATA", 1], tier: 3, seq: 6 },
-			{ path: "a", msg: ["DIRTY"], tier: 2, seq: 7 },
-			{ path: "a", msg: ["DIRTY"], tier: 2, seq: 8 },
+			{ path: "a", msg: ["PENDING"], tier: 2, seq: 7 },
+			{ path: "a", msg: ["PENDING"], tier: 2, seq: 8 },
 		];
 		const seen: ObserveEvent[] = [];
 
 		coalesceObserve(observeFrom(events)).subscribe((event) => seen.push(event));
 
 		expect(seen.map((event) => event.seq)).toEqual([1, 3, 4, 6, 7]);
-		expect(seen.map((event) => event.msg[0])).toEqual(["DATA", "DATA", "DATA", "DATA", "DIRTY"]);
+		expect(seen.map((event) => event.msg[0])).toEqual(["DATA", "DATA", "DATA", "DATA", "PENDING"]);
 	});
 
 	it("coalesceObserve accepts a caller-owned equality for narrower egress coalescing", () => {

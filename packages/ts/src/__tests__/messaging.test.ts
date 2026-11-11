@@ -3,7 +3,6 @@ import { graph } from "../graph/graph.js";
 import {
 	CONTEXT_TOPIC,
 	DEFERRED_TOPIC,
-	fromTopic,
 	INJECTIONS_TOPIC,
 	type JsonSchema,
 	messageBus,
@@ -72,7 +71,8 @@ describe("messageBus clean-slate retained topic log (D279/D282/D284/D285/D325)",
 			}),
 		]);
 		const catalog = bus.catalog();
-		catalog.snapshot.up([["PULL", { pullId: catalog.snapshotPullId }]]);
+		catalog.snapshot.subscribe(() => {}); // R-lifetime: an inactive projection does not run
+		catalog.snapshotRequest.down([["DATA", {}]]);
 		expect(catalog.snapshot.cache?.topics.map((topic) => topic.topic)).not.toContain("missing");
 	});
 
@@ -174,7 +174,7 @@ describe("messageBus clean-slate retained topic log (D279/D282/D284/D285/D325)",
 		expect(g.describe().edges).not.toContainEqual({ from: "orders/out", to: "bus/commands" });
 	});
 
-	it("catalog/topic/deadLetter projections answer explicit PULL params", () => {
+	it("catalog/topic/deadLetter projections answer the params written to their request state", () => {
 		const g = graph();
 		const bus = messageBus(g, { topics: ["orders"], name: "bus", now: () => 40 });
 		bus.ensureTopic("returns");
@@ -190,11 +190,9 @@ describe("messageBus clean-slate retained topic log (D279/D282/D284/D285/D325)",
 		topic.snapshot.subscribe((msg) => topicMsgs.push(msg));
 		dead.snapshot.subscribe((msg) => deadMsgs.push(msg));
 
-		catalog.snapshot.up([["PULL", { pullId: catalog.snapshotPullId, params: { limit: 1 } }]]);
-		topic.snapshot.up([["PULL", { pullId: topic.snapshotPullId, params: { limit: 1 } }]]);
-		dead.snapshot.up([
-			["PULL", { pullId: dead.snapshotPullId, params: { code: "unknown-topic" } }],
-		]);
+		catalog.snapshotRequest.down([["DATA", { limit: 1 }]]);
+		topic.snapshotRequest.down([["DATA", { limit: 1 }]]);
+		dead.snapshotRequest.down([["DATA", { code: "unknown-topic" }]]);
 
 		expect(catalogMsgs.at(-1)).toEqual([
 			"DATA",
@@ -217,7 +215,7 @@ describe("messageBus clean-slate retained topic log (D279/D282/D284/D285/D325)",
 		]);
 	});
 
-	it("subscription available PULL is read-only; ack/seek/close move the cursor", () => {
+	it("subscription available request is read-only; ack/seek/close move the cursor", () => {
 		const g = graph();
 		const bus = messageBus(g, { topics: ["orders"], name: "bus", now: () => 50 });
 		bus.publish("orders", { id: "o1" });
@@ -231,7 +229,7 @@ describe("messageBus clean-slate retained topic log (D279/D282/D284/D285/D325)",
 		sub.available.subscribe((msg) => available.push(msg));
 		sub.cursor.subscribe((msg) => cursor.push(msg));
 
-		sub.available.up([["PULL", { pullId: sub.availablePullId, params: { limit: 1 } }]]);
+		sub.availableRequest.down([["DATA", { limit: 1 }]]);
 		expect(available.at(-1)).toEqual([
 			"DATA",
 			expect.objectContaining({
@@ -241,7 +239,7 @@ describe("messageBus clean-slate retained topic log (D279/D282/D284/D285/D325)",
 			}),
 		]);
 
-		sub.available.up([["PULL", { pullId: sub.availablePullId, params: { afterSeq: 1 } }]]);
+		sub.availableRequest.down([["DATA", { afterSeq: 1 }]]);
 		expect(available.at(-1)).toEqual([
 			"DATA",
 			expect.objectContaining({
@@ -282,7 +280,8 @@ describe("messageBus clean-slate retained topic log (D279/D282/D284/D285/D325)",
 
 		bus.publish("orders", "a");
 		bus.publish("orders", "b");
-		sub.available.up([["PULL", { pullId: sub.availablePullId }]]);
+		sub.available.subscribe(() => {}); // R-lifetime: an inactive projection does not run
+		sub.availableRequest.down([["DATA", {}]]);
 
 		expect(issues.at(-1)).toEqual(["DATA", expect.objectContaining({ code: "retention-gap" })]);
 		expect(sub.available.cache?.cursor).toEqual(
@@ -330,7 +329,8 @@ describe("messageBus clean-slate retained topic log (D279/D282/D284/D285/D325)",
 			"DATA",
 			expect.objectContaining({ code: "cursor-out-of-range" }),
 		]);
-		sub.available.up([["PULL", { pullId: sub.availablePullId }]]);
+		sub.available.subscribe(() => {}); // R-lifetime: an inactive projection does not run
+		sub.availableRequest.down([["DATA", {}]]);
 		expect(sub.available.cache?.cursor.nextSeq).toBe(1);
 		expect(sub.available.cache?.messages.map((msg) => msg.seq)).toEqual([1]);
 	});
@@ -355,16 +355,17 @@ describe("messageBus clean-slate retained topic log (D279/D282/D284/D285/D325)",
 	});
 });
 
-describe("messageBus topic projection sugar", () => {
-	it("fromTopic returns the pull snapshot node for a topic projection", () => {
+describe("messageBus topic projection request (graphrefly-ts:D172)", () => {
+	it("a topic projection serves one page per live write to its request state", () => {
 		const g = graph();
 		const bus = messageBus(g, { topics: ["orders"], name: "bus", now: () => 70 });
 		bus.publish("orders", { id: "o1" });
-		const snapshot = fromTopic<{ id: string }>(bus, "orders");
+		const topic = bus.topic<{ id: string }>("orders");
 		const msgs: unknown[] = [];
-		snapshot.subscribe((msg) => msgs.push(msg));
+		topic.snapshot.subscribe((msg) => msgs.push(msg));
+		expect(msgs).toEqual([["START"]]);
 
-		snapshot.up([["PULL", { pullId: snapshot.pullId as symbol }]]);
+		topic.snapshotRequest.down([["DATA", {}]]);
 
 		expect(msgs.at(-1)).toEqual([
 			"DATA",

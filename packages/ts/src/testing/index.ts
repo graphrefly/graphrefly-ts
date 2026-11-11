@@ -1,4 +1,4 @@
 export {
-	assertDirtyPrecedesTerminalData,
+	assertPendingPrecedesTerminalData,
 	type MessageSequence,
 } from "./assertions.js";

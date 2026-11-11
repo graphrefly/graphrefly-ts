@@ -2,7 +2,7 @@
  * CSP-2.8 reactive data structures (D54/D60) — reactiveList/Map/Index/Log + the shared core.
  *
  * Covers the two-port shape (D60): the always-on DELTA stream (O(1)/mutation) + the lazy pull
- * SNAPSHOT node (materialized only on a cone-routed PULL demand, R-pull/D269/C-16), the D54
+ * SNAPSHOT node (materialized only on a live write to its REQUEST state, graphrefly-ts:D172), the D54
  * `Node<T>` widening (declared-dep input fold), each structure's specialization (Map lazy-TTL +
  * LRU + delete-reason; Index Z reverse-lookup; Log incremental view/scan + SENTINEL reject +
  * declared-dep merge), and real factory names (D6).
@@ -37,9 +37,9 @@ class CountingDispatcher extends Dispatcher {
 	registerCount = 0;
 }
 
-/** Demand the snapshot directly (the substrate cone-routed PULL of its pullId, R-pull/D269). */
-function demand(snapshot: Node<unknown>, pullId: symbol): void {
-	snapshot.up([["PULL", { pullId }]]);
+/** Request one snapshot: a live write to the collection's request state (graphrefly-ts:D172). */
+function demand(request: Node<true>): void {
+	request.down([["DATA", true]]);
 }
 
 describe("reactiveIndex (D60 #4) — ordered snapshot + Z reverse-lookup", () => {
@@ -49,7 +49,7 @@ describe("reactiveIndex (D60 #4) — ordered snapshot + Z reverse-lookup", () =>
 		idx.upsert("id1", 10, "a");
 		idx.upsert("id3", 5, "c");
 		const { msgs } = collect(idx.snapshot);
-		demand(idx.snapshot as Node<unknown>, idx.pullId);
+		demand(idx.request);
 		const rows = data<readonly { primary: string }[]>(msgs)[0];
 		expect(rows.map((r) => r.primary)).toEqual(["id2", "id3", "id1"]); // (5,id2),(5,id3),(10,id1)
 		expect(idx.has("id1")).toBe(true);
@@ -83,7 +83,7 @@ describe("reactiveIndex (D60 #4) — ordered snapshot + Z reverse-lookup", () =>
 			secondary: 1,
 			value: 1,
 		});
-		demand(view.snapshot as Node<unknown>, view.pullId);
+		demand(view.request);
 		expect(data(snapshotMsgs).at(-1)).toEqual([1, 2]);
 		expect(idx.range("a", "c")).toBe(view);
 		const numeric = reactiveIndex<number, number>();
@@ -403,7 +403,7 @@ describe("reactiveLog (D60 #5) — incremental view/scan + SENTINEL reject + dec
 		const { msgs } = collect(log.snapshot);
 		log.append("a");
 		log.append("b");
-		demand(log.snapshot as Node<unknown>, log.pullId);
+		demand(log.request);
 		expect(data(msgs)).toEqual([["a", "b"]]);
 	});
 
@@ -440,7 +440,7 @@ describe("reactiveLog (D60 #5) — incremental view/scan + SENTINEL reject + dec
 		log.append(10);
 
 		expect(data(deltaMsgs).at(-1)).toEqual({ kind: "append", value: 10 });
-		demand(page.snapshot as Node<unknown>, page.pullId);
+		demand(page.request);
 		expect(data(snapshotMsgs).at(-1)).toEqual([2, 3, 4]);
 		expect(log.page(2, 3)).toBe(page);
 		page.dispose();

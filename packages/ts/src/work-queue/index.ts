@@ -16,6 +16,7 @@ import type {
 	MessageBusStatus,
 } from "../messaging/index.js";
 import { attachMessageBusDeferredCommandSink } from "../messaging/internal.js";
+import { type Node, requestDownAfterWave } from "../node/node.js";
 import { availablePage, deadLetterPage, workSnapshot } from "./projections.js";
 import type { QueueEvent, RuntimeState, WorkState } from "./runtime-types.js";
 import type {
@@ -47,9 +48,9 @@ import {
 	payloadAsRecord,
 	positiveLimit,
 	publishQueueCommand,
-	pullParams,
 	recordEvent,
 	rejectQueueCommand,
+	requestParams,
 	statusEvent,
 	stringArrayOrUndefined,
 	submitPayload,
@@ -158,7 +159,10 @@ export function workQueue<T = unknown>(graph: Graph, opts: WorkQueueOptions<T>):
 				}
 			}
 			if (shouldPull) {
-				ctx.upNext([["PULL", { pullId: admission.availablePullId, params: { limit: 100 } }]], 0);
+				// A request for one page, after this wave (graphrefly-ts:D172).
+				requestDownAfterWave(admission.availableRequest as Node<unknown>, [
+					["DATA", { limit: 100 }],
+				]);
 			}
 		},
 		{
@@ -343,63 +347,94 @@ export function workQueue<T = unknown>(graph: Graph, opts: WorkQueueOptions<T>):
 			} as WorkQueueCommand<T>);
 		},
 		available(projectionOpts = {}) {
-			const availablePullId = Symbol(`${name}/available`);
+			const projectionName = projectionOpts.name ?? `${name}/available`;
+			const availableRequest = projectionRequest<WorkQueueAvailableParams>(
+				graph,
+				projectionName,
+				"workQueueAvailableRequest",
+			);
 			const available = graph.node<WorkQueueAvailablePage<T>>(
-				[records],
+				[records, availableRequest],
 				(ctx) => {
-					const params = pullParams<WorkQueueAvailableParams>(ctx.pull);
+					const params = requestParams<WorkQueueAvailableParams>(ctx, 1);
+					if (params === undefined) return;
 					ctx.down([["DATA", availablePage(state, params)]]);
 				},
 				{
-					name: projectionOpts.name ?? `${name}/available`,
+					name: projectionName,
 					factory: "workQueueAvailable",
-					pullId: availablePullId,
+					quiet: true,
 					partial: true,
 					completeWhenDepsComplete: false,
 					errorWhenDepsError: false,
 				},
 			);
-			return { available, availablePullId, status, issues };
+			return { available, availableRequest, status, issues };
 		},
 		work(workId, projectionOpts = {}) {
-			const snapshotPullId = Symbol(`${name}/${workId}/snapshot`);
+			const projectionName = projectionOpts.name ?? `${name}/${workId}`;
+			const snapshotRequest = projectionRequest<Record<string, unknown>>(
+				graph,
+				projectionName,
+				"workQueueWorkSnapshotRequest",
+			);
 			const snapshot = graph.node<WorkQueueWorkSnapshot<T>>(
-				[records],
+				[records, snapshotRequest],
 				(ctx) => {
+					if (requestParams(ctx, 1) === undefined) return;
 					ctx.down([["DATA", workSnapshot(state, workId)]]);
 				},
 				{
-					name: projectionOpts.name ?? `${name}/${workId}`,
+					name: projectionName,
 					factory: "workQueueWorkSnapshot",
-					pullId: snapshotPullId,
+					quiet: true,
 					partial: true,
 					completeWhenDepsComplete: false,
 					errorWhenDepsError: false,
 				},
 			);
-			return { snapshot, snapshotPullId, status, issues };
+			return { snapshot, snapshotRequest, status, issues };
 		},
 		deadLetter(projectionOpts = {}) {
-			const snapshotPullId = Symbol(`${name}/deadLetter`);
+			const projectionName = projectionOpts.name ?? `${name}/deadLetter`;
+			const snapshotRequest = projectionRequest<WorkQueueDeadLetterParams>(
+				graph,
+				projectionName,
+				"workQueueDeadLetterRequest",
+			);
 			const snapshot = graph.node<WorkQueueDeadLetterPage<T>>(
-				[records],
+				[records, snapshotRequest],
 				(ctx) => {
-					const params = pullParams<WorkQueueDeadLetterParams>(ctx.pull);
+					const params = requestParams<WorkQueueDeadLetterParams>(ctx, 1);
+					if (params === undefined) return;
 					ctx.down([["DATA", deadLetterPage(state, params)]]);
 				},
 				{
-					name: projectionOpts.name ?? `${name}/deadLetter`,
+					name: projectionName,
 					factory: "workQueueDeadLetter",
-					pullId: snapshotPullId,
+					quiet: true,
 					partial: true,
 					completeWhenDepsComplete: false,
 					errorWhenDepsError: false,
 				},
 			);
-			return { snapshot, snapshotPullId, status, issues };
+			return { snapshot, snapshotRequest, status, issues };
 		},
 	};
 	return queue;
+}
+
+/**
+ * A projection's request state (graphrefly-ts:D172): the projection declares it as a dependency
+ * and serves one page per live write, with the written params.
+ */
+function projectionRequest<P>(graph: Graph, projectionName: string, factory: string): Node<P> {
+	return graph.node<P>([], null, {
+		name: `${projectionName}/request`,
+		factory,
+		completeWhenDepsComplete: false,
+		errorWhenDepsError: false,
+	});
 }
 
 function shouldPollAdmission(

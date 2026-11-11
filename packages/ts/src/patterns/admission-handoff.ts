@@ -147,13 +147,13 @@ type DownCtx<T, R> = Pick<Ctx, "down"> & {
 /**
  * Build a bounded admission-gated hub-to-hub handoff.
  *
- * The accepted port is a pull-quiet causal boundary: rejected, unmatched and replayed inputs do
+ * The accepted port is a quiet causal boundary: rejected, unmatched and replayed inputs do
  * not preflight downstream work. A first correlated admission is released as one fresh ordinary
- * DIRTY-to-DATA wave. The factory owns every internal lifecycle flag; callers cannot override them.
+ * PENDING-to-DATA wave. The factory owns every internal lifecycle flag; callers cannot override them.
  *
  * @param graph - Graph that owns the visible correlation and release topology.
  * @param opts - Candidate/decision inputs and explicit memory bounds.
- * @returns The accepted/rejected/status/issue/cursor ports and controller release handle.
+ * @returns The accepted/rejected/status/issue/cursor ports and the accepted-port release handle.
  * @category patterns
  * @example
  * ```ts
@@ -214,22 +214,18 @@ export function admissionHandoff<T, R = unknown>(
 		"admissionHandoffAdmitted",
 		(fact) => (fact.kind === "accepted" ? fact.value : undefined),
 	);
-	const pullId = Symbol(`${name}/accepted`);
-	const accepted = graph.node<AdmissionHandoffAccepted<T, R>>([admitted], null, {
-		name: `${name}/accepted`,
-		factory: "admissionHandoffAccepted",
-		pullId,
-		pausable: "resumeAll",
-		meta: { pattern: "admission-handoff", role: "quiet-causal-boundary" },
-	});
-	const releaseController = graph.node(
-		[admitted, accepted],
+	// The quiet causal boundary (graphrefly-ts:D147, D172): one quiet node deduplicates admitted
+	// items by candidate and decision fingerprint and sends only fresh ones. A quiet node marks
+	// nothing below it pending, and what it sends in a run goes out after the current wave as a
+	// wave of its own (R-wave), so rejected, unmatched and duplicate paths start no downstream wave.
+	const accepted = graph.node<AdmissionHandoffAccepted<T, R>>(
+		[admitted],
 		(ctx) => {
 			const state = ctx.state.get<{ seen: Set<string>; order: string[] }>() ?? {
 				seen: new Set<string>(),
 				order: [],
 			};
-			let fresh = false;
+			const fresh: AdmissionHandoffAccepted<T, R>[] = [];
 			for (const raw of depBatch(ctx, 0) ?? []) {
 				const admittedValue = raw as AdmissionHandoffAccepted<T, R>;
 				const key = JSON.stringify([
@@ -239,26 +235,27 @@ export function admissionHandoff<T, R = unknown>(
 				if (state.seen.has(key)) continue;
 				state.seen.add(key);
 				state.order.push(key);
-				fresh = true;
+				fresh.push(admittedValue);
 			}
 			while (state.order.length > opts.maxRecent) {
 				const expired = state.order.shift();
 				if (expired !== undefined) state.seen.delete(expired);
 			}
 			ctx.state.set(state);
-			if (fresh) ctx.upNext([["PULL", { pullId }]], 1);
+			if (fresh.length > 0) ctx.down(fresh.map((value) => ["DATA", value]));
 		},
 		{
-			name: `${name}/release-controller`,
-			factory: "admissionHandoffReleaseController",
+			name: `${name}/accepted`,
+			factory: "admissionHandoffAccepted",
+			quiet: true,
 			partial: true,
 			completeWhenDepsComplete: false,
 			errorWhenDepsError: false,
-			meta: { pattern: "admission-handoff", role: "admission-release" },
+			meta: { pattern: "admission-handoff", role: "quiet-causal-boundary" },
 		},
 	);
-	let releaseKeepalive: (() => void) | undefined = graph.retain(releaseController, {
-		reason: `${name}.release-controller`,
+	let releaseKeepalive: (() => void) | undefined = graph.retain(accepted, {
+		reason: `${name}.accepted`,
 	});
 
 	return {

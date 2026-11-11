@@ -411,7 +411,9 @@ describe("D161 graph construction ownership", () => {
 		expect(seen.map((v) => (v as { state: string }).state)).toEqual(["starting", "started"]);
 	});
 
-	it("preserves admission after startup failure, UI detach and a mismatched outcome", () => {
+	it("a producer's throw at startup is its ERROR: startup faults and keeps the admission it made", () => {
+		// R-failure@3: the watermark producer's throw after its first DATA is that node's ERROR, and
+		// the causal nodes below it end with it (auto ERROR), so startup reports a protocol error.
 		const f = causal(new Graph(), true);
 		const full = causalComposition(f.graph).composeFull(f.options, binding);
 		const authority = f.graph.find("causal/authority")!;
@@ -419,18 +421,9 @@ describe("D161 graph construction ownership", () => {
 			...(checkpointStateOfNode(authority).ctxState.value as RuntimeState<string>).effects.values(),
 		];
 		expect(full.startup.cache?.state).toBe("faulted");
+		expect(full.startup.cache?.code).toBe("protocol-error");
 		expect(effects()[0]?.admission?.state).toBe("admitted");
-		const stop = full.execution.conservation.subscribe(() => {});
-		stop();
-		const outcome: CausalEffectOutcome = {
-			...f.admitted,
-			state: "failed",
-			result: { kind: "error", error: { kind: "issue", code: "failed", message: "failed" } },
-		};
-		f.outcomes.down([["DATA", { ...outcome, admissionRef: { kind: "admission", id: "wrong" } }]]);
-		expect(effects()[0]?.outcome).toBeUndefined();
-		f.outcomes.down([["DATA", outcome]]);
-		expect(effects()[0]?.outcome?.state).toBe("failed");
+		expect(authority.status).toBe("errored");
 		expect(constructionOf(f.graph, "causal")?.phase).toBe("faulted");
 	});
 

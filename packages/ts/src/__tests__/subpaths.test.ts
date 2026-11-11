@@ -500,7 +500,7 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof storage.readObserveEventLogPage).toBe("function");
 		expect(typeof storage.walFrame).toBe("function");
 		expect(typeof storage.walFrameKey).toBe("function");
-		expect(typeof testing.assertDirtyPrecedesTerminalData).toBe("function");
+		expect(typeof testing.assertPendingPrecedesTerminalData).toBe("function");
 		expect(Object.hasOwn(storage, "attachObserveSink")).toBe(false);
 		expect(Object.hasOwn(storage, "attachObserveEventLog")).toBe(false);
 		expectTypeOf<DataIssue>().toMatchTypeOf<{
@@ -524,7 +524,7 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof messaging.messageBus).toBe("function");
 		expect(typeof messaging.eventMessage).toBe("function");
 		expect(typeof messaging.isEventMessage).toBe("function");
-		expect(typeof messaging.fromTopic).toBe("function");
+		expect(Object.hasOwn(messaging, "fromTopic")).toBe(false);
 		expect(typeof messaging.toTopic).toBe("function");
 		expect(Object.hasOwn(messaging, "dynamicHub")).toBe(false);
 		expect(Object.hasOwn(messaging, "fromHubTopic")).toBe(false);

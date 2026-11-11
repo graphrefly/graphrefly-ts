@@ -1,7 +1,7 @@
 import type { Ctx, Sink } from "../ctx/types.js";
 import type { Dispatcher, Handle } from "../dispatcher/index.js";
 import type { EnvironmentDrivers } from "../graph/environment.js";
-import { type LockId, type PullDemand, SENTINEL, type Wave } from "../protocol/messages.js";
+import { SENTINEL } from "../protocol/messages.js";
 import type { Node, Status } from "./node.js";
 import type { NodeAcquisition } from "./owned-acquisition.js";
 import type { NodeVersion, ResolvedNodeVersioningPolicy } from "./versioning.js";
@@ -28,7 +28,6 @@ export interface ValueState<T> {
 	hasData: boolean;
 	status: Status;
 	terminal: true | unknown | undefined;
-	hasTorndown: boolean;
 	replayRing: T[];
 }
 
@@ -46,16 +45,6 @@ export interface WaveState {
 	inDepMutation: boolean;
 	rewireRunPending: boolean;
 	batchDirtyOwed: boolean;
-}
-
-export interface ControlState {
-	pauseLockset: Set<unknown>;
-	pausedDepWaveOccurred: boolean;
-	pauseBuffer: Wave[];
-	demandOwed: PullDemand | undefined;
-	activePull: PullDemand | undefined;
-	pullDirtyOwed: boolean;
-	inDeliverDemand: boolean;
 }
 
 export interface PrivateState {
@@ -80,7 +69,6 @@ export interface LifecycleState {
 export interface BoundaryTask {
 	apply: () => void;
 	batchToken?: object;
-	isReady?: () => boolean;
 }
 
 export interface BoundaryState {
@@ -100,10 +88,7 @@ export interface NodeSlot<_T> {
 	completeWhenDepsComplete: boolean;
 	errorWhenDepsError: boolean;
 	resubscribable: boolean;
-	resetOnTeardown: boolean;
-	pausable: boolean | "resumeAll";
-	pull: boolean;
-	pullLock: LockId | undefined;
+	quiet: boolean;
 	replayN: number;
 	dynamic: boolean;
 	name?: string;
@@ -116,7 +101,6 @@ export interface NodeState<T> {
 	value: ValueState<T>;
 	version: VersionState;
 	wave: WaveState;
-	control: ControlState;
 	privateState: PrivateState;
 	hooks: CleanupHooks;
 	syncCtx: SyncCtxState;
@@ -127,7 +111,6 @@ export class NodeCore {
 	private readonly slots: Array<NodeSlot<unknown> | undefined> = [];
 	private readonly values: Array<ValueState<unknown> | undefined> = [];
 	private readonly waves: Array<WaveState | undefined> = [];
-	private readonly controls: Array<ControlState | undefined> = [];
 	private readonly lifecycles: Array<LifecycleState | undefined> = [];
 	private readonly depStates: Array<DepBookkeeping | undefined> = [];
 	private readonly privateStates: Array<PrivateState | undefined> = [];
@@ -152,7 +135,6 @@ export class NodeCore {
 		this.lifecycles[id] = state.lifecycle;
 		this.values[id] = state.value as ValueState<unknown>;
 		this.waves[id] = state.wave;
-		this.controls[id] = state.control;
 		this.privateStates[id] = state.privateState;
 		this.hooks[id] = state.hooks;
 		this.syncCtxs[id] = state.syncCtx;
@@ -176,12 +158,6 @@ export class NodeCore {
 		const wave = this.waves[id];
 		if (wave === undefined) throw new Error("NodeCore: unknown node wave state");
 		return wave;
-	}
-
-	getControl(id: NodeId): ControlState {
-		const control = this.controls[id];
-		if (control === undefined) throw new Error("NodeCore: unknown node control state");
-		return control;
 	}
 
 	getLifecycle(id: NodeId): LifecycleState {
@@ -227,14 +203,13 @@ export class NodeCore {
 		this.lifecycles[id] = undefined;
 		this.values[id] = undefined;
 		this.waves[id] = undefined;
-		this.controls[id] = undefined;
 		this.privateStates[id] = undefined;
 		this.hooks[id] = undefined;
 		this.syncCtxs[id] = undefined;
 		this.versionStates[id] = undefined;
 	}
 
-	/** @internal B49: graph-local deferred-boundary queue (rewireNext/upNext/batch-after-commit). */
+	/** @internal B49: graph-local deferred-boundary queue (rewireNext/quiet output/batch-after-commit). */
 	enqueueBoundaryTask(task: BoundaryTask): void {
 		this.boundary.queue.push(task);
 	}
@@ -262,13 +237,6 @@ export class NodeCore {
 			this.boundary.head = 0;
 		}
 		return task;
-	}
-
-	/** @internal Put a not-yet-ready task back at this core's FIFO head. */
-	unshiftBoundaryTask(task: BoundaryTask): void {
-		const remaining = this.boundary.queue.slice(this.boundary.head);
-		this.boundary.queue = [task, ...remaining];
-		this.boundary.head = 0;
 	}
 
 	/** @internal D110: discard all pending tasks caused by an uncommitted batch. */

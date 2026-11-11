@@ -1,10 +1,18 @@
+import { type Ctx, depLiveBatch } from "../ctx/types.js";
 import { canonicalTupleKey } from "../identity.js";
 import type { Node } from "../node/node.js";
-import type { PullDemand } from "../protocol/messages.js";
 import type { MessageBusCommand } from "./types.js";
 
-export function pullParams<T>(pull: PullDemand | undefined): T {
-	return (isObjectRecord(pull?.params) ? pull.params : {}) as T;
+/**
+ * The params of the live request this run, from a projection's request dependency (graphrefly-ts:
+ * D172): `undefined` when no request arrived live in this run (including the activation snapshot
+ * of an earlier request), otherwise the last written object (a non-object write counts as `{}`).
+ */
+export function requestParams<T>(ctx: Ctx, depIndex: number): T | undefined {
+	const writes = depLiveBatch(ctx, depIndex);
+	if (writes === null) return undefined;
+	const last = writes[writes.length - 1];
+	return (typeof last === "object" && last !== null && !Array.isArray(last) ? last : {}) as T;
 }
 
 export function publishCommand<T extends MessageBusCommand>(

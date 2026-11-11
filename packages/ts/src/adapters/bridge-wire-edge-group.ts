@@ -18,9 +18,9 @@ export interface WireEdgeGroupEdge {
 export type WireEdgeGroupIssueCode =
 	| "wire-edge-group-missing-snapshot"
 	| "wire-edge-group-unknown-edge"
-	| "wire-edge-group-duplicate-dirty"
+	| "wire-edge-group-duplicate-pending"
 	| "wire-edge-group-duplicate-data"
-	| "wire-edge-group-data-before-dirty"
+	| "wire-edge-group-data-before-pending"
 	| "wire-edge-group-competing-cause"
 	| "wire-edge-group-malformed-frame"
 	| "wire-edge-group-incomplete-cause";
@@ -34,7 +34,7 @@ export interface WireEdgeGroupIssue {
 export interface WireEdgeGroupStatus {
 	readonly state: "idle" | "collecting" | "released" | "issues";
 	readonly expectedEdges: readonly string[];
-	readonly dirty: number;
+	readonly pending: number;
 	readonly data: number;
 	readonly released: number;
 	readonly issues: number;
@@ -60,7 +60,7 @@ type Event =
 	| { kind: "issue"; issue: WireEdgeGroupIssue };
 type Gate =
 	| { kind: "release"; causeId: string; values: ReadonlyMap<string, Uint8Array> }
-	| { kind: "progress"; causeId: string; dirty: number; data: number }
+	| { kind: "progress"; causeId: string; pending: number; data: number }
 	| { kind: "issue"; issue: WireEdgeGroupIssue };
 interface ReleaseCohort {
 	readonly causeId: string;
@@ -78,7 +78,7 @@ interface OutState {
 }
 interface GateState {
 	activeCauseId?: string;
-	dirty: Set<string>;
+	pending: Set<string>;
 	data: Map<string, Uint8Array>;
 	failed: CauseTombstones;
 	released: CauseTombstones;
@@ -346,7 +346,7 @@ function clone(frame: CanonicalWireEdgeFrame): CanonicalWireEdgeFrame {
 				causeId: frame.causeId,
 				value: Uint8Array.from(frame.value ?? new Uint8Array()),
 			}
-		: { kind: "dirty", edgeId: frame.edgeId, causeId: frame.causeId };
+		: { kind: "pending", edgeId: frame.edgeId, causeId: frame.causeId };
 }
 function eventsFn(
 	name: string,
@@ -441,7 +441,7 @@ function emitOutbound(
 				"DATA",
 				{
 					kind: "outbound",
-					command: send({ kind: "dirty", edgeId: edge.edgeId, causeId }),
+					command: send({ kind: "pending", edgeId: edge.edgeId, causeId }),
 				} satisfies Event,
 			],
 		]);
@@ -492,10 +492,10 @@ function validate(name: string, frame: unknown): WireEdgeGroupIssue | undefined 
 	if (typeof frame !== "object" || frame === null)
 		return issue("wire-edge-group-malformed-frame", `${name}: wire-edge frame must be an object`);
 	const f = frame as Partial<CanonicalWireEdgeFrame>;
-	if (f.kind !== "dirty" && f.kind !== "data")
+	if (f.kind !== "pending" && f.kind !== "data")
 		return issue(
 			"wire-edge-group-malformed-frame",
-			`${name}: wire-edge frame kind must be dirty or data`,
+			`${name}: wire-edge frame kind must be pending or data`,
 		);
 	if (!f.edgeId)
 		return issue(
@@ -509,10 +509,10 @@ function validate(name: string, frame: unknown): WireEdgeGroupIssue | undefined 
 			`${name}: wire-edge frame causeId must be non-empty`,
 			{ edgeId: f.edgeId },
 		);
-	if (f.kind === "dirty" && f.value !== undefined)
+	if (f.kind === "pending" && f.value !== undefined)
 		return issue(
 			"wire-edge-group-malformed-frame",
-			`${name}: DIRTY wire-edge frame must not carry value bytes`,
+			`${name}: PENDING wire-edge frame must not carry value bytes`,
 			{ edgeId: f.edgeId, causeId: f.causeId },
 		);
 	if (f.kind === "data" && !(f.value instanceof Uint8Array))
@@ -534,7 +534,7 @@ function gateFn(
 		let st = ctx.state.get<GateState>();
 		if (!st) {
 			st = {
-				dirty: new Set(),
+				pending: new Set(),
 				data: new Map(),
 				failed: new CauseTombstones(),
 				released: new CauseTombstones(),
@@ -546,7 +546,7 @@ function gateFn(
 			ctx.down([["DATA", { kind: "issue", issue: i } satisfies Gate]]);
 		const reset = () => {
 			st.activeCauseId = undefined;
-			st.dirty.clear();
+			st.pending.clear();
 			st.data.clear();
 		};
 		const fail = (causeId?: string) => {
@@ -557,7 +557,12 @@ function gateFn(
 			ctx.down([
 				[
 					"DATA",
-					{ kind: "progress", causeId, dirty: st.dirty.size, data: st.data.size } satisfies Gate,
+					{
+						kind: "progress",
+						causeId,
+						pending: st.pending.size,
+						data: st.data.size,
+					} satisfies Gate,
 				],
 			]);
 		for (const raw of depBatch(ctx, 0) ?? []) {
@@ -594,8 +599,8 @@ function gateFn(
 			if (st.released.has(f.causeId)) {
 				emitIssue(
 					issue(
-						f.kind === "dirty"
-							? "wire-edge-group-duplicate-dirty"
+						f.kind === "pending"
+							? "wire-edge-group-duplicate-pending"
 							: "wire-edge-group-duplicate-data",
 						`${name}: cause ${f.causeId} was already released`,
 						{ edgeId: f.edgeId, causeId: f.causeId },
@@ -634,27 +639,27 @@ function gateFn(
 				st.failed.add(f.causeId);
 				continue;
 			}
-			if (f.kind === "dirty") {
-				if (st.dirty.has(f.edgeId)) {
+			if (f.kind === "pending") {
+				if (st.pending.has(f.edgeId)) {
 					emitIssue(
 						issue(
-							"wire-edge-group-duplicate-dirty",
-							`${name}: duplicate DIRTY for edge ${f.edgeId}`,
+							"wire-edge-group-duplicate-pending",
+							`${name}: duplicate PENDING for edge ${f.edgeId}`,
 							{ edgeId: f.edgeId, causeId: f.causeId },
 						),
 					);
 					fail(f.causeId);
 					continue;
 				}
-				st.dirty.add(f.edgeId);
+				st.pending.add(f.edgeId);
 				progress(f.causeId);
 				continue;
 			}
-			if (!st.dirty.has(f.edgeId)) {
+			if (!st.pending.has(f.edgeId)) {
 				emitIssue(
 					issue(
-						"wire-edge-group-data-before-dirty",
-						`${name}: DATA for edge ${f.edgeId} arrived before DIRTY`,
+						"wire-edge-group-data-before-pending",
+						`${name}: DATA for edge ${f.edgeId} arrived before PENDING`,
 						{ edgeId: f.edgeId, causeId: f.causeId },
 					),
 				);
@@ -672,7 +677,7 @@ function gateFn(
 				continue;
 			}
 			st.data.set(f.edgeId, Uint8Array.from(f.value ?? new Uint8Array()));
-			if (st.dirty.size === expectedIds.length && st.data.size === expectedIds.length) {
+			if (st.pending.size === expectedIds.length && st.data.size === expectedIds.length) {
 				const values = new Map<string, Uint8Array>();
 				for (const edgeId of expectedIds) {
 					const value = st.data.get(edgeId);
@@ -706,7 +711,7 @@ function statusFn(expectedIds: readonly string[]): (ctx: Ctx) => void {
 			({
 				state: "idle",
 				expectedEdges: [...expectedIds],
-				dirty: 0,
+				pending: 0,
 				data: 0,
 				released: 0,
 				issues: 0,
@@ -725,7 +730,7 @@ function statusFn(expectedIds: readonly string[]): (ctx: Ctx) => void {
 					...next,
 					state: "collecting",
 					activeCauseId: ev.causeId,
-					dirty: ev.dirty,
+					pending: ev.pending,
 					data: ev.data,
 				};
 			else
@@ -733,7 +738,7 @@ function statusFn(expectedIds: readonly string[]): (ctx: Ctx) => void {
 					...next,
 					state: "released",
 					activeCauseId: ev.causeId,
-					dirty: expectedIds.length,
+					pending: expectedIds.length,
 					data: expectedIds.length,
 					released: next.released + ev.values.size,
 				};

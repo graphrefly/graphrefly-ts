@@ -10,9 +10,9 @@ import { isValueTier, type Message, type Wave } from "../protocol/messages.js";
 export type MessageSequence = readonly Wave[];
 
 /**
- * Assert that observed tier-3 settlements (DATA/RESOLVED) are preceded by DIRTY.
+ * Assert that observed tier-3 settlements (DATA/RESOLVED) are preceded by PENDING.
  *
- * This encodes R-dirty-before-data for wave-framed subscriber traces. The leading
+ * This encodes R-wave (PENDING before the values of a wave) for wave-framed subscriber traces. The leading
  * START push-on-subscribe/replay handshake wave is exempt because cached/replay DATA is
  * advertised to a new subscriber without opening a propagation wave.
  * @param messages - messages value used by the helper.
@@ -20,14 +20,14 @@ export type MessageSequence = readonly Wave[];
  * @category testing
  * @example
  * ```ts
- * import { assertDirtyPrecedesTerminalData } from "@graphrefly/ts/testing";
+ * import { assertPendingPrecedesTerminalData } from "@graphrefly/ts/testing";
  * ```
  */
-export function assertDirtyPrecedesTerminalData(messages: MessageSequence): void {
+export function assertPendingPrecedesTerminalData(messages: MessageSequence): void {
 	for (let waveIndex = 0; waveIndex < messages.length; waveIndex += 1) {
 		const wave = messages[waveIndex];
 		let handshake = false;
-		let openedByDirty = false;
+		let openedByPending = false;
 
 		for (let msgIndex = 0; msgIndex < wave.length; msgIndex += 1) {
 			const msg = wave[msgIndex] as Message;
@@ -43,21 +43,21 @@ export function assertDirtyPrecedesTerminalData(messages: MessageSequence): void
 			}
 			handshake = false;
 
-			if (type === "DIRTY") {
-				openedByDirty = true;
+			if (type === "PENDING") {
+				openedByPending = true;
 				continue;
 			}
 
 			if (isValueTier(type)) {
-				if (!openedByDirty) {
+				if (!openedByPending) {
 					throw new Error(
-						`assertDirtyPrecedesTerminalData: ${type} at wave ${waveIndex}, index ${msgIndex} arrived without a preceding DIRTY in the same wave (R-dirty-before-data). Wave: ${describeWave(wave, msgIndex)}`,
+						`assertPendingPrecedesTerminalData: ${type} at wave ${waveIndex}, index ${msgIndex} arrived without a preceding PENDING in the same wave (R-dirty-before-data). Wave: ${describeWave(wave, msgIndex)}`,
 					);
 				}
 				continue;
 			}
 
-			openedByDirty = false;
+			openedByPending = false;
 		}
 	}
 }

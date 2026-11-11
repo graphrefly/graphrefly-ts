@@ -10,7 +10,7 @@
  *
  * Every EXTERNAL wave origin brackets its synchronous cascade with {@link enterWave} /
  * {@link exitWave}: `Node.subscribe`/`Node.down`/`Node.up` (activation, state.set, control),
- * the async-pool `ctx.down`/`ctx.up` re-entry (which enters via the stashed ctx, NOT the public
+ * the async-pool `ctx.down` re-entry (which enters via the stashed ctx, NOT the public
  * method), and `batch()` (so the drain fires AFTER commit). Re-entrant (nested) calls just
  * inc/dec the counter; only the OUTERMOST exit (depth → 0) DRAINS the deferred-rewire queue.
  *
@@ -23,11 +23,10 @@
  * token per queued task so mixed-core legal batches keep their enqueue order. Each queued mutation
  * runs as a fresh wave whose own `ctx.rewireNext` calls re-enqueue and drain in the same loop.
  *
- * C-25 / D110: queued boundary work is tagged with the batch frame that caused it (when any)
- * plus an owner-readiness predicate. The drain applies only committed, unpaused tasks; rollback
- * drops the batch's tasks, and paused owners re-schedule their core on final RESUME.
- * Zero behavior change when no `ctx.rewireNext`/`ctx.upNext` is ever called: the drain is one
- * empty-queue check per outermost wave (F-PERF).
+ * C-25 / D110: queued boundary work is tagged with the batch frame that caused it (when any).
+ * The drain applies only committed tasks; rollback drops the batch's tasks. Besides
+ * `ctx.rewireNext`, a quiet node's in-run output is queued here (R-wave). Zero behavior change
+ * when nothing is queued: the drain is one empty-queue check per outermost wave (F-PERF).
  */
 
 import type { NodeCore } from "../node/core.js";
@@ -54,7 +53,6 @@ export function exitWave(): void {
 
 export interface DeferredBoundaryOptions {
 	readonly batchToken?: object;
-	readonly isReady?: () => boolean;
 }
 
 /**
@@ -66,14 +64,8 @@ export function deferRewire(
 	apply: () => void,
 	options: DeferredBoundaryOptions = {},
 ): void {
-	core.enqueueBoundaryTask({ apply, batchToken: options.batchToken, isReady: options.isReady });
+	core.enqueueBoundaryTask({ apply, batchToken: options.batchToken });
 	pendingCores.push(core);
-}
-
-/** Re-schedule an existing core queue, used when a final RESUME opens a paused boundary gate. */
-export function scheduleBoundaryDrain(core: NodeCore): void {
-	for (let i = 0; i < core.boundaryTaskCount(); i++) pendingCores.push(core);
-	if (depth === 0 && pendingHead < pendingCores.length) drain();
 }
 
 /** D110: an uncommitted batch cannot leak queued boundary effects. */
@@ -111,10 +103,6 @@ function drain(): void {
 			// batch frame marks itself committed.
 			const committed = (task.batchToken as { committed?: boolean }).committed === true;
 			if (!committed) continue;
-		}
-		if (task.isReady !== undefined && !task.isReady()) {
-			core.unshiftBoundaryTask(task);
-			continue;
 		}
 		depth++;
 		try {

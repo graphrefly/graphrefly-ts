@@ -126,7 +126,7 @@ export function fromRaf(opts: FromRafOptions = {}): Operator<never, number> {
 	const visibilityDocument = opts.document ?? defaultVisibilityDocument();
 	return {
 		factory: "fromRaf",
-		opts: { pool: "sync", pausable: false },
+		opts: { pool: "sync" },
 		body: (ctx) => {
 			let active = true;
 			let frame: AnimationFrameHandle | undefined;

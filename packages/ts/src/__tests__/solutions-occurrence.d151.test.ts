@@ -23,6 +23,18 @@ function occurrence(
 	});
 }
 
+/**
+ * R-failure@3: a fail-closed rejection thrown inside a node's function is that node's ERROR, which
+ * reaches the projection's subscriber; the host write itself does not throw.
+ */
+function rejects(messages: readonly Message[], write: () => void, pattern?: RegExp): void {
+	expect(write).not.toThrow();
+	const error = messages.find((message) => message[0] === "ERROR");
+	expect(error, "expected the rejection as an ERROR").toBeDefined();
+	if (pattern !== undefined)
+		expect(String((error?.[1] as Error | undefined)?.message ?? error?.[1])).toMatch(pattern);
+}
+
 function fixture(maxOccurrences = 2) {
 	const owner = graph();
 	const input = owner.node<SolutionOccurrence<Value>>([], null, { name: "occurrence/input" });
@@ -48,12 +60,12 @@ describe("D151 package-private solution occurrence projection", () => {
 			},
 		};
 		const f = fixture();
-		expect(() =>
+		rejects(f.messages, () =>
 			f.input.down([
 				["DATA", occurrence("one")],
 				["DATA", occurrence("two", { value: malformed })],
 			]),
-		).toThrow();
+		);
 		expect(invoked).toBe(false);
 		expect(f.messages.filter((message) => message[0] === "DATA")).toEqual([]);
 		f.unsubscribe();
@@ -83,9 +95,9 @@ describe("D151 package-private solution occurrence projection", () => {
 		],
 		["value", { value: { coordinate: "one", material: "changed" } }, /conflicted with prior DATA/u],
 	] as const)("fails closed on same-revision %s conflict", (_label, patch, expected) => {
-		const { input, unsubscribe } = fixture();
+		const { input, messages, unsubscribe } = fixture();
 		input.down([["DATA", occurrence("one")]]);
-		expect(() => input.down([["DATA", occurrence("one", patch)]])).toThrow(expected);
+		rejects(messages, () => input.down([["DATA", occurrence("one", patch)]]), expected);
 		unsubscribe();
 	});
 
@@ -102,12 +114,20 @@ describe("D151 package-private solution occurrence projection", () => {
 				}),
 			],
 		]);
-		expect(() => revised.input.down([["DATA", occurrence("one")]])).toThrow(/stale revision/u);
+		rejects(
+			revised.messages,
+			() => revised.input.down([["DATA", occurrence("one")]]),
+			/stale revision/u,
+		);
 		revised.unsubscribe();
 
 		const bounded = fixture(1);
 		bounded.input.down([["DATA", occurrence("one")]]);
-		expect(() => bounded.input.down([["DATA", occurrence("two")]])).toThrow(/fixed bound/u);
+		rejects(
+			bounded.messages,
+			() => bounded.input.down([["DATA", occurrence("two")]]),
+			/fixed bound/u,
+		);
 		bounded.unsubscribe();
 	});
 });
@@ -167,9 +187,9 @@ describe("D151 exact solution occurrence join", () => {
 			["DATA", occurrence("one")],
 			["DATA", occurrence("two")],
 		]);
-		expect(f.messages.filter((message) => message[0] === "DATA" || message[0] === "DIRTY")).toEqual(
-			[],
-		);
+		expect(
+			f.messages.filter((message) => message[0] === "DATA" || message[0] === "PENDING"),
+		).toEqual([]);
 		f.rightInput.down([["DATA", occurrence("two")]]);
 		f.rightInput.down([["DATA", occurrence("one")]]);
 		expect(
@@ -188,8 +208,7 @@ describe("D151 exact solution occurrence join", () => {
 				{ from: "left", to: "joined/left" },
 				{ from: "right", to: "joined/right" },
 				{ from: "joined/arrivals", to: "joined/matched" },
-				{ from: "joined/matched", to: "joined/released" },
-				{ from: "joined/released", to: "joined" },
+				{ from: "joined/matched", to: "joined" },
 			]),
 		);
 		f.unsubscribe();
@@ -217,12 +236,18 @@ describe("D151 exact solution occurrence join", () => {
 			["DATA", occurrence("one")],
 			["DATA", occurrence("two")],
 		]);
-		expect(() =>
-			f.rightInput.down([
-				["DATA", occurrence("one")],
-				["DATA", occurrence("two", { occurrenceSourceRefs: [{ kind: "work-item", id: "wrong" }] })],
-			]),
-		).toThrow(/provenance mismatch/);
+		rejects(
+			f.messages,
+			() =>
+				f.rightInput.down([
+					["DATA", occurrence("one")],
+					[
+						"DATA",
+						occurrence("two", { occurrenceSourceRefs: [{ kind: "work-item", id: "wrong" }] }),
+					],
+				]),
+			/provenance mismatch/,
+		);
 		expect(f.messages.filter((message) => message[0] === "DATA")).toEqual([]);
 		f.unsubscribe();
 	});
@@ -230,7 +255,9 @@ describe("D151 exact solution occurrence join", () => {
 		const f = joined(1);
 		f.leftInput.down([["DATA", occurrence("one")]]);
 		f.rightInput.down([["DATA", occurrence("one")]]);
-		expect(() => f.leftInput.down([["DATA", occurrence("two")]])).toThrow(
+		rejects(
+			f.messages,
+			() => f.leftInput.down([["DATA", occurrence("two")]]),
 			/retention bound exceeded/,
 		);
 		f.unsubscribe();
@@ -238,7 +265,9 @@ describe("D151 exact solution occurrence join", () => {
 	it("enforces pending retention before the other lane has ever emitted", () => {
 		const f = joined(1);
 		f.leftInput.down([["DATA", occurrence("one")]]);
-		expect(() => f.leftInput.down([["DATA", occurrence("two")]])).toThrow(
+		rejects(
+			f.messages,
+			() => f.leftInput.down([["DATA", occurrence("two")]]),
 			/retention bound exceeded/,
 		);
 		expect(f.messages.filter((message) => message[0] === "DATA")).toEqual([]);

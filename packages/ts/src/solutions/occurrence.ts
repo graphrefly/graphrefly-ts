@@ -136,42 +136,15 @@ export function solutionOccurrenceJoin<L, R, O>(
 		},
 		{ name: `${opts.name}/matched`, factory: "solutionOccurrenceMatched" },
 	);
-	const pullId = Symbol(`${opts.name}/accepted`);
-	const port = graph.node<SolutionOccurrence<O>>(
+	// One quiet node is the release boundary (graphrefly-ts:D172): it deduplicates complete matched
+	// occurrences by id and revision and sends only fresh ones, so a duplicate starts no downstream
+	// wave, and what it sends goes out after the current wave as a wave of its own (R-wave).
+	// Bounded replay preserves initial complete DATA for late consumers.
+	const accepted = graph.node<SolutionOccurrence<O>>(
 		[matched],
 		(ctx) => {
-			const values = depBatch(ctx, 0) ?? [];
-			if (values.length > 0) ctx.down(values.map((value) => ["DATA", value]));
-		},
-		{
-			name: `${opts.name}/released`,
-			factory: "solutionOccurrenceQuietPort",
-			pullId,
-			pausable: "resumeAll",
-			meta: {
-				role: "quiet-complete-occurrence",
-				correlation: "exact-id/revision/digest/source-refs",
-			},
-		},
-	);
-	// Ordinary output preserves the library's cached snapshot semantics for late consumers.
-	// Only the internal port is pull-quiet; bounded replay preserves initial complete DATA.
-	const accepted = graph.node<SolutionOccurrence<O>>(
-		[port],
-		(ctx) => {
-			const values = depBatch(ctx, 0) ?? [];
-			if (values.length > 0) ctx.down(values.map((value) => ["DATA", value]));
-		},
-		{ name: opts.name, factory: opts.factory, replayBuffer: opts.maxOccurrences },
-	);
-	const releases = graph.initNode(merge<SolutionOccurrence<O>>(), [accepted, matched], {
-		name: `${opts.name}/release-events`,
-	});
-	const release = graph.node(
-		[releases],
-		(ctx) => {
 			const seen = ctx.state.get<Set<string>>() ?? new Set<string>();
-			let fresh = false;
+			const fresh: SolutionOccurrence<O>[] = [];
 			for (const raw of depBatch(ctx, 0) ?? []) {
 				const value = raw as SolutionOccurrence<O>;
 				const key = canonicalTupleKey([value.occurrenceId, String(value.occurrenceRevision)]);
@@ -179,14 +152,23 @@ export function solutionOccurrenceJoin<L, R, O>(
 				if (seen.size >= opts.maxOccurrences)
 					throw new TypeError("solution occurrence release bound exceeded");
 				seen.add(key);
-				fresh = true;
+				fresh.push(value);
 			}
 			ctx.state.set(seen);
-			if (fresh) ctx.upNext([["PULL", { pullId }]]);
+			if (fresh.length > 0) ctx.down(fresh.map((value) => ["DATA", value]));
 		},
-		{ name: `${opts.name}/release-controller`, factory: "solutionOccurrenceReleaseController" },
+		{
+			name: opts.name,
+			factory: opts.factory,
+			quiet: true,
+			replayBuffer: opts.maxOccurrences,
+			meta: {
+				role: "quiet-complete-occurrence",
+				correlation: "exact-id/revision/digest/source-refs",
+			},
+		},
 	);
-	graph.retain(release, { reason: `${opts.name} only releases complete matched occurrences` });
+	graph.retain(accepted, { reason: `${opts.name} only releases complete matched occurrences` });
 	return accepted;
 }
 

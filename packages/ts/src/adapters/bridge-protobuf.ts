@@ -45,7 +45,7 @@ export type CanonicalWireBridgeDataBody =
 	| { readonly kind: "wire_edge"; readonly frame: CanonicalWireEdgeFrame };
 
 export interface CanonicalWireEdgeFrame {
-	readonly kind: "dirty" | "data";
+	readonly kind: "pending" | "data";
 	readonly edgeId: string;
 	readonly causeId: string;
 	readonly value?: Uint8Array;
@@ -354,11 +354,11 @@ function parseWireEdgeFrame(bytes: Uint8Array): CanonicalWireEdgeFrame {
 		if (value !== undefined) {
 			throw new CanonicalProtobufError(
 				"invalid_wire_edge",
-				"DIRTY WireEdgeFrame must not carry value",
+				"PENDING WireEdgeFrame must not carry value",
 			);
 		}
 		return {
-			kind: "dirty",
+			kind: "pending",
 			edgeId: utf8String(edge, "edge_id"),
 			causeId: utf8String(cause, "cause_id"),
 		};
@@ -493,11 +493,11 @@ function validateWireEdgeFrame(frame: CanonicalWireEdgeFrame): void {
 		);
 	}
 	switch (frame.kind) {
-		case "dirty":
+		case "pending":
 			if (frame.value !== undefined) {
 				throw new CanonicalProtobufError(
 					"invalid_wire_edge",
-					"DIRTY WireEdgeFrame must not carry value",
+					"PENDING WireEdgeFrame must not carry value",
 				);
 			}
 			return;
@@ -537,7 +537,7 @@ function encodeDataPayload(body: CanonicalWireBridgeDataBody): Uint8Array {
 
 function encodeWireEdgeFrame(frame: CanonicalWireEdgeFrame): Uint8Array {
 	const out = new ByteWriter();
-	out.varintField(1, frame.kind === "dirty" ? 1n : 2n);
+	out.varintField(1, frame.kind === "pending" ? 1n : 2n);
 	out.stringField(2, frame.edgeId);
 	out.stringField(3, frame.causeId);
 	if (frame.value !== undefined) out.bytesField(4, frame.value);

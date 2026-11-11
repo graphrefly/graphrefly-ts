@@ -1,7 +1,7 @@
 /**
  * Declarative batch (R-batch-coalesce / D12).
  *
- * Inside a batch, DIRTY propagates immediately but the tier-3 settle slice
+ * Inside a batch, PENDING propagates immediately but the tier-3 settle slice
  * (DATA/RESOLVED/INVALIDATE) is deferred to commit, so a shared downstream
  * recomputes ONCE after all batched sources settle. Success -> commit; a thrown
  * error -> rollback; `bctx.rollback()` is the explicit escape hatch.

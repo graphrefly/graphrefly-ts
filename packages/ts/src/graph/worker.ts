@@ -79,10 +79,8 @@ export function workerDerived<TInput, TResult>(
 			ctx.down([["ERROR", errorPayload(error, "workerDerived prepare failed")]]);
 			return;
 		}
-		if (input === undefined) {
-			ctx.down([["RESOLVED"]]);
-			return;
-		}
+		// Nothing to send: the kernel settles this run (R-wave; RESOLVED is the kernel's alone).
+		if (input === undefined) return;
 		const ownedInput = cloneWorkerInput(input);
 		if (!ownedInput.ok) {
 			ctx.down([["ERROR", errorPayload(new Error(ownedInput.message), ownedInput.message)]]);

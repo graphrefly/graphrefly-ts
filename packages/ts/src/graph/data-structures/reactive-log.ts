@@ -3,7 +3,7 @@
  *
  * Shape = the shared {@link collectionCore} two ports over an array (or ring-buffer if `maxSize`)
  * BACKEND (D60). Specializations (D60 #5 / review #5):
- *   - SNAPSHOT (the full `readonly T[]`) is the lazy pull port like the others, BUT the log's main
+ *   - SNAPSHOT (the full `readonly T[]`) is the lazy request-served port like the others, BUT the log's main
  *     consumption is INCREMENTAL: `tail()` / `slice()` / `scan()` re-derive on the DELTA backbone
  *     (dep=[delta]), folding each appended value as it arrives — NOT re-scanning a pushed full array.
  *   - `append(undefined)` throws: `undefined` is the substrate SENTINEL (R-data-payload / R-sentinel),
@@ -15,7 +15,7 @@
  *     internal-subscribe island (D45 must-fix, D60 #5e).
  *   - storage persistence = D57 (binding-layer observe-sink), out of scope here.
  *
- * Per-language (D6/D24, never in parity, no conformance — the substrate pull is already C-16).
+ * Per-language (D6/D24, never in parity, no conformance).
  */
 
 import { type Ctx, depBatch, depCount } from "../../ctx/types.js";
@@ -42,9 +42,10 @@ export interface ReactiveLogOptions extends CollectionCoreOptions {
 
 export interface ReactiveLog<T> {
 	readonly delta: Node<LogChange<T>>;
-	/** SNAPSHOT pull node: demand → full `readonly T[]` (lazy O(n)). For incremental use {@link tail}, {@link slice}, or {@link scan}. */
+	/** SNAPSHOT quiet node: a write to `request` → full `readonly T[]` (lazy O(n)). For incremental use {@link tail}, {@link slice}, or {@link scan}. */
 	readonly snapshot: Node<readonly T[]>;
-	readonly pullId: symbol;
+	/** REQUEST state: each live write asks {@link snapshot} for one materialization. */
+	readonly request: Node<true>;
 	/** Entry count (O(1)). Sync non-reactive read. */
 	readonly size: number;
 	/** Positional access (O(1)); negative Python-style; `undefined` out of range. Sync read. */
@@ -71,7 +72,7 @@ export interface ReactiveLog<T> {
 	 */
 	slice(start: number, stop?: number): Node<readonly T[]>;
 	/**
-	 * D121 light page view: `delta` forwards parent log mutations, and `snapshot` is a pull node
+	 * D121 light page view: `delta` forwards parent log mutations, and `snapshot` is a quiet node served through `request`
 	 * that materializes the current page on demand.
 	 */
 	page(offset: number, limit: number): ReactiveView<LogChange<T>, readonly T[]>;
@@ -153,7 +154,7 @@ function rejectUndefined<T>(value: T, ctx: string): void {
 }
 
 /**
- * Create an append-only reactive log (D54/D60). DELTA + lazy pull SNAPSHOT + pullId via
+ * Create an append-only reactive log (D54/D60). DELTA + lazy SNAPSHOT + REQUEST via
  * {@link collectionCore}; this layer adds the typed append surface + incremental view/scan.
  * @param initial - initial value used by the helper.
  * @param options - Options that configure the helper.
@@ -185,6 +186,7 @@ export function reactiveLog<T>(
 			? {
 					deltaRef: "reactiveLog.delta",
 					snapshotRef: "reactiveLog.snapshot",
+					requestRef: "reactiveLog.request",
 					config: restoreConfig,
 					backendState: () => backend.snapshot(),
 				}
@@ -199,7 +201,7 @@ export function reactiveLog<T>(
 	return {
 		delta: core.delta,
 		snapshot: core.snapshot,
-		pullId: core.pullId,
+		request: core.request,
 
 		get size(): number {
 			return backend.size;

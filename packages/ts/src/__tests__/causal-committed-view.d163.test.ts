@@ -144,7 +144,7 @@ describe("D163 committed effects through ordinary DATA", () => {
 		const f = fixture();
 		const out = collect(f.built.committedEffects);
 		expect(out.values).toEqual([]);
-		expect(f.owner.nodes).toHaveLength(24);
+		expect(f.owner.nodes).toHaveLength(21);
 		expect(f.owner.roots).toHaveLength(2);
 		expect(f.built.roots).toHaveLength(1);
 		expect(f.built.roots).not.toContain(f.built.committedEffects);
@@ -367,7 +367,9 @@ describe("D163 committed effects through ordinary DATA", () => {
 				if (args[1]) throw new Error("projection failure");
 				return prepare(...args);
 			});
-		expect(() => f.send("effectOutcomes", a.outcome)).toThrow("projection failure");
+		// R-failure@3: the throw inside the authority's function is its ERROR, not a host throw.
+		expect(() => f.send("effectOutcomes", a.outcome)).not.toThrow();
+		expect(f.graph.find("causal/authority")?.status).toBe("errored");
 		expect(failure).toHaveBeenCalled();
 		expect(f.state()).toBe(before);
 		expect(before.effects.values().next().value?.outcome).toBeUndefined();

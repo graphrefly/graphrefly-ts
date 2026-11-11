@@ -36,10 +36,7 @@ export function causalColdNodeNames(name: string): readonly string[] {
 		"arrivals",
 		"authority",
 		"release-candidates",
-		"release-port",
 		"released",
-		"release-events",
-		"release-controller",
 		"currentness",
 		"terminals",
 		"conservation",
@@ -224,22 +221,12 @@ export function buildCausalNodes<T>(
 		"release",
 		opts.maxOccurrences,
 	);
-	const pullId = Symbol(`${opts.name}/release`);
-	const quietPort = graph.node<CausalOccurrence<T>>(
-		[rawRelease],
-		(ctx) => {
-			const values = depBatch(ctx, 0) ?? [];
-			if (values.length > 0) ctx.down(values.map((value) => ["DATA", value]));
-		},
-		{
-			name: `${opts.name}/release-port`,
-			factory: "causalOccurrenceQuietReleasePort",
-			pullId,
-			pausable: "resumeAll",
-		},
-	);
+	// The release boundary is one quiet node (graphrefly-ts:D172): it forwards each release
+	// candidate, and a quiet node's output goes out after the current wave as a wave of its own
+	// (R-wave), so nothing below waits on the authority's wave. Bounded replay preserves earlier
+	// releases for late consumers.
 	const released = graph.node<CausalOccurrence<T>>(
-		[quietPort],
+		[rawRelease],
 		(ctx) => {
 			const values = depBatch(ctx, 0) ?? [];
 			if (values.length > 0) ctx.down(values.map((value) => ["DATA", value]));
@@ -247,18 +234,9 @@ export function buildCausalNodes<T>(
 		{
 			name: `${opts.name}/released`,
 			factory: "causalOccurrenceReleased",
+			quiet: true,
 			replayBuffer: opts.maxOccurrences,
 		},
-	);
-	const releaseEvents = graph.initNode(merge<CausalOccurrence<T>>(), [released, rawRelease], {
-		name: `${opts.name}/release-events`,
-	});
-	const releaseController = graph.node(
-		[releaseEvents],
-		(ctx) => {
-			if ((depBatch(ctx, 0) ?? []).length > 0) ctx.upNext([["PULL", { pullId }]]);
-		},
-		{ name: `${opts.name}/release-controller`, factory: "causalOccurrenceReleaseController" },
 	);
 
 	const result: CausalOccurrenceBundle<T> = {
@@ -324,7 +302,7 @@ export function buildCausalNodes<T>(
 		ports: result,
 		full,
 		committedEffects,
-		roots: Object.freeze([releaseController]),
+		roots: Object.freeze([released]),
 	});
 }
 
@@ -337,8 +315,6 @@ export function causalOccurrenceRequiredEdges(
 	const arrivals = `${name}/arrivals`;
 	const authority = `${name}/authority`;
 	const releaseCandidates = `${name}/release-candidates`;
-	const releaseEvents = `${name}/release-events`;
-	const releasePort = `${name}/release-port`;
 	const released = `${name}/released`;
 	const internal = [
 		{ from: `${name}/input/occurrences`, to: arrivals },
@@ -351,11 +327,7 @@ export function causalOccurrenceRequiredEdges(
 		{ from: `${name}/input/watermarks`, to: arrivals },
 		{ from: arrivals, to: authority },
 		{ from: authority, to: releaseCandidates },
-		{ from: releaseCandidates, to: releasePort },
-		{ from: releasePort, to: released },
-		{ from: releaseCandidates, to: releaseEvents },
-		{ from: released, to: releaseEvents },
-		{ from: releaseEvents, to: `${name}/release-controller` },
+		{ from: releaseCandidates, to: released },
 		{ from: authority, to: `${name}/currentness` },
 		{ from: authority, to: `${name}/terminals` },
 		{ from: authority, to: `${name}/conservation` },

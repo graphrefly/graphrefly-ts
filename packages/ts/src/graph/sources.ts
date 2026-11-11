@@ -3,15 +3,14 @@
  *
  * Sources are depless {@link Operator}`<never, T>` specs built on the `producer`/`node` path:
  * the body runs ONCE on activation (node `_activate`), schedules its work, and emits later via
- * the captured `ctx.down` (an external tier-3 emit → the leading DIRTY is synthesized for it,
+ * the captured `ctx.down` (an external tier-3 emit → the leading PENDING is synthesized for it,
  * R-dirty-before-data). Async lives ONLY here (R-no-raw-async / F-SYNC-CORE): `setTimeout` /
  * `Promise` / `for await` are confined to source bodies; the wave core stays sync. Cleanup is
  * `ctx.onDeactivation` (D28), NOT a returned object. Per-language (D6/D24), never in parity.
  *
  * Instantiate via `g.initNode(timer(1000), [])` (graph-bound, inspectable) or
- * {@link initNode}(timer(1000), []) (bare). Pool/pause defaults (D43): timer/interval =
- * sync + pausable:false (keep producing through PAUSE); fromPromise/fromAsyncIter = async
- * (default pausable, so a paused source buffers its late emits — R-async-paused).
+ * {@link initNode}(timer(1000), []) (bare). Pool defaults (D43): timer/interval = sync;
+ * fromPromise/fromAsyncIter = async (their late emits are later waves).
  */
 
 import type { Ctx } from "../ctx/types.js";
@@ -148,7 +147,7 @@ function driverOneShotSource<T>(
 			installDriverCancel(active, cancelSlot, cancel);
 			return () => cleanupDriverWork(active, cancelSlot);
 		},
-		{ pool: "async", pausable: false },
+		{ pool: "async" },
 	);
 }
 
@@ -193,7 +192,7 @@ function driverStreamSource<T, E extends { readonly kind: string }>(
 			installDriverCancel(active, cancelSlot, cancel);
 			return () => cleanupDriverWork(active, cancelSlot);
 		},
-		{ pool: "async", pausable: false },
+		{ pool: "async" },
 	);
 }
 
@@ -593,7 +592,7 @@ export function fromCron(
 			intervalId = setInterval(check, tickMs);
 			return cleanup;
 		},
-		{ pool: "sync", pausable: false },
+		{ pool: "sync" },
 	);
 }
 
@@ -856,7 +855,7 @@ function timerSource(factory: string, ms: number, opts?: TimerSourceOpts): Opera
 			t = setTimeout(finish, ms);
 			return cleanup;
 		},
-		{ pool: "sync", pausable: false },
+		{ pool: "sync" },
 	);
 	if (factory === "timer" && period === undefined && signal === undefined) {
 		return { ...op, restore: { ref: "timer", config: { ms: toCheckpointJson(ms, "timer.ms") } } };
@@ -866,7 +865,7 @@ function timerSource(factory: string, ms: number, opts?: TimerSourceOpts): Opera
 
 /**
  * Timer source: one-shot (first tick then COMPLETE) or periodic (`{period}` → 0, 1, 2, …).
- * sync pool + pausable:false (a timer keeps producing through PAUSE, R-pause-modes). Emits the
+ * sync pool. Emits the
  * tick counter from 0; deactivation clears the timers.
  *
  * @param ms - Delay before the first tick in milliseconds.
@@ -925,7 +924,7 @@ export function interval(ms: number): Operator<never, number> {
 
 /**
  * Lift a Promise (or thenable) to a single-value stream: one DATA then COMPLETE, or ERROR on
- * rejection. async pool (default pausable → a paused source buffers its late emit). Optional
+ * rejection. async pool (its late emit is a later wave). Optional
  * `signal` aborts to ERROR.
  *
  * @param p - Promise or thenable to lift into the graph.
@@ -1307,8 +1306,6 @@ export function firstValueFrom<T>(source: Node<T>): Promise<T> {
 				finish(() => reject(msg[1]));
 			} else if (msg[0] === "COMPLETE") {
 				finish(() => reject(new Error("firstValueFrom: completed without DATA")));
-			} else if (msg[0] === "TEARDOWN") {
-				finish(() => reject(new Error("firstValueFrom: torn down without DATA")));
 			}
 		});
 		if (shouldUnsub) {

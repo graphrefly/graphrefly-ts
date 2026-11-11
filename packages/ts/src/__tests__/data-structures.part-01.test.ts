@@ -2,7 +2,7 @@
  * CSP-2.8 reactive data structures (D54/D60) — reactiveList/Map/Index/Log + the shared core.
  *
  * Covers the two-port shape (D60): the always-on DELTA stream (O(1)/mutation) + the lazy pull
- * SNAPSHOT node (materialized only on a cone-routed PULL demand, R-pull/D269/C-16), the D54
+ * SNAPSHOT node (materialized only on a live write to its REQUEST state, graphrefly-ts:D172), the D54
  * `Node<T>` widening (declared-dep input fold), each structure's specialization (Map lazy-TTL +
  * LRU + delete-reason; Index Z reverse-lookup; Log incremental view/scan + SENTINEL reject +
  * declared-dep merge), and real factory names (D6).
@@ -36,9 +36,9 @@ class _CountingDispatcher extends Dispatcher {
 	registerCount = 0;
 }
 
-/** Demand the snapshot directly (the substrate cone-routed PULL of its pullId, R-pull/D269). */
-function demand(snapshot: Node<unknown>, pullId: symbol): void {
-	snapshot.up([["PULL", { pullId }]]);
+/** Request one snapshot: a live write to the collection's request state (graphrefly-ts:D172). */
+function demand(request: Node<true>): void {
+	request.down([["DATA", true]]);
 }
 
 describe("collectionCore two-port shape (D60) via reactiveList", () => {
@@ -85,12 +85,12 @@ describe("collectionCore two-port shape (D60) via reactiveList", () => {
 		expect(list.toArray()).toEqual([1]);
 	});
 
-	it("SNAPSHOT pull node is quiet (START only, no push-on-subscribe), absorbs delta DIRTY", () => {
+	it("SNAPSHOT pull node is quiet (START only, no push-on-subscribe), absorbs delta PENDING", () => {
 		const list = reactiveList<number>([10]);
 		const { msgs } = collect(list.snapshot);
 		expect(types(msgs)).toEqual(["START"]);
 		list.append(20);
-		expect(types(msgs)).toEqual(["START"]); // delta DIRTY absorbed, no wedge (R-pull)
+		expect(types(msgs)).toEqual(["START"]); // delta PENDING absorbed, no wedge (R-pull)
 	});
 
 	it("a demand delivers the CURRENT snapshot once, then re-quiets (1:1, lazy O(n))", () => {
@@ -98,8 +98,8 @@ describe("collectionCore two-port shape (D60) via reactiveList", () => {
 		const { msgs } = collect(list.snapshot);
 		list.append(1);
 		list.append(2);
-		demand(list.snapshot as Node<unknown>, list.pullId);
-		expect(types(msgs)).toEqual(["START", "DIRTY", "DATA"]);
+		demand(list.request);
+		expect(types(msgs)).toEqual(["START", "PENDING", "DATA"]);
 		expect(data(msgs)).toEqual([[1, 2]]);
 	});
 
@@ -107,9 +107,9 @@ describe("collectionCore two-port shape (D60) via reactiveList", () => {
 		const list = reactiveList<number>();
 		const { msgs } = collect(list.snapshot);
 		list.append(1);
-		demand(list.snapshot as Node<unknown>, list.pullId);
+		demand(list.request);
 		const afterFirst = msgs.length;
-		demand(list.snapshot as Node<unknown>, list.pullId);
+		demand(list.request);
 		expect(types(msgs).slice(afterFirst)).toEqual([]);
 		expect(data(msgs)).toEqual([[1]]);
 	});
@@ -118,9 +118,9 @@ describe("collectionCore two-port shape (D60) via reactiveList", () => {
 		const list = reactiveList<number>();
 		const { msgs } = collect(list.snapshot);
 		list.append(1);
-		demand(list.snapshot as Node<unknown>, list.pullId);
+		demand(list.request);
 		list.append(2);
-		demand(list.snapshot as Node<unknown>, list.pullId);
+		demand(list.request);
 		expect(data(msgs)).toEqual([[1], [1, 2]]);
 	});
 
@@ -527,7 +527,7 @@ describe("reactiveMap (D60 #3) — lazy TTL + LRU + delete-reason", () => {
 		const { msgs } = collect(m.snapshot);
 		m.set("a", 1);
 		m.set("b", 2);
-		demand(m.snapshot as Node<unknown>, m.pullId);
+		demand(m.request);
 		const snap = data<ReadonlyMap<string, number>>(msgs)[0];
 		expect([...snap]).toEqual([
 			["a", 1],
@@ -543,7 +543,7 @@ describe("reactiveMap (D60 #3) — lazy TTL + LRU + delete-reason", () => {
 		m.set("live", 1, { ttl: 20 });
 		m.set("old", 2);
 		t = 10;
-		demand(m.snapshot as Node<unknown>, m.pullId);
+		demand(m.request);
 		expect([...data<ReadonlyMap<string, number>>(snaps.msgs).at(-1)!]).toEqual([["live", 1]]);
 		expect(data(deltas.msgs).at(-1)).toEqual({
 			kind: "delete",
@@ -561,7 +561,7 @@ describe("reactiveMap (D60 #3) — lazy TTL + LRU + delete-reason", () => {
 		m.set("a", 1);
 		const before = data(deltas.msgs).length;
 		t = 10;
-		demand(m.snapshot as Node<unknown>, m.pullId);
+		demand(m.request);
 		expect([...data<ReadonlyMap<string, number>>(snaps.msgs).at(-1)!]).toEqual([["a", 1]]);
 		expect(data(deltas.msgs)).toHaveLength(before);
 	});
@@ -578,7 +578,7 @@ describe("reactiveMap (D60 #3) — lazy TTL + LRU + delete-reason", () => {
 		m.set("c", 4);
 
 		expect(data(deltaMsgs.msgs).at(-1)).toEqual({ kind: "set", key: "c", value: 4 });
-		demand(view.snapshot as Node<unknown>, view.pullId);
+		demand(view.request);
 		expect([...data<ReadonlyMap<string, number>>(snapshotMsgs.msgs).at(-1)!]).toEqual([
 			["b", 2],
 			["c", 4],
@@ -588,9 +588,7 @@ describe("reactiveMap (D60 #3) — lazy TTL + LRU + delete-reason", () => {
 		view.dispose();
 		expect(m.select(isEven)).not.toBe(view);
 		expect(() => view.delta.subscribe(() => {})).toThrow(/released from its graph lifecycle/);
-		expect(() => demand(view.snapshot as Node<unknown>, view.pullId)).toThrow(
-			/released from its graph lifecycle/,
-		);
+		expect(() => demand(view.request)).toThrow(/released from its graph lifecycle/);
 	});
 
 	it("select snapshot predicate failures surface as ERROR waves", () => {
@@ -601,7 +599,7 @@ describe("reactiveMap (D60 #3) — lazy TTL + LRU + delete-reason", () => {
 		});
 		const snapshotMsgs = collect(view.snapshot);
 
-		demand(view.snapshot as Node<unknown>, view.pullId);
+		demand(view.request);
 
 		const errors = snapshotMsgs.msgs.filter((msg) => msg[0] === "ERROR");
 		expect(errors).toHaveLength(1);

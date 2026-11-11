@@ -51,7 +51,7 @@ import {
 	makeTopicState,
 	positiveLimit,
 	publishCommand,
-	pullParams,
+	requestParams,
 	uniqueTopics,
 	validateTopicKey,
 } from "./utils.js";
@@ -80,7 +80,7 @@ export type {
 	MessageBusMessage,
 	MessageBusOptions,
 	MessageBusPageParams,
-	MessageBusPullProjection,
+	MessageBusRequestProjection,
 	MessageBusRetentionPolicy,
 	MessageBusStatus,
 	MessageBusSubscription,
@@ -249,62 +249,80 @@ export function messageBus<TTopic extends string>(
 		},
 		topic<T = unknown>(topic: TTopic | string, projectionOpts: { name?: string } = {}) {
 			assertTopicKey(topic, "messageBus.topic");
-			const snapshotPullId = Symbol(`${name}/${topic}/topicSnapshot`);
+			const projectionName = projectionOpts.name ?? `${name}/${topic}/topic`;
+			const snapshotRequest = projectionRequest<MessageBusTopicParams>(
+				graph,
+				projectionName,
+				"messageBusTopicRequest",
+			);
 			const snapshot = graph.node<MessageBusTopicPage<T>>(
-				[messages],
+				[messages, snapshotRequest],
 				(ctx) => {
-					const params = pullParams<MessageBusTopicParams>(ctx.pull);
+					const params = requestParams<MessageBusTopicParams>(ctx, 1);
+					if (params === undefined) return;
 					ctx.down([["DATA", topicPage<T>(state, topic, params)]]);
 				},
 				{
-					name: projectionOpts.name ?? `${name}/${topic}/topic`,
+					name: projectionName,
 					factory: "messageBusTopicProjection",
 					meta: { topic },
-					pullId: snapshotPullId,
+					quiet: true,
 					partial: true,
 					completeWhenDepsComplete: false,
 					errorWhenDepsError: false,
 				},
 			);
-			return { snapshot, snapshotPullId, status, issues };
+			return { snapshot, snapshotRequest, status, issues };
 		},
 		catalog(projectionOpts: { name?: string } = {}) {
-			const snapshotPullId = Symbol(`${name}/catalogSnapshot`);
+			const projectionName = projectionOpts.name ?? `${name}/catalog`;
+			const snapshotRequest = projectionRequest<MessageBusCatalogParams>(
+				graph,
+				projectionName,
+				"messageBusCatalogRequest",
+			);
 			const snapshot = graph.node<MessageBusCatalogPage>(
-				[runtime],
+				[runtime, snapshotRequest],
 				(ctx) => {
-					const params = pullParams<MessageBusCatalogParams>(ctx.pull);
+					const params = requestParams<MessageBusCatalogParams>(ctx, 1);
+					if (params === undefined) return;
 					ctx.down([["DATA", catalogPage(state, params)]]);
 				},
 				{
-					name: projectionOpts.name ?? `${name}/catalog`,
+					name: projectionName,
 					factory: "messageBusCatalog",
-					pullId: snapshotPullId,
+					quiet: true,
 					partial: true,
 					completeWhenDepsComplete: false,
 					errorWhenDepsError: false,
 				},
 			);
-			return { snapshot, snapshotPullId, status, issues };
+			return { snapshot, snapshotRequest, status, issues };
 		},
 		deadLetter<T = unknown>(projectionOpts: { name?: string } = {}) {
-			const snapshotPullId = Symbol(`${name}/deadLetterSnapshot`);
+			const projectionName = projectionOpts.name ?? `${name}/deadLetter`;
+			const snapshotRequest = projectionRequest<MessageBusDeadLetterParams>(
+				graph,
+				projectionName,
+				"messageBusDeadLetterRequest",
+			);
 			const snapshot = graph.node<MessageBusDeadLetterPage<T>>(
-				[runtime],
+				[runtime, snapshotRequest],
 				(ctx) => {
-					const params = pullParams<MessageBusDeadLetterParams>(ctx.pull);
+					const params = requestParams<MessageBusDeadLetterParams>(ctx, 1);
+					if (params === undefined) return;
 					ctx.down([["DATA", deadLetterPage<T>(state, params)]]);
 				},
 				{
-					name: projectionOpts.name ?? `${name}/deadLetter`,
+					name: projectionName,
 					factory: "messageBusDeadLetter",
-					pullId: snapshotPullId,
+					quiet: true,
 					partial: true,
 					completeWhenDepsComplete: false,
 					errorWhenDepsError: false,
 				},
 			);
-			return { snapshot, snapshotPullId, status, issues };
+			return { snapshot, snapshotRequest, status, issues };
 		},
 		subscription<T = unknown>(subscriptionOpts: {
 			topic: TTopic | string;
@@ -319,23 +337,26 @@ export function messageBus<TTopic extends string>(
 				subscriptionId: subscriptionOpts.subscriptionId,
 				from: subscriptionOpts.from ?? "earliest",
 			});
-			const availablePullId = Symbol(
-				`${name}/${subscriptionOpts.topic}/${subscriptionOpts.subscriptionId}/available`,
-			);
 			const projectionName =
 				subscriptionOpts.name ??
 				`${name}/${subscriptionOpts.topic}/${subscriptionOpts.subscriptionId}`;
+			const availableRequest = projectionRequest<MessageBusAvailableParams>(
+				graph,
+				`${projectionName}/available`,
+				"messageBusSubscriptionAvailableRequest",
+			);
 			const available = graph.node<MessageBusAvailablePage<T>>(
-				[messages, status],
+				[messages, status, availableRequest],
 				(ctx) => {
-					const params = pullParams<MessageBusAvailableParams>(ctx.pull);
+					const params = requestParams<MessageBusAvailableParams>(ctx, 2);
+					if (params === undefined) return;
 					ctx.down([["DATA", availablePage<T>(state, sub, params)]]);
 				},
 				{
 					name: `${projectionName}/available`,
 					factory: "messageBusSubscriptionAvailable",
 					meta: { topic: subscriptionOpts.topic, subscriptionId: subscriptionOpts.subscriptionId },
-					pullId: availablePullId,
+					quiet: true,
 					partial: true,
 					completeWhenDepsComplete: false,
 					errorWhenDepsError: false,
@@ -367,7 +388,7 @@ export function messageBus<TTopic extends string>(
 			);
 			return {
 				available,
-				availablePullId,
+				availableRequest,
 				cursor,
 				status,
 				issues,
@@ -402,25 +423,6 @@ export function messageBus<TTopic extends string>(
 	};
 	registerMessageBusState(bus, state);
 	return bus;
-}
-
-/**
- * Creates a from topic.
- *
- * @param bus - bus value used by the helper.
- * @param topic - topic value used by the helper.
- * @returns The from topic result.
- * @category messaging
- * @example
- * ```ts
- * import { fromTopic } from "@graphrefly/ts/messaging";
- * ```
- */
-export function fromTopic<T = unknown, TTopic extends string = string>(
-	bus: MessageBus<TTopic>,
-	topic: TTopic | string,
-): Node<MessageBusTopicPage<T>> {
-	return bus.topic<T>(topic).snapshot;
 }
 
 /**
@@ -488,6 +490,19 @@ export function toTopic<T, TTopic extends string>(
 			releaseSource();
 		},
 	};
+}
+
+/**
+ * A projection's request state (graphrefly-ts:D172): the projection declares it as a dependency
+ * and serves one page per live write, with the written params.
+ */
+function projectionRequest<P>(graph: Graph, projectionName: string, factory: string): Node<P> {
+	return graph.node<P>([], null, {
+		name: `${projectionName}/request`,
+		factory,
+		completeWhenDepsComplete: false,
+		errorWhenDepsError: false,
+	});
 }
 
 function reduceMessageBusCommand(

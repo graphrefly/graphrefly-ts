@@ -234,7 +234,7 @@ function clearRestoredCollectionMap(graph: Graph): void {
 
 function collectionBaseId(
 	id: string,
-	suffix: ".intent" | ".apply" | ".snapshotPrep" | ".delta" | ".snapshot",
+	suffix: ".intent" | ".apply" | ".snapshotPrep" | ".delta" | ".snapshot" | ".request",
 	ref: string,
 ): string {
 	if (!id.endsWith(suffix)) {
@@ -413,7 +413,7 @@ function restoredMapNode(ctx: GraphRestoreDescriptorContext, ref: string): Node<
 function existingMapNode(
 	ctx: GraphRestoreDescriptorContext,
 	ref: string,
-	suffix: ".apply" | ".snapshotPrep" | ".delta" | ".snapshot",
+	suffix: ".apply" | ".snapshotPrep" | ".delta" | ".snapshot" | ".request",
 ): Node<unknown> {
 	const base = collectionBaseId(ctx.id, suffix, ref);
 	const item = restoredCollectionMap(ctx.graph).get(base);
@@ -433,14 +433,31 @@ function existingCollection(
 	kind: RestoredCollection["kind"],
 ): RestoredCollection {
 	const base = collectionBaseId(ctx.id, ".snapshot", ref);
-	if (ctx.deps.length !== 1) {
-		throw new Error(`restoreGraph: '${ref}' node '${ctx.id}' requires exactly one dep`);
+	// The snapshot declares the delta and the request state (graphrefly-ts:D172).
+	if (ctx.deps.length !== 2) {
+		throw new Error(`restoreGraph: '${ref}' node '${ctx.id}' requires exactly two deps`);
 	}
 	const item = restoredCollectionMap(ctx.graph).get(base);
 	if (item === undefined || item.kind !== kind) {
 		throw new Error(`restoreGraph: '${ref}' node '${ctx.id}' is missing restored '${base}.delta'`);
 	}
 	return item;
+}
+
+function existingCollectionRequest(
+	ctx: GraphRestoreDescriptorContext,
+	ref: string,
+	kind: RestoredCollection["kind"],
+): Node<unknown> {
+	const base = collectionBaseId(ctx.id, ".request", ref);
+	if (ctx.deps.length !== 0) {
+		throw new Error(`restoreGraph: '${ref}' node '${ctx.id}' cannot restore deps`);
+	}
+	const item = restoredCollectionMap(ctx.graph).get(base);
+	if (item === undefined || item.kind !== kind) {
+		throw new Error(`restoreGraph: '${ref}' node '${ctx.id}' is missing restored '${base}.delta'`);
+	}
+	return item.collection.request as Node<unknown>;
 }
 
 function validateLogConfig(
@@ -471,6 +488,16 @@ export const reactiveListDeltaRestoreDescriptor: GraphRestoreDescriptor<undefine
 	},
 };
 
+export const reactiveListRequestRestoreDescriptor: GraphRestoreDescriptor<undefined> = {
+	ref: "reactiveList.request",
+	validateConfig(config, configVersion) {
+		return noCollectionConfig(config, configVersion, "reactiveList.request");
+	},
+	create(ctx) {
+		return existingCollectionRequest(ctx, "reactiveList.request", "reactiveList");
+	},
+};
+
 export const reactiveListSnapshotRestoreDescriptor: GraphRestoreDescriptor<undefined> = {
 	ref: "reactiveList.snapshot",
 	validateConfig(config, configVersion) {
@@ -492,6 +519,16 @@ export const reactiveIndexDeltaRestoreDescriptor: GraphRestoreDescriptor<undefin
 	},
 };
 
+export const reactiveIndexRequestRestoreDescriptor: GraphRestoreDescriptor<undefined> = {
+	ref: "reactiveIndex.request",
+	validateConfig(config, configVersion) {
+		return noCollectionConfig(config, configVersion, "reactiveIndex.request");
+	},
+	create(ctx) {
+		return existingCollectionRequest(ctx, "reactiveIndex.request", "reactiveIndex");
+	},
+};
+
 export const reactiveIndexSnapshotRestoreDescriptor: GraphRestoreDescriptor<undefined> = {
 	ref: "reactiveIndex.snapshot",
 	validateConfig(config, configVersion) {
@@ -510,6 +547,16 @@ export const reactiveLogDeltaRestoreDescriptor: GraphRestoreDescriptor<LogConfig
 	},
 	create(ctx) {
 		return restoredLog(ctx, "reactiveLog.delta").delta as Node<unknown>;
+	},
+};
+
+export const reactiveLogRequestRestoreDescriptor: GraphRestoreDescriptor<LogConfig> = {
+	ref: "reactiveLog.request",
+	validateConfig(config, configVersion) {
+		return validateLogConfig(config, configVersion, "reactiveLog.request");
+	},
+	create(ctx) {
+		return existingCollectionRequest(ctx, "reactiveLog.request", "reactiveLog");
 	},
 };
 
@@ -541,6 +588,16 @@ export const reactiveMapApplyRestoreDescriptor: GraphRestoreDescriptor<undefined
 	},
 	create(ctx) {
 		return existingMapNode(ctx, "reactiveMap.apply", ".apply");
+	},
+};
+
+export const reactiveMapRequestRestoreDescriptor: GraphRestoreDescriptor<undefined> = {
+	ref: "reactiveMap.request",
+	validateConfig(config, configVersion) {
+		return noCollectionConfig(config, configVersion, "reactiveMap.request");
+	},
+	create(ctx) {
+		return existingMapNode(ctx, "reactiveMap.request", ".request");
 	},
 };
 
@@ -580,13 +637,17 @@ export const defaultRestoreRegistry: Readonly<Record<string, GraphRestoreDescrip
 	take: takeRestoreDescriptor,
 	timer: timerRestoreDescriptor,
 	"reactiveList.delta": reactiveListDeltaRestoreDescriptor,
+	"reactiveList.request": reactiveListRequestRestoreDescriptor,
 	"reactiveList.snapshot": reactiveListSnapshotRestoreDescriptor,
 	"reactiveIndex.delta": reactiveIndexDeltaRestoreDescriptor,
+	"reactiveIndex.request": reactiveIndexRequestRestoreDescriptor,
 	"reactiveIndex.snapshot": reactiveIndexSnapshotRestoreDescriptor,
 	"reactiveLog.delta": reactiveLogDeltaRestoreDescriptor,
+	"reactiveLog.request": reactiveLogRequestRestoreDescriptor,
 	"reactiveLog.snapshot": reactiveLogSnapshotRestoreDescriptor,
 	"reactiveMap.intent": reactiveMapIntentRestoreDescriptor,
 	"reactiveMap.apply": reactiveMapApplyRestoreDescriptor,
+	"reactiveMap.request": reactiveMapRequestRestoreDescriptor,
 	"reactiveMap.snapshotPrep": reactiveMapSnapshotPrepRestoreDescriptor,
 	"reactiveMap.delta": reactiveMapDeltaRestoreDescriptor,
 	"reactiveMap.snapshot": reactiveMapSnapshotRestoreDescriptor,
@@ -729,14 +790,18 @@ function isCollectionHelperNonAuthoritative(node: GraphCheckpointNode): boolean 
 	if (node.factory.kind !== "registry-ref") return false;
 	return (
 		node.factory.ref === "reactiveList.delta" ||
+		node.factory.ref === "reactiveList.request" ||
 		node.factory.ref === "reactiveList.snapshot" ||
 		node.factory.ref === "reactiveIndex.delta" ||
+		node.factory.ref === "reactiveIndex.request" ||
 		node.factory.ref === "reactiveIndex.snapshot" ||
 		node.factory.ref === "reactiveLog.delta" ||
+		node.factory.ref === "reactiveLog.request" ||
 		node.factory.ref === "reactiveLog.snapshot" ||
 		node.factory.ref === "reactiveMap.intent" ||
 		node.factory.ref === "reactiveMap.apply" ||
 		node.factory.ref === "reactiveMap.delta" ||
+		node.factory.ref === "reactiveMap.request" ||
 		node.factory.ref === "reactiveMap.snapshotPrep" ||
 		node.factory.ref === "reactiveMap.snapshot"
 	);

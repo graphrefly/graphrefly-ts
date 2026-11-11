@@ -85,16 +85,8 @@ export const apiSidebar = [
 				"link": "/api/isvaluetier"
 			},
 			{
-				"label": "isPauseBufferedTier()",
-				"link": "/api/ispausebufferedtier"
-			},
-			{
 				"label": "isTerminal()",
 				"link": "/api/isterminal"
-			},
-			{
-				"label": "isUpAllowed()",
-				"link": "/api/isupallowed"
 			}
 		]
 	},
@@ -1135,10 +1127,6 @@ export const apiSidebar = [
 			{
 				"label": "messageBus()",
 				"link": "/api/messagebus"
-			},
-			{
-				"label": "fromTopic()",
-				"link": "/api/fromtopic"
 			},
 			{
 				"label": "toTopic()",
@@ -2255,8 +2243,8 @@ export const apiSidebar = [
 		"collapsed": true,
 		"items": [
 			{
-				"label": "assertDirtyPrecedesTerminalData()",
-				"link": "/api/assertdirtyprecedesterminaldata"
+				"label": "assertPendingPrecedesTerminalData()",
+				"link": "/api/assertpendingprecedesterminaldata"
 			}
 		]
 	},

@@ -22,8 +22,8 @@ function collect(n: { subscribe(s: (m: Message) => void): () => void }) {
 	n.subscribe((m) => msgs.push(m));
 	return msgs;
 }
-function demand(snapshot: Node<unknown>, pullId: symbol): void {
-	snapshot.up([["PULL", { pullId }]]);
+function demand(request: Node<true>): void {
+	request.down([["DATA", true]]);
 }
 const _types = (msgs: Message[]) => msgs.map((m) => m[0]);
 const TEST_JSON_DECODER = new TextDecoder();
@@ -311,23 +311,6 @@ describe("Graph.observeTopology — read-only topology egress (D145)", () => {
 		expect(g.describe().nodes.map((node) => node.id)).not.toContain("later");
 		expect(() => panic.subscribe(() => {})).toThrow(/released from its graph lifecycle/);
 	});
-
-	it("rejects release while a node's own status is dirty", () => {
-		const g = graph();
-		const group = g.topologyGroup({ name: "view" });
-		const dirty = group.node([], null, { name: "dirty" });
-		const events: TopologyEvent[] = [];
-		const unsub = g.observeTopology().subscribe((event) => events.push(event));
-
-		dirty.down([["DIRTY"]]);
-
-		expect(dirty.status).toBe("dirty");
-		expect(() => group.release()).toThrow(/not runtime-quiescent/);
-		unsub();
-		expect(events).toEqual([]);
-		expect(g.find("dirty")).toBe(dirty);
-		expect(g.describe().nodes.map((node) => node.id)).toContain("dirty");
-	});
 });
 
 describe("Graph.topologyGroup — graph-owned dynamic topology release (D152/D153)", () => {
@@ -558,9 +541,19 @@ describe("Graph.checkpoint — public data shape (R-snapshot / D83 / D90)", () =
 	it("rejects non-quiescent checkpoint statuses that cannot be restored yet", () => {
 		const g = graph();
 		const source = g.state(1, { name: "source" });
-		source.down([["DIRTY"]]);
-
-		expect(() => g.checkpoint()).toThrow(/non-quiescent status 'dirty'/);
+		// A pending mark never outlives its wave (R-wave), so a node is "dirty" only mid-wave.
+		let midWave: unknown;
+		source.subscribe((m) => {
+			if (m[0] !== "PENDING" || midWave !== undefined) return;
+			try {
+				g.checkpoint();
+				midWave = "no error";
+			} catch (e) {
+				midWave = e;
+			}
+		});
+		source.down([["DATA", 2]]);
+		expect(String(midWave)).toMatch(/non-quiescent status 'dirty'/);
 	});
 
 	it("keeps graph checkpoint strict JSON validation independent from storage codecs (D96)", () => {
@@ -610,8 +603,8 @@ describe("Graph.checkpoint — public data shape (R-snapshot / D83 / D90)", () =
 		mapCollection.set("k", 42);
 		collect(list.snapshot);
 		collect(mapCollection.snapshot);
-		demand(list.snapshot as Node<unknown>, list.pullId);
-		demand(mapCollection.snapshot as Node<unknown>, mapCollection.pullId);
+		demand(list.request);
+		demand(mapCollection.request);
 
 		const checkpoint = g.checkpoint();
 		expect(() => strictJsonCodec.encode(checkpoint)).not.toThrow();
@@ -707,23 +700,20 @@ describe("Graph release-local subscriber accounting — D122/D124", () => {
 		const first = g.state(1, { name: "first" });
 		const later = g.node([], null, { name: "later" });
 		const disconnect = first.subscribe(() => {});
-		later.down([["DIRTY"]]);
 		const before = g.describe();
 		expect(() => releaseGraphNodes(g, [first, first, later])).toThrow(
 			/'first' still has live subscribers/,
 		);
-		expect(() => releaseGraphNodes(g, [later, first])).toThrow(/'later' is not runtime-quiescent/);
 		expect(g.describe()).toEqual(before);
 		disconnect();
 	});
 
-	it("keeps external dependency rejection before internal subscriber and dirty errors", () => {
+	it("keeps external dependency rejection before internal subscriber errors", () => {
 		const g = graph();
 		const a = g.state(1, { name: "a" });
 		const b = g.node([], null, { name: "b" });
 		g.derived([b], (x) => x, { name: "outside" });
 		const disconnect = a.subscribe(() => {});
-		b.down([["DIRTY"]]);
 		const before = g.describe();
 		expect(() => releaseGraphNodes(g, [a, b])).toThrow(/'outside' still depends on 'b'/);
 		expect(g.describe()).toEqual(before);

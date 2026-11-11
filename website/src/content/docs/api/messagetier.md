@@ -27,7 +27,7 @@ function messageTier(t: MessageType): number
 
 ## Returns
 
-The tier assigned by the compile-time tier table.
+The tier assigned by the compile-time tier table, or `undefined` at runtime for a string outside the closed set.
 
 ## Example
 

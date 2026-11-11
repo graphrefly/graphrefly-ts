@@ -104,6 +104,29 @@ function collect<T>(node: Node<T>): {
 	return { values, unsubscribe };
 }
 
+/**
+ * R-failure@3: a fail-closed check inside a gate node's function is that node's ERROR, not a throw
+ * out of the write; the write returns and the graph sees an ERROR naming the check.
+ */
+function rejectsIn(owner: ReturnType<typeof graph>, write: () => void, pattern?: RegExp): void {
+	const errors: string[] = [];
+	const stop = owner.observe().subscribe((event) => {
+		if (event.msg[0] === "ERROR")
+			errors.push(String((event.msg[1] as Error | undefined)?.message ?? event.msg[1]));
+	});
+	try {
+		expect(write).not.toThrow();
+	} finally {
+		stop();
+	}
+	expect(errors.length, "expected the rejection as an ERROR").toBeGreaterThan(0);
+	if (pattern !== undefined)
+		expect(
+			errors.some((message) => pattern.test(message)),
+			errors.join("; "),
+		).toBe(true);
+}
+
 function canonicalText(value: unknown): string {
 	return decoder.decode(strictCanonicalJsonBytes(value));
 }
@@ -815,7 +838,7 @@ describe("AgenticMemory D789 real keyed exact-use lifecycle", () => {
 				})),
 			},
 		} as unknown as AgenticMemoryRecordUseOccurrence<string>;
-		expect(() => input.down([["DATA", changed]])).toThrow(/conflicted/u);
+		rejectsIn(g, () => input.down([["DATA", changed]]), /conflicted/u);
 		expect(observed.values).toHaveLength(1);
 		observed.unsubscribe();
 	});
@@ -833,17 +856,22 @@ describe("AgenticMemory D789 real keyed exact-use lifecycle", () => {
 			{ kind: "work-item", id: "original" },
 		]);
 		expect(Object.isFrozen(observed.values[0]?.occurrenceSourceRefs[0])).toBe(true);
-		expect(() =>
-			input.down([
-				[
-					"DATA",
-					{
-						...a,
-						occurrenceSourceRefs: [{ kind: "work-item", id: "original", privatePayload: "secret" }],
-					},
-				],
-			]),
-		).toThrow(/only data kind\/id/u);
+		rejectsIn(
+			g,
+			() =>
+				input.down([
+					[
+						"DATA",
+						{
+							...a,
+							occurrenceSourceRefs: [
+								{ kind: "work-item", id: "original", privatePayload: "secret" },
+							],
+						},
+					],
+				]),
+			/only data kind\/id/u,
+		);
 		observed.unsubscribe();
 		const accessorGraph = graph();
 		const accessorInput = accessorGraph.node<AgenticMemoryRecordUseOccurrence<string>>([], null);
@@ -860,7 +888,9 @@ describe("AgenticMemory D789 real keyed exact-use lifecycle", () => {
 				return "PRIVATE";
 			},
 		};
-		expect(() => accessorInput.down([["DATA", { ...a, occurrenceSourceRefs: [ref] }]])).toThrow(
+		rejectsIn(
+			accessorGraph,
+			() => accessorInput.down([["DATA", { ...a, occurrenceSourceRefs: [ref] }]]),
 			/only data kind\/id/u,
 		);
 		expect(called).toBe(false);
@@ -898,7 +928,7 @@ describe("AgenticMemory D789 real keyed exact-use lifecycle", () => {
 				},
 			},
 		} as unknown as AgenticMemoryRecordUseOccurrence<string>;
-		expect(() => input.down([["DATA", bad]])).toThrow(/canonical sha256/u);
+		rejectsIn(g, () => input.down([["DATA", bad]]), /canonical sha256/u);
 		expect(coercions).toBe(0);
 		observed.unsubscribe();
 	});
@@ -1021,12 +1051,15 @@ describe("AgenticMemory D789 real keyed exact-use lifecycle", () => {
 						: fault === "stale"
 							? useOccurrence("a", 1)
 							: useOccurrence("c");
-		expect(() =>
-			input.down([
-				["DATA", useOccurrence("b")],
-				["DATA", bad],
-			]),
-		).toThrow(/solution occurrence/u);
+		rejectsIn(
+			g,
+			() =>
+				input.down([
+					["DATA", useOccurrence("b")],
+					["DATA", bad],
+				]),
+			/solution occurrence/u,
+		);
 		expect(messages.filter((message) => message[0] === "DATA")).toHaveLength(1);
 		unsubscribe();
 	});

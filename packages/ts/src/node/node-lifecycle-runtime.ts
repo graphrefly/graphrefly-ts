@@ -8,8 +8,6 @@ export function nodeActivate<T>(self: NodeRuntimeHost<T>): void {
 	self._lifecycle.activated = true;
 	const seedRestoredDeps = self._restoredActivationPending;
 	self._restoredActivationPending = false;
-	// R-pull (D55/D272): activePull is undefined before wiring deps, so each dep's
-	// push-on-subscribe DIRTY/DATA is absorbed quietly, not relayed downstream.
 	self._dep.unsubs = new Array(self._slot.deps.length);
 	self._dep.idxBoxes = new Array(self._slot.deps.length);
 	for (const dep of self._slot.deps) self._subscribeDepAt(dep, { seedRestored: seedRestoredDeps });
@@ -60,7 +58,7 @@ export function nodeSeedRestoredDepAt<T>(
 	depNode: Node<unknown>,
 ): void {
 	const dep = nodeRuntimeHost(depNode);
-	const seedData = dep._value.hasData && !dep._slot.pull;
+	const seedData = dep._value.hasData;
 	self._dep.batch[idx] = null;
 	self._dep.waveData[idx] = [];
 	self._dep.waveTokens[idx] = undefined;
@@ -91,12 +89,6 @@ export function nodeDeactivate<T>(self: NodeRuntimeHost<T>): void {
 	}
 	self._resetDepState();
 	self._wave.hasCalledFnOnce = false;
-	self._control.pauseLockset.clear();
-	self._control.pauseBuffer = [];
-	self._control.pausedDepWaveOccurred = false;
-	self._control.demandOwed = undefined; // R-pull (D269): drop any deferred demand
-	self._control.activePull = undefined;
-	self._control.pullDirtyOwed = false;
 	self._value.replayRing = []; // BH6: don't replay stale values to a post-reactivation subscriber
 	if (!self._privateState.persist) self._privateState.value = SENTINEL;
 }
@@ -115,13 +107,7 @@ export function nodeIsRuntimeQuiescentForRelease<T>(self: NodeRuntimeHost<T>): b
 		!self._wave.inDepMutation &&
 		!self._wave.rewireRunPending &&
 		!self._wave.batchDirtyOwed &&
-		self._dep.dirty.every((dirty) => !dirty) &&
-		self._control.pauseBuffer.length === 0 &&
-		!self._control.pausedDepWaveOccurred &&
-		self._control.demandOwed === undefined &&
-		self._control.activePull === undefined &&
-		!self._control.inDeliverDemand &&
-		self._control.pauseLockset.size === 0
+		self._dep.dirty.every((dirty) => !dirty)
 	);
 }
 
@@ -192,12 +178,6 @@ export function nodeReleaseRuntime<T>(self: NodeRuntimeHost<T>): void {
 	self._resetDepState();
 	self._hooks.onDeactivation = [];
 	self._hooks.onInvalidate = [];
-	self._control.pauseLockset.clear();
-	self._control.pauseBuffer = [];
-	self._control.pausedDepWaveOccurred = false;
-	self._control.demandOwed = undefined;
-	self._control.activePull = undefined;
-	self._control.pullDirtyOwed = false;
 	self._restoredActivationPending = false;
 	closeNodeRegistration(node);
 	try {

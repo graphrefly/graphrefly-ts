@@ -188,11 +188,16 @@ describe("rewire — rejects (R-rewire / D42)", () => {
 			dh?.subscribeDep(x, (c) => c.down([["DATA", num(c, 0)]]));
 			ctx.down([["DATA", num(ctx, 0)]]);
 		});
-		expect(() => collect(dh as Node)).toThrow(/mid-fn|feedback/);
+		// R-failure@3: the rejected mid-fn rewire is the node's ERROR, not a host throw.
+		const { msgs } = collect(dh as Node);
+		expect((dh as Node).status).toBe("errored");
+		expect(String((msgs.find((m) => m[0] === "ERROR") as ["ERROR", Error])[1].message)).toMatch(
+			/mid-fn|feedback/,
+		);
 	});
 });
 
-describe("rewire — QA fixes (atomic settle, DIRTY-before-DATA, pause/batch-safe)", () => {
+describe("rewire — QA fixes (atomic settle, PENDING-before-DATA, pause/batch-safe)", () => {
 	it("replaceDeps adding ≥2 cached deps settles ATOMICALLY — fn fires once, never on a partial view (P2)", () => {
 		const a = node<number>([], null, { initial: 1 });
 		const b = node<number>([], null, { initial: 10 });
@@ -215,7 +220,7 @@ describe("rewire — QA fixes (atomic settle, DIRTY-before-DATA, pause/batch-saf
 		expect(d.cache).toBe(111); // 1 + 10 + 100
 	});
 
-	it("a rewire-triggered settle emits DIRTY before DATA downstream (D1 / R-dirty-before-data)", () => {
+	it("a rewire-triggered settle emits PENDING before DATA downstream (D1 / R-dirty-before-data)", () => {
 		const a = node<number>([], null, { initial: 1 });
 		const b = node<number>([], null, { initial: 100 });
 		const d = node<number>([a], (ctx) => ctx.down([["DATA", num(ctx, 0)]]));
@@ -223,34 +228,8 @@ describe("rewire — QA fixes (atomic settle, DIRTY-before-DATA, pause/batch-saf
 		msgs.length = 0; // isolate the rewire wave
 
 		d.subscribeDep(b, (ctx) => ctx.down([["DATA", num(ctx, 0) + num(ctx, 1)]]));
-		expect(types(msgs)).toEqual(["DIRTY", "DATA"]); // two-phase, glitch-free
+		expect(types(msgs)).toEqual(["PENDING", "DATA"]); // two-phase, glitch-free
 		expect(msgs.at(-1)).toEqual(["DATA", 101]);
-	});
-
-	it("unsubscribeDep of the sole dirty dep to zero deps un-dirties downstream via RESOLVED (Q6 / P1)", () => {
-		let cctx: Ctx | null = null;
-		const a = node<number>([], null, { initial: 1 });
-		const c = node<number>(
-			[a],
-			(ctx: Ctx) => {
-				cctx = ctx; // async leg: defer the emit
-			},
-			{ pool: "async" },
-		);
-		const d = node<number>([c], (ctx) => ctx.down([["DATA", num(ctx, 0)]]));
-		const { msgs } = collect(d);
-		(cctx as Ctx).down([["DATA", 5]]); // c settles once → d caches 5
-		expect(d.cache).toBe(5);
-
-		msgs.length = 0;
-		a.down([["DATA", 2]]); // a→c DIRTY/DATA; c (async) defers → c emits DIRTY to d → d dirty
-		expect(d.status).toBe("dirty");
-		expect(types(msgs)).toContain("DIRTY");
-
-		msgs.length = 0;
-		d.unsubscribeDep(c, (ctx) => ctx.down([["DATA", num(ctx, 0)]])); // remove sole dirty dep → zero deps
-		expect(types(msgs)).toEqual(["RESOLVED"]); // un-dirtied downstream (not a stray DATA)
-		expect(d.cache).toBe(5); // cache preserved (Q7), no recompute
 	});
 
 	it("B15: a rewire fn-swap frees the old dispatcher handle (registry stays bounded)", () => {

@@ -209,7 +209,9 @@ describe("D791 causal occurrence contract-v2", () => {
 		expect(data(f.messages.get("released"))).toEqual([]);
 		f.watermarks.down([["DATA", { revisionDomain: "test-domain", revision: 1 }]]);
 		expect(data<CausalOccurrence<string>>(f.messages.get("released"))).toEqual([first]);
-		expect(f.messages.get("released")?.filter((message) => message[0] === "DIRTY")).toHaveLength(1);
+		expect(f.messages.get("released")?.filter((message) => message[0] === "PENDING")).toHaveLength(
+			1,
+		);
 		expect(f.messages.get("released")?.filter((message) => message[0] === "RESOLVED")).toEqual([]);
 		f.admissions.down([["DATA", admission(first)]]);
 		f.occurrences.down([["DATA", first]]);
@@ -278,7 +280,7 @@ describe("D791 causal occurrence contract-v2", () => {
 		]);
 		f.watermarks.down([["DATA", { revisionDomain: "test-domain", revision: 2 }]]);
 		const messages = f.messages.get("released") ?? [];
-		expect(messages.filter((message) => message[0] === "DIRTY")).toHaveLength(2);
+		expect(messages.filter((message) => message[0] === "PENDING")).toHaveLength(2);
 		expect(messages.filter((message) => message[0] === "DATA")).toHaveLength(2);
 		f.stop();
 	});
@@ -1123,9 +1125,7 @@ describe("D791 causal occurrence contract-v2", () => {
 			});
 			expect(
 				constructionOf(f.owner, "causal")?.roots.filter(
-					(root) =>
-						root.node === f.owner.find("causal/release-controller") &&
-						root.unsubscribe !== undefined,
+					(root) => root.node === f.owner.find("causal/released") && root.unsubscribe !== undefined,
 				),
 			).toHaveLength(1);
 			if (detach) f.unsubscribeOutputs();
@@ -1242,11 +1242,7 @@ describe("causal topology exact-string index", () => {
 		...[
 			["arrivals", "authority"],
 			["authority", "release-candidates"],
-			["release-candidates", "release-port"],
-			["release-port", "released"],
-			["release-candidates", "release-events"],
-			["released", "release-events"],
-			["release-events", "release-controller"],
+			["release-candidates", "released"],
 			...[
 				"currentness",
 				"terminals",
@@ -1357,7 +1353,7 @@ describe("causal topology exact-string index", () => {
 		});
 		expect(accesses).toEqual(lanes.flatMap((_, i) => [`edges:${i}`, `to:${i}`]));
 		for (const [i, edge] of sources.entries()) expect(result[i]).toBe(edge);
-		expect(result).toHaveLength(30);
+		expect(result).toHaveLength(26);
 	});
 	it("preserves helper getter failure without inspecting later edges (A2)", () => {
 		const accesses: string[] = [];
@@ -1389,7 +1385,7 @@ describe("causal topology exact-string index", () => {
 	it("keeps fresh frozen internal results without a description (A2)", () => {
 		const a = causalOccurrenceRequiredEdges("causal");
 		const b = causalOccurrenceRequiredEdges("causal", { edges: [] });
-		expect(a).toHaveLength(22);
+		expect(a).toHaveLength(18);
 		expect(b).toEqual(a);
 		expect(b).not.toBe(a);
 		expect(b[0]).not.toBe(a[0]);

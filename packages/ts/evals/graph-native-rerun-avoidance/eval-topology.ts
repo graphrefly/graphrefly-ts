@@ -1,4 +1,4 @@
-import { depBatch, depLatest } from "../../src/ctx/types.js";
+import { type Ctx, depBatch, depLatest } from "../../src/ctx/types.js";
 import { type Graph, graph } from "../../src/graph/graph.js";
 import type { ObserveEvent } from "../../src/graph/inspect.js";
 import type { Node } from "../../src/node/node.js";
@@ -3996,56 +3996,58 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			},
 		},
 	);
-	const resultStatusPullIds = Object.freeze({
-		terminal: Symbol("eval/provider/result-admission"),
-		failed: Symbol("eval/provider/failed-result-admission"),
-		retryable: Symbol("eval/provider/retryable-result-admission"),
-	});
+	// graphrefly-ts:D172: each status port is one quiet node that admits an admission id once and
+	// sends only fresh results; its output goes out after the current wave (R-wave).
+	const freshResultStatus = (
+		ctx: Ctx,
+		status: EvalProviderOutcome["status"],
+	): EvalProviderOutcome[] => {
+		const seen = ctx.state.get<Set<string>>() ?? new Set<string>();
+		const fresh: EvalProviderOutcome[] = [];
+		for (const raw of depBatch(ctx, 0) ?? []) {
+			const outcome = validateProviderOutcome(raw as EvalProviderOutcome);
+			if (outcome.status !== status || seen.has(outcome.admissionId)) continue;
+			if (seen.size >= rootEvalMaximumProviderAttempts(replicateCount))
+				throw new TypeError("result release bound exceeded");
+			seen.add(outcome.admissionId);
+			fresh.push(outcome);
+		}
+		ctx.state.set(seen);
+		return fresh;
+	};
 	const terminalProviderResultAdmissions = owner.node<EvalProviderOutcome>(
 		[allProviderResultAdmissions],
 		(ctx) => {
-			for (const raw of depBatch(ctx, 0) ?? []) {
-				const outcome = validateProviderOutcome(raw as EvalProviderOutcome);
-				if (outcome.status === "tool-proposed") ctx.down([["DATA", outcome]]);
-			}
+			for (const outcome of freshResultStatus(ctx, "tool-proposed")) ctx.down([["DATA", outcome]]);
 		},
 		{
 			name: "eval/provider/result-admission",
 			factory: "rootEvalProviderResultAdmission",
-			pullId: resultStatusPullIds.terminal,
-			pausable: "resumeAll",
+			quiet: true,
 			meta: { authority: "canonical-status-demux", acceptedStatus: "tool-proposed" },
 		},
 	);
 	const failedProviderResultAdmissions = owner.node<EvalProviderOutcome>(
 		[allProviderResultAdmissions],
 		(ctx) => {
-			for (const raw of depBatch(ctx, 0) ?? []) {
-				const outcome = validateProviderOutcome(raw as EvalProviderOutcome);
-				if (outcome.status === "failed") ctx.down([["DATA", outcome]]);
-			}
+			for (const outcome of freshResultStatus(ctx, "failed")) ctx.down([["DATA", outcome]]);
 		},
 		{
 			name: "eval/provider/failed-result-admission",
 			factory: "rootEvalFailedProviderResultAdmission",
-			pullId: resultStatusPullIds.failed,
-			pausable: "resumeAll",
+			quiet: true,
 			meta: { authority: "canonical-status-demux", acceptedStatus: "failed" },
 		},
 	);
 	const retryableProviderResultAdmissions = owner.node<EvalProviderOutcome>(
 		[allProviderResultAdmissions],
 		(ctx) => {
-			for (const raw of depBatch(ctx, 0) ?? []) {
-				const outcome = validateProviderOutcome(raw as EvalProviderOutcome);
-				if (outcome.status === "retryable") ctx.down([["DATA", outcome]]);
-			}
+			for (const outcome of freshResultStatus(ctx, "retryable")) ctx.down([["DATA", outcome]]);
 		},
 		{
 			name: "eval/provider/retryable-result-admission",
 			factory: "rootEvalRetryableProviderResultAdmission",
-			pullId: resultStatusPullIds.retryable,
-			pausable: "resumeAll",
+			quiet: true,
 			meta: {
 				authority: "canonical-status-demux",
 				acceptedStatus: "retryable",
@@ -4054,49 +4056,12 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		},
 	);
 
-	const resultStatusReleaseEvents = owner.initNode(
-		merge<EvalProviderOutcome>(),
-		[
-			allProviderResultAdmissions,
-			terminalProviderResultAdmissions,
-			failedProviderResultAdmissions,
-			retryableProviderResultAdmissions,
-		],
-		{ name: "eval/provider/result-status-release-events" },
-	);
-	const resultStatusReleaseController = owner.node(
-		[resultStatusReleaseEvents],
-		(ctx) => {
-			const seen = ctx.state.get<Set<string>>() ?? new Set<string>();
-			const statuses = new Set<EvalProviderOutcome["status"]>();
-			for (const raw of depBatch(ctx, 0) ?? []) {
-				const value = validateProviderOutcome(raw as EvalProviderOutcome);
-				if (seen.has(value.admissionId)) continue;
-				if (seen.size >= rootEvalMaximumProviderAttempts(replicateCount))
-					throw new TypeError("result release bound exceeded");
-				seen.add(value.admissionId);
-				statuses.add(value.status);
-			}
-			ctx.state.set(seen);
-			if (statuses.has("tool-proposed"))
-				ctx.upNext([["PULL", { pullId: resultStatusPullIds.terminal }]]);
-			if (statuses.has("failed")) ctx.upNext([["PULL", { pullId: resultStatusPullIds.failed }]]);
-			if (statuses.has("retryable"))
-				ctx.upNext([["PULL", { pullId: resultStatusPullIds.retryable }]]);
-		},
-		{
-			name: "eval/provider/result-status-release-controller",
-			factory: "rootEvalProviderResultStatusReleaseController",
-			completeWhenDepsComplete: false,
-			errorWhenDepsError: false,
-			meta: { role: "quiet-provider-result-status-demux" },
-		},
-	);
-	boundaryReleases.push(
-		owner.retain(resultStatusReleaseController, {
-			reason: "eval provider result status release",
-		}),
-	);
+	for (const port of [
+		terminalProviderResultAdmissions,
+		failedProviderResultAdmissions,
+		retryableProviderResultAdmissions,
+	])
+		boundaryReleases.push(owner.retain(port, { reason: "eval provider result status release" }));
 	type EvalProviderOutcomeBatch = Readonly<{
 		readonly kind: "eval-provider-outcome-batch";
 		readonly replicate: number;
@@ -4222,7 +4187,24 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		meta: { materialPolicy: "bounded-coordinate-only" },
 	});
 
-	const targetTerminalPullId = Symbol("target/terminal-outcome");
+	// graphrefly-ts:D172: a terminal-outcome port is one quiet node that admits each execution of
+	// its Work Item role once and sends only fresh outcomes, after the current wave (R-wave).
+	const freshTerminalInputs = (ctx: Ctx, role: "target" | "source"): readonly unknown[] => {
+		const seen = ctx.state.get<Set<string>>() ?? new Set<string>();
+		const inputs: unknown[] = [];
+		for (const raw of depBatch(ctx, 0) ?? []) {
+			const value = raw as EvalProviderOutcome | EvalEffectOutcome;
+			if (value.workItemRole === role) {
+				if (seen.has(value.executionId)) continue;
+				if (seen.size >= rootEvalMaximumProviderAttempts(replicateCount))
+					throw new TypeError("terminal outcome release exceeded its occurrence bound");
+				seen.add(value.executionId);
+			}
+			inputs.push(raw);
+		}
+		ctx.state.set(seen);
+		return inputs;
+	};
 	const targetTerminalInputs = owner.initNode(
 		merge<EvalProviderOutcome | EvalEffectOutcome>(),
 		[failedProviderResultAdmissions, targetToolOutcomes],
@@ -4231,14 +4213,15 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 	const targetOutcomes = owner.node<EvalEffectOutcome>(
 		[targetTerminalInputs],
 		(ctx) => {
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			const inputs = freshTerminalInputs(ctx, "target");
+			for (const raw of inputs) {
 				if ((raw as { kind: string }).kind !== "eval-provider-outcome") continue;
 				const provider = validateProviderOutcome(raw as EvalProviderOutcome);
 				if (provider.status === "failed" && provider.workItemRole === "target") {
 					ctx.down([["DATA", providerFailureOutcome(provider)]]);
 				}
 			}
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of inputs) {
 				if ((raw as { kind: string }).kind === "eval-provider-outcome") continue;
 				ctx.down([["DATA", validateOutcomeReceipt(raw as EvalEffectOutcome)]]);
 			}
@@ -4246,41 +4229,14 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		{
 			name: "eval/effect/terminal-outcomes",
 			factory: "rootEvalTerminalOutcomes",
-			pullId: targetTerminalPullId,
-			pausable: "resumeAll",
+			quiet: true,
 			completeWhenDepsComplete: false,
 			errorWhenDepsError: false,
 		},
 	);
 
-	const targetTerminalReleases = owner.initNode(
-		merge<unknown>(),
-		[targetTerminalInputs, targetOutcomes],
-		{ name: "eval/effect/terminal-outcomes/release-events" },
-	);
-	const targetTerminalReleaseController = owner.node(
-		[targetTerminalReleases],
-		(ctx) => {
-			const seen = ctx.state.get<Set<string>>() ?? new Set<string>();
-			let fresh = false;
-			for (const raw of depBatch(ctx, 0) ?? []) {
-				const value = raw as EvalProviderOutcome | EvalEffectOutcome;
-				if (value.workItemRole !== "target" || seen.has(value.executionId)) continue;
-				if (seen.size >= rootEvalMaximumProviderAttempts(replicateCount))
-					throw new TypeError("terminal outcome release exceeded its occurrence bound");
-				seen.add(value.executionId);
-				fresh = true;
-			}
-			ctx.state.set(seen);
-			if (fresh) ctx.upNext([["PULL", { pullId: targetTerminalPullId }]]);
-		},
-		{
-			name: "eval/effect/terminal-outcomes/release-controller",
-			factory: "rootEvalTerminalOutcomeReleaseController",
-		},
-	);
 	boundaryReleases.push(
-		owner.retain(targetTerminalReleaseController, {
+		owner.retain(targetOutcomes, {
 			reason: "only actual target terminal DATA opens its downstream lifecycle",
 		}),
 	);
@@ -4295,7 +4251,6 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 				readonly outcome: EvalEffectOutcome;
 		  }>;
 
-	const sourceTerminalPullId = Symbol("source/terminal-outcome");
 	const sourceTerminalInputs = owner.initNode(
 		merge<EvalProviderOutcome | EvalEffectOutcome>(),
 		[failedProviderResultAdmissions, sourceToolOutcomes],
@@ -4304,7 +4259,8 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 	const sourceOutcomes = owner.node<EvalSourceTerminalInput>(
 		[sourceTerminalInputs],
 		(ctx) => {
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			const inputs = freshTerminalInputs(ctx, "source");
+			for (const raw of inputs) {
 				if ((raw as { kind: string }).kind !== "eval-provider-outcome") continue;
 				const provider = validateProviderOutcome(raw as EvalProviderOutcome);
 				if (provider.status === "failed" && provider.workItemRole === "source") {
@@ -4320,7 +4276,7 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 					]);
 				}
 			}
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of inputs) {
 				if ((raw as { kind: string }).kind === "eval-provider-outcome") continue;
 				const outcome = validateOutcomeReceipt(raw as EvalEffectOutcome);
 				ctx.down([
@@ -4331,41 +4287,14 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		{
 			name: "eval/source-work-item/terminal-outcomes",
 			factory: "rootEvalSourceTerminalOutcomes",
-			pullId: sourceTerminalPullId,
-			pausable: "resumeAll",
+			quiet: true,
 			completeWhenDepsComplete: false,
 			errorWhenDepsError: false,
 		},
 	);
 
-	const sourceTerminalReleases = owner.initNode(
-		merge<unknown>(),
-		[sourceTerminalInputs, sourceOutcomes],
-		{ name: "eval/source-work-item/terminal-outcomes/release-events" },
-	);
-	const sourceTerminalReleaseController = owner.node(
-		[sourceTerminalReleases],
-		(ctx) => {
-			const seen = ctx.state.get<Set<string>>() ?? new Set<string>();
-			let fresh = false;
-			for (const raw of depBatch(ctx, 0) ?? []) {
-				const value = raw as EvalProviderOutcome | EvalEffectOutcome;
-				if (value.workItemRole !== "source" || seen.has(value.executionId)) continue;
-				if (seen.size >= rootEvalMaximumProviderAttempts(replicateCount))
-					throw new TypeError("terminal outcome release exceeded its occurrence bound");
-				seen.add(value.executionId);
-				fresh = true;
-			}
-			ctx.state.set(seen);
-			if (fresh) ctx.upNext([["PULL", { pullId: sourceTerminalPullId }]]);
-		},
-		{
-			name: "eval/source-work-item/terminal-outcomes/release-controller",
-			factory: "rootEvalTerminalOutcomeReleaseController",
-		},
-	);
 	boundaryReleases.push(
-		owner.retain(sourceTerminalReleaseController, {
+		owner.retain(sourceOutcomes, {
 			reason: "only actual source terminal DATA opens its downstream lifecycle",
 		}),
 	);
@@ -5055,56 +4984,35 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		},
 	);
 
-	const batchPullId = Symbol("eval/campaign/replicate-batches");
 	const batches = owner.node<readonly EvalArmDispatch[]>(
 		[campaign],
 		(ctx) => {
+			// graphrefly-ts:D172: one quiet node releases each replicate's batch once, after the
+			// current wave (R-wave).
+			const seen = ctx.state.get<Set<string>>() ?? new Set<string>();
 			for (const raw of depBatch(ctx, 0) ?? []) {
-				if (Array.isArray(raw)) ctx.down([["DATA", raw]]);
+				if (!Array.isArray(raw)) continue;
+				if (raw.length > 0) {
+					const key = (raw as readonly EvalArmDispatch[])[0]!.replicate.toString();
+					if (seen.has(key)) continue;
+					if (seen.size >= replicateCount) throw new TypeError("release occurrence bound exceeded");
+					seen.add(key);
+				}
+				ctx.down([["DATA", raw]]);
 			}
+			ctx.state.set(seen);
 		},
 		{
 			name: "eval/campaign/replicate-batches",
 			factory: "rootEvalReplicateBatches",
-			pullId: batchPullId,
-			pausable: "resumeAll",
+			quiet: true,
 			completeWhenDepsComplete: false,
 			errorWhenDepsError: false,
 			meta: { role: "quiet-campaign-batch-boundary" },
 		},
 	);
 
-	const batchReleaseControllerEvents = owner.initNode(merge<unknown>(), [campaign, batches], {
-		name: "eval/campaign/replicate-batch-release-events",
-	});
-	const batchReleaseController = owner.node(
-		[batchReleaseControllerEvents],
-
-		(ctx) => {
-			const seen = ctx.state.get<Set<string>>() ?? new Set<string>();
-			let fresh = false;
-			for (const raw of depBatch(ctx, 0) ?? []) {
-				if (!(Array.isArray(raw) && raw.length > 0)) continue;
-				const key = (raw as readonly EvalArmDispatch[])[0]!.replicate.toString();
-				if (seen.has(key)) continue;
-				if (seen.size >= replicateCount) throw new TypeError("release occurrence bound exceeded");
-				seen.add(key);
-				fresh = true;
-			}
-			ctx.state.set(seen);
-			if (fresh) ctx.upNext([["PULL", { pullId: batchPullId }]]);
-		},
-		{
-			name: "eval/campaign/replicate-batch-release-controller",
-			factory: "rootEvalReplicateBatchReleaseController",
-			completeWhenDepsComplete: false,
-			errorWhenDepsError: false,
-			meta: { role: "campaign-batch-release" },
-		},
-	);
-	boundaryReleases.push(
-		owner.retain(batchReleaseController, { reason: "eval campaign replicate batch release" }),
-	);
+	boundaryReleases.push(owner.retain(batches, { reason: "eval campaign replicate batch release" }));
 	const campaignStateEvents = owner.initNode(
 		merge<unknown>(),
 		[campaign, start, campaignContract],
@@ -6064,53 +5972,32 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			errorWhenDepsError: false,
 		},
 	);
-	const firstAttemptProposalPullId = Symbol("eval/provider/proposal");
 	const firstAttemptProposals = owner.node<EvalEffectProposal>(
 		[firstAttemptProposalCandidates],
 		(ctx) => {
-			for (const raw of depBatch(ctx, 0) ?? []) ctx.down([["DATA", raw]]);
-		},
-		{
-			name: "eval/provider/proposal",
-			factory: "rootEvalProviderProposal",
-			pullId: firstAttemptProposalPullId,
-			pausable: "resumeAll",
-			meta: { role: "quiet-admitted-plan-proposal-boundary" },
-		},
-	);
-
-	const firstAttemptProposalReleaseControllerEvents = owner.initNode(
-		merge<unknown>(),
-		[firstAttemptProposalCandidates, firstAttemptProposals],
-		{ name: "eval/provider/proposal-release-events" },
-	);
-	const firstAttemptProposalReleaseController = owner.node(
-		[firstAttemptProposalReleaseControllerEvents],
-
-		(ctx) => {
+			// graphrefly-ts:D172: one quiet node releases each proposal once, after the current
+			// wave (R-wave).
 			const seen = ctx.state.get<Set<string>>() ?? new Set<string>();
-			let fresh = false;
 			for (const raw of depBatch(ctx, 0) ?? []) {
 				const key = (raw as EvalEffectProposal).proposalId;
 				if (seen.has(key)) continue;
 				if (seen.size >= rootEvalMaximumProviderAttempts(replicateCount))
 					throw new TypeError("release occurrence bound exceeded");
 				seen.add(key);
-				fresh = true;
+				ctx.down([["DATA", raw]]);
 			}
 			ctx.state.set(seen);
-			if (fresh) ctx.upNext([["PULL", { pullId: firstAttemptProposalPullId }]]);
 		},
 		{
-			name: "eval/provider/proposal-release-controller",
-			factory: "rootEvalProviderProposalReleaseController",
-			completeWhenDepsComplete: false,
-			errorWhenDepsError: false,
-			meta: { role: "admitted-plan-proposal-release" },
+			name: "eval/provider/proposal",
+			factory: "rootEvalProviderProposal",
+			quiet: true,
+			meta: { role: "quiet-admitted-plan-proposal-boundary" },
 		},
 	);
+
 	boundaryReleases.push(
-		owner.retain(firstAttemptProposalReleaseController, {
+		owner.retain(firstAttemptProposals, {
 			reason: "eval admitted Work Item plan proposal release",
 		}),
 	);
@@ -6676,7 +6563,6 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			},
 		},
 	);
-	const retryAdmissionPullId = Symbol("eval/retry-admission");
 	const retryDelayAdmissions = owner.node<EvalRetryDelayEffect>(
 		[retryableProviderResultAdmissions, progressAdmissionLease],
 		(ctx) => {
@@ -6729,38 +6615,13 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		{
 			name: "eval/retry/delay-admission",
 			factory: "rootEvalRetryDelayAdmission",
-			pullId: retryAdmissionPullId,
-			pausable: "resumeAll",
+			quiet: true,
 			meta: { admission: "per-correlated-retryable-result", batchBarrier: false },
 		},
 	);
 
-	const retryAdmissionReleaseEvents = owner.initNode(
-		merge<unknown>(),
-		[retryableProviderResultAdmissions, retryDelayAdmissions],
-		{ name: "eval/retry/admission-release-events" },
-	);
-	const retryAdmissionRelease = owner.node(
-		[retryAdmissionReleaseEvents],
-		(ctx) => {
-			const seen = ctx.state.get<Set<string>>() ?? new Set<string>();
-			let fresh = false;
-			for (const raw of depBatch(ctx, 0) ?? []) {
-				const value = raw as EvalProviderOutcome;
-				if (value.kind !== "eval-provider-outcome" || seen.has(value.admissionId)) continue;
-				seen.add(value.admissionId);
-				fresh = true;
-			}
-			ctx.state.set(seen);
-			if (fresh) ctx.upNext([["PULL", { pullId: retryAdmissionPullId }]]);
-		},
-		{
-			name: "eval/retry/admission-release-controller",
-			factory: "rootEvalRetryAdmissionReleaseController",
-		},
-	);
 	boundaryReleases.push(
-		owner.retain(retryAdmissionRelease, {
+		owner.retain(retryDelayAdmissions, {
 			reason: "only correlated retryable DATA opens retry lifecycle",
 		}),
 	);
@@ -7768,7 +7629,6 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			factory: "rootEvalBillingObservationProposals",
 		},
 	);
-	const billingAdmissionPullId = Symbol("eval/billing-admission");
 	const billingObservationAdmissions = owner.node<EvalBillingObservationEffect>(
 		[billingObservationProposals, currentKeyBeforeState],
 		(ctx) => {
@@ -7798,38 +7658,12 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		{
 			name: "eval/billing/observation-admission",
 			factory: "rootEvalBillingObservationAdmission",
-			pullId: billingAdmissionPullId,
-			pausable: "resumeAll",
+			quiet: true,
 			meta: { authority: "root-graph", callerAuthority: "execute-current-effect-only" },
 		},
 	);
-	const billingAdmissionReleaseEvents = owner.initNode(
-		merge<unknown>(),
-		[billingObservationProposals, billingObservationAdmissions],
-		{ name: "eval/billing/admission-release-events" },
-	);
-	const billingAdmissionRelease = owner.node(
-		[billingAdmissionReleaseEvents],
-		(ctx) => {
-			const seen = ctx.state.get<Set<string>>() ?? new Set<string>();
-			let fresh = false;
-			for (const raw of depBatch(ctx, 0) ?? []) {
-				const value = raw as EvalBillingObservationProposal;
-				if (value.kind !== "eval-billing-observation-proposal" || seen.has(value.proposalId))
-					continue;
-				seen.add(value.proposalId);
-				fresh = true;
-			}
-			ctx.state.set(seen);
-			if (fresh) ctx.upNext([["PULL", { pullId: billingAdmissionPullId }]]);
-		},
-		{
-			name: "eval/billing/admission-release-controller",
-			factory: "rootEvalBillingAdmissionReleaseController",
-		},
-	);
 	boundaryReleases.push(
-		owner.retain(billingAdmissionRelease, {
+		owner.retain(billingObservationAdmissions, {
 			reason: "only a billing proposal opens its effect lifecycle",
 		}),
 	);
@@ -9505,7 +9339,9 @@ async function runRootEvalWithOutcomeInput(
 		let stopFailedProviderResultAdmission: () => void = () => undefined;
 		let stopRetryableProviderResultAdmission: () => void = () => undefined;
 		let stopAbortSignal: () => void = () => undefined;
+		let stopGraphErrors: () => void = () => undefined;
 		const stopSubscriptions = () => {
+			stopGraphErrors();
 			stopEffects();
 			stopFinding();
 			stopObservation();
@@ -9594,6 +9430,17 @@ async function runRootEvalWithOutcomeInput(
 						`root eval canonical observation rejected: ${(message[1] as EvalObservationRejection).code}; admitted work drained`,
 					),
 				);
+		});
+		// R-failure@3 (graphrefly-ts:D172): a fail-closed check inside an eval node's function is that
+		// node's ERROR rather than a throw out of the write that drove it, so the run fails closed on
+		// the first ERROR anywhere in the root Graph, with that node's own error.
+		stopGraphErrors = topology.graph.observe().subscribe((event) => {
+			if (event.msg[0] !== "ERROR" || settled) return;
+			abort(
+				event.msg[1] instanceof Error
+					? event.msg[1]
+					: new Error(`root eval Graph node '${event.path}' failed`),
+			);
 		});
 		stopObservation = topology.graph.observe("eval/observation").subscribe((event) => {
 			if (event.msg[0] === "ERROR") {

@@ -1,7 +1,6 @@
 import type { DataIssue } from "../data/index.js";
 import type { MessageBus } from "../messaging/index.js";
 import type { Node } from "../node/node.js";
-import type { LockId } from "../protocol/messages.js";
 
 export interface WorkQueueOptions<_T = unknown> {
 	readonly queueId: string;
@@ -335,16 +334,21 @@ export type WorkQueueDerivedState =
 	| "canceled"
 	| "dead-lettered";
 
-export interface WorkQueueProjection<TPage> {
+/**
+ * A projection served on request (graphrefly-ts:D172): `snapshot` is a quiet node that declares
+ * `snapshotRequest` as a dependency and sends one page per live write to it.
+ */
+export interface WorkQueueProjection<TPage, TParams = Record<string, unknown>> {
 	readonly snapshot: Node<TPage>;
-	readonly snapshotPullId: LockId;
+	readonly snapshotRequest: Node<TParams>;
 	readonly status: Node<WorkQueueStatus>;
 	readonly issues: Node<DataIssue>;
 }
 
 export interface WorkQueueAvailableProjection<T = unknown> {
 	readonly available: Node<WorkQueueAvailablePage<T>>;
-	readonly availablePullId: LockId;
+	/** Each live write asks `available` for one page with the written params. */
+	readonly availableRequest: Node<WorkQueueAvailableParams>;
 	readonly status: Node<WorkQueueStatus>;
 	readonly issues: Node<DataIssue>;
 }
@@ -403,5 +407,7 @@ export interface WorkQueue<T = unknown> {
 	): WorkQueueCommand<T>;
 	available(opts?: { name?: string }): WorkQueueAvailableProjection<T>;
 	work(workId: string, opts?: { name?: string }): WorkQueueProjection<WorkQueueWorkSnapshot<T>>;
-	deadLetter(opts?: { name?: string }): WorkQueueProjection<WorkQueueDeadLetterPage<T>>;
+	deadLetter(opts?: {
+		name?: string;
+	}): WorkQueueProjection<WorkQueueDeadLetterPage<T>, WorkQueueDeadLetterParams>;
 }

@@ -221,22 +221,6 @@ it("retains receipts and prevents new reservations after source delivery throws"
 	}
 });
 
-it("delivers results triggered by final RESUME without an input wrapper", async () => {
-	const f = fixture();
-	const lock = Symbol("pause");
-	try {
-		f.guard.up([["PAUSE", lock]]);
-		f.input.down([["DATA", 1]]);
-		await checkpoint();
-		expect(f.records.size).toBe(0);
-		f.guard.up([["RESUME", lock]]);
-		await checkpoint();
-		expect(f.observed).toEqual([[{ id: 1, result: "cancelled" }]]);
-	} finally {
-		f.cleanup();
-	}
-});
-
 it("retains a result when scheduling fails without retrying", () => {
 	const f = fixture(64, () => {
 		throw new Error("scheduler unavailable");

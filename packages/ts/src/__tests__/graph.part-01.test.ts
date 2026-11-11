@@ -25,9 +25,6 @@ function collect(n: { subscribe(s: (m: Message) => void): () => void }) {
 	n.subscribe((m) => msgs.push(m));
 	return msgs;
 }
-function _demand(snapshot: Node<unknown>, pullId: symbol): void {
-	snapshot.up([["PULL", { pullId }]]);
-}
 const types = (msgs: Message[]) => msgs.map((m) => m[0]);
 const TEST_JSON_DECODER = new TextDecoder();
 const decodeTestJsonBytes = (bytes: Uint8Array) => TEST_JSON_DECODER.decode(bytes);

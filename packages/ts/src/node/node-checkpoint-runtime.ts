@@ -9,7 +9,6 @@ export function nodeRestoreState(self: NodeRuntimeHost, state: NodeRestoreState)
 	self._value.hasData = state.hasData;
 	self._value.status = state.status;
 	self._value.terminal = state.terminal;
-	self._value.hasTorndown = false;
 	self._value.replayRing = [];
 	self._wave.hasCalledFnOnce = state.hasCalledFnOnce;
 	self._wave.emittedDirtyThisWave = false;
@@ -19,13 +18,6 @@ export function nodeRestoreState(self: NodeRuntimeHost, state: NodeRestoreState)
 	self._wave.inDepMutation = false;
 	self._wave.rewireRunPending = false;
 	self._wave.batchDirtyOwed = false;
-	self._control.pauseBuffer = [];
-	self._control.pausedDepWaveOccurred = false;
-	self._control.demandOwed = undefined;
-	self._control.activePull = undefined;
-	self._control.pullDirtyOwed = false;
-	self._control.inDeliverDemand = false;
-	self._control.pauseLockset.clear();
 	self._privateState.value = state.ctxState.value;
 	self._privateState.persist = state.ctxState.persist;
 	if (state.version === false) {
@@ -41,7 +33,7 @@ export function nodeRestoreState(self: NodeRuntimeHost, state: NodeRestoreState)
 			);
 		}
 		// D109: V1 restore must match the selected hash lane. After DATA then
-		// INVALIDATE/resetOnTeardown, cache is absent while cid remains the last DATA cid;
+		// INVALIDATE, cache is absent while cid remains the last DATA cid;
 		// without the DATA value, restore cannot verify the lane, so fail honestly.
 		if (!state.hasData && state.version.counter > 0) {
 			throw new Error(

@@ -3,13 +3,13 @@
  *
  * Shape (D60 + review #2): a mutable array BACKEND (the single materialized state) + the shared
  * {@link collectionCore} two ports — a DELTA stream ({@link ReactiveList.delta}, one event per
- * mutation, O(1)) and a lazy pull SNAPSHOT ({@link ReactiveList.snapshot}, materialized only on a
- * cone-routed PULL demand). Mutation input is D54 A3 hybrid: ergonomic imperative methods (the
+ * mutation, O(1)) and a lazy SNAPSHOT ({@link ReactiveList.snapshot}, materialized only when
+ * {@link ReactiveList.request} is written). Mutation input is D54 A3 hybrid: ergonomic imperative methods (the
  * external boundary, state-verb-legitimate, D4) + `appendFrom(src)` widening (an in-graph producer
  * drives the list with zero imperative glue). Synchronous quick-reads (`at`/`size`/`toArray`) are
  * the deliberately-non-reactive peek for cold/imperative reads (D60).
  *
- * Per-language (D6/D24, never in parity, no conformance — the substrate pull is already C-16).
+ * Per-language (D6/D24, never in parity, no conformance).
  */
 
 import { type Ctx, depBatch, depCount, depLatest } from "../../ctx/types.js";
@@ -34,10 +34,10 @@ export interface ReactiveListOptions extends CollectionCoreOptions {
 export interface ReactiveList<T> {
 	/** DELTA stream: one {@link ListChange} per mutation (O(1)). Subscribe to observe events. */
 	readonly delta: Node<ListChange<T>>;
-	/** SNAPSHOT pull node: demand via `ctx.upNext([["PULL", { pullId }]])` → one `readonly T[]` (lazy O(n)). */
+	/** SNAPSHOT quiet node: a write to `request` → one `readonly T[]` (lazy O(n)). */
 	readonly snapshot: Node<readonly T[]>;
-	/** The snapshot node's pullId — write it verbatim into the demander's fn (D269). */
-	readonly pullId: symbol;
+	/** REQUEST state: each live write asks {@link snapshot} for one materialization. */
+	readonly request: Node<true>;
 	/** Current entry count (O(1), synchronous non-reactive read). */
 	readonly size: number;
 	/** Positional access (O(1)); negative indices Python-style; `undefined` out of range. Sync read. */
@@ -140,7 +140,7 @@ class ListBackend<T> {
 }
 
 /**
- * Create a reactive list (D54/D60). The DELTA + SNAPSHOT ports + pullId come from the shared
+ * Create a reactive list (D54/D60). The DELTA + SNAPSHOT ports + REQUEST state come from the shared
  * {@link collectionCore}; this layer adds the typed list method surface + backend.
  *
  * @example
@@ -149,8 +149,8 @@ class ListBackend<T> {
  * // observe events:
  * list.delta.subscribe((m) => { if (m[0] === "DATA") console.log("Δ", m[1]); });
  * list.append(2);                 // delta: {kind:"append", value:2}
- * // demand the snapshot (a downstream consumer, holding `list.snapshot` upstream, runs):
- * //   ctx.upNext([["PULL", { pullId: list.pullId }]]);  → SNAPSHOT delivers [1, 2]
+ * // request the snapshot (a subscriber of `list.snapshot` then receives [1, 2]):
+ * list.request.down([["DATA", true]]);
  * list.toArray();                 // [1, 2]   (synchronous non-reactive read)
  * ```
  * @param initial - Optional initial list contents.
@@ -189,6 +189,7 @@ export function reactiveList<T>(
 			? {
 					deltaRef: "reactiveList.delta",
 					snapshotRef: "reactiveList.snapshot",
+					requestRef: "reactiveList.request",
 					backendState: () => backend.snapshot(),
 				}
 			: undefined,
@@ -290,7 +291,7 @@ export function reactiveList<T>(
 	return {
 		delta: core.delta,
 		snapshot: core.snapshot,
-		pullId: core.pullId,
+		request: core.request,
 
 		get size(): number {
 			return backend.size;

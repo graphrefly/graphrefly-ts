@@ -41,12 +41,12 @@ describe("state node (manual source)", () => {
 		expect(s.status).toBe("sentinel");
 	});
 
-	it("external down emits DIRTY before DATA (R-dirty-before-data, two-phase)", () => {
+	it("external down emits PENDING before DATA (R-dirty-before-data, two-phase)", () => {
 		const s = node<number>([], null, { initial: 1 });
 		const { msgs } = collect(s);
 		msgs.length = 0;
 		s.down([["DATA", 2]]);
-		expect(types(msgs)).toEqual(["DIRTY", "DATA"]);
+		expect(types(msgs)).toEqual(["PENDING", "DATA"]);
 		expect(msgs[1]).toEqual(["DATA", 2]);
 		expect(s.cache).toBe(2);
 	});
@@ -65,7 +65,7 @@ describe("occurrences stay DATA (R-resolved-undirty / D49, supersedes R-equals)"
 		const { msgs } = collect(s);
 		msgs.length = 0;
 		s.down([["DATA", 5]]); // same value is still a distinct occurrence
-		expect(types(msgs)).toEqual(["DIRTY", "DATA"]);
+		expect(types(msgs)).toEqual(["PENDING", "DATA"]);
 		expect(s.cache).toBe(5);
 	});
 
@@ -74,7 +74,7 @@ describe("occurrences stay DATA (R-resolved-undirty / D49, supersedes R-equals)"
 		const { msgs } = collect(s);
 		msgs.length = 0;
 		s.down([["DATA", 6]]);
-		expect(types(msgs)).toEqual(["DIRTY", "DATA"]);
+		expect(types(msgs)).toEqual(["PENDING", "DATA"]);
 		expect(s.cache).toBe(6);
 	});
 
@@ -86,7 +86,7 @@ describe("occurrences stay DATA (R-resolved-undirty / D49, supersedes R-equals)"
 			["DATA", 5],
 			["DATA", 5],
 		]);
-		expect(types(msgs)).toEqual(["DIRTY", "DATA", "DATA"]);
+		expect(types(msgs)).toEqual(["PENDING", "DATA", "DATA"]);
 	});
 });
 
@@ -103,7 +103,7 @@ describe("compute node (derived)", () => {
 		msgs.length = 0;
 		count.down([["DATA", 10]]);
 		expect(doubled.cache).toBe(20);
-		expect(types(msgs)).toEqual(["DIRTY", "DATA"]);
+		expect(types(msgs)).toEqual(["PENDING", "DATA"]);
 		expect(msgs[1]).toEqual(["DATA", 20]);
 	});
 });
@@ -175,19 +175,14 @@ describe("first-run gate (R-first-run-gate)", () => {
 	});
 });
 
-describe("ctx.up direction guard (R-ctx-up)", () => {
-	it("rejects START, down-only tiers, and unknown tags while down rejects unknown tags", () => {
+describe("closed message set at node output (R-messages)", () => {
+	it("down rejects unknown tags; there is no up", () => {
 		const a = node<number>([], null, { initial: 1 });
 		const d = node<number>([a], (ctx: Ctx) => ctx.down([["DATA", 1]]));
 		d.subscribe(() => {});
-		expect(() => d.up([["START"]])).toThrow(/not up-going/);
-		expect(() => d.up([["DATA", 5]])).toThrow(/not up-going/);
-		expect(() => d.up([["COMPLETE"]])).toThrow(/not up-going/);
-		expect(() => d.up([["INVALIDATE"]])).not.toThrow();
-
 		const custom = [["CUSTOM"]] as unknown as Message[];
-		expect(() => d.up(custom)).toThrow(/closed message-type set/);
 		expect(() => d.down(custom)).toThrow(/closed message-type set/);
+		expect("up" in d).toBe(false);
 	});
 });
 
@@ -203,7 +198,6 @@ describe("B49 core-slot migration", () => {
 			"lifecycles",
 			"values",
 			"waves",
-			"controls",
 			"privateStates",
 			"hooks",
 			"syncCtxs",
@@ -243,7 +237,6 @@ describe("B49 core-slot migration", () => {
 		for (const sideTableField of [
 			"value",
 			"wave",
-			"control",
 			"subscribers",
 			"activated",
 			"dep",
@@ -254,7 +247,7 @@ describe("B49 core-slot migration", () => {
 		]) {
 			expect(Object.hasOwn(slot, sideTableField), sideTableField).toBe(false);
 		}
-		expect(sideTableCounts(coreOf(s))).toEqual([1, 1, 1, 1, 1, 1, 1, 1, 1]);
+		expect(sideTableCounts(coreOf(s))).toEqual([1, 1, 1, 1, 1, 1, 1, 1]);
 
 		expect(s.cache).toBe(1);
 		expect(s.status).toBe("settled");
@@ -275,7 +268,6 @@ describe("B49 core-slot migration", () => {
 			"lifecycles",
 			"values",
 			"waves",
-			"controls",
 			"privateStates",
 			"hooks",
 			"syncCtxs",
@@ -287,7 +279,7 @@ describe("B49 core-slot migration", () => {
 		expect((core.slots as unknown[])[idOf(a)]).toBe(slotOf(a));
 		expect((core.slots as unknown[])[idOf(b)]).toBe(slotOf(b));
 		expect(slotCount(core)).toBe(2);
-		expect(sideTableCounts(core)).toEqual([2, 2, 2, 2, 2, 2, 2, 2, 2]);
+		expect(sideTableCounts(core)).toEqual([2, 2, 2, 2, 2, 2, 2, 2]);
 	});
 
 	it("does not add a parallel frontier or adjacency transport over subscriber propagation", () => {
@@ -298,7 +290,6 @@ describe("B49 core-slot migration", () => {
 			"slots",
 			"values",
 			"waves",
-			"controls",
 			"lifecycles",
 			"depStates",
 			"privateStates",
@@ -463,9 +454,6 @@ describe("D109 node runtime versioning", () => {
 		const s = node<number>([], null, { initial: 1 });
 		expect(s.version).toEqual({ level: 0, counter: 0 });
 
-		s.down([["RESOLVED"]]);
-		expect(s.version).toEqual({ level: 0, counter: 0 });
-
 		s.down([["DATA", 2]]);
 		expect(s.version).toEqual({ level: 0, counter: 1 });
 
@@ -604,8 +592,8 @@ describe("D109 node runtime versioning", () => {
 		expect(downstreamMsgs).toEqual([]);
 
 		s.down([["DATA", 2]]);
-		expect(types(msgs)).toEqual(["DIRTY", "DATA"]);
-		expect(types(downstreamMsgs)).toEqual(["DIRTY", "DATA"]);
+		expect(types(msgs)).toEqual(["PENDING", "DATA"]);
+		expect(types(downstreamMsgs)).toEqual(["PENDING", "DATA"]);
 		expect(s.version).toMatchObject({ level: 1, counter: 1 });
 		expect(s.cache).toBe(2);
 
@@ -628,7 +616,7 @@ describe("D109 node runtime versioning", () => {
 		expect(terminal.status).toBe("completed");
 	});
 
-	it("V1 rejects deferred batch/pause DATA before DIRTY, buffering, cache, or version changes", () => {
+	it("V1 rejects deferred batch DATA before PENDING, cache, or version changes", () => {
 		const batched = node<unknown>([], null, { initial: 1, versioning: 1 });
 		const batchedMsgs = collect(batched).msgs;
 		batchedMsgs.length = 0;
@@ -652,7 +640,7 @@ describe("D109 node runtime versioning", () => {
 			batchedPayload.a = 2;
 			batchedPayload.bad = 2n;
 		});
-		expect(types(batchedSnapshotMsgs)).toEqual(["DIRTY", "DATA"]);
+		expect(types(batchedSnapshotMsgs)).toEqual(["PENDING", "DATA"]);
 		expect(batchedSnapshotMsgs[1]).toEqual(["DATA", { a: 1 }]);
 		expect(batchedSnapshot.cache).toEqual({ a: 1 });
 		expect(batchedSnapshot.version).toMatchObject({
@@ -660,36 +648,6 @@ describe("D109 node runtime versioning", () => {
 			counter: 1,
 			cid: 'h:{"a":1}',
 		});
-
-		const paused = node<Record<string, unknown>>([], null, {
-			initial: { a: 0 },
-			versioning: { level: 1, hash: testHash },
-			pausable: "resumeAll",
-		});
-		const pausedMsgs = collect(paused).msgs;
-		pausedMsgs.length = 0;
-		const pausedBefore = paused.version;
-		const lock = Symbol("lock");
-		paused.up([["PAUSE", lock]]);
-		pausedMsgs.length = 0;
-
-		expect(() => paused.down([["DATA", new Date(0)]])).toThrow(/non-plain object/);
-		expect(pausedMsgs).toEqual([]);
-		expect(paused.version).toEqual(pausedBefore);
-		expect(paused.cache).toEqual({ a: 0 });
-		expect(paused.status).toBe("settled");
-
-		const pausedPayload: Record<string, unknown> = { a: 1 };
-		paused.down([["DATA", pausedPayload]]);
-		expect(pausedMsgs).toEqual([]);
-		pausedPayload.a = 2;
-		pausedPayload.bad = 2n;
-		expect(paused.cache).toEqual({ a: 0 });
-		paused.up([["RESUME", lock]]);
-		expect(types(pausedMsgs)).toEqual(["DIRTY", "DATA"]);
-		expect(paused.version).toMatchObject({ level: 1, counter: 1 });
-		expect(paused.cache).toEqual({ a: 1 });
-		expect(pausedMsgs[1]).toEqual(["DATA", { a: 1 }]);
 	});
 
 	it("does not apply the D112 strict JSON preflight to V0 or versioning:false", () => {
@@ -699,7 +657,7 @@ describe("D109 node runtime versioning", () => {
 		v0.down([["DATA", 2n]]);
 		expect(v0.version).toEqual({ level: 0, counter: 1 });
 		expect(v0.cache).toBe(2n);
-		expect(types(v0Msgs)).toEqual(["DIRTY", "DATA"]);
+		expect(types(v0Msgs)).toEqual(["PENDING", "DATA"]);
 
 		const disabled = node<unknown>([], null, { initial: 1, versioning: false });
 		const disabledMsgs = collect(disabled).msgs;
@@ -707,7 +665,7 @@ describe("D109 node runtime versioning", () => {
 		disabled.down([["DATA", new Date(0)]]);
 		expect(disabled.version).toBeUndefined();
 		expect(disabled.cache).toEqual(new Date(0));
-		expect(types(disabledMsgs)).toEqual(["DIRTY", "DATA"]);
+		expect(types(disabledMsgs)).toEqual(["PENDING", "DATA"]);
 	});
 
 	it("V1 rejects non-strict-JSON initial values at construction", () => {

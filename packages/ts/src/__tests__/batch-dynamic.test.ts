@@ -30,17 +30,17 @@ describe("batch (R-batch-coalesce / D12)", () => {
 		expect(d.cache).toBe(30);
 	});
 
-	it("defers DATA to commit: downstream sees DIRTY during the batch, DATA after", () => {
+	it("defers DATA to commit: downstream sees PENDING during the batch, DATA after", () => {
 		const a = node<number>([], null, { initial: 1 });
 		const { msgs } = collect(a);
 		msgs.length = 0;
 		batch(() => {
 			a.down([["DATA", 9]]);
-			// inside the batch: DIRTY emitted, DATA still deferred
-			expect(types(msgs)).toEqual(["DIRTY"]);
+			// inside the batch: PENDING emitted, DATA still deferred
+			expect(types(msgs)).toEqual(["PENDING"]);
 			expect(a.cache).toBe(1); // not yet committed
 		});
-		expect(types(msgs)).toEqual(["DIRTY", "DATA"]);
+		expect(types(msgs)).toEqual(["PENDING", "DATA"]);
 		expect(a.cache).toBe(9);
 	});
 
@@ -55,7 +55,7 @@ describe("batch (R-batch-coalesce / D12)", () => {
 			}),
 		).toThrow("abort");
 		expect(a.cache).toBe(1); // unchanged
-		expect(types(msgs)).toEqual(["DIRTY", "RESOLVED"]); // dirty balanced by resolved
+		expect(types(msgs)).toEqual(["PENDING", "RESOLVED"]); // dirty balanced by resolved
 	});
 
 	it("bctx.rollback() is the explicit escape hatch", () => {
@@ -88,7 +88,7 @@ describe("dynamicNode (R-dynamic-node / D35; D49 — no equals-absorption)", () 
 		// distinctUntilChanged if unread-dep silence is required (dedup is opt-in).
 		b.down([["DATA", 999]]);
 		expect(router.cache).toBe(100);
-		expect(types(msgs)).toEqual(["DIRTY", "DATA"]);
+		expect(types(msgs)).toEqual(["PENDING", "DATA"]);
 		expect(msgs).toContainEqual(["DATA", 100]);
 
 		// change the READ dep a -> recompute with the new value

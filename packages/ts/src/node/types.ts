@@ -1,6 +1,5 @@
 import type { NodeFn } from "../ctx/types.js";
 import type { Dispatcher, Handle } from "../dispatcher/index.js";
-import type { LockId } from "../protocol/messages.js";
 import type { Node } from "./node.js";
 import type { NodeVersion, NodeVersioningPolicy } from "./versioning.js";
 
@@ -26,28 +25,13 @@ export interface NodeOptions<T = unknown> {
 	errorWhenDepsError?: boolean;
 	/** Allow re-activation after terminal; late subscribe resets the lifecycle (R-terminal). Default false. */
 	resubscribable?: boolean;
-	/** Clear cached value on TEARDOWN. Default false. */
-	resetOnTeardown?: boolean;
-	/** PAUSE/RESUME behavior (R-pause-modes). Default true. */
-	pausable?: boolean | "resumeAll";
 	/**
-	 * Pull-mode node (R-pull / D269): a quiet-until-demanded source, identified by this
-	 * author-supplied `pullId` (a unique LockId — a `Symbol` recommended; NOT the node name, NOT a
-	 * bare string if callers may also use strings as pause locks). QUIET by default: it ABSORBS
-	 * an upstream DIRTY WITHOUT relaying it downstream
-	 * (the wedge fix) and does NOT push-on-subscribe its cached value (START only). A DEMAND =
-	 * cone-routed `PULL({pullId, params?})`: a downstream consumer issues
-	 * `ctx.up([["PULL", { pullId, params }]])` (broadcast up the declared cone) or
-	 * `ctx.up(msgs, towardDep)` (directed) WITHOUT holding this node's reference; the PULL travels
-	 * up to the pullId-holder, which fires EXACTLY ONE delivery (DIRTY-before-DATA when it emits)
-	 * then RE-QUIETS (1:1). Delivery content =
-	 * the orthogonal `pausable` mode: `true` → coalesced LATEST (one DATA); `'resumeAll'` → buffered
-	 * BACKLOG. `pullId` + `pausable:false` is REJECTED at construction. A SELF-triggered demand (a
-	 * consumer demanding a dep it ALSO reads) must defer via {@link import("../ctx/types.js").Ctx.upNext}
-	 * (R-rewire-deferred / D37). Author the pullId as a shared module const used at both this node and
-	 * the demander's fn.
+	 * Quiet node (R-wave): consumes its input waves without being marked pending or marking its
+	 * dependents pending, so nothing below it waits for it. What its function sends during a run
+	 * goes out after the current wave as a new wave of its own, with the kernel's PENDING; a run
+	 * that sends nothing sends nothing below (no RESOLVED). Default false.
 	 */
-	pullId?: LockId;
+	quiet?: boolean;
 	/** Buffer the last N outgoing DATA for late subscribers (R-replay-buffer). */
 	replayBuffer?: number;
 	/**
@@ -99,8 +83,3 @@ export type RewireOp =
 	| { kind: "add"; dep: Node<unknown>; fn: NodeFn }
 	| { kind: "remove"; dep: Node<unknown>; fn: NodeFn }
 	| { kind: "set"; deps: Node<unknown>[]; fn: NodeFn };
-
-/** Internal routing state for one up-going control wave. */
-export type UpRouteState = {
-	demandFired: Map<LockId, Set<Node<unknown>>>;
-};

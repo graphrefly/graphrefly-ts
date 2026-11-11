@@ -17,8 +17,6 @@ describe("D151 quiet complete-DATA boundary", () => {
 		const messages: unknown[][] = [];
 		const stop = boundary.output.subscribe((message) => messages.push([...message]));
 		try {
-			input.down([["DIRTY"], ["RESOLVED"]]);
-			expect(messages.some((message) => message[0] === "DIRTY")).toBe(false);
 			const values = Array.from({ length: 6 }, (_, index) => ({ id: String(index), version: 1n }));
 			input.down(values.map((value) => ["DATA", value]));
 			input.down([
@@ -51,12 +49,16 @@ describe("D151 quiet complete-DATA boundary", () => {
 			if (event.msg[0] === "ERROR") errors.push(event.msg[1]);
 		});
 		try {
+			// R-failure@3: the rejection inside `validated` is its ERROR, not a host throw.
 			expect(() =>
 				input.down([
 					["DATA", { id: "same", value: 1 }],
 					["DATA", { id: "same", value: 2 }],
 				]),
-			).toThrow("conflicting occurrence replay");
+			).not.toThrow();
+			expect(String((errors[0] as Error | undefined)?.message)).toMatch(
+				"conflicting occurrence replay",
+			);
 			expect(data).toEqual([]);
 		} finally {
 			stop();

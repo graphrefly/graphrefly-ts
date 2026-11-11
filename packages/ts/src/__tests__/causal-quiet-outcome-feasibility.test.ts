@@ -24,12 +24,11 @@ for (const closingEdge of ["receipt-to-guard", "authority-to-receipt"] as const)
 		const fn = () => {
 			invocations++;
 		};
-		const pullId = Symbol("receipt");
 		const authority = scope.node([input], fn, { name: "authority", partial: true });
 		const guard = scope.node([authority], fn, { name: "guard" });
 		const receipt = scope.node(closingEdge === "receipt-to-guard" ? [] : [guard], null, {
 			name: "receipt",
-			pullId,
+			quiet: true,
 		});
 		scope.node([guard, receipt], fn, { name: "controller", partial: true });
 		if (closingEdge === "receipt-to-guard") authority.replaceDeps([input, receipt], fn);
@@ -47,7 +46,7 @@ for (const closingEdge of ["receipt-to-guard", "authority-to-receipt"] as const)
 	});
 }
 
-it("delivers a bounded receipt frame through quiet/PULL in an acyclic cold graph", () => {
+it("delivers a bounded receipt frame through a quiet node in an acyclic cold graph", () => {
 	const graph = new Graph();
 	const input = graph.node<number>([], null, { name: "input" });
 	const scope = prepareConstruction(graph, {
@@ -65,14 +64,20 @@ it("delivers a bounded receipt frame through quiet/PULL in an acyclic cold graph
 		},
 		{ name: "result" },
 	);
-	const pullId = Symbol("positive-receipt");
-	const receipt = scope.node([result], null, { name: "receipt", pullId });
+	// graphrefly-ts:D172: the quiet receipt sends its frame after the result's wave, so the
+	// controller sees the result and then, in a later wave of its own, the receipt.
+	const receipt = scope.node(
+		[result],
+		(ctx) => {
+			for (const frame of depBatch(ctx, 0) ?? []) ctx.down([["DATA", frame]]);
+		},
+		{ name: "receipt", quiet: true },
+	);
 	const received: unknown[] = [];
 	const controller = scope.node(
 		[result, receipt],
 		(ctx) => {
 			for (const frame of depBatch(ctx, 1) ?? []) received.push(frame);
-			if (depBatch(ctx, 0)?.length) ctx.upNext([["PULL", { pullId }]], 1);
 		},
 		{ name: "controller", partial: true },
 	);

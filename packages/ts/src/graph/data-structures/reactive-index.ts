@@ -9,7 +9,7 @@
  * R-rom-ram). The two coexist: the derived is the reactive reverse-lookup port; the sync reads are
  * the point query.
  *
- * Per-language (D6/D24, never in parity, no conformance — the substrate pull is already C-16).
+ * Per-language (D6/D24, never in parity, no conformance).
  */
 
 import { type Ctx, depBatch, depCount, depLatest } from "../../ctx/types.js";
@@ -51,9 +51,10 @@ export interface IndexRow<K, V = unknown> {
 
 export interface ReactiveIndex<K, V = unknown> {
 	readonly delta: Node<IndexChange<K, V>>;
-	/** SNAPSHOT pull node: demand → rows sorted by (secondary, primary) (lazy O(n)). */
+	/** SNAPSHOT quiet node: a write to `request` → rows sorted by (secondary, primary) (lazy O(n)). */
 	readonly snapshot: Node<readonly IndexRow<K, V>[]>;
-	readonly pullId: symbol;
+	/** REQUEST state: each live write asks {@link snapshot} for one materialization. */
+	readonly request: Node<true>;
 	/** Row count (O(1)). Sync non-reactive read. */
 	readonly size: number;
 	/** O(1) primary-key existence. Sync read (Z). */
@@ -64,7 +65,7 @@ export interface ReactiveIndex<K, V = unknown> {
 	rangeByPrimary(start: K, end: K): V[];
 	/**
 	 * D121 light range view over the primary axis. `delta` forwards parent index mutations, and
-	 * `snapshot` is a pull node that materializes the current range on demand.
+	 * `snapshot` is a quiet node that materializes the current range when `request` is written.
 	 */
 	range(start: K, end: K): ReactiveView<IndexChange<K, V>, readonly V[]>;
 	/** Ordered rows (fresh copy). Sync non-reactive read (cold-start peek). */
@@ -290,7 +291,7 @@ function assertCheckpointableIndexRows(rows: readonly IndexRow<unknown, unknown>
 }
 
 /**
- * Create a reactive dual-key index (D54/D60). DELTA + lazy pull SNAPSHOT + pullId via
+ * Create a reactive dual-key index (D54/D60). DELTA + lazy SNAPSHOT + REQUEST via
  * {@link collectionCore}; this layer adds the sorted backend + Z reverse-lookup surface.
  * @param options - Options that configure the helper.
  * @returns A `ReactiveIndex<K, V>` value.
@@ -329,6 +330,7 @@ function createReactiveIndex<K, V = unknown>(
 			? {
 					deltaRef: "reactiveIndex.delta",
 					snapshotRef: "reactiveIndex.snapshot",
+					requestRef: "reactiveIndex.request",
 					backendState: () => {
 						const rows = backend.snapshot();
 						assertCheckpointableIndexRows(rows);
@@ -500,7 +502,7 @@ function createReactiveIndex<K, V = unknown>(
 	return {
 		delta: core.delta,
 		snapshot: core.snapshot,
-		pullId: core.pullId,
+		request: core.request,
 
 		get size(): number {
 			return backend.size;

@@ -25,6 +25,7 @@ import {
 	type Ctx,
 	depBatch,
 	depCount,
+	depLiveBatch,
 	depTerminal,
 	isTerminalComplete,
 	type NodeFn,
@@ -98,7 +99,8 @@ export interface ReactiveMapOptions<K = unknown, V = unknown> extends Collection
 export interface ReactiveMap<K, V> {
 	readonly delta: Node<MapChange<K, V>>;
 	readonly snapshot: Node<ReadonlyMap<K, V>>;
-	readonly pullId: symbol;
+	/** REQUEST state: each live write asks {@link snapshot} for one materialization. */
+	readonly request: Node<true>;
 	/** Raw entry count (O(1)); may include not-yet-pruned expired entries. Sync non-reactive read. */
 	readonly size: number;
 	/** Get a live value (prunes the key if expired). Sync read. */
@@ -312,7 +314,7 @@ class MapBackend<K, V> {
 
 /**
  * Create a reactive map (D54/D60). DELTA stream of {@link MapChange} + lazy pull SNAPSHOT (a
- * `ReadonlyMap`) + pullId via {@link collectionCore}; this layer adds the typed map surface.
+ * `ReadonlyMap`) + request via {@link collectionCore}; this layer adds the typed map surface.
  * @param options - Options that configure the helper.
  * @returns A `ReactiveMap<K, V>` value.
  * @category data-structures
@@ -606,10 +608,23 @@ function createReactiveMap<K, V>(
 				name: name ? `${name}.apply` : undefined,
 			});
 
-	const pullId = Symbol(name ? `${name}.snapshot` : "reactiveMap.snapshot");
+	// REQUEST state the quiet snapshotPrep declares as a dependency (graphrefly-ts:D172).
+	const request = graph
+		? graph.node<true>([], null, {
+				factory: "reactiveMap.request",
+				name: name ? `${name}.request` : undefined,
+				meta: { kind: "collection_request", collection: "reactiveMap" },
+				...(restorable ? { restore: { ref: "reactiveMap.request" } } : {}),
+			})
+		: new Node<true>([], null, {
+				...base,
+				factory: "reactiveMap.request",
+				name: name ? `${name}.request` : undefined,
+			});
 	const snapshotPrepOp: Operator<unknown, SnapshotPrep<K, V>> = {
 		factory: "reactiveMap.snapshotPrep",
 		body: (ctx: Ctx) => {
+			if (depLiveBatch(ctx, 1) === null) return;
 			const expired = backend.pruneExpired().map(
 				([key, previous]): MapChange<K, V> => ({
 					kind: "delete",
@@ -622,17 +637,17 @@ function createReactiveMap<K, V>(
 		},
 		opts: {
 			...base,
-			pullId,
+			quiet: true,
 			partial: true,
 		},
 	};
 	const snapshotPrep = graph
-		? graph.initNode(snapshotPrepOp, [apply as Node<unknown>], {
+		? graph.initNode(snapshotPrepOp, [apply as Node<unknown>, request as Node<unknown>], {
 				name: name ? `${name}.snapshotPrep` : undefined,
 				meta: { kind: "collection_snapshot_prep", collection: "reactiveMap" },
 				...(restorable ? { restore: { ref: "reactiveMap.snapshotPrep" } } : {}),
 			})
-		: initNode(snapshotPrepOp, [apply as Node<unknown>], {
+		: initNode(snapshotPrepOp, [apply as Node<unknown>, request as Node<unknown>], {
 				...base,
 				name: name ? `${name}.snapshotPrep` : undefined,
 			});
@@ -731,7 +746,7 @@ function createReactiveMap<K, V>(
 	return {
 		delta,
 		snapshot,
-		pullId,
+		request,
 
 		get size(): number {
 			return backend.size;

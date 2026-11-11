@@ -257,7 +257,7 @@ describe("agenticMemoryBundle solution (D164)", () => {
 			} as never,
 		]);
 
-		expect(errors.messages.map((message) => message[0])).toEqual(["DIRTY", "DATA"]);
+		expect(errors.messages.map((message) => message[0])).toEqual(["PENDING", "DATA"]);
 		expect(
 			data<readonly AgenticMemoryError[]>(errors.messages)
 				.at(-1)

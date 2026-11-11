@@ -911,6 +911,6 @@ export {
 	webStorageBackend,
 } from "./storage/index.js";
 export {
-	assertDirtyPrecedesTerminalData,
+	assertPendingPrecedesTerminalData,
 	type MessageSequence,
 } from "./testing/index.js";

@@ -10,6 +10,7 @@ export function isNonAuthoritativeCollectionHelperMeta(
 		meta?.kind === "collection_delta" ||
 		meta?.kind === "collection_intent" ||
 		meta?.kind === "collection_policy_apply" ||
+		meta?.kind === "collection_request" ||
 		meta?.kind === "collection_snapshot" ||
 		meta?.kind === "collection_snapshot_prep"
 	);

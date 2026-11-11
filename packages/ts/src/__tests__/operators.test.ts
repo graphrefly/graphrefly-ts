@@ -93,7 +93,7 @@ describe("core operators (free-standing factories via g.initNode, D43/D6)", () =
 
 		s.down([["DATA", 9], ["INVALIDATE"]]);
 
-		expect(msgs).toEqual([["DIRTY"], ["DATA", 18], ["INVALIDATE"]]);
+		expect(msgs).toEqual([["PENDING"], ["DATA", 18], ["INVALIDATE"]]);
 		expect(m.cache).toBeUndefined();
 		expect(m.status).toBe("sentinel");
 	});
@@ -174,7 +174,7 @@ describe("core operators (free-standing factories via g.initNode, D43/D6)", () =
 		const first2 = g.initNode(take<number>(2), [s]);
 		const msgs: Message[] = [];
 		first2.subscribe((x) => msgs.push(x));
-		s.set(2); // 2nd value → DATA + COMPLETE (a DIRTY precedes the DATA, two-phase)
+		s.set(2); // 2nd value → DATA + COMPLETE (a PENDING precedes the DATA, two-phase)
 		s.set(3); // ignored (terminated)
 		expect(data(msgs)).toEqual([1, 2]);
 		expect(msgs[msgs.length - 1][0]).toBe("COMPLETE");

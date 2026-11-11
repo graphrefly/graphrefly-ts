@@ -1,4 +1,5 @@
-import { enterWave, exitWave } from "../batch/boundary.js";
+import { currentBoundaryBatchToken } from "../batch/batch.js";
+import { deferRewire, enterWave, exitWave } from "../batch/boundary.js";
 import {
 	CTX_DEP_CACHE,
 	CTX_NODE_BINDING,
@@ -8,10 +9,10 @@ import {
 	type TerminalData,
 	type WaveData,
 } from "../ctx/types.js";
-import type { PullDemand } from "../protocol/messages.js";
+import type { Wave } from "../protocol/messages.js";
 import type { Node } from "./node.js";
 import type { NodeRuntimeHost } from "./node-runtime-host.js";
-import { terminalView } from "./protocol-guards.js";
+import { DeliveryFailure, terminalView, validateNodeOutput } from "./protocol-guards.js";
 import { withEnvironmentDrivers, withNodeCore } from "./runtime-accessors.js";
 
 export function nodeBuildCtx<T>(self: NodeRuntimeHost<T>): Ctx {
@@ -45,20 +46,23 @@ export function nodeMakeCtx<T>(
 		// Wave-owner boundary (D47): a SYNC fn's emit nests under the public entry that drove
 		// it (cheap inc/dec, no early drain); an ASYNC-pool fn re-enters here from its stashed
 		// ctx at depth 0, so this is the boundary that drains any rewireNext it issued.
-		up: (msgs, towardDep) => {
-			if (self._released) return;
-			enterWave();
-			try {
-				self._up(msgs, towardDep);
-			} finally {
-				exitWave();
-			}
-		},
 		down: (msgs) => {
 			if (self._released) return;
+			validateNodeOutput(msgs);
+			if (self._slot.quiet && self._wave.insideRunWave) {
+				// R-wave: a quiet node's output during its run goes out after the current wave
+				// as a new wave of its own, so nothing below it waits for it in this wave.
+				nodeDeferQuietOutput(self, msgs);
+				return;
+			}
+			const duringRun = self._wave.insideRunWave;
 			enterWave();
 			try {
 				self._down(msgs);
+			} catch (e) {
+				// Not this function's throw (R-failure): see DeliveryFailure.
+				if (duringRun && !(e instanceof DeliveryFailure)) throw new DeliveryFailure(e);
+				throw e;
 			} finally {
 				exitWave();
 			}
@@ -81,11 +85,6 @@ export function nodeMakeCtx<T>(
 			unsubscribeDep: (dep, fn) => self._requestRewireNext({ kind: "remove", dep, fn }),
 			replaceDeps: (deps, fn) => self._requestRewireNext({ kind: "set", deps, fn }),
 		},
-		// R-up-routing / R-pull (D269): deferred up — route a control/demand wave (e.g. PULL)
-		// up the declared cone at the committed boundary. The SELF-demand path: an
-		// immediate ctx.up whose delivery loops back re-enters this fn (D37 / R-reentrancy).
-		upNext: (msgs, towardDep) => self._requestUpNext(msgs, towardDep),
-		...(self._control.activePull === undefined ? {} : { pull: self._control.activePull }),
 		[CTX_DEP_CACHE]: { latest: snapshot?.latest ?? self._dep.prev },
 		[CTX_NODE_BINDING]: {
 			dispatcher: self._slot.dispatcher,
@@ -106,11 +105,6 @@ export function nodeMakeCtx<T>(
 export function nodeRefreshCtx<T>(self: NodeRuntimeHost<T>, ctx: Ctx): void {
 	(ctx as { waveData: WaveData }).waveData = self._dep.waveData;
 	(ctx as { terminal: TerminalData }).terminal = self._dep.terminalInput.map(terminalView);
-	if (self._control.activePull === undefined) {
-		delete (ctx as { pull?: PullDemand }).pull;
-	} else {
-		(ctx as { pull?: PullDemand }).pull = self._control.activePull;
-	}
 	ctx[CTX_DEP_CACHE] = { latest: self._dep.prev };
 	setCtxDepWaveOrigin(ctx, { live: self._dep.waveLive });
 }
@@ -125,4 +119,26 @@ export function nodeMakeState<T>(self: NodeRuntimeHost<T>): CtxState {
 			self._privateState.persist = on;
 		},
 	};
+}
+
+/**
+ * Queue one array a quiet node sent during its run; it is published at the wave boundary as an
+ * external emit of this node, with the kernel's PENDING before its values (R-wave). Each
+ * ctx.down call stays its own array, in call order.
+ */
+function nodeDeferQuietOutput<T>(self: NodeRuntimeHost<T>, msgs: Wave): void {
+	const array: Wave = [...msgs];
+	deferRewire(
+		self._core,
+		() => {
+			if (self._released) return;
+			enterWave();
+			try {
+				self._down(array);
+			} finally {
+				exitWave();
+			}
+		},
+		{ batchToken: currentBoundaryBatchToken() },
+	);
 }

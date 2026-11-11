@@ -277,7 +277,7 @@ describe("private publication material-v1", () => {
 			out = collect(f.built.publication),
 			view = collect(f.built.causal.committedEffects);
 		expect(out.values).toEqual([]);
-		expect(f.owner.nodes).toHaveLength(26);
+		expect(f.owner.nodes).toHaveLength(23);
 		expect(f.owner.roots).toHaveLength(2);
 		if (first) f.frame([a.material]);
 		f.admit(a);

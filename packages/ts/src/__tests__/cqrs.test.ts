@@ -6,6 +6,20 @@ import { compoundTupleKey } from "../identity.js";
 const cqrsEventId = (commandId: string, seq: string) =>
 	compoundTupleKey("cqrs-event", [commandId, seq]);
 
+/** R-failure@3: a throw inside a node's function is that node's ERROR, not a host throw. */
+function watchError(g: ReturnType<typeof graph>, path: string): () => string {
+	const n = g.find(path);
+	if (n === undefined) throw new Error(`missing ${path}`);
+	let error: unknown;
+	n.subscribe((m) => {
+		if (m[0] === "ERROR") error = m[1];
+	});
+	return () => {
+		expect(n.status).toBe("errored");
+		return String((error as Error | undefined)?.message ?? error);
+	};
+}
+
 describe("CQRS application infrastructure (B63 / D125 / D129)", () => {
 	it("dispatches commands as graph-owned command facts and emits audit/status facts", () => {
 		const g = graph();
@@ -494,9 +508,9 @@ describe("CQRS application infrastructure (B63 / D125 / D129)", () => {
 		const errors: unknown[] = [];
 		app.errors.subscribe((msg) => errors.push(msg));
 
-		expect(() => app.dispatch({ id: "cmd-1", type: "PlaceOrder", payload: {} })).toThrow(
-			/R-reentrancy|D37|feedback cycle/i,
-		);
+		const runtimeError = watchError(g, "orders/runtime");
+		app.dispatch({ id: "cmd-1", type: "PlaceOrder", payload: {} });
+		expect(runtimeError()).toMatch(/R-reentrancy|D37|feedback cycle/i);
 		expect(errors).not.toContainEqual(["DATA", expect.objectContaining({ code: "handler-threw" })]);
 	});
 
@@ -517,8 +531,10 @@ describe("CQRS application infrastructure (B63 / D125 / D129)", () => {
 		const errors: unknown[] = [];
 		app.errors.subscribe((msg) => errors.push(msg));
 
-		expect(() => app.dispatch({ id: "cmd-1", type: "PlaceOrder", payload: {} })).toThrow(
-			/different graph|cross-graph|R-graph-domain|wire bridge/i,
+		const runtimeError = watchError(g, "orders/runtime");
+		app.dispatch({ id: "cmd-1", type: "PlaceOrder", payload: {} });
+		expect(runtimeError()).toMatch(
+			/different graph|cross-graph|R-graph-domain|wire bridge|construction/i,
 		);
 		expect(errors).not.toContainEqual(["DATA", expect.objectContaining({ code: "handler-threw" })]);
 	});
@@ -548,9 +564,9 @@ describe("CQRS application infrastructure (B63 / D125 / D129)", () => {
 		const projectionErrors: unknown[] = [];
 		projection.errors.subscribe((msg) => projectionErrors.push(msg));
 
-		expect(() => app.dispatch({ id: "cmd-1", type: "PlaceOrder", payload: {} })).toThrow(
-			/R-reentrancy|D37|feedback cycle/i,
-		);
+		const projectionError = watchError(g, "orders/count");
+		app.dispatch({ id: "cmd-1", type: "PlaceOrder", payload: {} });
+		expect(projectionError()).toMatch(/R-reentrancy|D37|feedback cycle/i);
 		expect(projectionErrors).not.toContainEqual([
 			"DATA",
 			expect.objectContaining({ code: "projection-threw" }),

@@ -128,7 +128,7 @@ describe("admissionHandoff pattern (graphrefly-ts:D147)", () => {
 	it.each([
 		"candidate-first",
 		"decision-first",
-	] as const)("releases a first admission as exactly one fresh DIRTY-to-DATA wave (%s)", (order) => {
+	] as const)("releases a first admission as exactly one fresh PENDING-to-DATA wave (%s)", (order) => {
 		const { candidates, decisions, handoff } = fixture();
 		const accepted = collect(handoff.accepted);
 		accepted.length = 0;
@@ -141,7 +141,7 @@ describe("admissionHandoff pattern (graphrefly-ts:D147)", () => {
 			candidates.down([["DATA", candidate()]]);
 		}
 
-		expect(accepted.map((message) => message[0])).toEqual(["DIRTY", "DATA"]);
+		expect(accepted.map((message) => message[0])).toEqual(["PENDING", "DATA"]);
 		expect(accepted[1]).toEqual([
 			"DATA",
 			expect.objectContaining({
@@ -162,7 +162,7 @@ describe("admissionHandoff pattern (graphrefly-ts:D147)", () => {
 
 		candidates.down([["DATA", candidate()]]);
 		decisions.down([["DATA", decision("admitted")]]);
-		expect(accepted.map((message) => message[0])).toEqual(["DIRTY", "DATA"]);
+		expect(accepted.map((message) => message[0])).toEqual(["PENDING", "DATA"]);
 		accepted.length = 0;
 
 		candidates.down([["DATA", candidate()]]);
@@ -190,7 +190,7 @@ describe("admissionHandoff pattern (graphrefly-ts:D147)", () => {
 			["DATA", decision("admitted", "two", "fp-two")],
 		]);
 
-		expect(accepted.map((message) => message[0])).toEqual(["DIRTY", "DATA", "DIRTY", "DATA"]);
+		expect(accepted.map((message) => message[0])).toEqual(["PENDING", "DATA", "PENDING", "DATA"]);
 		expect(
 			accepted
 				.filter((message) => message[0] === "DATA")
@@ -217,7 +217,7 @@ describe("admissionHandoff pattern (graphrefly-ts:D147)", () => {
 		decisions.down([
 			["DATA", decision("admitted", "work-item-1", "candidate-fingerprint-1", "decision-good")],
 		]);
-		expect(accepted.map((message) => message[0])).toEqual(["DIRTY", "DATA"]);
+		expect(accepted.map((message) => message[0])).toEqual(["PENDING", "DATA"]);
 		accepted.length = 0;
 		decisions.down([
 			["DATA", decision("rejected", "work-item-1", "candidate-fingerprint-1", "other")],
@@ -260,7 +260,7 @@ describe("admissionHandoff pattern (graphrefly-ts:D147)", () => {
 		);
 	});
 
-	it("describes the complete correlation and quiet-release topology", () => {
+	it("describes the complete correlation and quiet-release topology (one quiet accepted node, graphrefly-ts:D172)", () => {
 		const { owner, handoff } = fixture();
 		const description = owner.describe();
 		const nodes = Object.fromEntries(
@@ -279,10 +279,6 @@ describe("admissionHandoff pattern (graphrefly-ts:D147)", () => {
 			"verified-work/accepted": {
 				deps: ["verified-work/admitted"],
 				factory: "admissionHandoffAccepted",
-			},
-			"verified-work/release-controller": {
-				deps: ["verified-work/admitted", "verified-work/accepted"],
-				factory: "admissionHandoffReleaseController",
 			},
 			"verified-work/rejected": {
 				deps: ["verified-work/correlation"],
@@ -308,16 +304,16 @@ describe("admissionHandoff pattern (graphrefly-ts:D147)", () => {
 		}).not.toThrow();
 	});
 
-	it("release tears down the retained admission controller and is idempotent", () => {
+	it("release drops the retained accepted port and is idempotent", () => {
+		// graphrefly-ts:D172: the accepted port is the retained quiet node; release drops the
+		// pattern's own retain, so with no other subscriber it is inactive and does not run.
 		const { candidates, decisions, handoff } = fixture();
-		const accepted = collect(handoff.accepted);
-		accepted.length = 0;
 		handoff.release();
 		handoff.release();
 
 		candidates.down([["DATA", candidate()]]);
 		decisions.down([["DATA", decision("admitted")]]);
 
-		expect(accepted).toEqual([]);
+		expect(handoff.accepted.cache).toBeUndefined();
 	});
 });

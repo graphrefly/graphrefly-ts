@@ -6,27 +6,21 @@
  * ~/src/graphrefly/spec/rules.jsonl (R-node-*, R-two-phase, R-diamond, R-resolved-undirty,
  * R-first-run-gate, R-push-subscribe, R-rom-ram, R-fn-contract, R-initial, R-ctx-up).
  *
- * Slice 1 = core wave: state node, compute node, two-phase DIRTY->DATA, diamond
+ * Slice 1 = core wave: state node, compute node, two-phase PENDING->DATA, diamond
  * pending-counter join, first-run gate, substrate-synthesized undirty RESOLVED
  * (R-resolved-undirty / D49 — no equals-substitution; every occurrence is DATA),
  * push-on-subscribe, lazy activation, ROM/RAM. Lifecycle (terminal/INVALIDATE/cleanup),
- * control (PAUSE/async), batch, and dynamicNode land in later slices.
+ * control (async), batch, and dynamicNode land in later slices.
  */
 
-import { enterWave, exitWave } from "../batch/boundary.js";
+import { currentBoundaryBatchToken } from "../batch/batch.js";
+import { deferRewire, enterWave, exitWave, isWaveActive } from "../batch/boundary.js";
 import type { Ctx, CtxState, DeliveryMeta, NodeFn, Sink } from "../ctx/types.js";
 import { defaultDispatcher, type Handle } from "../dispatcher/index.js";
 import { EnvironmentDrivers } from "../graph/environment.js";
-import {
-	type LockId,
-	type Message,
-	type PullDemand,
-	SENTINEL,
-	type Wave,
-} from "../protocol/messages.js";
+import { type Message, SENTINEL, type Wave } from "../protocol/messages.js";
 import {
 	type CleanupHooks,
-	type ControlState,
 	type DepBookkeeping,
 	type LifecycleState,
 	makeDepBookkeeping,
@@ -71,35 +65,15 @@ import {
 } from "./node-lifecycle-runtime.js";
 import {
 	nodeAllDepsTerminal,
-	nodeCanFireDemand,
 	nodeCommitBatchedWave,
 	nodeDeferBoundary,
-	nodeDeliverPullDemand,
 	nodeDown,
 	nodeEmitToSubs,
-	nodeFireOwedDemandIfReady,
-	nodeFirePullDemand,
-	nodeForwardUp,
-	nodeHasBoundaryPauseLock,
 	nodeInvalidate,
-	nodeIsAsyncPool,
-	nodeIsPaused,
-	nodeMarkDemandRouted,
-	nodeOnDemand,
-	nodeOnResume,
-	nodePauseAcquire,
-	nodePauseRelease,
 	nodeResetLifecycle,
 	nodeRollbackBatched,
-	nodeShouldBufferOnPause,
-	nodeUp,
 } from "./node-output-runtime.js";
-import {
-	nodeApplyRewireNext,
-	nodeRequestRewireNext,
-	nodeRequestUpNext,
-	nodeRewire,
-} from "./node-rewire-runtime.js";
+import { nodeApplyRewireNext, nodeRequestRewireNext, nodeRewire } from "./node-rewire-runtime.js";
 import { nodeRuntimeHost } from "./node-runtime-host.js";
 import {
 	constructionAcquisitions,
@@ -107,13 +81,14 @@ import {
 	type NodeAcquisition,
 	type SubscriptionAcquisition,
 } from "./owned-acquisition.js";
+import { validateNodeOutput } from "./protocol-guards.js";
 import {
 	getNodeOwner,
 	issueNodeRegistration,
 	takeConstructingEnvironmentDrivers,
 	takeConstructingNodeCore,
 } from "./runtime-accessors.js";
-import type { NodeOptions, RewireOp, Status, UpRouteState } from "./types.js";
+import type { NodeOptions, RewireOp, Status } from "./types.js";
 import {
 	cloneNodeVersion,
 	createNodeVersion,
@@ -160,7 +135,6 @@ export class Node<T = unknown> {
 	private readonly _value: ValueState<T>;
 	// biome-ignore lint/correctness/noUnusedPrivateClassMembers: accessed through the checked internal runtime host.
 	private readonly _wave: WaveState;
-	private readonly _control: ControlState;
 	private readonly _lifecycle: LifecycleState;
 	// biome-ignore lint/correctness/noUnusedPrivateClassMembers: used by the issued runtime host.
 	private readonly _privateState: PrivateState;
@@ -183,7 +157,6 @@ export class Node<T = unknown> {
 		void node._hooks;
 		void node._restoredActivationPending;
 		void node._requestRewireNext;
-		void node._requestUpNext;
 		void node._applyRewireNext;
 		void node._reachableUpstream;
 		void node._assertRewireDepOwner;
@@ -205,21 +178,6 @@ export class Node<T = unknown> {
 		void node._makeCtx;
 		void node._refreshCtx;
 		void node._makeState;
-		void node._markDemandRouted;
-		void node._forwardUp;
-		void node._isPullQuiet;
-		void node._isPaused;
-		void node._hasBoundaryPauseLock;
-		void node._isAsyncPool;
-		void node._pauseAcquire;
-		void node._pauseRelease;
-		void node._onResume;
-		void node._canFireDemand;
-		void node._deliverPullDemand;
-		void node._onDemand;
-		void node._firePullDemand;
-		void node._fireOwedDemandIfReady;
-		void node._shouldBufferOnPause;
 		void node._invalidate;
 		void node._allDepsTerminal;
 		void node._emitToSubs;
@@ -239,16 +197,6 @@ export class Node<T = unknown> {
 		try {
 			const versioning = resolveNodeVersioningPolicy(opts.versioning);
 			const pool = opts.pool ?? "sync";
-			const pausable = opts.pausable ?? true;
-			const pullLock = opts.pullId;
-			const pull = opts.pullId !== undefined;
-			// R-pull (D269): pull-mode is keyed by an author-supplied pullId (its quiet latch).
-			// R-pull (D55, pin 3): pull still uses the pausable delivery-content axis; pausable:false
-			// ignores PAUSE/RESUME buffering and contradicts quiet pull delivery. Reject at construction.
-			if (pull && pausable === false)
-				throw new Error(
-					"node: pullId is incompatible with pausable:false — a pull node uses the pausable delivery-content axis (R-pull / R-pause-modes / D55,D269)",
-				);
 
 			let handle: Handle | null;
 			if (handleOrFn === null) handle = null;
@@ -266,7 +214,6 @@ export class Node<T = unknown> {
 				hasData: false,
 				status: "sentinel" as Status,
 				terminal: undefined,
-				hasTorndown: false,
 				replayRing: [] as T[],
 			};
 			if (opts.initial !== undefined) {
@@ -274,7 +221,6 @@ export class Node<T = unknown> {
 				value.hasData = true;
 				value.status = "settled";
 			}
-			const pauseLockset = new Set<unknown>();
 			this._core = core ?? new NodeCore();
 			const created = this._core.createSlot<T>(
 				{
@@ -288,10 +234,7 @@ export class Node<T = unknown> {
 					completeWhenDepsComplete: opts.completeWhenDepsComplete ?? true,
 					errorWhenDepsError: opts.errorWhenDepsError ?? true,
 					resubscribable: opts.resubscribable ?? false,
-					resetOnTeardown: opts.resetOnTeardown ?? false,
-					pausable,
-					pull,
-					pullLock,
+					quiet: opts.quiet ?? false,
 					replayN: opts.replayBuffer ?? 0,
 					dynamic: opts.dynamic ?? false,
 					name: opts.name,
@@ -310,15 +253,6 @@ export class Node<T = unknown> {
 						inDepMutation: false,
 						rewireRunPending: false,
 						batchDirtyOwed: false,
-					},
-					control: {
-						pauseLockset,
-						pausedDepWaveOccurred: false,
-						pauseBuffer: [],
-						demandOwed: undefined,
-						activePull: undefined,
-						pullDirtyOwed: false,
-						inDeliverDemand: false,
 					},
 					privateState: { value: SENTINEL, persist: false },
 					hooks: { onDeactivation: [], onInvalidate: [] },
@@ -341,7 +275,6 @@ export class Node<T = unknown> {
 			this._dep = this._core.getDep(this._id);
 			this._value = this._core.getValue<T>(this._id);
 			this._wave = this._core.getWave(this._id);
-			this._control = this._core.getControl(this._id);
 			this._lifecycle = this._core.getLifecycle(this._id);
 			this._privateState = this._core.getPrivateState(this._id);
 			this._hooks = this._core.getHooks(this._id);
@@ -354,22 +287,6 @@ export class Node<T = unknown> {
 			if (suppliedAcquisition !== undefined) throw cause; // D161 owner retains this journal.
 			failNodeAcquisition(acquisition, cause);
 		}
-	}
-
-	/** R-pull (D55/D272): true while a pull node is not serving a PULL demand pulse. */
-	private _isPullQuiet(): boolean {
-		return this._slot.pull && this._control.activePull === undefined;
-	}
-
-	/**
-	 * R-pull (D269/D272): this pull node's pullId (pure data, like {@link cache}/{@link handle} —
-	 * never triggers computation). A consumer demands one delivery by cone-routing PULL of it (no
-	 * node reference): `ctx.up([["PULL", { pullId }]])` (immediate; loops back → D37 for a self-read
-	 * dep) or `ctx.upNext([["PULL", { pullId }]])` (boundary-deferred self-demand). Undefined for a
-	 * non-pull node. The author writes the pullId verbatim; routing matches by identity.
-	 */
-	get pullId(): LockId | undefined {
-		return this._slot.pullLock;
 	}
 
 	get cache(): T | undefined {
@@ -413,7 +330,7 @@ export class Node<T = unknown> {
 		return this._slot.handle;
 	}
 
-	/** R-push-subscribe: a new sink receives START, then cached DATA (or DIRTY if dirty). */
+	/** R-push-subscribe: a new sink receives START, then cached DATA (or PENDING if dirty). */
 	subscribe(sink: Sink): () => void {
 		return this._subscribeOwned(sink);
 	}
@@ -448,13 +365,10 @@ export class Node<T = unknown> {
 			if (this._slot.replayN > 0 && this._value.replayRing.length > 0) {
 				// R-replay-buffer: late subscriber gets the last N DATA after START.
 				for (const v of this._value.replayRing) sink(["DATA", v]);
-			} else if (this._value.hasData && !this._slot.pull) {
-				// R-pull (D55): a pull node NEVER push-on-subscribes its cached value — quiet by
-				// default, it stays silent until demanded (START only). QA-B4: gated on `_pull`, not
-				// activePull, so a REACTIVATED pull node still does not leak its cache.
+			} else if (this._value.hasData) {
 				sink(["DATA", this._value.cache]);
-			} else if (this._value.status === "dirty" && !this._slot.pull) {
-				sink(["DIRTY"]);
+			} else if (this._value.status === "dirty" && !this._slot.quiet) {
+				sink(["PENDING"]);
 			}
 
 			if (!this._lifecycle.activated) this._activate();
@@ -465,29 +379,18 @@ export class Node<T = unknown> {
 		}
 	}
 
-	/** External emission toward sinks (state-node push, or async late-emit). One call = one wave. */
+	/**
+	 * External emission toward sinks (state-node push, or async late-emit). One call = one wave.
+	 * PENDING and RESOLVED are the kernel's and are rejected (R-wave).
+	 */
 	down(msgs: Wave): void {
 		this._assertNotReleased("down");
+		validateNodeOutput(msgs);
 		// Wave-owner boundary (D47): a state.set / external push that drives a fn issuing
 		// ctx.rewireNext drains at this outermost exit.
 		enterWave();
 		try {
 			this._down(msgs);
-		} finally {
-			exitWave();
-		}
-	}
-
-	/**
-	 * Emit upstream toward deps — control tiers only (R-ctx-up). `towardDep` (a dep index) routes up
-	 * ONE declared edge (R-up-routing directed-up); omitted = broadcast up all deps.
-	 */
-	up(msgs: Wave, towardDep?: number): void {
-		this._assertNotReleased("up");
-		// Wave-owner boundary (D47). Internal dep-forwarding calls dep.up() nest under this.
-		enterWave();
-		try {
-			this._up(msgs, towardDep);
 		} finally {
 			exitWave();
 		}
@@ -528,10 +431,6 @@ export class Node<T = unknown> {
 
 	private _requestRewireNext(op: RewireOp): void {
 		nodeRequestRewireNext(nodeRuntimeHost(this), op);
-	}
-
-	private _requestUpNext(msgs: Wave, towardDep?: number): void {
-		nodeRequestUpNext(nodeRuntimeHost(this), msgs, towardDep);
 	}
 
 	private _applyRewireNext(op: RewireOp): void {
@@ -694,66 +593,6 @@ export class Node<T = unknown> {
 		nodeDown(nodeRuntimeHost(this), msgs);
 	}
 
-	private _up(msgs: Wave, towardDep?: number, route?: UpRouteState): void {
-		nodeUp(nodeRuntimeHost(this), msgs, towardDep, route);
-	}
-
-	private _markDemandRouted(lockId: LockId, route: UpRouteState): boolean {
-		return nodeMarkDemandRouted(nodeRuntimeHost(this), lockId, route);
-	}
-
-	private _forwardUp(m: Message, towardDep: number | undefined, route: UpRouteState): void {
-		nodeForwardUp(nodeRuntimeHost(this), m, towardDep, route);
-	}
-
-	private _isPaused(): boolean {
-		return nodeIsPaused(nodeRuntimeHost(this));
-	}
-
-	private _hasBoundaryPauseLock(): boolean {
-		return nodeHasBoundaryPauseLock(nodeRuntimeHost(this));
-	}
-
-	private _isAsyncPool(): boolean {
-		return nodeIsAsyncPool(nodeRuntimeHost(this));
-	}
-
-	private _pauseAcquire(lockId: unknown): void {
-		nodePauseAcquire(nodeRuntimeHost(this), lockId);
-	}
-
-	private _pauseRelease(lockId: unknown): void {
-		nodePauseRelease(nodeRuntimeHost(this), lockId);
-	}
-
-	private _onResume(): void {
-		nodeOnResume(nodeRuntimeHost(this));
-	}
-
-	private _canFireDemand(): boolean {
-		return nodeCanFireDemand(nodeRuntimeHost(this));
-	}
-
-	private _deliverPullDemand(demand: PullDemand): void {
-		nodeDeliverPullDemand(nodeRuntimeHost(this), demand);
-	}
-
-	private _onDemand(demand: PullDemand): void {
-		nodeOnDemand(nodeRuntimeHost(this), demand);
-	}
-
-	private _firePullDemand(): void {
-		nodeFirePullDemand(nodeRuntimeHost(this));
-	}
-
-	private _fireOwedDemandIfReady(): void {
-		nodeFireOwedDemandIfReady(nodeRuntimeHost(this));
-	}
-
-	private _shouldBufferOnPause(): boolean {
-		return nodeShouldBufferOnPause(nodeRuntimeHost(this));
-	}
-
 	private _invalidate(delivery?: DeliveryMeta): void {
 		nodeInvalidate(nodeRuntimeHost(this), delivery);
 	}
@@ -776,7 +615,7 @@ export class Node<T = unknown> {
 		nodeCommitBatchedWave(nodeRuntimeHost(this), wave);
 	}
 
-	/** Batch rollback: balance the immediate DIRTY with a RESOLVED so downstream un-dirties. */
+	/** Batch rollback: balance the immediate PENDING with a RESOLVED so downstream un-dirties. */
 	__rollbackBatched(): void {
 		nodeRollbackBatched(nodeRuntimeHost(this));
 	}
@@ -839,4 +678,25 @@ export function dynamicNode<T = unknown>(
 	opts: NodeOptions<T> = {},
 ): Node<T> {
 	return new Node<T>(deps, fn, { ...opts, dynamic: true });
+}
+
+/**
+ * @internal A write a function makes to another node is a request that runs after the current
+ * wave (R-request-order; graphrefly-ts:D172 request states). Until the general request queue
+ * lands, this queues one `down` on the target's boundary queue; outside a wave it runs at once.
+ */
+export function requestDownAfterWave(target: Node<unknown>, msgs: Wave): void {
+	if (!isWaveActive()) {
+		target.down(msgs);
+		return;
+	}
+	const host = nodeRuntimeHost(target);
+	const array: Wave = [...msgs];
+	deferRewire(
+		host._core,
+		() => {
+			if (!host._released) target.down(array);
+		},
+		{ batchToken: currentBoundaryBatchToken() },
+	);
 }

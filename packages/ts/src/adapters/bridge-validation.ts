@@ -336,7 +336,7 @@ function isCanonicalWireEdgeFrame(value: unknown): value is CanonicalWireEdgeFra
 	const causeId = ownData(value, "causeId");
 	if (typeof edgeId !== "string" || edgeId.length === 0) return false;
 	if (typeof causeId !== "string" || causeId.length === 0) return false;
-	if (kind === "dirty") return hasOnlyKeys(value, ["causeId", "edgeId", "kind"]);
+	if (kind === "pending") return hasOnlyKeys(value, ["causeId", "edgeId", "kind"]);
 	if (kind === "data") {
 		return (
 			hasOnlyKeys(value, ["causeId", "edgeId", "kind", "value"]) &&
@@ -349,7 +349,7 @@ function isCanonicalWireEdgeFrame(value: unknown): value is CanonicalWireEdgeFra
 function isCanonicalWireEdgeFrameLike(value: unknown): boolean {
 	if (!isPlainDataRecord(value)) return false;
 	const kind = ownData(value, "kind");
-	if (kind !== "dirty" && kind !== "data") return false;
+	if (kind !== "pending" && kind !== "data") return false;
 	return "edgeId" in value || "causeId" in value || "value" in value;
 }
 

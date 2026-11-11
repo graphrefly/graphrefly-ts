@@ -106,7 +106,7 @@ describe("D497 canonical protobuf wire bridge envelope vectors", () => {
 			expect(decoded.payload.kind).toBe("data");
 			expect(decoded.payload.kind === "data" && decoded.payload.body.kind).toBe("wire_edge");
 			if (decoded.payload.kind === "data" && decoded.payload.body.kind === "wire_edge") {
-				expect(decoded.payload.body.frame.kind).toBe("dirty");
+				expect(decoded.payload.body.frame.kind).toBe("pending");
 			}
 		}
 		if (record.expect?.payload === "data.wire_edge.data") {
@@ -737,7 +737,7 @@ describe("D498 wireBridgeProtobuf focused helper", () => {
 			readonly seq: bigint;
 			readonly edgeId?: string;
 			readonly causeId?: string;
-			readonly frameKind?: "dirty" | "data";
+			readonly frameKind?: "pending" | "data";
 			readonly value?: string;
 		};
 		const trace: TraceRow[] = [];
@@ -930,7 +930,7 @@ describe("D498 wireBridgeProtobuf focused helper", () => {
 		expect(dataMessages(dMessages)).toEqual([]);
 		expect(g2ToG1Queue).toEqual([]);
 		expect(dataMessages(g2InboundStatus).at(-1)?.[1]).toEqual(
-			expect.objectContaining({ state: "collecting", dirty: 1, data: 0, released: 2 }),
+			expect.objectContaining({ state: "collecting", pending: 1, data: 0, released: 2 }),
 		);
 
 		pumpAll("g1_to_g2", g1ToG2Queue, g2FromG1Bytes.inboundBytes);
@@ -956,14 +956,14 @@ describe("D498 wireBridgeProtobuf focused helper", () => {
 		const g2Cause = trace.find((row) => row.direction === "g2_to_g1" && row.causeId)?.causeId;
 		if (g1Cause === undefined || g2Cause === undefined) throw new Error("missing stimulus causes");
 		expect(causeFrames("g1_to_g2", g1Cause).map((row) => row.frameKind)).toEqual([
-			"dirty",
-			"dirty",
+			"pending",
+			"pending",
 			"data",
 			"data",
 		]);
 		expect(causeFrames("g2_to_g1", g2Cause).map((row) => row.frameKind)).toEqual([
-			"dirty",
-			"dirty",
+			"pending",
+			"pending",
 			"data",
 			"data",
 		]);

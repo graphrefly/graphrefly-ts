@@ -109,7 +109,8 @@ describe("eventFlow pattern (D326/D329/D331)", () => {
 		const pages = collect<MessageBusAvailablePage<EventMessage>>(sub.available);
 
 		bus.publish("events", eventMessage("order.created", { orderId: "o1" }, { id: "evt-1" }));
-		sub.available.up([["PULL", { pullId: sub.availablePullId }]]);
+		sub.available.subscribe(() => {}); // R-lifetime: an inactive projection does not run
+		sub.availableRequest.down([["DATA", {}]]);
 
 		expect(records).toEqual([
 			expect.objectContaining({

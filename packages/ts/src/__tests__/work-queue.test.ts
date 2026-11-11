@@ -404,7 +404,8 @@ describe("workQueue messageBus-backed lifecycle (D299-D324/D325)", () => {
 			commandId: "complete-1",
 		});
 		const work = queue.work(defaultWorkId);
-		work.snapshot.up([["PULL", { pullId: work.snapshotPullId }]]);
+		work.snapshot.subscribe(() => {}); // R-lifetime: an inactive projection does not run
+		work.snapshotRequest.down([["DATA", {}]]);
 
 		expect(work.snapshot.cache).toEqual(expect.objectContaining({ state: "completed" }));
 		expect(work.snapshot.cache?.activeLease).toBeUndefined();
@@ -427,9 +428,12 @@ describe("workQueue messageBus-backed lifecycle (D299-D324/D325)", () => {
 		const work = queue.work(defaultWorkId);
 		const dead = queue.deadLetter();
 
-		available.available.up([["PULL", { pullId: available.availablePullId, params: { nowMs: 0 } }]]);
-		work.snapshot.up([["PULL", { pullId: work.snapshotPullId }]]);
-		dead.snapshot.up([["PULL", { pullId: dead.snapshotPullId }]]);
+		available.available.subscribe(() => {}); // R-lifetime: an inactive projection does not run
+		available.availableRequest.down([["DATA", { nowMs: 0 }]]);
+		work.snapshot.subscribe(() => {}); // R-lifetime: an inactive projection does not run
+		work.snapshotRequest.down([["DATA", {}]]);
+		dead.snapshot.subscribe(() => {}); // R-lifetime: an inactive projection does not run
+		dead.snapshotRequest.down([["DATA", {}]]);
 
 		expect(available.available.cache).toEqual(
 			expect.objectContaining({ items: [], asOfRecordSeq: 2 }),
@@ -441,7 +445,7 @@ describe("workQueue messageBus-backed lifecycle (D299-D324/D325)", () => {
 
 		queue.cancel({ workId: defaultWorkId, commandId: "cancel-1", reason: "user" });
 		expect(work.snapshot.cache?.state).toBe("scheduled");
-		work.snapshot.up([["PULL", { pullId: work.snapshotPullId }]]);
+		work.snapshotRequest.down([["DATA", {}]]);
 		expect(work.snapshot.cache?.state).toBe("canceled");
 	});
 
@@ -463,13 +467,12 @@ describe("workQueue messageBus-backed lifecycle (D299-D324/D325)", () => {
 		queue.submit({ id: "later" }, { notBeforeMs: 10 });
 		queue.claim({ workerId: "early", commandId: "claim-early" });
 		const available = queue.available();
-		available.available.up([["PULL", { pullId: available.availablePullId }]]);
+		available.available.subscribe(() => {}); // R-lifetime: an inactive projection does not run
+		available.availableRequest.down([["DATA", {}]]);
 		expect(issues).toContainEqual(["DATA", expect.objectContaining({ code: "not-ready" })]);
 		expect(available.available.cache?.items).toEqual([]);
 
-		available.available.up([
-			["PULL", { pullId: available.availablePullId, params: { nowMs: 10 } }],
-		]);
+		available.availableRequest.down([["DATA", { nowMs: 10 }]]);
 		expect(available.available.cache?.items.map((item) => item.workId)).toEqual([defaultWorkId]);
 		queue.claim({ workerId: "on-time", commandId: "claim-on-time", nowMs: 10 });
 
@@ -524,16 +527,11 @@ describe("workQueue messageBus-backed lifecycle (D299-D324/D325)", () => {
 		queue.submit({ id: "second" }, { workId: "a" });
 		const available = queue.available();
 
-		available.available.up([["PULL", { pullId: available.availablePullId, params: { limit: 1 } }]]);
+		available.available.subscribe(() => {}); // R-lifetime: an inactive projection does not run
+		available.availableRequest.down([["DATA", { limit: 1 }]]);
 		const nextAfterAdmissionSeq = available.available.cache?.nextAfterAdmissionSeq;
-		available.available.up([
-			[
-				"PULL",
-				{
-					pullId: available.availablePullId,
-					params: { limit: 1, afterAdmissionSeq: nextAfterAdmissionSeq },
-				},
-			],
+		available.availableRequest.down([
+			["DATA", { limit: 1, afterAdmissionSeq: nextAfterAdmissionSeq }],
 		]);
 
 		expect(available.available.cache?.items.map((item) => item.workId)).toEqual(["a"]);

@@ -23,9 +23,6 @@ function collect(n: { subscribe(s: (m: Message) => void): () => void }) {
 	n.subscribe((m) => msgs.push(m));
 	return msgs;
 }
-function _demand(snapshot: Node<unknown>, pullId: symbol): void {
-	snapshot.up([["PULL", { pullId }]]);
-}
 const types = (msgs: Message[]) => msgs.map((m) => m[0]);
 const TEST_JSON_DECODER = new TextDecoder();
 const decodeTestJsonBytes = (bytes: Uint8Array) => TEST_JSON_DECODER.decode(bytes);
@@ -221,58 +218,6 @@ describe("restoreGraph — fresh graph restore (R-restore / D94 / D95)", () => {
 
 		expect(types(msgs)).toEqual(["START", "DATA"]);
 		expect(restored.find("memo")?.cache).toBe(1);
-	});
-
-	it("does not seed restored pull dep cache as if it crossed the edge", () => {
-		const pullId = Symbol("restore-pull");
-		const original = graph();
-		original.state(5, { name: "pull", pullId, restore: { ref: "pullState" } });
-		original.node([], null, { name: "trigger", restore: { ref: "cold" } });
-		original.node(
-			[original.find("pull") as never, original.find("trigger") as never],
-			(ctx) => {
-				ctx.down([["DATA", (depLatest(ctx, 0) as number) + (depLatest(ctx, 1) as number)]]);
-			},
-			{ name: "joined", restore: { ref: "join" } },
-		);
-
-		const pullDescriptor: GraphRestoreDescriptor = {
-			ref: "pullState",
-			create(ctx) {
-				return ctx.registerState({ name: ctx.name, pullId });
-			},
-		};
-		const coldDescriptor: GraphRestoreDescriptor = {
-			ref: "cold",
-			create(ctx) {
-				return ctx.registerNode("cold", [], null, { name: ctx.name });
-			},
-		};
-		const joinDescriptor: GraphRestoreDescriptor = {
-			ref: "join",
-			create(ctx) {
-				return ctx.registerNode("join", ctx.deps, (runCtx) => {
-					runCtx.down([
-						["DATA", (depLatest(runCtx, 0) as number) + (depLatest(runCtx, 1) as number)],
-					]);
-				});
-			},
-		};
-
-		const restored = restoreGraph(original.checkpoint(), {
-			registry: {
-				...defaultRestoreRegistry,
-				pullState: pullDescriptor,
-				cold: coldDescriptor,
-				join: joinDescriptor,
-			},
-		});
-		const joined = restored.find("joined");
-		const msgs = collect(joined as { subscribe(s: (m: Message) => void): () => void });
-		expect(types(msgs)).toEqual(["START"]);
-
-		(restored.find("trigger") as { down(msgs: Message[]): void }).down([["DATA", 7]]);
-		expect(joined?.cache).toBeUndefined();
 	});
 
 	it("lets a restored SENTINEL dep's first activation emit a real post-commit wave", () => {

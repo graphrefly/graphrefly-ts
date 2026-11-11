@@ -14,24 +14,24 @@
  *     pushes ONE change payload (O(1)/mutation). Downstream watches events anytime. It is the
  *     structure's BACKBONE: the snapshot node declares it as its dep (D60 reactiveList topology).
  *
- *   - SNAPSHOT port (D60 #2b) — a pull-mode node ({@link CollectionCore.snapshot}, R-pull/D269) that
- *     is QUIET by default and, on a cone-routed PULL demand, LAZILY reads `backend.snapshot()`
- *     (one O(n) materialization) and pushes it once, then re-quiets. The O(n) build happens ONLY on
- *     demand — never eagerly per mutation (D60 #2b: lazy is P·O(n), not M·O(n)). It has NO value of
- *     its own — its fn reads the backend on demand, so the backend stays the single source of truth
- *     (D60 #3). Coalesce-on-no-change is free: the delta-dep's DIRTY/DATA arms the pull node via
- *     R-pull's quiet-absorb accounting; a demand with no intervening delta emits no duplicate DATA.
+ *   - SNAPSHOT port (D60 #2b) — a QUIET node ({@link CollectionCore.snapshot}, R-wave) over the
+ *     delta and a REQUEST state ({@link CollectionCore.request}). A write to the request LAZILY
+ *     reads `backend.snapshot()` (one O(n) materialization) and sends it as a new wave after the
+ *     current one. The O(n) build happens ONLY on request — never eagerly per mutation (D60 #2b:
+ *     lazy is P·O(n), not M·O(n)). It has NO value of its own — its fn reads the backend on
+ *     request, so the backend stays the single source of truth (D60 #3). A request with no
+ *     mutation since the last delivery sends nothing. Control is data on a declared edge
+ *     (R-no-imperative, graphrefly-ts:D172): there is no upward demand message.
  *
- * Demand path: a downstream consumer issues `ctx.upNext([["PULL", { pullId: core.pullId }]])`
- * (boundary-deferred self-demand, R-up-routing/D269) — it needs the snapshot node upstream in its
- * declared cone, NOT its reference. Cold-start (a demand before any mutation) emits no DATA; for an
- * initial/imperative read use the structure's synchronous quick-read (the deliberately-non-reactive
- * peek, D60) — the reactive pull serves the watch-delta-then-demand pattern.
+ * Request path: write any value to `core.request` (outside a wave, or from a function as a
+ * request that runs after the current wave). A request written before the snapshot's lifetime
+ * started is not served again at its activation. For an initial/imperative read use the
+ * structure's synchronous quick-read (the deliberately-non-reactive peek, D60).
  *
- * Per-language (D6/D24, never in parity, no conformance — the substrate pull is already C-16).
+ * Per-language (D6/D24, never in parity, no conformance).
  */
 
-import { type Ctx, depBatch } from "../../ctx/types.js";
+import { type Ctx, depBatch, depLiveBatch } from "../../ctx/types.js";
 import type { Dispatcher } from "../../dispatcher/index.js";
 import { Node, releaseRuntimeOfNode } from "../../node/node.js";
 import { errorPayload } from "../../protocol/messages.js";
@@ -60,10 +60,10 @@ export interface CollectionCoreOptions {
 export interface CollectionCore<S, C> {
 	/** DELTA backbone (D60 #2a): a bare source; every {@link CollectionCore.emit} pushes one change. */
 	readonly delta: Node<C>;
-	/** SNAPSHOT pull node (D60 #2b): demand via `ctx.upNext([["PULL", { pullId }]])`; lazy O(n) on demand. */
+	/** SNAPSHOT quiet node (D60 #2b): a write to {@link CollectionCore.request} materializes it once. */
 	readonly snapshot: Node<S>;
-	/** The snapshot node's pullId — the author writes it verbatim into the demander's fn (D269). */
-	readonly pullId: symbol;
+	/** REQUEST state the snapshot declares as a dependency; each live write asks for one snapshot. */
+	readonly request: Node<true>;
 	/** Push one delta event (the imperative path: a method mutates the backend, then calls this). */
 	emit(change: C): void;
 	/**
@@ -76,15 +76,15 @@ export interface CollectionCore<S, C> {
 
 /**
  * Public D121 collection-view surface. A view is a derived surface: `delta` is the pushed update
- * port, `snapshot` is a lazy pull node, and neither port is writable authority.
+ * port, `snapshot` is a lazy quiet node served through `request`, and neither port is writable authority.
  */
 export interface ReactiveView<C, S> {
 	/** Derived DELTA/update stream for the view. For light views this is recomputed from the parent backend. */
 	readonly delta: Node<C>;
-	/** Derived SNAPSHOT pull node: demand via `pullId` to materialize the current view. */
+	/** Derived SNAPSHOT quiet node: a write to `request` materializes the current view. */
 	readonly snapshot: Node<S>;
-	/** The snapshot node's pullId (R-pull/D269), minted per view instance. */
-	readonly pullId: symbol;
+	/** REQUEST state the view snapshot declares as a dependency, minted per view instance. */
+	readonly request: Node<true>;
 	/** Release memoized/light-view resources owned by the parent collection. */
 	dispose(): void;
 }
@@ -98,6 +98,7 @@ interface LightReactiveViewOptions<S> extends CollectionCoreOptions {
 interface CollectionRestoreSpec {
 	readonly deltaRef: string;
 	readonly snapshotRef: string;
+	readonly requestRef: string;
 	readonly config?: GraphCheckpointJson;
 	readonly backendState: () => unknown;
 }
@@ -192,8 +193,19 @@ export function lightReactiveView<C, S>(
 				partial: true,
 			});
 
-	const pullId = Symbol(name ? `${name}.snapshot` : `${factory}.snapshot`);
+	const request = group
+		? group.node<true>([], null, {
+				factory: `${factory}.request`,
+				name: name ? `${name}.request` : undefined,
+				meta: { kind: "collection_view_request", factory },
+			})
+		: new Node<true>([], null, {
+				...base,
+				factory: `${factory}.request`,
+				name: name ? `${name}.request` : undefined,
+			});
 	const snapshotBody = (ctx: Ctx): void => {
+		if (depLiveBatch(ctx, 1) === null) return;
 		try {
 			ctx.down([["DATA", materializeSnapshot()]]);
 		} catch (e) {
@@ -201,33 +213,34 @@ export function lightReactiveView<C, S>(
 		}
 	};
 	const snapshot = group
-		? group.node<S>([delta as Node<unknown>], snapshotBody, {
+		? group.node<S>([delta as Node<unknown>, request as Node<unknown>], snapshotBody, {
 				factory: `${factory}.snapshot`,
 				name: name ? `${name}.snapshot` : undefined,
 				meta: { kind: "collection_view_snapshot", factory },
 				partial: true,
-				pullId,
+				quiet: true,
 			})
-		: new Node<S>([delta as Node<unknown>], snapshotBody, {
+		: new Node<S>([delta as Node<unknown>, request as Node<unknown>], snapshotBody, {
 				...base,
 				factory: `${factory}.snapshot`,
 				name: name ? `${name}.snapshot` : undefined,
 				partial: true,
-				pullId,
+				quiet: true,
 			});
 
 	let disposed = false;
 	return {
 		delta,
 		snapshot,
-		pullId,
+		request,
 		dispose(): void {
 			if (disposed) return;
 			if (group) {
 				group.release({ reason: factory });
 			} else {
-				releaseRuntimeOfNode(delta as Node<unknown>);
 				releaseRuntimeOfNode(snapshot as Node<unknown>);
+				releaseRuntimeOfNode(request as Node<unknown>);
+				releaseRuntimeOfNode(delta as Node<unknown>);
 			}
 			disposed = true;
 			onDispose?.();
@@ -265,30 +278,42 @@ export function collectionCore<S, C>(
 				name: name ? `${name}.delta` : undefined,
 			});
 
-	// SNAPSHOT pull node: dep=[delta] (the backbone arms it via quiet-absorb so coalesce is free,
-	// D60). The fn IGNORES the delta value — it reads `backend.snapshot()` on demand (D60 #3). The
-	// pullId is a unique Symbol (R-pull/D269: matched by identity, zero collision with pause locks).
-	// `partial:true`: the fn does not need the delta's value, so it must not gate on "all deps
-	// settled" — it fires whenever armed (a mutation since the last delivery).
-	const pullId = Symbol(name ? `${name}.snapshot` : `${factory}.snapshot`);
+	// REQUEST state: a write asks the snapshot node for one materialization (graphrefly-ts:D172).
+	const request = graph
+		? graph.node<true>([], null, {
+				factory: `${factory}.request`,
+				name: name ? `${name}.request` : undefined,
+				meta: { kind: "collection_request", collection: factory },
+				...(restore ? { restore: { ref: restore.requestRef, config: restore.config } } : {}),
+			})
+		: new Node<true>([], null, {
+				...base,
+				factory: `${factory}.request`,
+				name: name ? `${name}.request` : undefined,
+			});
+
+	// SNAPSHOT quiet node: deps=[delta, request]. The fn IGNORES the delta value — it reads
+	// `backend.snapshot()` when a live request arrived (D60 #3), and only if the backend changed
+	// since the last delivery. `partial:true`: it must not gate on "all deps settled".
 	let deliveredVersion = backend.version;
 	const snapFn = (ctx: Ctx): void => {
-		if (ctx.pull !== undefined && backend.version === deliveredVersion) return;
+		if (depLiveBatch(ctx, 1) === null) return;
+		if (backend.version === deliveredVersion) return;
 		deliveredVersion = backend.version;
 		ctx.down([["DATA", backend.snapshot()]]);
 	};
 	const snapshot = graph
-		? graph.node<S>([delta as Node<unknown>], snapFn, {
-				pullId,
+		? graph.node<S>([delta as Node<unknown>, request as Node<unknown>], snapFn, {
+				quiet: true,
 				partial: true,
 				factory: `${factory}.snapshot`,
 				name: name ? `${name}.snapshot` : undefined,
 				meta: { kind: "collection_snapshot", collection: factory },
 				...(restore ? { restore: { ref: restore.snapshotRef, config: restore.config } } : {}),
 			})
-		: new Node<S>([delta as Node<unknown>], snapFn, {
+		: new Node<S>([delta as Node<unknown>, request as Node<unknown>], snapFn, {
 				...base,
-				pullId,
+				quiet: true,
 				partial: true,
 				factory: `${factory}.snapshot`,
 				name: name ? `${name}.snapshot` : undefined,
@@ -299,8 +324,7 @@ export function collectionCore<S, C>(
 	}
 
 	function emit(change: C): void {
-		// External tier-3 emit → the substrate synthesizes the leading DIRTY (R-dirty-before-data),
-		// which the quiet snapshot node absorbs (R-pull) and uses to arm its next demand delivery.
+		// External value emit → the kernel sends PENDING first; the quiet snapshot node absorbs it.
 		delta.down([["DATA", change]]);
 	}
 
@@ -330,5 +354,5 @@ export function collectionCore<S, C>(
 		return graph.retain(folder, { reason: `${factory}.bindSource` });
 	}
 
-	return { delta, snapshot, pullId, emit, bindSource };
+	return { delta, snapshot, request, emit, bindSource };
 }

@@ -282,7 +282,7 @@ describe("memoryRetrievalBundle graph pattern (D158)", () => {
 
 		fragments.set([fragment({ id: "ok" }), { id: "", tNs: 1, confidence: Number.NaN }]);
 
-		expect(errors.messages.map((message) => message[0])).toEqual(["DIRTY", "DATA"]);
+		expect(errors.messages.map((message) => message[0])).toEqual(["PENDING", "DATA"]);
 		const latestErrors = data<readonly MemoryRetrievalError[]>(errors.messages).at(-1);
 		expect(latestErrors?.[0]).toMatchObject({
 			code: "invalid-fragment",
@@ -325,7 +325,7 @@ describe("memoryRetrievalBundle graph pattern (D158)", () => {
 
 		query.set({ tags: "policy", vector: {} } as never);
 
-		expect(errors.messages.map((message) => message[0])).toEqual(["DIRTY", "DATA"]);
+		expect(errors.messages.map((message) => message[0])).toEqual(["PENDING", "DATA"]);
 		expect(
 			data<readonly MemoryRetrievalError[]>(errors.messages)
 				.at(-1)

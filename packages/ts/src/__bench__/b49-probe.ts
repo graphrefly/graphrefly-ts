@@ -116,7 +116,7 @@ function invalidateSetPlusInvalidateProbe(fanout = 256, waves = 2_000): string {
 	});
 	for (let i = 1; i <= waves; i++) {
 		src.set(i);
-		src.up([["INVALIDATE"]]);
+		src.down([["INVALIDATE"]]);
 	}
 	const delivered = sinks.reduce((sum, s) => sum + s.dataCount(), 0);
 	const sinkInvalidates = sinks.reduce((sum, s) => sum + s.invalidateCount(), 0);

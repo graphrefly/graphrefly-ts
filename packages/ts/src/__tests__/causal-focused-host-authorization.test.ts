@@ -8,52 +8,6 @@ import {
 } from "../../../../scripts/fixtures/spending-preset-harness.js";
 
 for (const mode of ["off", "summary"] as const) {
-	for (const change of ["stop", "revoke", "expire-grant", "remove-receipt"] as const) {
-		it(`${mode}: ${change} after admission prevents actual execution and returns exact no-submit`, async () => {
-			const run = runHost(mode);
-			const lock = Symbol("hold-execution");
-			try {
-				await drain();
-				run.host.guard.up([["PAUSE", lock]]);
-				const e = evaluationFixture();
-				const f = policyFacts(e);
-				run.drive([e]);
-				const admitted = [...run.state().effects.values()][0];
-				expect(admitted.admission?.state).toBe("admitted");
-				expect(run.calls).toHaveLength(0);
-				if (change === "remove-receipt") {
-					run.send("verification", { ...f.verification, receipts: [] });
-				} else {
-					run.send("local", {
-						...f.local,
-						stop: change === "stop",
-						grants: f.local.grants.map((g) => ({
-							...g,
-							revoked: change === "revoke",
-							validThrough: change === "expire-grant" ? 0 : g.validThrough,
-						})),
-					});
-				}
-				run.host.guard.up([["RESUME", lock]]);
-				await drain();
-				expect(run.calls).toHaveLength(0);
-				const retained = run.host.inspect();
-				expect(retained.records).toHaveLength(1);
-				expect(retained.writes).toBe(0);
-				expect(retained.fault).toBeUndefined();
-				const record = [...run.state().effects.values()][0];
-				expect(record.outcome).toMatchObject({
-					...admitted.proposal,
-					admissionRef: admitted.admission!.admissionRef,
-					state: "cancelled",
-					result: { kind: "error", error: { code: "spending-host/final-guard" } },
-				});
-				expect(retained.records[0].outcome).toEqual(record.outcome);
-			} finally {
-				run.teardown();
-			}
-		});
-	}
 	it(`${mode}: revocation after submission retains obligation until the exact completion`, async () => {
 		const run = runHost(mode);
 		try {

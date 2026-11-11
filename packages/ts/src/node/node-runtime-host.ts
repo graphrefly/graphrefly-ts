@@ -1,8 +1,7 @@
 import type { Ctx, CtxState, DeliveryMeta, NodeFn, Sink } from "../ctx/types.js";
-import type { LockId, Message, PullDemand, Wave } from "../protocol/messages.js";
+import type { Message, Wave } from "../protocol/messages.js";
 import type {
 	CleanupHooks,
-	ControlState,
 	DepBookkeeping,
 	LifecycleState,
 	NodeCore,
@@ -16,7 +15,7 @@ import type {
 } from "./core.js";
 import type { Node } from "./node.js";
 import type { SubscriptionAcquisition } from "./owned-acquisition.js";
-import type { RewireOp, UpRouteState } from "./types.js";
+import type { RewireOp } from "./types.js";
 
 export interface NodeRuntimeHost<T = unknown> {
 	_core: NodeCore;
@@ -25,7 +24,6 @@ export interface NodeRuntimeHost<T = unknown> {
 	_dep: DepBookkeeping;
 	_value: ValueState<T>;
 	_wave: WaveState;
-	_control: ControlState;
 	_lifecycle: LifecycleState;
 	_privateState: PrivateState;
 	_hooks: CleanupHooks;
@@ -35,9 +33,7 @@ export interface NodeRuntimeHost<T = unknown> {
 	_restoredActivationPending: boolean;
 	_released: boolean;
 	_assertNotReleased(op: string): void;
-	_isPullQuiet(): boolean;
 	_requestRewireNext(op: RewireOp): void;
-	_requestUpNext(msgs: Wave, towardDep?: number): void;
 	_applyRewireNext(op: RewireOp): void;
 	_dedupDeps(deps: Node<unknown>[]): Node<unknown>[];
 	_reachableUpstream(from: Node<unknown>, target: Node<unknown>): boolean;
@@ -74,21 +70,6 @@ export interface NodeRuntimeHost<T = unknown> {
 	_refreshCtx(ctx: Ctx): void;
 	_makeState(): CtxState;
 	_down(msgs: Wave): void;
-	_up(msgs: Wave, towardDep?: number, route?: UpRouteState): void;
-	_markDemandRouted(lockId: LockId, route: UpRouteState): boolean;
-	_forwardUp(m: Message, towardDep: number | undefined, route: UpRouteState): void;
-	_isPaused(): boolean;
-	_hasBoundaryPauseLock(): boolean;
-	_isAsyncPool(): boolean;
-	_pauseAcquire(lockId: unknown): void;
-	_pauseRelease(lockId: unknown): void;
-	_onResume(): void;
-	_canFireDemand(): boolean;
-	_deliverPullDemand(demand: PullDemand): void;
-	_onDemand(demand: PullDemand): void;
-	_firePullDemand(): void;
-	_fireOwedDemandIfReady(): void;
-	_shouldBufferOnPause(): boolean;
 	_invalidate(delivery?: DeliveryMeta): void;
 	_allDepsTerminal(): boolean;
 	_resetLifecycle(): void;

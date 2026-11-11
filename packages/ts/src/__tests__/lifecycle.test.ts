@@ -84,7 +84,7 @@ describe("terminal (R-terminal, R-deps-terminal)", () => {
 		s.down([["DATA", 2]]);
 
 		expect(old.msgs).toEqual([]);
-		expect(types(fresh.msgs)).toEqual(["DIRTY", "DATA"]);
+		expect(types(fresh.msgs)).toEqual(["PENDING", "DATA"]);
 		expect(fresh.msgs.at(-1)).toEqual(["DATA", 2]);
 	});
 
@@ -155,7 +155,7 @@ describe("same-wave merge (R-same-wave-merge)", () => {
 		const { msgs } = collect(s);
 		msgs.length = 0;
 		s.down([["DATA", 9], ["INVALIDATE"]]);
-		expect(types(msgs)).toEqual(["DIRTY", "DATA", "INVALIDATE"]);
+		expect(types(msgs)).toEqual(["PENDING", "DATA", "INVALIDATE"]);
 		expect(s.cache).toBeUndefined();
 	});
 
@@ -165,24 +165,6 @@ describe("same-wave merge (R-same-wave-merge)", () => {
 		msgs.length = 0;
 		s.down([["INVALIDATE"], ["INVALIDATE"]]);
 		expect(types(msgs)).toEqual(["INVALIDATE"]);
-	});
-});
-
-describe("TEARDOWN (R-teardown-complete)", () => {
-	it("non-terminal TEARDOWN synthesizes a COMPLETE prefix", () => {
-		const s = node<number>([], null, { initial: 1 });
-		const { msgs } = collect(s);
-		msgs.length = 0;
-		s.down([["TEARDOWN"]]);
-		expect(types(msgs)).toEqual(["COMPLETE", "TEARDOWN"]);
-	});
-
-	it("does not stack COMPLETE when the wave already has one", () => {
-		const s = node<number>([], null, { initial: 1 });
-		const { msgs } = collect(s);
-		msgs.length = 0;
-		s.down([["COMPLETE"], ["TEARDOWN"]]);
-		expect(types(msgs)).toEqual(["COMPLETE", "TEARDOWN"]);
 	});
 });
 
