@@ -262,7 +262,8 @@ export function audit<S>(durationSelector: (v: S) => NodeInput<unknown>): Operat
 		body,
 		opts: {
 			partial: true,
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 		},
 	};
 }
@@ -363,7 +364,8 @@ export function timeout<S>(source: Node<S>, ms: number): Node<S> {
 			body,
 			opts: {
 				partial: true,
-				terminal: { complete: "manual", error: "manual" },
+				complete: "manual",
+				error: "manual",
 			},
 		},
 		[source as Node<unknown>, initial],
@@ -420,7 +422,8 @@ export function bufferTime<S>(source: Node<S>, ms: number): Node<S[]> {
 			body,
 			opts: {
 				partial: true,
-				terminal: { complete: "manual", error: "manual" },
+				complete: "manual",
+				error: "manual",
 			},
 		},
 		[source as Node<unknown>, iv],

@@ -122,7 +122,8 @@ export function workQueue<T = unknown>(graph: Graph, opts: WorkQueueOptions<T>):
 		{
 			name: `${name}/commands`,
 			factory: "workQueueCommands",
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 		},
 	);
 	const state: RuntimeState<T> = {
@@ -139,7 +140,8 @@ export function workQueue<T = unknown>(graph: Graph, opts: WorkQueueOptions<T>):
 		name: `${name}/admissionKick`,
 		factory: "workQueueAdmissionKick",
 		initial: "poll",
-		terminal: { complete: "manual", error: "manual" },
+		complete: "manual",
+		error: "manual",
 	});
 	const admissionPages = graph.node<MessageBusAvailablePage<T>>(
 		[admission.available, admissionKick, opts.bus.messages, opts.bus.status],
@@ -167,7 +169,8 @@ export function workQueue<T = unknown>(graph: Graph, opts: WorkQueueOptions<T>):
 			name: `${name}/admissionPages`,
 			factory: "workQueueAdmissionPages",
 			partial: true,
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 		},
 	);
 	const runtime = graph.node<QueueEvent<T>>(
@@ -196,7 +199,8 @@ export function workQueue<T = unknown>(graph: Graph, opts: WorkQueueOptions<T>):
 			name: `${name}/runtime`,
 			factory: "workQueueRuntime",
 			partial: true,
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 		},
 	);
 	const records = graph.node<WorkQueueRecord<T>>(
@@ -210,7 +214,8 @@ export function workQueue<T = unknown>(graph: Graph, opts: WorkQueueOptions<T>):
 		{
 			name: `${name}/records`,
 			factory: "workQueueRecords",
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 		},
 	);
 	const status = graph.node<WorkQueueStatus>(
@@ -224,7 +229,8 @@ export function workQueue<T = unknown>(graph: Graph, opts: WorkQueueOptions<T>):
 		{
 			name: `${name}/status`,
 			factory: "workQueueStatus",
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 		},
 	);
 	const issues = graph.node<DataIssue>(
@@ -238,7 +244,8 @@ export function workQueue<T = unknown>(graph: Graph, opts: WorkQueueOptions<T>):
 		{
 			name: `${name}/issues`,
 			factory: "workQueueIssues",
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 		},
 	);
 	const admissionAckCommands = graph.node<MessageBusCommand>(
@@ -252,7 +259,8 @@ export function workQueue<T = unknown>(graph: Graph, opts: WorkQueueOptions<T>):
 		{
 			name: `${name}/admissionAckCommands`,
 			factory: "workQueueAdmissionAckCommands",
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 		},
 	);
 	attachMessageBusDeferredCommandSink(graph, opts.bus, admissionAckCommands);
@@ -357,7 +365,8 @@ export function workQueue<T = unknown>(graph: Graph, opts: WorkQueueOptions<T>):
 					factory: "workQueueAvailable",
 					quiet: true,
 					partial: true,
-					terminal: { complete: "manual", error: "manual" },
+					complete: "manual",
+					error: "manual",
 				},
 			);
 			return { available, availableRequest, status, issues };
@@ -380,7 +389,8 @@ export function workQueue<T = unknown>(graph: Graph, opts: WorkQueueOptions<T>):
 					factory: "workQueueWorkSnapshot",
 					quiet: true,
 					partial: true,
-					terminal: { complete: "manual", error: "manual" },
+					complete: "manual",
+					error: "manual",
 				},
 			);
 			return { snapshot, snapshotRequest, status, issues };
@@ -404,7 +414,8 @@ export function workQueue<T = unknown>(graph: Graph, opts: WorkQueueOptions<T>):
 					factory: "workQueueDeadLetter",
 					quiet: true,
 					partial: true,
-					terminal: { complete: "manual", error: "manual" },
+					complete: "manual",
+					error: "manual",
 				},
 			);
 			return { snapshot, snapshotRequest, status, issues };
@@ -421,7 +432,8 @@ function projectionRequest<P>(graph: Graph, projectionName: string, factory: str
 	return graph.node<P>([], null, {
 		name: `${projectionName}/request`,
 		factory,
-		terminal: { complete: "manual", error: "manual" },
+		complete: "manual",
+		error: "manual",
 	});
 }
 

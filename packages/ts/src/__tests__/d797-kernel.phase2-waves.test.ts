@@ -117,7 +117,7 @@ describe("C-23: ctx.waveData, ctx.terminal and the latest value are the function
 					latest: [depLatest(ctx, 0), depLatest(ctx, 1)],
 				});
 			},
-			{ partial: true, terminal: { complete: "manual", error: "manual" } },
+			{ partial: true, complete: "manual", error: "manual" },
 		);
 		n.subscribe(() => {});
 

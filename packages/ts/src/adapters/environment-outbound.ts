@@ -98,7 +98,7 @@ function outboundNodes<TValue, TResult>(
 			ctx.down([["DATA", next]]);
 			forwardError(ctx);
 		},
-		{ name: `${name}/status`, factory: "outboundStatus", terminal: { error: "manual" } },
+		{ name: `${name}/status`, factory: "outboundStatus", error: "manual" },
 	);
 	const attempts = graph.node<number>(
 		[events],
@@ -109,7 +109,7 @@ function outboundNodes<TValue, TResult>(
 			}
 			forwardError(ctx);
 		},
-		{ name: `${name}/attempts`, factory: "outboundAttempts", terminal: { error: "manual" } },
+		{ name: `${name}/attempts`, factory: "outboundAttempts", error: "manual" },
 	);
 	const errors = graph.node<unknown>(
 		[events],
@@ -120,7 +120,7 @@ function outboundNodes<TValue, TResult>(
 			}
 			forwardError(ctx);
 		},
-		{ name: `${name}/errors`, factory: "outboundErrors", terminal: { error: "manual" } },
+		{ name: `${name}/errors`, factory: "outboundErrors", error: "manual" },
 	);
 	return { events, status, attempts, errors };
 }

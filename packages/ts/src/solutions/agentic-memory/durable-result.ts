@@ -383,7 +383,8 @@ export function agenticMemoryDurabilityGateBundle<TJson extends StrictJsonValue 
 		{
 			name: `${name}/projection`,
 			factory: "agenticMemoryDurabilityGate",
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 		},
 	);
 	return {

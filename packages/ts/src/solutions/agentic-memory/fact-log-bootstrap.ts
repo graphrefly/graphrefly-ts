@@ -278,7 +278,8 @@ export function agenticMemoryMaterializedFactLogBootstrapBundle<
 		{
 			name: `${name}/projection`,
 			factory: "agenticMemoryMaterializedFactLogBootstrap",
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 		},
 	);
 	return {

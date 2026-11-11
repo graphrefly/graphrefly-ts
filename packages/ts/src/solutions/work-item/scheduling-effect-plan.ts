@@ -107,7 +107,8 @@ export function workItemEffectPlanProjector<TInput = unknown>(
 			name: `${name}/runtime`,
 			factory: "workItemEffectPlanProjector",
 			partial: true,
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 		},
 	);
 	return {

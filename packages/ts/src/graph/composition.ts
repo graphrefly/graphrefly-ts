@@ -273,7 +273,8 @@ function stratifyBranchOperator<T, R>(
 	return {
 		factory: "stratifyBranch",
 		opts: {
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 		},
 		body: (ctx: Ctx) => {
 			const sourceBatch = depBatch(ctx, 0);

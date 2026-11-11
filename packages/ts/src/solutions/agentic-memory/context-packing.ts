@@ -65,7 +65,8 @@ export function agenticMemoryContextPackingBundle<T = unknown>(
 		{
 			name: `${name}/projection`,
 			factory: "agenticMemoryContextPacking",
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 		},
 	);
 	return {

@@ -81,7 +81,7 @@ export const combineLatest = combine;
 export function withLatestFrom<A, B>(): Operator<unknown, readonly [A, B]> {
 	return {
 		factory: "withLatestFrom",
-		opts: { terminal: { complete: "manual" } },
+		opts: { complete: "manual" },
 		body: (ctx) => {
 			const b0 = depBatch(ctx, 0);
 			const sec = depLatest(ctx, 1) as B | undefined;
@@ -116,7 +116,7 @@ interface ZipState {
 export function zip<T extends readonly unknown[]>(): Operator<unknown, T> {
 	return {
 		factory: "zip",
-		opts: { partial: true, terminal: { complete: "manual" } },
+		opts: { partial: true, complete: "manual" },
 		body: (ctx) => {
 			const n = depCount(ctx);
 			if (n === 0) {
@@ -168,7 +168,7 @@ interface ConcatState<S> {
 export function concat<S>(): Operator<S, S> {
 	return {
 		factory: "concat",
-		opts: { partial: true, terminal: { complete: "manual" } },
+		opts: { partial: true, complete: "manual" },
 		body: (ctx) => {
 			const firstBatch = depBatch(ctx, 0);
 			const secondBatch = depBatch(ctx, 1);
@@ -220,7 +220,8 @@ export function race<S>(): Operator<S, S> {
 		factory: "race",
 		opts: {
 			partial: true,
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 		},
 		body: (ctx) => {
 			const n = depCount(ctx);
@@ -278,7 +279,7 @@ export function race<S>(): Operator<S, S> {
 export function buffer<S>(): Operator<unknown, S[]> {
 	return {
 		factory: "buffer",
-		opts: { partial: true, terminal: { complete: "manual" } },
+		opts: { partial: true, complete: "manual" },
 		body: (ctx) => {
 			const sourceBatch = depBatch(ctx, 0);
 			const notifierBatch = depBatch(ctx, 1);
@@ -317,7 +318,7 @@ export function bufferCount<S>(count: number): Operator<S, S[]> {
 	}
 	return {
 		factory: "bufferCount",
-		opts: { terminal: { complete: "manual" } },
+		opts: { complete: "manual" },
 		body: (ctx) => {
 			const b = depBatch(ctx, 0);
 			const buf = ctx.state.get<S[]>() ?? [];
@@ -362,7 +363,8 @@ export function sample<S>(): Operator<unknown, S> {
 		factory: "sample",
 		opts: {
 			partial: true,
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 		},
 		body: (ctx) => {
 			const sourceBatch = depBatch(ctx, 0);
@@ -415,7 +417,7 @@ export function sample<S>(): Operator<unknown, S> {
 export function takeUntil<S>(): Operator<unknown, S> {
 	return {
 		factory: "takeUntil",
-		opts: { partial: true, terminal: { complete: "manual" } },
+		opts: { partial: true, complete: "manual" },
 		body: (ctx: Ctx) => {
 			const sourceBatch = depBatch(ctx, 0);
 			const notifierBatch = depBatch(ctx, 1);

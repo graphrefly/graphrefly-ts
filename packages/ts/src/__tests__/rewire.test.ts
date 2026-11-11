@@ -161,7 +161,7 @@ describe("rewire — rejects (R-rewire / D42)", () => {
 	it("rejects rewire on a terminal node", () => {
 		const a = node<number>([], null, { initial: 1 });
 		const d = node<number>([a], (ctx) => ctx.down([["DATA", num(ctx, 0)]]), {
-			terminal: { complete: "manual" },
+			complete: "manual",
 		});
 		collect(d);
 		d.down([["COMPLETE"]]); // d terminal

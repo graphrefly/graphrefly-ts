@@ -95,7 +95,8 @@ export function orchestrationMessagingRecipe<
 			name: `${name}/runtime`,
 			factory: "orchestrationMessagingRuntime",
 			partial: true,
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 		},
 	);
 	const issues = project(
@@ -233,7 +234,8 @@ export function orchestrationMessageAckCommands(
 			name: opts.name ?? "orchestrationMessaging/ackCommands",
 			factory: "orchestrationMessagingAckCommands",
 			partial: true,
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 		},
 	);
 }
@@ -281,7 +283,8 @@ export function processEventOutboxCommands<TEvent>(
 		{
 			name: opts.name ?? "orchestrationMessaging/outboxCommands",
 			factory: "orchestrationMessagingOutboxCommands",
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 		},
 	);
 }
@@ -301,7 +304,7 @@ function project<T, TCommand>(
 				if (value !== undefined) ctx.down([["DATA", value]]);
 			}
 		},
-		{ name, factory, partial: true, terminal: { complete: "manual", error: "manual" } },
+		{ name, factory, partial: true, complete: "manual", error: "manual" },
 	);
 }
 

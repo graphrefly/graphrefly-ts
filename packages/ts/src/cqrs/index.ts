@@ -227,7 +227,8 @@ export function cqrs<TCommand = unknown, TEvent = unknown>(
 	const command = graph.node<CqrsCommand<TCommand>>([], null, {
 		name: `${name}/command`,
 		factory: "cqrsCommand",
-		terminal: { complete: "manual", error: "manual" },
+		complete: "manual",
+		error: "manual",
 	});
 	const runtime = graph.node<CqrsRuntimeFact<TEvent>>(
 		[command],
@@ -258,7 +259,8 @@ export function cqrs<TCommand = unknown, TEvent = unknown>(
 				eventTypes: knownEvents ? [...knownEvents] : "open",
 				dedupe: dedupeMeta(dedupe),
 			},
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 		},
 	);
 	const events = runtimeProjection<CqrsEvent<TEvent>, TEvent>(
@@ -430,7 +432,8 @@ export function cqrsProjection<TState, TEvent = unknown>(
 			name,
 			factory: "cqrsProjection",
 			meta: { eventTypes: eventFilter ? [...eventFilter] : "open" },
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 		},
 	);
 	const value = graph.node<TState>(
@@ -444,7 +447,8 @@ export function cqrsProjection<TState, TEvent = unknown>(
 		{
 			name: `${name}/value`,
 			factory: "cqrsProjectionValue",
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 		},
 	);
 	const errors = graph.node<CqrsProjectionError>(
@@ -458,7 +462,8 @@ export function cqrsProjection<TState, TEvent = unknown>(
 		{
 			name: `${name}/errors`,
 			factory: "cqrsProjectionErrors",
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 		},
 	);
 	const status = graph.node<CqrsProjectionStatus>(
@@ -495,7 +500,8 @@ export function cqrsProjection<TState, TEvent = unknown>(
 		{
 			name: `${name}/status`,
 			factory: "cqrsProjectionStatus",
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 		},
 	);
 	graph.retain(frames, { reason: `${name}.cqrsProjection.frames` });
@@ -807,7 +813,8 @@ function runtimeProjection<TOut, TEvent>(
 		{
 			name,
 			factory,
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 		},
 	);
 }

@@ -354,7 +354,8 @@ export function localUntrustedJsComputeRuntime(
 		group.node<T>([], null, {
 			name: `${name}/${suffix}`,
 			factory,
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 		});
 	const admittedRunRequests = outputNode<ToolProviderAdapterRunRequested>(
 		"admittedRunRequests",

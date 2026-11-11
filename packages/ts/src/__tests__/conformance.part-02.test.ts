@@ -65,7 +65,7 @@ describe("C-17 — absorbed-error dep counts as terminal for auto-COMPLETE (B42 
 		const g = graph();
 		const b = g.node<number>([], null); // manual source
 		const c = g.node<number>([], null);
-		const d = g.node([b, c], fwd, { terminal: { error: "manual" } }); // absorbs C's error, stays live
+		const d = g.node([b, c], fwd, { error: "manual" }); // absorbs C's error, stays live
 		collect(d);
 		c.down([["ERROR", new Error("boom")]]); // absorbed; B still live → not yet all-terminal
 		expect(d.status.output).not.toBe("completed");
@@ -78,7 +78,7 @@ describe("C-17 — absorbed-error dep counts as terminal for auto-COMPLETE (B42 
 		const g = graph();
 		const b = g.node<number>([], null);
 		const c = g.node<number>([], null);
-		const d = g.node([b, c], fwd, { terminal: { error: "manual" } });
+		const d = g.node([b, c], fwd, { error: "manual" });
 		collect(d);
 		b.down([["DATA", 1], ["COMPLETE"]]); // B terminal; C still live → not yet all-terminal
 		expect(d.status.output).not.toBe("completed");
@@ -155,7 +155,7 @@ describe("C-22 — batch commit precedes rewire requested during the open batch 
 		const a = node<number>([], null, { initial: 1 });
 		const b = node<number>([], null, { initial: 10 });
 		const fwd: NodeFn = (ctx) => ctx.down([["DATA", depLatest(ctx, 0) as number]]);
-		const d = node<number>([a], fwd, { terminal: { complete: "manual" } });
+		const d = node<number>([a], fwd, { complete: "manual" });
 		const { msgs } = collect(d);
 		msgs.length = 0;
 

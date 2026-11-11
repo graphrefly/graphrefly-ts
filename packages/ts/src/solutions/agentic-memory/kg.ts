@@ -92,7 +92,8 @@ export function agenticMemoryKgProjectionBundle(
 		{
 			name: `${name}/projection`,
 			factory: "agenticMemoryKgProjection",
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 		},
 	);
 	return {

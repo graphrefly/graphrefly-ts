@@ -164,7 +164,8 @@ export function workerDerived<TInput, TResult>(
 		name: opts.name ?? "workerDerived",
 		factory: "workerDerived",
 		pool: "async",
-		terminal: { complete: "manual", error: "manual" },
+		complete: "manual",
+		error: "manual",
 		// R-lifetime: closing the lifetime cancels the run still in flight.
 		setup: () => () => {
 			cancelActive?.();

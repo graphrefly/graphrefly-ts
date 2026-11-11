@@ -189,7 +189,7 @@ describe("C-8 intra-graph runtime rewire (R-rewire / D42)", () => {
 	it("rejects rewire on a terminal node (throw → graph-layer ERROR, D30)", () => {
 		const a = node<number>([], null, { initial: 1 });
 		const id = (ctx: Ctx) => ctx.down([["DATA", depLatest(ctx, 0) as number]]);
-		const d = node<number>([a], id, { terminal: { complete: "manual" } });
+		const d = node<number>([a], id, { complete: "manual" });
 		collect(d);
 		d.down([["COMPLETE"]]); // D terminal
 		expect(() => d.replaceDeps([a], id)).toThrow(/terminal/);
@@ -251,7 +251,7 @@ describe("C-11 higher-order inner rewire at the wave boundary (R-rewire-deferred
 			}
 		};
 		return node<number>([s], opFn, {
-			terminal: { complete: "manual" },
+			complete: "manual",
 		});
 	}
 
@@ -276,7 +276,7 @@ describe("C-11 higher-order inner rewire at the wave boundary (R-rewire-deferred
 			}
 		};
 		const op = node<number>([s], opFn, {
-			terminal: { complete: "manual" },
+			complete: "manual",
 		});
 		const { msgs } = collect(op);
 
@@ -323,7 +323,7 @@ describe("C-11 higher-order inner rewire at the wave boundary (R-rewire-deferred
 			}
 		};
 		const op = node<number>([s], opFn, {
-			terminal: { complete: "manual" },
+			complete: "manual",
 		});
 		const { msgs } = collect(op);
 
@@ -373,7 +373,7 @@ describe("C-11 higher-order inner rewire at the wave boundary (R-rewire-deferred
 			}
 		};
 		const op = node<number>([s], opFn, {
-			terminal: { complete: "manual" },
+			complete: "manual",
 		});
 		const { msgs } = collect(op);
 		s.down([["DATA", 1]]);
@@ -401,7 +401,7 @@ describe("C-11 higher-order inner rewire at the wave boundary (R-rewire-deferred
 			}
 		};
 		const op = node<number>([s], opFn, {
-			terminal: { complete: "manual" },
+			complete: "manual",
 		});
 		collect(op);
 		s.down([["DATA", 1]]);

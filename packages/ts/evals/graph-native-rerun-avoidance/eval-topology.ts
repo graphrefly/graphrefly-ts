@@ -4156,7 +4156,7 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		{
 			name: "eval/provider/result-batches",
 			factory: "rootEvalProviderOutcomeBatches",
-			terminal: { complete: "manual" },
+			complete: "manual",
 			meta: { canonicalArmOrder: HARNESS_ARMS, retryCardinalityAuthority: true },
 		},
 	);
@@ -4230,7 +4230,8 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			name: "eval/effect/terminal-outcomes",
 			factory: "rootEvalTerminalOutcomes",
 			quiet: true,
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 		},
 	);
 
@@ -4287,7 +4288,8 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			name: "eval/source-work-item/terminal-outcomes",
 			factory: "rootEvalSourceTerminalOutcomes",
 			quiet: true,
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 		},
 	);
 
@@ -4315,7 +4317,8 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		{
 			name: "eval/provider/reconciliation",
 			factory: "rootEvalProviderReconciliation",
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 			meta: { correlation: "admissionId+effectRunId+dispatchOrdinal" },
 		},
 	);
@@ -4337,7 +4340,8 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		{
 			name: "eval/source-work-item/reconciliation",
 			factory: "rootEvalSourceWorkItemReconciliation",
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 			meta: { correlation: "admissionId+effectRunId+dispatchOrdinal", workItemRole: "source" },
 		},
 	);
@@ -4498,7 +4502,8 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		{
 			name: "eval/source-work-item/outcome-evidence-verification/candidate",
 			factory: "rootEvalSourceWorkItemVerificationCandidate",
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 			meta: {
 				failClosed: true,
 				materialFree: true,
@@ -4633,7 +4638,8 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		{
 			name: "eval/verification/diff",
 			factory: "rootEvalDiffVerification",
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 		},
 	);
 	const publicSemantic = owner.node<EvalPublicSemanticFact>(
@@ -4658,7 +4664,8 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		{
 			name: "eval/verification/public-semantic",
 			factory: "rootEvalPublicSemanticVerification",
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 		},
 	);
 	const hiddenVerifier = owner.node<EvalHiddenVerifierFact>(
@@ -4685,7 +4692,8 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		{
 			name: "eval/verification/hidden-verifier",
 			factory: "rootEvalHiddenVerifier",
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 		},
 	);
 	const cleanup = owner.node<EvalCleanupFact>(
@@ -4720,7 +4728,8 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		{
 			name: "eval/cleanup/completed",
 			factory: "rootEvalCleanup",
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 		},
 	);
 
@@ -4756,7 +4765,8 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		{
 			name: "eval/verification/diagnostics",
 			factory: "rootEvalVerificationDiagnostics",
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 			meta: {
 				domainAuthority: "graph-state",
 				materialFree: true,
@@ -4957,7 +4967,8 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		{
 			name: "eval/campaign/replicate-controller",
 			factory: "rootEvalReplicateController",
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 			meta: {
 				replicates: replicateCount,
 				armsPerReplicate: HARNESS_ARMS.length,
@@ -4995,7 +5006,8 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			name: "eval/campaign/replicate-batches",
 			factory: "rootEvalReplicateBatches",
 			quiet: true,
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 			meta: { role: "quiet-campaign-batch-boundary" },
 		},
 	);
@@ -5037,7 +5049,8 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		{
 			name: "eval/campaign/state",
 			factory: "rootEvalCampaignState",
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 			meta: {
 				materialFree: true,
 				authority: "campaign-start-and-replicate-controller",
@@ -5058,7 +5071,8 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		{
 			name: "eval/work-item/objective-data",
 			factory: "rootEvalWorkItemData",
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 			meta: { solutionIdentity: "work-item", cardinality: "one-work-item-per-arm" },
 		},
 	);
@@ -5198,7 +5212,8 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		{
 			name: "eval/memory/six-arm-source-readiness-decision",
 			factory: "rootEvalMemoryBatchSourceReadinessDecision",
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 			meta: {
 				role: "source-readiness-admission-authority",
 				correlation: "replicate/relevant-source/irrelevant-source",
@@ -5242,7 +5257,8 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		{
 			name: "eval/memory/correlated-six-arm-data",
 			factory: "rootEvalCorrelatedMemoryBatch",
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 			meta: {
 				lifecycleCardinality: "one-fixed-lifecycle",
 				dataCardinality: "six-arms",
@@ -5320,7 +5336,8 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		{
 			name: "eval/memory/source-record-data",
 			factory: "rootEvalMemorySourceRecordData",
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 			meta: {
 				lifecycleCardinality: "one",
 				recordSources: ["relevant", "irrelevant"],
@@ -5357,7 +5374,8 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		{
 			name: "eval/memory/bridge-occurrence-input",
 			factory: "rootEvalMemoryBridgeOccurrenceInput",
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 		},
 	);
 	const memoryBridgeSolution = agenticWorkItemMemoryBridgeBundle<
@@ -5853,7 +5871,8 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			name: "eval/work-item/admitted-plan-authority",
 			factory: "rootEvalWorkItemAdmittedPlanAuthority",
 			meta: { authority: "work-item-solution-admitted-plan-snapshot" },
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 		},
 	);
 	const firstProposalEvents = owner.initNode(
@@ -5949,7 +5968,8 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			name: "eval/provider/proposal-candidate",
 			factory: "rootEvalProviderProposalCandidate",
 			meta: { timeoutAuthority: "reads-work-item-plan-data", role: "admitted-plan-candidate" },
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 		},
 	);
 	const firstAttemptProposals = owner.node<EvalEffectProposal>(
@@ -6110,7 +6130,8 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		{
 			name: "eval/provider/proposals",
 			factory: "rootEvalProviderProposals",
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 		},
 	);
 
@@ -6189,7 +6210,8 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			name: "eval/provider/pacing-clock",
 			factory: "rootEvalProviderPacingClock",
 			pool: "async",
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 			meta: {
 				materialFree: true,
 				authority: "external-clock-evidence-only",
@@ -6308,7 +6330,8 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		{
 			name: "eval/provider/paced-proposal-release",
 			factory: "rootEvalProviderPacedProposalRelease",
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 			meta: {
 				materialFree: true,
 				domainAuthority: "root-graph",
@@ -6531,7 +6554,8 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			name: "eval/time/progress-admission-lease",
 			factory: "rootEvalOccurrenceAwareAdmissionProgressLease",
 			pool: "async",
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 			meta: {
 				materialFree: true,
 				authority: "graph-occurrence-revision-and-finite-boundary-lease",
@@ -7001,7 +7025,8 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		{
 			name: "eval/provider/graph-admission-and-budget",
 			factory: "rootEvalProviderGraphAdmission",
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 			meta: {
 				capacityPolicy: "paced-serial",
 				atomicAdmissionObservationCut: true,
@@ -7223,7 +7248,8 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		{
 			name: "eval/tool/exact-admission",
 			factory: "rootEvalExactToolAdmission",
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 			meta: {
 				toolRef: "graphrefly.eval.exact-candidate-tool.v2",
 				arguments: "occurrence-bound-candidate-ref-and-catalog-digest",
@@ -7589,7 +7615,8 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		{
 			name: "eval/billing/observation-proposal-and-stopping",
 			factory: "rootEvalBillingObservationProposalAndStopping",
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 			meta: { maxObservations: 8, stableIntervals: 3, retryAuthority: "root-graph" },
 		},
 	);
@@ -7794,7 +7821,8 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 			{
 				name,
 				factory,
-				terminal: { complete: "manual", error: "manual" },
+				complete: "manual",
+				error: "manual",
 				meta: { domainAuthority: "graph-state", effectClass },
 			},
 		);
@@ -8026,7 +8054,8 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		{
 			name: "eval/observation/effect-activity",
 			factory: "rootEvalEffectActivityTimeline",
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 			meta: {
 				materialFree: true,
 				authority: "stable-cut-of-existing-lifecycle-and-budget-authorities",
@@ -8236,7 +8265,8 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		{
 			name: "eval/findings/efficacy-state",
 			factory: "rootEvalEfficacyState",
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 			meta: {
 				semanticAuthority: "verification-diagnostics-stage-counts",
 				billingAuditAffectsConclusion: false,
@@ -8456,7 +8486,8 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		{
 			name: "eval/development/qualification",
 			factory: "rootEvalDevelopmentQualification",
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 			meta: {
 				materialFree: true,
 				authority: "d152-mechanism-two-consecutive-development-generations-under-d145-threshold",
@@ -8576,7 +8607,8 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		{
 			name: "eval/time/progress-lease",
 			factory: "rootEvalOccurrenceAwareProgressProjection",
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 			meta: {
 				materialFree: true,
 				authority: "graph-occurrence-progress-terminal-projection",
@@ -9050,7 +9082,7 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		{
 			name: "eval/observation/canonical-state",
 			factory: "rootEvalCanonicalObservation",
-			terminal: { complete: "manual" },
+			complete: "manual",
 			meta: {
 				materialFree: true,
 				authority: "read-only-exact-coherent-cut",
@@ -9081,7 +9113,7 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 		{
 			name: "eval/observation",
 			factory: "rootEvalGraphNativeObservation",
-			terminal: { complete: "manual" },
+			complete: "manual",
 			meta: {
 				materialFree: true,
 				sanitizer: false,

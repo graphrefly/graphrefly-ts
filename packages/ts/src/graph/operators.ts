@@ -470,7 +470,7 @@ export function merge<T>(): Operator<T, T> {
 export function reduce<S, T>(reducer: (acc: T, v: S) => T, seed: T): Operator<S, T> {
 	return {
 		factory: "reduce",
-		opts: { terminal: { complete: "manual" } },
+		opts: { complete: "manual" },
 		body: (ctx) => {
 			const b = depBatch(ctx, 0);
 			let acc = ctx.state.get<T>() ?? seed;
@@ -614,7 +614,7 @@ export function first<S>(pred?: (v: S) => boolean): Operator<S, S> {
 export function last<S>(pred?: (v: S) => boolean): Operator<S, S> {
 	return {
 		factory: "last",
-		opts: { terminal: { complete: "manual" } },
+		opts: { complete: "manual" },
 		body: (ctx) => {
 			const b = depBatch(ctx, 0);
 			if (b) for (const v of b) if (!pred || pred(v as S)) ctx.state.set({ v });
@@ -641,7 +641,7 @@ export function last<S>(pred?: (v: S) => boolean): Operator<S, S> {
 export function find<S>(pred: (v: S) => boolean): Operator<S, S> {
 	return {
 		factory: "find",
-		opts: { terminal: { complete: "manual" } },
+		opts: { complete: "manual" },
 		body: (ctx) => {
 			const b = depBatch(ctx, 0);
 			if (b) {
@@ -672,7 +672,7 @@ export function find<S>(pred: (v: S) => boolean): Operator<S, S> {
 export function elementAt<S>(index: number): Operator<S, S> {
 	return {
 		factory: "elementAt",
-		opts: { terminal: { complete: "manual" } },
+		opts: { complete: "manual" },
 		body: (ctx) => {
 			const b = depBatch(ctx, 0);
 			let count = ctx.state.get<number>() ?? 0;
@@ -731,7 +731,8 @@ export function tap<S>(fnOrObserver: ((v: S) => void) | TapObserver<S>): Operato
 	return {
 		factory: "tap",
 		opts: {
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 		},
 		body: (ctx) => {
 			// Values that arrived with the terminal in the same array come first (R-wave order).
@@ -900,7 +901,8 @@ export function rescue<S>(recover: (err: unknown) => S): Operator<S, S> {
 	return {
 		factory: "rescue",
 		opts: {
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 		},
 		body: (ctx) => {
 			const b = depBatch(ctx, 0);
@@ -953,7 +955,7 @@ export function valve<S>(opts?: ValveOpts): Operator<S, S> {
 	const abortInFlight = opts?.abortInFlight;
 	return {
 		factory: "valve",
-		opts: { partial: true, terminal: { complete: "manual" } },
+		opts: { partial: true, complete: "manual" },
 		body: (ctx) => {
 			const srcBatch = depBatch(ctx, 0);
 			const ctlBatch = depBatch(ctx, 1);

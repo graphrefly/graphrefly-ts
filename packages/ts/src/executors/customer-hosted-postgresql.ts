@@ -733,7 +733,8 @@ export function customerHostedPostgresqlRuntime(
 		group.node<T>([], null, {
 			name: `${name}/${suffix}`,
 			factory,
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 		});
 	const lifecycleNode = node<CustomerHostedPostgresqlLifecycleFact>(
 			"lifecycle",

@@ -95,7 +95,7 @@ describe("C-33: a closed lifetime revokes old ctx, and cleanup failures stay iso
 			},
 			{
 				name: "n",
-				terminal: { complete: "manual" },
+				complete: "manual",
 				setup: (ctx) => {
 					signal = ctx.signal;
 					return () => {

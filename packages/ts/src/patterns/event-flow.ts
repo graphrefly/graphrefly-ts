@@ -183,7 +183,8 @@ export function eventFlow<T = unknown>(
 			factory: "eventFlowRuntime",
 			meta: { flowId, sources: sources.map((source) => source.source) },
 			partial: true,
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 		},
 	);
 	return {
@@ -292,7 +293,8 @@ export function eventFlowProjection<TState, TPayload = unknown>(
 			name: `${name}/runtime`,
 			factory: "eventFlowProjectionRuntime",
 			meta: { projectionId },
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 		},
 	);
 	return {
@@ -485,7 +487,7 @@ function runtimeProjection<TOut, T>(
 				if (typed.kind === kind) ctx.down([["DATA", valueOfRuntimeFact(typed) as TOut]]);
 			}
 		},
-		{ name, factory, terminal: { complete: "manual", error: "manual" } },
+		{ name, factory, complete: "manual", error: "manual" },
 	);
 }
 
@@ -505,7 +507,7 @@ function projectionRuntime<TOut, TFact extends { readonly kind: string }>(
 				if (typed.kind === kind) ctx.down([["DATA", map(typed as never)]]);
 			}
 		},
-		{ name, factory, terminal: { complete: "manual", error: "manual" } },
+		{ name, factory, complete: "manual", error: "manual" },
 	);
 }
 

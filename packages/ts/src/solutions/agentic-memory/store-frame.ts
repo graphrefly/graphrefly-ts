@@ -389,7 +389,8 @@ export function agenticMemoryRecordStoreFrameBundle<
 		{
 			name: `${name}/projection`,
 			factory: "agenticMemoryRecordStoreFrame",
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 		},
 	);
 	return {
@@ -457,7 +458,8 @@ export function agenticMemoryApplicationEvidenceStoreFrameBundle(
 		{
 			name: `${name}/projection`,
 			factory: "agenticMemoryApplicationEvidenceStoreFrame",
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 		},
 	);
 	return {

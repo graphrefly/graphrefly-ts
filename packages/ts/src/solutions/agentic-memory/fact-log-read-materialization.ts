@@ -261,7 +261,8 @@ export function agenticMemoryCommittedFactReadMaterializationBundle<
 		{
 			name: `${name}/projection`,
 			factory: "agenticMemoryCommittedFactReadMaterialization",
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 		},
 	);
 	return {

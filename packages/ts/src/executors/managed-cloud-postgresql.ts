@@ -1202,42 +1202,50 @@ export function managedCloudPostgresqlRuntime(
 	const admittedEnvelopes = group.node<ManagedCloudPostgresqlAdmittedEnvelope>([], null, {
 		name: `${name}/admittedEnvelopes`,
 		factory: "managedCloudPostgresqlAdmittedEnvelopes",
-		terminal: { complete: "manual", error: "manual" },
+		complete: "manual",
+		error: "manual",
 	});
 	const lifecycle = group.node<ManagedCloudPostgresqlLifecycleFact>([], null, {
 		name: `${name}/lifecycle`,
 		factory: "managedCloudPostgresqlLifecycle",
-		terminal: { complete: "manual", error: "manual" },
+		complete: "manual",
+		error: "manual",
 	});
 	const credentialLifecycle = group.node<ManagedCloudPostgresqlCredentialLifecycleFact>([], null, {
 		name: `${name}/credentialLifecycle`,
 		factory: "managedCloudPostgresqlCredentialLifecycle",
-		terminal: { complete: "manual", error: "manual" },
+		complete: "manual",
+		error: "manual",
 	});
 	const runStatus = group.node<ToolProviderAdapterRunStatus>([], null, {
 		name: `${name}/runStatus`,
 		factory: "managedCloudPostgresqlRunStatus",
-		terminal: { complete: "manual", error: "manual" },
+		complete: "manual",
+		error: "manual",
 	});
 	const outcomes = group.node<ExecutorOutcome>([], null, {
 		name: `${name}/outcomes`,
 		factory: "managedCloudPostgresqlOutcomes",
-		terminal: { complete: "manual", error: "manual" },
+		complete: "manual",
+		error: "manual",
 	});
 	const cancellations = group.node<ManagedCloudPostgresqlCancellationPosture>([], null, {
 		name: `${name}/cancellations`,
 		factory: "managedCloudPostgresqlCancellations",
-		terminal: { complete: "manual", error: "manual" },
+		complete: "manual",
+		error: "manual",
 	});
 	const issues = group.node<DataIssue>([], null, {
 		name: `${name}/issues`,
 		factory: "managedCloudPostgresqlIssues",
-		terminal: { complete: "manual", error: "manual" },
+		complete: "manual",
+		error: "manual",
 	});
 	const audit = group.node<AgentRuntimeAuditRecord>([], null, {
 		name: `${name}/audit`,
 		factory: "managedCloudPostgresqlAudit",
-		terminal: { complete: "manual", error: "manual" },
+		complete: "manual",
+		error: "manual",
 	});
 	let manifest: ManagedCloudPostgresqlManifest | undefined;
 	let posture: ManagedCloudPostgresqlReadiness | undefined;

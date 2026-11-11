@@ -352,7 +352,8 @@ export function agenticMemoryRecordMaterializerBundle<T = unknown>(
 		{
 			name: `${name}/projection`,
 			factory: "agenticMemoryRecordMaterializer",
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 		},
 	);
 	return {

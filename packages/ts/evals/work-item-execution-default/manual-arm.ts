@@ -172,7 +172,8 @@ export const composeD687ManualArm: D687ArmComposer = (graph, sources): D687ArmBu
 			name: "d687/manual/requestFacts",
 			factory: "workItemExecutionRequestFacts",
 			partial: true,
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 		},
 	);
 	const requests = graph.node<AgentRequestIssued<D687Input>>(

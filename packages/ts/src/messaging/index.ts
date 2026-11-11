@@ -131,7 +131,8 @@ export function messageBus<TTopic extends string>(
 	const commands = graph.node<MessageBusCommand>([], commandBody, {
 		name: `${name}/commands`,
 		factory: "messageBusCommands",
-		terminal: { complete: "manual", error: "manual" },
+		complete: "manual",
+		error: "manual",
 	});
 	const state: MessageBusState = {
 		graph,
@@ -160,7 +161,8 @@ export function messageBus<TTopic extends string>(
 		{
 			name: `${name}/runtime`,
 			factory: "messageBusRuntime",
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 		},
 	);
 	graph.retain(runtime, { reason: `${name}.messageBus.runtime` });
@@ -175,7 +177,8 @@ export function messageBus<TTopic extends string>(
 		{
 			name: `${name}/messages`,
 			factory: "messageBusMessages",
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 		},
 	);
 	const status = graph.node<MessageBusStatus>(
@@ -189,7 +192,8 @@ export function messageBus<TTopic extends string>(
 		{
 			name: `${name}/status`,
 			factory: "messageBusStatus",
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 		},
 	);
 	const issues = graph.node<DataIssue>(
@@ -203,7 +207,8 @@ export function messageBus<TTopic extends string>(
 		{
 			name: `${name}/issues`,
 			factory: "messageBusIssues",
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 		},
 	);
 
@@ -263,7 +268,8 @@ export function messageBus<TTopic extends string>(
 					meta: { topic },
 					quiet: true,
 					partial: true,
-					terminal: { complete: "manual", error: "manual" },
+					complete: "manual",
+					error: "manual",
 				},
 			);
 			return { snapshot, snapshotRequest, status, issues };
@@ -287,7 +293,8 @@ export function messageBus<TTopic extends string>(
 					factory: "messageBusCatalog",
 					quiet: true,
 					partial: true,
-					terminal: { complete: "manual", error: "manual" },
+					complete: "manual",
+					error: "manual",
 				},
 			);
 			return { snapshot, snapshotRequest, status, issues };
@@ -311,7 +318,8 @@ export function messageBus<TTopic extends string>(
 					factory: "messageBusDeadLetter",
 					quiet: true,
 					partial: true,
-					terminal: { complete: "manual", error: "manual" },
+					complete: "manual",
+					error: "manual",
 				},
 			);
 			return { snapshot, snapshotRequest, status, issues };
@@ -350,7 +358,8 @@ export function messageBus<TTopic extends string>(
 					meta: { topic: subscriptionOpts.topic, subscriptionId: subscriptionOpts.subscriptionId },
 					quiet: true,
 					partial: true,
-					terminal: { complete: "manual", error: "manual" },
+					complete: "manual",
+					error: "manual",
 				},
 			);
 			const cursor = graph.node<MessageBusCursor>(
@@ -373,7 +382,8 @@ export function messageBus<TTopic extends string>(
 				{
 					name: `${projectionName}/cursor`,
 					factory: "messageBusSubscriptionCursor",
-					terminal: { complete: "manual", error: "manual" },
+					complete: "manual",
+					error: "manual",
 				},
 			);
 			return {
@@ -465,7 +475,8 @@ export function toTopic<T, TTopic extends string>(
 			name: opts.name ?? `${state.name}/${topic}/toTopic`,
 			factory: "toTopic",
 			meta: { topic },
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 		},
 	);
 	const releaseSource = attachMessageBusCommandSource(
@@ -489,7 +500,8 @@ function projectionRequest<P>(graph: Graph, projectionName: string, factory: str
 	return graph.node<P>([], null, {
 		name: `${projectionName}/request`,
 		factory,
-		terminal: { complete: "manual", error: "manual" },
+		complete: "manual",
+		error: "manual",
 	});
 }
 

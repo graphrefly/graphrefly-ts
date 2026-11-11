@@ -156,7 +156,8 @@ export function wireEdgeGroup(
 			name: `${name}/events`,
 			factory: "wireEdgeGroupEvents",
 			partial: true,
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 		},
 	);
 	const releaseCohorts = topology.node<ReleaseCohort>([], null, {
@@ -171,7 +172,8 @@ export function wireEdgeGroup(
 			name: `${name}/gate`,
 			factory: "wireEdgeGroupGate",
 			partial: true,
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 		},
 	);
 	const commands = topology.node<Command>(
@@ -186,7 +188,8 @@ export function wireEdgeGroup(
 			name: `${name}/commands`,
 			factory: "wireEdgeGroupCommands",
 			partial: true,
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 		},
 	);
 	const issues = topology.node<WireEdgeGroupIssue>(
@@ -205,14 +208,16 @@ export function wireEdgeGroup(
 			name: `${name}/issues`,
 			factory: "wireEdgeGroupIssues",
 			partial: true,
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 		},
 	);
 	const status = topology.node<WireEdgeGroupStatus>([events, gate], statusFn(expected), {
 		name: `${name}/status`,
 		factory: "wireEdgeGroupStatus",
 		partial: true,
-		terminal: { complete: "manual", error: "manual" },
+		complete: "manual",
+		error: "manual",
 	});
 	const inbound = new Map(
 		edges.map(
@@ -235,7 +240,8 @@ export function wireEdgeGroup(
 							name: `${name}/inbound/${edge.edgeId}`,
 							factory: "wireEdgeGroupInboundEdge",
 							partial: true,
-							terminal: { complete: "manual", error: "manual" },
+							complete: "manual",
+							error: "manual",
 							meta: { edgeId: edge.edgeId },
 						},
 					),
@@ -247,7 +253,8 @@ export function wireEdgeGroup(
 		name: inboundProjectorDrainName,
 		factory: "wireEdgeGroupInboundProjectorDrain",
 		partial: true,
-		terminal: { complete: "manual", error: "manual" },
+		complete: "manual",
+		error: "manual",
 	});
 	let releaseInboundProjectorDrain: (() => void) | undefined = graph.retain(inboundProjectorDrain, {
 		reason: `${name}.wireEdgeGroup.inboundProjectorDrain`,

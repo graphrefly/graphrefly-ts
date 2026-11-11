@@ -291,7 +291,8 @@ export function attachKeyedRateLimitAuthority(
 		{
 			name: `${name}/events`,
 			factory: "attachKeyedRateLimitAuthority",
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 			// R-lifetime: closing the lifetime cancels in-flight requests; the cleanup still reads the
 			// private state, which is dropped after it.
 			setup: (ctx) => () => {
@@ -465,7 +466,8 @@ function adapterProjection<TFact extends KeyedRateLimitAuthorityAdapterFact>(
 		{
 			name,
 			factory,
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 		},
 	);
 }

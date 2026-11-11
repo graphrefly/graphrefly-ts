@@ -221,7 +221,8 @@ export function agenticMemoryRecordApplicationPriorEvidenceBundle(
 		{
 			name: `${name}/projection`,
 			factory: "agenticMemoryRecordApplicationPriorEvidence",
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 		},
 	);
 	return {
@@ -302,7 +303,8 @@ export function agenticMemoryRecordApplicationEvidenceFactsBundle<T = unknown>(
 		{
 			name: `${name}/projection`,
 			factory: "agenticMemoryRecordApplicationEvidenceFacts",
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 		},
 	);
 	return {

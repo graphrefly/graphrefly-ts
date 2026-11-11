@@ -73,7 +73,7 @@ describe("ctx.rewireNext — defer + drain (R-rewire-deferred / D47)", () => {
 					deferredCorrectly = !inner.isActivated();
 				}
 			},
-			{ terminal: { complete: "manual" } },
+			{ complete: "manual" },
 		);
 		collect(op);
 
@@ -96,7 +96,7 @@ describe("ctx.rewireNext — defer + drain (R-rewire-deferred / D47)", () => {
 				}
 				if (depBatch(ctx, 0)) ctx.rewireNext.subscribeDep(inner.node, opFn);
 			},
-			{ terminal: { complete: "manual" } },
+			{ complete: "manual" },
 		);
 		const { msgs } = collect(op);
 		s.down([["DATA", 1]]); // spawn + add inner (SENTINEL inner → START only, no forward yet)
@@ -135,7 +135,7 @@ describe("ctx.rewireNext — defer + drain (R-rewire-deferred / D47)", () => {
 					ctx.rewireNext.unsubscribeDep(r, opFn);
 				}
 			},
-			{ terminal: { complete: "manual" } },
+			{ complete: "manual" },
 		);
 		const { msgs } = collect(op);
 		s.down([["DATA", 1]]); // add inner (seed 5 forwarded on activation)
@@ -166,7 +166,7 @@ describe("ctx.rewireNext — switch (replaceDeps) + terminal + no-net-change (D4
 					ctx.rewireNext.replaceDeps([s, current], opFn); // switch: one atomic op
 				}
 			},
-			{ terminal: { complete: "manual" } },
+			{ complete: "manual" },
 		);
 		const { msgs } = collect(op);
 
@@ -196,7 +196,7 @@ describe("ctx.rewireNext — switch (replaceDeps) + terminal + no-net-change (D4
 					ctx.down([["COMPLETE"]]); // …then the OP goes terminal THIS wave
 				}
 			},
-			{ terminal: { complete: "manual" } },
+			{ complete: "manual" },
 		);
 		collect(op);
 		s.down([["DATA", 1]]);
@@ -224,7 +224,7 @@ describe("ctx.rewireNext — switch (replaceDeps) + terminal + no-net-change (D4
 					ctx.down([["COMPLETE"]]);
 				}
 			},
-			{ terminal: { complete: "manual" } },
+			{ complete: "manual" },
 		);
 		collect(op);
 		s.down([["DATA", 1]]);
@@ -281,7 +281,7 @@ describe("ctx.rewireNext — drain robustness (QA: per-thunk isolation)", () => 
 			function fnA(ctx) {
 				if (depBatch(ctx, 0)) ctx.rewireNext.subscribeDep(opA, fnA); // self-dep → throws at apply
 			},
-			{ terminal: { complete: "manual" } },
+			{ complete: "manual" },
 		);
 		// an external sink on opA that THROWS on ERROR → forces the error-route _down to escape apply().
 		opA.subscribe(
@@ -295,7 +295,7 @@ describe("ctx.rewireNext — drain robustness (QA: per-thunk isolation)", () => 
 			function fnB(ctx) {
 				if (depBatch(ctx, 0)) ctx.rewireNext.subscribeDep(innerB.node, fnB);
 			},
-			{ terminal: { complete: "manual" } },
+			{ complete: "manual" },
 		);
 		collect(opB);
 
@@ -326,7 +326,7 @@ describe("ctx.rewireNext — batch boundary (D47 / B24)", () => {
 				}
 				if (depBatch(ctx, 0)) ctx.rewireNext.subscribeDep(inner.node, opFn as NodeFn);
 			},
-			{ terminal: { complete: "manual" } },
+			{ complete: "manual" },
 		);
 		const { msgs } = collect(op);
 

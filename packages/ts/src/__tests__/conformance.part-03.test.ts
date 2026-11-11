@@ -121,7 +121,8 @@ describe("C-23 raw ctx waveData is the only dep-value input (R-fn-contract / R-c
 			},
 			{
 				partial: true,
-				terminal: { complete: "manual", error: "manual" },
+				complete: "manual",
+				error: "manual",
 			},
 		);
 		collect(n);
@@ -140,7 +141,8 @@ describe("C-23 raw ctx waveData is the only dep-value input (R-fn-contract / R-c
 			},
 			{
 				partial: true,
-				terminal: { complete: "manual", error: "manual" },
+				complete: "manual",
+				error: "manual",
 			},
 		);
 		collect(m);
@@ -157,7 +159,8 @@ describe("C-23 raw ctx waveData is the only dep-value input (R-fn-contract / R-c
 			},
 			{
 				partial: true,
-				terminal: { complete: "manual", error: "manual" },
+				complete: "manual",
+				error: "manual",
 			},
 		);
 		collect(p);
@@ -180,7 +183,7 @@ describe("C-23 raw ctx waveData is the only dep-value input (R-fn-contract / R-c
 			},
 			{
 				partial: true,
-				terminal: { complete: "manual" },
+				complete: "manual",
 			},
 		);
 		collect(n);

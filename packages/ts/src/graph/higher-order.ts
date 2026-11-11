@@ -280,7 +280,7 @@ function mapOperator<TIn, TOut>(
 		factory,
 		body,
 		// D47/D81 folding: the operator owns completion + terminal ERROR cleanup.
-		opts: { terminal: { complete: "manual", error: "manual" } },
+		opts: { complete: "manual", error: "manual" },
 	};
 }
 
@@ -453,6 +453,6 @@ export function repeat<S>(factory: () => NodeInput<S>, count: number): Operator<
 	return {
 		factory: "repeat",
 		body,
-		opts: { terminal: { complete: "manual" } },
+		opts: { complete: "manual" },
 	};
 }

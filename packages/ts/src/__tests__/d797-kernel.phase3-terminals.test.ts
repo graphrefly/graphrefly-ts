@@ -98,7 +98,7 @@ describe("C-15: a dependency's terminal settles its pending mark", () => {
 			(ctx) => {
 				runs.push({ terminal: [...ctx.terminal], waves: cloneWaves(ctx) });
 			},
-			{ partial: true, terminal: { complete: "manual", error: "manual" } },
+			{ partial: true, complete: "manual", error: "manual" },
 		);
 		const sink = arrays();
 		d.subscribe(sink.sink);
@@ -148,7 +148,7 @@ describe("C-17: an ended dependency counts toward auto COMPLETE, in any order", 
 			(ctx) => {
 				runs.push({ terminal: [...ctx.terminal], waves: cloneWaves(ctx) });
 			},
-			{ partial: true, terminal: { error: "manual" } },
+			{ partial: true, error: "manual" },
 		);
 		let ctrlRuns = 0;
 		const dctrl = node<number>(
@@ -261,7 +261,7 @@ describe("C-36: input arrays and terminal admission in one invocation", () => {
 			(ctx) => {
 				seen.push({ waves: cloneWaves(ctx), terminal: [...ctx.terminal] });
 			},
-			{ partial: true, terminal: { complete: "manual" } },
+			{ partial: true, complete: "manual" },
 		);
 		d.subscribe(() => {});
 		seen.length = 0;
@@ -345,7 +345,7 @@ describe("C-40: an ended node can be subscribed and depended on", () => {
 			(ctx) => {
 				mSeen.push([...ctx.terminal]);
 			},
-			{ terminal: { complete: "manual", error: "manual" } },
+			{ complete: "manual", error: "manual" },
 		);
 		m.subscribe(() => {});
 		expect(mSeen).toEqual([[e]]);
@@ -368,7 +368,7 @@ describe("C-44: a wave of terminals or INVALIDATEs holds a fan-in", () => {
 			(ctx) => {
 				runs.push([...ctx.terminal]);
 			},
-			{ terminal: { complete: "manual" } },
+			{ complete: "manual" },
 		);
 		b.subscribe(bs.sink);
 		d.subscribe(() => {});

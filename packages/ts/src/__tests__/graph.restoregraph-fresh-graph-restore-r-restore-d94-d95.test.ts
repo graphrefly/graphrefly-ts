@@ -189,7 +189,7 @@ describe("restoreGraph — fresh graph restore (R-restore / D94 / D95)", () => {
 		const memo = original.node([src], (ctx) => ctx.down([["DATA", depLatest(ctx, 0) as number]]), {
 			name: "memo",
 			restore: { ref: "memo" },
-			terminal: { complete: "manual" },
+			complete: "manual",
 		});
 		collect(memo);
 		src.down([["COMPLETE"]]);
@@ -204,7 +204,7 @@ describe("restoreGraph — fresh graph restore (R-restore / D94 / D95)", () => {
 					(runCtx) => runCtx.down([["DATA", depLatest(runCtx, 0) as number]]),
 					{
 						name: ctx.name,
-						terminal: { complete: "manual" },
+						complete: "manual",
 					},
 				);
 			},

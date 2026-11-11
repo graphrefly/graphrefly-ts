@@ -210,7 +210,8 @@ export function workQueueScheduledReadinessProjector<T = unknown>(
 			name: `${name}/runtime`,
 			factory: "workQueueScheduledReadinessProjector",
 			partial: true,
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 		},
 	);
 	return {
@@ -306,7 +307,8 @@ export function workQueueReadinessHandoffProjector<T = unknown>(
 			name: `${name}/runtime`,
 			factory: "workQueueReadinessHandoffProjector",
 			partial: true,
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 		},
 	);
 	return {
@@ -400,7 +402,8 @@ export function workQueueLeaseExpirationCommandProjector<T = unknown>(
 			name: `${name}/runtime`,
 			factory: "workQueueLeaseExpirationCommandProjector",
 			partial: true,
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 		},
 	);
 	return {

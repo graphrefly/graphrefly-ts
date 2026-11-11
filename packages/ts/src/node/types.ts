@@ -28,13 +28,18 @@ export interface NodeOptions<T = unknown> {
 	 */
 	partial?: boolean;
 	/**
-	 * Terminal policies (R-terminals): `"auto"` (the default) ends this node from its dependencies'
-	 * terminals: a dependency's ERROR ends it with that ERROR without running its function, and
-	 * once every dependency has ended it completes after the run that sees the last terminal.
-	 * `"manual"` gives that kind of terminal to the function as input (`ctx.terminal[i]`); the
-	 * node ends only when its function sends a terminal.
+	 * COMPLETE policy (R-terminals). `"auto"` (the default): once every dependency has ended, the
+	 * node completes after the run that sees the last terminal; a node with no dependencies never
+	 * completes automatically. `"manual"`: a dependency's COMPLETE is the function's input
+	 * (`ctx.terminal[i]`) and the node ends only when its function sends a terminal.
 	 */
-	terminal?: { readonly complete?: TerminalPolicy; readonly error?: TerminalPolicy };
+	complete?: TerminalPolicy;
+	/**
+	 * ERROR policy (R-terminals). `"auto"` (the default): a dependency's ERROR ends the node with
+	 * that ERROR without running its function. `"manual"`: it is the function's input
+	 * (`ctx.terminal[i]`) and the node ends only when its function sends a terminal.
+	 */
+	error?: TerminalPolicy;
 	/**
 	 * INVALIDATE policy (R-invalidation): `"auto"` (the default) invalidates this node when an input
 	 * is invalidated, without running its function; `"manual"` gives it to the function as input

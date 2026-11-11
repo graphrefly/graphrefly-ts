@@ -432,7 +432,7 @@ export function solutionOccurrenceProjection<TInput, TOutput>(
 		{
 			name: opts.name,
 			factory: opts.factory,
-			terminal: { complete: "manual" },
+			complete: "manual",
 			meta: {
 				occurrenceIdentity: "scope-local-id/revision/digest/source-refs",
 				correlation: "exact-single-frame",

@@ -91,7 +91,8 @@ export function workItemVerificationRequestLowerer<TInput = unknown>(
 			name: `${name}/runtime`,
 			factory: "workItemVerificationRequestLowerer",
 			partial: true,
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 		},
 	);
 	return {
@@ -187,7 +188,8 @@ export function workItemVerificationResultMapper<TInput = unknown>(
 			name: `${name}/runtime`,
 			factory: "workItemVerificationResultMapper",
 			partial: true,
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 		},
 	);
 	return {

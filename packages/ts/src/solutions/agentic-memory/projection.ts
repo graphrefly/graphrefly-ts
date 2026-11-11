@@ -28,7 +28,8 @@ export function solutionProjection<TFact, TSnapshot>(
 		{
 			name,
 			factory,
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 		},
 	);
 }
@@ -50,7 +51,8 @@ export function agenticMemoryProjection<TFact, T>(
 		{
 			name,
 			factory,
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 		},
 	);
 }
@@ -76,7 +78,8 @@ export function agenticMemoryContextProjection<T>(
 		{
 			name,
 			factory: "agenticMemoryContext",
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 		},
 	);
 }
@@ -168,7 +171,8 @@ export function agenticMemoryRecordProjection<T>(
 		{
 			name,
 			factory: "agenticMemoryProjection",
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 		},
 	);
 }

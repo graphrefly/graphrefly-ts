@@ -10074,7 +10074,8 @@ function runtimeOptions(name: string, factory: string) {
 		name: `${name}/runtime`,
 		factory,
 		partial: true,
-		terminal: { complete: "manual", error: "manual" },
+		complete: "manual",
+		error: "manual",
 	} as const;
 }
 

@@ -132,7 +132,8 @@ export function orchestrationWorkQueueRecipe<TEffect = unknown>(
 					{
 						name: `${name}/submitCommands`,
 						factory: "orchestrationWorkQueueSubmitCommands",
-						terminal: { complete: "manual", error: "manual" },
+						complete: "manual",
+						error: "manual",
 					},
 				);
 	const runtime = graph.node<OrchestrationQueueFact>(
@@ -152,7 +153,8 @@ export function orchestrationWorkQueueRecipe<TEffect = unknown>(
 			name: `${name}/runtime`,
 			factory: "orchestrationWorkQueueRuntime",
 			partial: true,
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 		},
 	);
 	return {
@@ -334,7 +336,7 @@ function project<T>(
 				if (value !== undefined) ctx.down([["DATA", value]]);
 			}
 		},
-		{ name, factory, partial: true, terminal: { complete: "manual", error: "manual" } },
+		{ name, factory, partial: true, complete: "manual", error: "manual" },
 	);
 }
 

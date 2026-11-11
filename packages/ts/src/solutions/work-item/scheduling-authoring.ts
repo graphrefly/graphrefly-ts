@@ -64,7 +64,8 @@ export function workItemAuthoringProjector<TInput = unknown>(
 			name: `${name}/runtime`,
 			factory: "workItemAuthoringProjector",
 			partial: true,
-			terminal: { complete: "manual", error: "manual" },
+			complete: "manual",
+			error: "manual",
 		},
 	);
 	return {

@@ -402,7 +402,7 @@ describe("B49 core-slot migration", () => {
 					queuedInsideRun = boundaryTaskCount(coreOf(op));
 				}
 			},
-			{ terminal: { complete: "manual" } },
+			{ complete: "manual" },
 		);
 		op.subscribe(() => {});
 		trigger.set(1);
@@ -435,7 +435,7 @@ describe("B49 core-slot migration", () => {
 				if (depBatch(ctx, 0)) ctx.rewireNext.subscribeDep(innerA1, opAFn);
 				if (depBatch(ctx, 1)) ctx.rewireNext.subscribeDep(innerA2, opAFn);
 			},
-			{ terminal: { complete: "manual" } },
+			{ complete: "manual" },
 		);
 		const opB = node<number>([sourceB], function opBFn(ctx) {
 			if (depBatch(ctx, 0)) ctx.rewireNext.subscribeDep(innerB1, opBFn);

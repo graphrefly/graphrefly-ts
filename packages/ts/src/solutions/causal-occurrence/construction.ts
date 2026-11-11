@@ -220,7 +220,7 @@ export function buildCausalNodes<T>(
 		{
 			name: `${opts.name}/authority`,
 			factory: "causalOccurrenceAuthority",
-			terminal: { complete: "manual" },
+			complete: "manual",
 		},
 	);
 
