@@ -55,7 +55,6 @@ export interface WaveState {
 
 export interface PrivateState {
 	value: unknown;
-	persist: boolean;
 }
 
 /**

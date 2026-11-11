@@ -245,7 +245,7 @@ export class Node<T = unknown> {
 						activating: false,
 						rewireRunPending: false,
 					},
-					privateState: { value: SENTINEL, persist: false },
+					privateState: { value: SENTINEL },
 					lifetime: { controller: null, cleanup: undefined, setupDone: false, closing: false },
 					syncCtx: { value: null },
 					version: {

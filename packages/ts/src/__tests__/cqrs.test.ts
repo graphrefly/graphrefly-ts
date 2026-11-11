@@ -594,7 +594,7 @@ describe("CQRS application infrastructure (B63 / D125 / D129)", () => {
 		expect(() => JSON.stringify(checkpoint)).not.toThrow();
 		const runtime = checkpoint.nodes.find((node) => node.id === "orders/runtime");
 		expect(runtime?.ctxState).toEqual({
-			persist: true,
+			persist: false,
 			value: {
 				kind: "DATA",
 				data: {

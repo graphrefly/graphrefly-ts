@@ -168,7 +168,6 @@ export function eventFlow<T = unknown>(
 					auditSeq: 0,
 					highWater: new Map(),
 				} satisfies EventFlowRuntimeState);
-			ctx.state.persist(true);
 			// A run's facts go out as one array, so a first subscriber's snapshot holds them all
 			// (R-subscription).
 			const out: Message[] = [];
@@ -246,7 +245,6 @@ export function eventFlowProjection<TState, TPayload = unknown>(
 				highWater: emptyHighWater(projectionId),
 				sourceHighWater: new Map(),
 			};
-			ctx.state.persist(true);
 			for (const raw of depBatch(ctx, 0) ?? []) {
 				const record = raw as EventFlowRecord<TPayload>;
 				try {

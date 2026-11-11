@@ -155,7 +155,7 @@ export function checkpointStateOfNode(n: Node<unknown>): NodeCheckpointState {
 		terminal: self._value.terminal,
 		activated: self._lifecycle.activated,
 		hasCalledFnOnce: self._wave.hasCalledFnOnce,
-		ctxState: { value: self._privateState.value, persist: self._privateState.persist },
+		ctxState: { value: self._privateState.value },
 		version: cloneNodeVersion(self._version.value),
 		handle: self._slot.handle,
 	};

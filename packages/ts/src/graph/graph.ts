@@ -1034,7 +1034,7 @@ export class Graph {
 			terminal: checkpointTerminal(state.terminal, `${id}.terminal`),
 			lifecycle: { activated: state.activated, hasCalledFnOnce: state.hasCalledFnOnce },
 			ctxState: {
-				persist: state.ctxState.persist,
+				persist: false, // the checkpoint stage drops ctxState from the format
 				value: nonAuthoritativeCollectionHelper
 					? { kind: "SENTINEL" }
 					: checkpointValue(

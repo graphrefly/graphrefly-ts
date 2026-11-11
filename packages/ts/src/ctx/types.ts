@@ -113,13 +113,12 @@ export function terminalErrorValue(t: unknown): unknown {
 }
 
 /**
- * Per-node private cross-wave state (R-ctx-state / D23,D29). Default fresh-lifecycle
- * wipe; `persist(true)` keeps it across lifecycle transitions.
+ * A node's private state for the current lifetime (R-invocation): it survives reruns and
+ * INVALIDATE, and is dropped when the lifetime closes (R-lifetime).
  */
 export interface CtxState {
 	get<S = unknown>(): S | undefined;
 	set<S = unknown>(v: S): void;
-	persist(on?: boolean): void;
 }
 
 /**

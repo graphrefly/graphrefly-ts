@@ -179,7 +179,6 @@ export function admissionHandoff<T, R = unknown>(
 		(ctx) => {
 			const state =
 				ctx.state.get<AdmissionHandoffRuntimeState<T, R>>() ?? admissionHandoffState<T, R>();
-			ctx.state.persist(true);
 			let observed = false;
 			for (const raw of depBatch(ctx, 0) ?? []) {
 				observed = true;

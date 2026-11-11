@@ -122,9 +122,6 @@ export function nodeMakeState<T>(self: NodeRuntimeHost<T>): CtxState {
 		set: <S>(v: S) => {
 			self._privateState.value = v;
 		},
-		persist: (on = true) => {
-			self._privateState.persist = on;
-		},
 	};
 }
 

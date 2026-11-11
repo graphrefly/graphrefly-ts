@@ -91,7 +91,7 @@ export interface NodeCheckpointState {
 	readonly terminal: true | unknown | undefined;
 	readonly activated: boolean;
 	readonly hasCalledFnOnce: boolean;
-	readonly ctxState: { readonly value: unknown; readonly persist: boolean };
+	readonly ctxState: { readonly value: unknown };
 	readonly version: NodeVersion | undefined;
 	readonly handle: Handle | null;
 }
@@ -101,7 +101,7 @@ export interface NodeRestoreState {
 	readonly hasData: boolean;
 	readonly terminal: true | unknown | undefined;
 	readonly hasCalledFnOnce: boolean;
-	readonly ctxState: { readonly value: unknown; readonly persist: boolean };
+	readonly ctxState: { readonly value: unknown };
 	readonly version: NodeVersion | false;
 }
 

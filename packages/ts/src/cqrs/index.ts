@@ -243,7 +243,6 @@ export function cqrs<TCommand = unknown, TEvent = unknown>(
 					seenCommandIds: [],
 					seenEventIds: [],
 				} satisfies CqrsRuntimeState);
-			ctx.state.persist(true);
 			for (const raw of depBatch(ctx, 0) ?? []) {
 				reduceCommandFact(raw, state, handlers, knownEvents, now, dedupe, (fact) =>
 					ctx.down([["DATA", fact as CqrsRuntimeFact<TEvent>]]),
@@ -389,7 +388,6 @@ export function cqrsProjection<TState, TEvent = unknown>(
 		[source.events],
 		(ctx) => {
 			const state = ctx.state.get<{ value: TState }>() ?? { value: opts.initial };
-			ctx.state.persist(true);
 			for (const raw of depBatch(ctx, 0) ?? []) {
 				const event = raw as CqrsEvent<TEvent>;
 				if (eventFilter !== undefined && !eventFilter.has(event.type)) continue;

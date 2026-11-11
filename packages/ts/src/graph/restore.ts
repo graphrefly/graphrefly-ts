@@ -674,7 +674,7 @@ type PreparedRuntime = {
 	status: Status;
 	terminal: true | unknown | undefined;
 	hasCalledFnOnce: boolean;
-	ctxState: { value: unknown; persist: boolean };
+	ctxState: { value: unknown };
 	version: NodeVersionJson | false;
 };
 
@@ -780,7 +780,7 @@ function prepareRuntime(node: GraphCheckpointNode): PreparedRuntime {
 		status,
 		terminal,
 		hasCalledFnOnce: node.lifecycle.hasCalledFnOnce,
-		ctxState: { value: ctxState.cache, persist: node.ctxState.persist },
+		ctxState: { value: ctxState.cache },
 		version,
 	};
 }

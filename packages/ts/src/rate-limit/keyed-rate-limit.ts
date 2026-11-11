@@ -558,7 +558,6 @@ export function keyedRateLimitAdmissionBundle(
 		(ctx) => {
 			const state = ctx.state.get<KeyedRateLimitRuntimeState>() ?? initialRuntimeState();
 			ctx.state.set(state);
-			ctx.state.persist(true);
 			const facts: KeyedRateLimitRuntimeFact[] = [];
 			if (correlated) {
 				for (const raw of depBatch(ctx, 0) ?? []) {

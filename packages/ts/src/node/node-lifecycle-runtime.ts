@@ -138,10 +138,7 @@ export function nodeCloseLifetime<T>(
 		}
 	}
 	lifetime.closing = false;
-	// ctx.state.persist keeps private state across deactivation until its replacement is settled
-	// (open with the alignment session); an ended node always drops it.
-	if (!self._privateState.persist || self._value.terminal !== undefined)
-		self._privateState.value = SENTINEL;
+	self._privateState.value = SENTINEL;
 }
 
 /** R-node@2: a node's status, derived from what it holds. */
@@ -240,7 +237,6 @@ export function nodeReleaseRuntime<T>(self: NodeRuntimeHost<T>): void {
 	self._value.terminal = undefined;
 	self._value.lastArray = [];
 	self._privateState.value = SENTINEL;
-	self._privateState.persist = false;
 	self._syncCtx = null;
 	self._resetDepState();
 	self._restoredActivationPending = false;

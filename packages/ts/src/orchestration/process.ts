@@ -141,7 +141,6 @@ export function processBundle<
 					seenEffectIds: [],
 					state: opts.initialState,
 				} satisfies ProcessRuntimeState<TState>);
-			ctx.state.persist(true);
 			for (const raw of depBatch(ctx, 0) ?? []) {
 				state = reduceProcessCommandFact(
 					raw,

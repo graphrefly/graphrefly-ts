@@ -367,7 +367,6 @@ function eventsFn(
 				emittedCause: false,
 			};
 			ctx.state.set(st);
-			ctx.state.persist(true);
 		}
 		let trigger = false;
 		for (let i = 0; i < outboundIndexes.length; i++) {
@@ -539,7 +538,6 @@ function gateFn(
 				released: new CauseTombstones(),
 			};
 			ctx.state.set(st);
-			ctx.state.persist(true);
 		}
 		const emitIssue = (i: WireEdgeGroupIssue) =>
 			ctx.down([["DATA", { kind: "issue", issue: i } satisfies Gate]]);

@@ -18,7 +18,6 @@ export function nodeRestoreState(self: NodeRuntimeHost, state: NodeRestoreState)
 	self._wave.inDepMutation = false;
 	self._wave.rewireRunPending = false;
 	self._privateState.value = state.ctxState.value;
-	self._privateState.persist = state.ctxState.persist;
 	if (state.version === false) {
 		self._version.policy = { enabled: false };
 		self._version.value = undefined;
