@@ -1,10 +1,11 @@
 /** D651 focused keyed rate-limit contracts and graph-visible admission correlation. */
-import { depBatch } from "../ctx/types.js";
+import { depBatch, depLatest } from "../ctx/types.js";
 import { eachInputArray } from "../graph/each-input-array.js";
 import type { Graph } from "../graph/graph.js";
 import { compoundTupleKey } from "../identity.js";
 import { strictCanonicalJsonBytes, strictJsonCodec } from "../json/codec.js";
 import type { Node } from "../node/node.js";
+import { isNodeRuntimeReleased } from "../node/runtime-accessors.js";
 
 const textDecoder = new TextDecoder();
 const textEncoder = new TextEncoder();
@@ -285,8 +286,12 @@ interface MutableKeyedRateLimitCursor {
 	overflowed: number;
 }
 
+/**
+ * The runtime's ledger, its private state (strict JSON, so a checkpoint captures it): entries in
+ * insertion order; a lookup index is derived from them and never saved.
+ */
 interface KeyedRateLimitRuntimeState {
-	readonly entries: Map<string, KeyedRateLimitEntry>;
+	readonly entries: KeyedRateLimitEntry[];
 	readonly completedOrder: string[];
 	readonly cursor: MutableKeyedRateLimitCursor;
 	nextEntrySequence: number;
@@ -554,17 +559,20 @@ export function keyedRateLimitAdmissionBundle(
 		? [correlationFacts as Node<unknown>]
 		: [opts.requests as Node<unknown>, opts.outcomes as Node<unknown>];
 	// D649: correlation state persists across ordinary deactivate/resubscribe transitions of the
-	// same live bundle, so a retained correlation is not admitted twice. Private state lasts one
-	// lifetime (R-lifetime), so the ledger lives in a state node the gate owns; the runtime updates
-	// it in place, since nothing subscribes to it and it carries no wave.
+	// same live bundle, so a retained correlation is not admitted twice. The bundle owns the ledger
+	// as a state node the runtime declares (a drawable edge, strict JSON, so a checkpoint captures
+	// it). Within a lifetime the runtime's private state is the working copy, seeded from the ledger
+	// by the setup; the lifetime's cleanup writes it back, a queued request that lands before any
+	// later lifetime starts (REVIEW-D797-migration-fable 2.12; graphrefly-ts:D180).
 	const ledger = graph.state<KeyedRateLimitRuntimeState>(initialRuntimeState(), {
 		name: `${name}/ledger`,
 		factory: "keyedRateLimitLedger",
 	});
+	const ledgerIndex = deps.length;
 	const runtime = graph.node<KeyedRateLimitRuntimeFact>(
-		deps,
+		[...deps, ledger as Node<unknown>],
 		(ctx) => {
-			const state = ledger.cache as KeyedRateLimitRuntimeState;
+			const state = ctx.state.get<KeyedRateLimitRuntimeState>() as KeyedRateLimitRuntimeState;
 			const facts: KeyedRateLimitRuntimeFact[] = [];
 			if (correlated) {
 				for (const raw of depBatch(ctx, 0) ?? []) {
@@ -585,6 +593,20 @@ export function keyedRateLimitAdmissionBundle(
 		{
 			name: `${name}/runtime`,
 			factory: "keyedRateLimitAdmission",
+			setup: (ctx) => {
+				ctx.state.set(
+					copyRuntimeState(
+						(depLatest(ctx, ledgerIndex) as KeyedRateLimitRuntimeState | undefined) ??
+							initialRuntimeState(),
+					),
+				);
+				return () => {
+					const state = ctx.state.get<KeyedRateLimitRuntimeState>();
+					// A ledger released with its graph has nothing to keep.
+					if (state !== undefined && !isNodeRuntimeReleased(ledger as Node<unknown>))
+						ledger.set(copyRuntimeState(state));
+				};
+			},
 			partial: true,
 			complete: "manual",
 			error: "manual",
@@ -680,7 +702,7 @@ function processRequest(
 		return;
 	}
 	const identity = keyedRateLimitRequestIdentity(request);
-	const existing = state.entries.get(request.requestId);
+	const existing = getEntry(state, request.requestId);
 	if (existing !== undefined) {
 		if (existing.requestIdentityKey === identity.key) {
 			state.cursor.replays += 1;
@@ -717,7 +739,7 @@ function processRequest(
 		return;
 	}
 	state.nextEntrySequence += 1;
-	state.entries.set(request.requestId, {
+	addEntry(state, {
 		request,
 		requestIdentity: identity,
 		requestIdentityKey: identity.key,
@@ -750,7 +772,7 @@ function processOutcome(
 		);
 		return;
 	}
-	const entry = state.entries.get(outcome.requestId);
+	const entry = getEntry(state, outcome.requestId);
 	if (entry === undefined) {
 		state.cursor.orphaned += 1;
 		facts.push(
@@ -994,9 +1016,9 @@ function evictCompleted(
 	while (state.completedOrder.length > maxCompleted) {
 		const requestId = state.completedOrder.shift();
 		if (requestId === undefined) break;
-		const entry = state.entries.get(requestId);
+		const entry = getEntry(state, requestId);
 		if (entry?.outcome === undefined) continue;
-		state.entries.delete(requestId);
+		deleteEntry(state, requestId);
 		state.cursor.completedRetained -= 1;
 		state.cursor.completedEvicted += 1;
 		facts.push(audit(state, "completed-evicted", requestId));
@@ -1026,9 +1048,42 @@ function runtimeProjection<TFact extends KeyedRateLimitRuntimeFact>(
 	);
 }
 
+const entryIndexes = new WeakMap<KeyedRateLimitRuntimeState, Map<string, KeyedRateLimitEntry>>();
+
+function entryIndex(state: KeyedRateLimitRuntimeState): Map<string, KeyedRateLimitEntry> {
+	let index = entryIndexes.get(state);
+	if (index === undefined) {
+		index = new Map(state.entries.map((entry) => [entry.request.requestId, entry]));
+		entryIndexes.set(state, index);
+	}
+	return index;
+}
+
+function getEntry(state: KeyedRateLimitRuntimeState, requestId: string) {
+	return entryIndex(state).get(requestId);
+}
+
+function addEntry(state: KeyedRateLimitRuntimeState, entry: KeyedRateLimitEntry): void {
+	state.entries.push(entry);
+	entryIndex(state).set(entry.request.requestId, entry);
+}
+
+function deleteEntry(state: KeyedRateLimitRuntimeState, requestId: string): void {
+	const index = entryIndex(state);
+	const entry = index.get(requestId);
+	if (entry === undefined) return;
+	index.delete(requestId);
+	state.entries.splice(state.entries.indexOf(entry), 1);
+}
+
+/** A detached copy of the ledger: the state node's value never aliases the working copy. */
+function copyRuntimeState(state: KeyedRateLimitRuntimeState): KeyedRateLimitRuntimeState {
+	return JSON.parse(JSON.stringify(state)) as KeyedRateLimitRuntimeState;
+}
+
 function initialRuntimeState(): KeyedRateLimitRuntimeState {
 	return {
-		entries: new Map(),
+		entries: [],
 		completedOrder: [],
 		cursor: {
 			receivedRequests: 0,

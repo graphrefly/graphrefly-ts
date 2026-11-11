@@ -340,6 +340,20 @@ describe("D648/D649 bounded admission and exact correlation", () => {
 		t.release();
 	});
 
+	it("keeps its ledger as a declared strict-JSON state, so a checkpoint captures it (fable 2.12)", () => {
+		const t = setup();
+		expect(() => t.g.checkpoint()).not.toThrow();
+		const edges = t.g.describe().edges;
+		expect(edges).toContainEqual({ from: "limit/ledger", to: "limit/runtime" });
+		const req = request("checkpointed");
+		t.requests.set(req);
+		t.outcomes.set(outcome(req, "allowed"));
+		expect(() => t.g.checkpoint()).not.toThrow();
+		t.release(); // the lifetime closes and writes its working copy back
+		const ledger = t.g.checkpoint().nodes.find((n) => n.id === "limit/ledger");
+		expect(JSON.stringify(ledger?.values)).toContain("checkpointed");
+	});
+
 	it("retains replay suppression across deactivate and resubscribe of the same live gate", () => {
 		const t = setup();
 		const req = request("reactivate");
