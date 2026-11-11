@@ -93,7 +93,7 @@ import {
 	takeConstructingEnvironmentDrivers,
 	takeConstructingNodeCore,
 } from "./runtime-accessors.js";
-import type { NodeOptions, Status } from "./types.js";
+import type { NodeOptions, NodeReceived, NodeSeed, Status } from "./types.js";
 import {
 	cloneNodeVersion,
 	createNodeVersion,
@@ -146,7 +146,7 @@ export class Node<T = unknown> {
 	private readonly _lifetime: LifetimeState;
 	private readonly _syncCtxState: SyncCtxState;
 	private readonly _version: VersionState;
-	private _restoredActivationPending = false;
+	private _seed: NodeSeed | undefined = undefined;
 	private _released = false;
 	// biome-ignore lint/correctness/noUnusedPrivateClassMembers: accessed through the checked internal runtime host.
 	private get _syncCtx(): Ctx | null {
@@ -160,7 +160,7 @@ export class Node<T = unknown> {
 	private static _retainIndirectRuntimeMethods(node: Node<unknown>): void {
 		void node._dep;
 		void node._lifetime;
-		void node._restoredActivationPending;
+		void node._seed;
 		void node._reachableUpstream;
 		void node._assertRewireDepOwner;
 		void node._subscribeDepAt;
@@ -234,7 +234,7 @@ export class Node<T = unknown> {
 					setup: opts.setup,
 					declaredDeps: deps,
 					fn: typeof handleOrFn === "function" ? handleOrFn : null,
-					recipe: undefined,
+					recipe: opts.recipe,
 					dynamic: opts.dynamic ?? false,
 					name: opts.name,
 					factory: opts.factory,
@@ -535,8 +535,11 @@ export class Node<T = unknown> {
 		nodeResetDepState(nodeRuntimeHost(this));
 	}
 
-	private _subscribeDepAt(depNode: Node<unknown>, opts: { seedRestored?: boolean } = {}): void {
-		nodeSubscribeDepAt(nodeRuntimeHost(this), depNode, opts);
+	private _subscribeDepAt(
+		depNode: Node<unknown>,
+		seed?: { readonly received: NodeReceived | undefined; readonly onChange: () => void },
+	): void {
+		nodeSubscribeDepAt(nodeRuntimeHost(this), depNode, seed);
 	}
 
 	private _seedRestoredDepAt(idx: number, depNode: Node<unknown>): void {

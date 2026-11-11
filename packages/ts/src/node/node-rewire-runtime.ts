@@ -96,7 +96,7 @@ export function nodeRewire<T>(
 	) {
 		return true;
 	}
-	if (!self._lifecycle.activated) self._restoredActivationPending = false;
+	if (!self._lifecycle.activated) self._seed = undefined;
 
 	self._wave.inDepMutation = true;
 	self._wave.rewireRunPending = false;
@@ -293,7 +293,7 @@ function nodeApplyReplace<T>(
 	self._wave.hasCalledFnOnce = false;
 	self._wave.pending = 0;
 	self._wave.emittedDirtyThisWave = false;
-	self._restoredActivationPending = false;
+	self._seed = undefined;
 	self._syncCtx = null;
 	if (active) {
 		self._wave.activating = true;

@@ -58,7 +58,7 @@ function setup(
 	if (!first) f.frame(frame);
 }
 function indexSize(f: ReturnType<typeof publicationRun>) {
-	const state = checkpointStateOfNode(f.built.requestMaterialJoin).ctxState?.value as
+	const state = checkpointStateOfNode(f.built.requestMaterialJoin).privateState as
 		| { index?: { rows: ReadonlyMap<string, unknown> } }
 		| undefined;
 	return state?.index?.rows.size;
@@ -163,11 +163,11 @@ try {
 						b.disconnect();
 						plain.disconnect();
 						assert.equal(
-							checkpointStateOfNode(a.built.requestMaterialJoin).ctxState?.value,
+							checkpointStateOfNode(a.built.requestMaterialJoin).privateState,
 							undefined,
 						);
 						assert.equal(
-							checkpointStateOfNode(b.built.requestMaterialJoin).ctxState?.value,
+							checkpointStateOfNode(b.built.requestMaterialJoin).privateState,
 							undefined,
 						);
 						reconnectA.push(ns(() => a.connect()));

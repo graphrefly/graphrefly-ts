@@ -302,9 +302,10 @@ describe("D167 known cold acquisitions", () => {
 		expect(() =>
 			g.node([], idle, {
 				name: "same",
-				get restore() {
+				// The entry's meta is read a third time at publication, after the node is built.
+				get meta() {
 					reads++;
-					if (reads === 2) winner = g.state(7, { name: "same" });
+					if (reads === 3) winner = g.state(7, { name: "same" });
 					return undefined;
 				},
 			}),
@@ -329,8 +330,8 @@ describe("D167 known cold acquisitions", () => {
 		expect(() =>
 			g.node(deps, idle, {
 				name: "same",
-				get restore() {
-					if (++reads === 2) entryRead = true;
+				get meta() {
+					if (++reads === 3) entryRead = true;
 					return undefined;
 				},
 			}),

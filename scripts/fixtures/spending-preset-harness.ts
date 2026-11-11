@@ -273,8 +273,8 @@ export function presetRun(
 		send("arrivals", { packRef: binding.packRef, evaluationRefs: [e.evaluationRef] });
 	};
 	const state = () =>
-		checkpointStateOfNode(graph.find("spending/causal/authority")!).ctxState
-			?.value as RuntimeState<unknown>;
+		checkpointStateOfNode(graph.find("spending/causal/authority")!)
+			.privateState as RuntimeState<unknown>;
 	const outcome = (stateName: CausalEffectOutcome["state"] = "succeeded"): CausalEffectOutcome => {
 		const records = [...state().effects.values()],
 			record = records.at(-1)!;

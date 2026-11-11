@@ -1,31 +1,31 @@
 /**
- * Fresh-graph checkpoint restore (D94/D95).
+ * Checkpoint restore (R-checkpoint@1, graphrefly:D802; TS layout graphrefly-ts:D178).
  *
- * Restore consumes an already-loaded strict-JSON checkpoint. It validates the whole tree,
- * constructs graph-registered topology through explicit descriptors, then performs one
- * internal runtime-state commit. No storage I/O, observe replay, public hook, or protocol
- * wave participates in this path.
+ * Restore builds a new graph from a strict-JSON checkpoint: no subscribers, each node after its
+ * declared dependencies and otherwise in checkpoint order, and no recipe function runs. A state
+ * gets its saved values as one array and then its terminal; a computed node gets its values,
+ * terminal, private state, lifetime dependencies and the record of what it received as a
+ * construction seed (R-subscription). Its first activation runs its setup, and runs its function
+ * once only if a dependency no longer holds what it had received. No storage I/O.
  */
 
+import type { NodeFn } from "../ctx/types.js";
 import type { Dispatcher } from "../dispatcher/index.js";
-import { canonicalTupleKey } from "../identity.js";
 import { strictCanonicalJsonBytes } from "../json/codec.js";
 import type { Node } from "../node/node.js";
-import { restoreStateOfNode, type Status } from "../node/node.js";
-import {
-	type NodeVersioningPolicy,
-	type NodeVersionJson,
-	validateNodeVersionJson,
-} from "../node/versioning.js";
+import { nodeRuntimeHost } from "../node/node-runtime-host.js";
+import { restoreStateOfNode } from "../node/runtime-accessors.js";
+import type { NodeOptions, NodeReceived } from "../node/types.js";
+import type { NodeVersioningPolicy } from "../node/versioning.js";
 import { SENTINEL } from "../protocol/messages.js";
 import {
-	GRAPH_CHECKPOINT_VERSION,
+	GRAPH_CHECKPOINT_FORMAT,
 	type GraphCheckpoint,
-	type GraphCheckpointFactory,
 	type GraphCheckpointJson,
 	type GraphCheckpointNode,
+	type GraphCheckpointPolicies,
+	type GraphCheckpointRecipe,
 	type GraphCheckpointTerminal,
-	type GraphCheckpointValue,
 	toCheckpointJson,
 } from "./checkpoint.js";
 import type { IndexRow, ReactiveIndex } from "./data-structures/reactive-index.js";
@@ -36,55 +36,67 @@ import {
 	type ReactiveMap,
 	restoreReactiveMapFromBackendState,
 } from "./data-structures/reactive-map.js";
-import {
-	type Graph,
-	graph,
-	restoreNodeInGraph,
-	restoreStateNodeInGraph,
-	type SugarOpts,
-} from "./graph.js";
+import { type Graph, graph, restoreNodeInGraph, restoreStateNodeInGraph } from "./graph.js";
 import { map, operatorNodeFn, take } from "./operators.js";
 import { timer } from "./sources.js";
 
+/** A registered named function, for a recipe whose configuration names one (TS: map). */
 export interface GraphRestoreDefinition<S = never, T = unknown> {
 	readonly kind: "definition";
 	readonly ref: string;
 	readonly fn: (v: S) => T;
 }
 
-export type GraphRestoreEntry = GraphRestoreDescriptor | GraphRestoreDefinition;
+/** What a recipe factory gives: the instance's function and any setup (R-checkpoint). */
+export interface GraphRecipeBuild {
+	readonly fn: NodeFn;
+	readonly setup?: NodeOptions["setup"];
+}
 
-export interface GraphRestoreDescriptorContext<
-	C extends GraphCheckpointJson | undefined = GraphCheckpointJson | undefined,
-> {
+/** What a recipe factory is given besides its configuration (R-checkpoint). */
+export interface GraphRecipeContext {
+	/** The graph being restored. */
+	readonly graph: Graph;
+	/** The node's id. */
+	readonly id: string;
+	/** Build another registered recipe, for a recipe that takes another by reference. */
+	make(recipe: GraphCheckpointRecipe): GraphRecipeBuild;
+	/** A registered named function. */
+	definition<S = unknown, T = unknown>(ref: string): GraphRestoreDefinition<S, T>;
+}
+
+/** A registered recipe factory: given its configuration, it gives the function and setup. */
+export interface GraphRecipeFactory<C = GraphCheckpointJson | undefined> {
+	readonly ref: string;
+	validateConfig?(config: GraphCheckpointJson | undefined): C;
+	build(config: C, ctx: GraphRecipeContext): GraphRecipeBuild;
+}
+
+/** What a restore extension is given (graphrefly-ts:D178). */
+export interface GraphRestoreExtensionContext<C = GraphCheckpointJson | undefined> {
 	readonly graph: Graph;
 	readonly id: string;
 	readonly name?: string;
 	readonly deps: readonly Node<unknown>[];
 	readonly config: C;
-	readonly configVersion?: GraphCheckpointJson;
 	readonly checkpoint: GraphCheckpointNode;
-	resolveDefinition<S = unknown, T = unknown>(ref: string): GraphRestoreDefinition<S, T>;
-	registerState<T = unknown>(opts?: SugarOpts<T>): Node<unknown>;
-	registerNode<T = unknown>(
-		factory: string,
-		deps: readonly Node<unknown>[],
-		fn: import("../ctx/types.js").NodeFn | null,
-		opts?: SugarOpts<T>,
-	): Node<unknown>;
 }
 
-export interface GraphRestoreDescriptor<
-	C extends GraphCheckpointJson | undefined = GraphCheckpointJson | undefined,
-> {
+/**
+ * TS package extension (graphrefly-ts:D178): rebuilds a collection's nodes from the collection's
+ * saved backend (`backendState`), registering them itself. The checkpoint rule leaves a
+ * collection's backend to the package.
+ */
+export interface GraphRestoreExtension<C = GraphCheckpointJson | undefined> {
 	readonly ref: string;
-	validateConfig?(
-		config: GraphCheckpointJson | undefined,
-		configVersion: GraphCheckpointJson | undefined,
-		checkpoint: GraphCheckpointNode,
-	): C;
-	create(ctx: GraphRestoreDescriptorContext<C>): Node<unknown>;
+	validateConfig?(config: GraphCheckpointJson | undefined, checkpoint: GraphCheckpointNode): C;
+	create(ctx: GraphRestoreExtensionContext<C>): Node<unknown>;
 }
+
+export type GraphRestoreEntry =
+	| GraphRecipeFactory<any>
+	| GraphRestoreExtension<any>
+	| GraphRestoreDefinition<any, any>;
 
 export type GraphRestoreRegistry =
 	| ReadonlyMap<string, GraphRestoreEntry>
@@ -95,25 +107,6 @@ export interface RestoreGraphOptions {
 	dispatcher?: Dispatcher;
 	versioning?: NodeVersioningPolicy;
 }
-
-export const stateRestoreDescriptor: GraphRestoreDescriptor<undefined> = {
-	ref: "state",
-	validateConfig(config, configVersion) {
-		if (config !== undefined || configVersion !== undefined) {
-			throw new Error("restoreGraph: built-in state descriptor does not accept config");
-		}
-		return undefined;
-	},
-	create(ctx) {
-		if (ctx.deps.length !== 0) {
-			throw new Error(`restoreGraph: state node '${ctx.checkpoint.id}' cannot restore deps`);
-		}
-		return ctx.registerState({
-			name: ctx.name,
-			meta: ctx.checkpoint.meta,
-		});
-	},
-};
 
 type TakeConfig = { n: number };
 type TimerConfig = { ms: number };
@@ -130,7 +123,7 @@ function objectConfig(
 		Array.isArray(config) ||
 		typeof config !== "object"
 	) {
-		throw new Error(`restoreGraph: '${ref}' descriptor requires object config`);
+		throw new Error(`restoreGraph: '${ref}' recipe requires an object config`);
 	}
 	return config as Record<string, GraphCheckpointJson>;
 }
@@ -142,72 +135,39 @@ function finiteNumber(value: GraphCheckpointJson | undefined, ref: string, key: 
 	return value;
 }
 
-export const takeRestoreDescriptor: GraphRestoreDescriptor<TakeConfig> = {
+export const takeRestoreDescriptor: GraphRecipeFactory<TakeConfig> = {
 	ref: "take",
-	validateConfig(config, configVersion) {
-		if (configVersion !== undefined) {
-			throw new Error("restoreGraph: built-in take descriptor does not accept configVersion");
-		}
+	validateConfig(config) {
 		return { n: finiteNumber(objectConfig(config, "take").n, "take", "n") };
 	},
-	create(ctx) {
-		if (ctx.deps.length !== 1) {
-			throw new Error(`restoreGraph: take node '${ctx.checkpoint.id}' requires exactly one dep`);
-		}
-		const op = take(ctx.config.n);
-		return ctx.registerNode("take", ctx.deps, operatorNodeFn(op), {
-			name: ctx.name,
-			meta: ctx.checkpoint.meta,
-			restore: op.restore,
-		});
+	build(config) {
+		return { fn: operatorNodeFn(take(config.n)) };
 	},
 };
 
-export const mapRestoreDescriptor: GraphRestoreDescriptor<MapConfig> = {
+export const mapRestoreDescriptor: GraphRecipeFactory<MapConfig> = {
 	ref: "map",
-	validateConfig(config, configVersion) {
-		if (configVersion !== undefined) {
-			throw new Error("restoreGraph: built-in map descriptor does not accept configVersion");
-		}
+	validateConfig(config) {
 		const obj = objectConfig(config, "map");
 		if (typeof obj.fn !== "string") {
 			throw new Error("restoreGraph: 'map' config.fn must be a string definition ref");
 		}
 		return { fn: obj.fn };
 	},
-	create(ctx) {
-		if (ctx.deps.length !== 1) {
-			throw new Error(`restoreGraph: map node '${ctx.checkpoint.id}' requires exactly one dep`);
-		}
-		const definition = ctx.resolveDefinition(ctx.config.fn);
-		const op = map(definition);
-		return ctx.registerNode("map", ctx.deps, operatorNodeFn(op), {
-			name: ctx.name,
-			meta: ctx.checkpoint.meta,
-			restore: op.restore,
-		});
+	build(config, ctx) {
+		return { fn: operatorNodeFn(map(ctx.definition(config.fn))) };
 	},
 };
 
-export const timerRestoreDescriptor: GraphRestoreDescriptor<TimerConfig> = {
+export const timerRestoreDescriptor: GraphRecipeFactory<TimerConfig> = {
 	ref: "timer",
-	validateConfig(config, configVersion) {
-		if (configVersion !== undefined) {
-			throw new Error("restoreGraph: built-in timer descriptor does not accept configVersion");
-		}
+	validateConfig(config) {
 		return { ms: finiteNumber(objectConfig(config, "timer").ms, "timer", "ms") };
 	},
-	create(ctx) {
-		if (ctx.deps.length !== 0) {
-			throw new Error(`restoreGraph: timer node '${ctx.checkpoint.id}' cannot restore deps`);
-		}
-		const op = timer(ctx.config.ms);
-		return ctx.registerNode("timer", ctx.deps, operatorNodeFn(op), {
-			name: ctx.name,
-			meta: ctx.checkpoint.meta,
-			restore: op.restore,
-			...op.opts,
-		});
+	build(config) {
+		// The timer is opened by the setup, which runs at the restored node's first activation.
+		const op = timer(config.ms);
+		return { fn: operatorNodeFn(op), setup: op.opts?.setup };
 	},
 };
 
@@ -247,12 +207,8 @@ function collectionBaseId(
 	return base;
 }
 
-function noCollectionConfig(
-	config: GraphCheckpointJson | undefined,
-	configVersion: GraphCheckpointJson | undefined,
-	ref: string,
-): undefined {
-	if (config !== undefined || configVersion !== undefined) {
+function noCollectionConfig(config: GraphCheckpointJson | undefined, ref: string): undefined {
+	if (config !== undefined) {
 		throw new Error(`restoreGraph: '${ref}' descriptor does not accept config`);
 	}
 	return undefined;
@@ -344,7 +300,7 @@ function mapEntries(
 	return entries;
 }
 
-function restoredList(ctx: GraphRestoreDescriptorContext, ref: string): ReactiveList<unknown> {
+function restoredList(ctx: GraphRestoreExtensionContext, ref: string): ReactiveList<unknown> {
 	const base = collectionBaseId(ctx.id, ".delta", ref);
 	if (ctx.deps.length !== 0) {
 		throw new Error(`restoreGraph: '${ref}' node '${ctx.id}' cannot restore deps`);
@@ -357,7 +313,7 @@ function restoredList(ctx: GraphRestoreDescriptorContext, ref: string): Reactive
 	return collection;
 }
 
-function restoredIndex(ctx: GraphRestoreDescriptorContext, ref: string): ReactiveIndex<unknown> {
+function restoredIndex(ctx: GraphRestoreExtensionContext, ref: string): ReactiveIndex<unknown> {
 	const base = collectionBaseId(ctx.id, ".delta", ref);
 	if (ctx.deps.length !== 0) {
 		throw new Error(`restoreGraph: '${ref}' node '${ctx.id}' cannot restore deps`);
@@ -372,7 +328,7 @@ function restoredIndex(ctx: GraphRestoreDescriptorContext, ref: string): Reactiv
 }
 
 function restoredLog(
-	ctx: GraphRestoreDescriptorContext<LogConfig>,
+	ctx: GraphRestoreExtensionContext<LogConfig>,
 	ref: string,
 ): ReactiveLog<unknown> {
 	const base = collectionBaseId(ctx.id, ".delta", ref);
@@ -392,7 +348,7 @@ function restoredLog(
 	return collection;
 }
 
-function restoredMapNode(ctx: GraphRestoreDescriptorContext, ref: string): Node<unknown> {
+function restoredMapNode(ctx: GraphRestoreExtensionContext, ref: string): Node<unknown> {
 	const base = collectionBaseId(ctx.id, ".intent", ref);
 	if (ctx.deps.length !== 0) {
 		throw new Error(`restoreGraph: '${ref}' node '${ctx.id}' cannot restore deps`);
@@ -411,7 +367,7 @@ function restoredMapNode(ctx: GraphRestoreDescriptorContext, ref: string): Node<
 }
 
 function existingMapNode(
-	ctx: GraphRestoreDescriptorContext,
+	ctx: GraphRestoreExtensionContext,
 	ref: string,
 	suffix: ".apply" | ".snapshotPrep" | ".delta" | ".snapshot" | ".request",
 ): Node<unknown> {
@@ -428,7 +384,7 @@ function existingMapNode(
 }
 
 function existingCollection(
-	ctx: GraphRestoreDescriptorContext,
+	ctx: GraphRestoreExtensionContext,
 	ref: string,
 	kind: RestoredCollection["kind"],
 ): RestoredCollection {
@@ -445,7 +401,7 @@ function existingCollection(
 }
 
 function existingCollectionRequest(
-	ctx: GraphRestoreDescriptorContext,
+	ctx: GraphRestoreExtensionContext,
 	ref: string,
 	kind: RestoredCollection["kind"],
 ): Node<unknown> {
@@ -460,14 +416,7 @@ function existingCollectionRequest(
 	return item.collection.request as Node<unknown>;
 }
 
-function validateLogConfig(
-	config: GraphCheckpointJson | undefined,
-	configVersion: GraphCheckpointJson | undefined,
-	ref: string,
-): LogConfig {
-	if (configVersion !== undefined) {
-		throw new Error(`restoreGraph: '${ref}' descriptor does not accept configVersion`);
-	}
+function validateLogConfig(config: GraphCheckpointJson | undefined, ref: string): LogConfig {
 	if (config === undefined) return {};
 	const obj = objectConfig(config, ref);
 	if (obj.maxSize === undefined) return {};
@@ -478,30 +427,30 @@ function validateLogConfig(
 	return { maxSize };
 }
 
-export const reactiveListDeltaRestoreDescriptor: GraphRestoreDescriptor<undefined> = {
+export const reactiveListDeltaRestoreDescriptor: GraphRestoreExtension<undefined> = {
 	ref: "reactiveList.delta",
-	validateConfig(config, configVersion) {
-		return noCollectionConfig(config, configVersion, "reactiveList.delta");
+	validateConfig(config) {
+		return noCollectionConfig(config, "reactiveList.delta");
 	},
 	create(ctx) {
 		return restoredList(ctx, "reactiveList.delta").delta as Node<unknown>;
 	},
 };
 
-export const reactiveListRequestRestoreDescriptor: GraphRestoreDescriptor<undefined> = {
+export const reactiveListRequestRestoreDescriptor: GraphRestoreExtension<undefined> = {
 	ref: "reactiveList.request",
-	validateConfig(config, configVersion) {
-		return noCollectionConfig(config, configVersion, "reactiveList.request");
+	validateConfig(config) {
+		return noCollectionConfig(config, "reactiveList.request");
 	},
 	create(ctx) {
 		return existingCollectionRequest(ctx, "reactiveList.request", "reactiveList");
 	},
 };
 
-export const reactiveListSnapshotRestoreDescriptor: GraphRestoreDescriptor<undefined> = {
+export const reactiveListSnapshotRestoreDescriptor: GraphRestoreExtension<undefined> = {
 	ref: "reactiveList.snapshot",
-	validateConfig(config, configVersion) {
-		return noCollectionConfig(config, configVersion, "reactiveList.snapshot");
+	validateConfig(config) {
+		return noCollectionConfig(config, "reactiveList.snapshot");
 	},
 	create(ctx) {
 		return existingCollection(ctx, "reactiveList.snapshot", "reactiveList").collection
@@ -509,30 +458,30 @@ export const reactiveListSnapshotRestoreDescriptor: GraphRestoreDescriptor<undef
 	},
 };
 
-export const reactiveIndexDeltaRestoreDescriptor: GraphRestoreDescriptor<undefined> = {
+export const reactiveIndexDeltaRestoreDescriptor: GraphRestoreExtension<undefined> = {
 	ref: "reactiveIndex.delta",
-	validateConfig(config, configVersion) {
-		return noCollectionConfig(config, configVersion, "reactiveIndex.delta");
+	validateConfig(config) {
+		return noCollectionConfig(config, "reactiveIndex.delta");
 	},
 	create(ctx) {
 		return restoredIndex(ctx, "reactiveIndex.delta").delta as Node<unknown>;
 	},
 };
 
-export const reactiveIndexRequestRestoreDescriptor: GraphRestoreDescriptor<undefined> = {
+export const reactiveIndexRequestRestoreDescriptor: GraphRestoreExtension<undefined> = {
 	ref: "reactiveIndex.request",
-	validateConfig(config, configVersion) {
-		return noCollectionConfig(config, configVersion, "reactiveIndex.request");
+	validateConfig(config) {
+		return noCollectionConfig(config, "reactiveIndex.request");
 	},
 	create(ctx) {
 		return existingCollectionRequest(ctx, "reactiveIndex.request", "reactiveIndex");
 	},
 };
 
-export const reactiveIndexSnapshotRestoreDescriptor: GraphRestoreDescriptor<undefined> = {
+export const reactiveIndexSnapshotRestoreDescriptor: GraphRestoreExtension<undefined> = {
 	ref: "reactiveIndex.snapshot",
-	validateConfig(config, configVersion) {
-		return noCollectionConfig(config, configVersion, "reactiveIndex.snapshot");
+	validateConfig(config) {
+		return noCollectionConfig(config, "reactiveIndex.snapshot");
 	},
 	create(ctx) {
 		return existingCollection(ctx, "reactiveIndex.snapshot", "reactiveIndex").collection
@@ -540,30 +489,30 @@ export const reactiveIndexSnapshotRestoreDescriptor: GraphRestoreDescriptor<unde
 	},
 };
 
-export const reactiveLogDeltaRestoreDescriptor: GraphRestoreDescriptor<LogConfig> = {
+export const reactiveLogDeltaRestoreDescriptor: GraphRestoreExtension<LogConfig> = {
 	ref: "reactiveLog.delta",
-	validateConfig(config, configVersion) {
-		return validateLogConfig(config, configVersion, "reactiveLog.delta");
+	validateConfig(config) {
+		return validateLogConfig(config, "reactiveLog.delta");
 	},
 	create(ctx) {
 		return restoredLog(ctx, "reactiveLog.delta").delta as Node<unknown>;
 	},
 };
 
-export const reactiveLogRequestRestoreDescriptor: GraphRestoreDescriptor<LogConfig> = {
+export const reactiveLogRequestRestoreDescriptor: GraphRestoreExtension<LogConfig> = {
 	ref: "reactiveLog.request",
-	validateConfig(config, configVersion) {
-		return validateLogConfig(config, configVersion, "reactiveLog.request");
+	validateConfig(config) {
+		return validateLogConfig(config, "reactiveLog.request");
 	},
 	create(ctx) {
 		return existingCollectionRequest(ctx, "reactiveLog.request", "reactiveLog");
 	},
 };
 
-export const reactiveLogSnapshotRestoreDescriptor: GraphRestoreDescriptor<LogConfig> = {
+export const reactiveLogSnapshotRestoreDescriptor: GraphRestoreExtension<LogConfig> = {
 	ref: "reactiveLog.snapshot",
-	validateConfig(config, configVersion) {
-		return validateLogConfig(config, configVersion, "reactiveLog.snapshot");
+	validateConfig(config) {
+		return validateLogConfig(config, "reactiveLog.snapshot");
 	},
 	create(ctx) {
 		return existingCollection(ctx, "reactiveLog.snapshot", "reactiveLog").collection
@@ -571,68 +520,67 @@ export const reactiveLogSnapshotRestoreDescriptor: GraphRestoreDescriptor<LogCon
 	},
 };
 
-export const reactiveMapIntentRestoreDescriptor: GraphRestoreDescriptor<undefined> = {
+export const reactiveMapIntentRestoreDescriptor: GraphRestoreExtension<undefined> = {
 	ref: "reactiveMap.intent",
-	validateConfig(config, configVersion) {
-		return noCollectionConfig(config, configVersion, "reactiveMap.intent");
+	validateConfig(config) {
+		return noCollectionConfig(config, "reactiveMap.intent");
 	},
 	create(ctx) {
 		return restoredMapNode(ctx, "reactiveMap.intent");
 	},
 };
 
-export const reactiveMapApplyRestoreDescriptor: GraphRestoreDescriptor<undefined> = {
+export const reactiveMapApplyRestoreDescriptor: GraphRestoreExtension<undefined> = {
 	ref: "reactiveMap.apply",
-	validateConfig(config, configVersion) {
-		return noCollectionConfig(config, configVersion, "reactiveMap.apply");
+	validateConfig(config) {
+		return noCollectionConfig(config, "reactiveMap.apply");
 	},
 	create(ctx) {
 		return existingMapNode(ctx, "reactiveMap.apply", ".apply");
 	},
 };
 
-export const reactiveMapRequestRestoreDescriptor: GraphRestoreDescriptor<undefined> = {
+export const reactiveMapRequestRestoreDescriptor: GraphRestoreExtension<undefined> = {
 	ref: "reactiveMap.request",
-	validateConfig(config, configVersion) {
-		return noCollectionConfig(config, configVersion, "reactiveMap.request");
+	validateConfig(config) {
+		return noCollectionConfig(config, "reactiveMap.request");
 	},
 	create(ctx) {
 		return existingMapNode(ctx, "reactiveMap.request", ".request");
 	},
 };
 
-export const reactiveMapSnapshotPrepRestoreDescriptor: GraphRestoreDescriptor<undefined> = {
+export const reactiveMapSnapshotPrepRestoreDescriptor: GraphRestoreExtension<undefined> = {
 	ref: "reactiveMap.snapshotPrep",
-	validateConfig(config, configVersion) {
-		return noCollectionConfig(config, configVersion, "reactiveMap.snapshotPrep");
+	validateConfig(config) {
+		return noCollectionConfig(config, "reactiveMap.snapshotPrep");
 	},
 	create(ctx) {
 		return existingMapNode(ctx, "reactiveMap.snapshotPrep", ".snapshotPrep");
 	},
 };
 
-export const reactiveMapDeltaRestoreDescriptor: GraphRestoreDescriptor<undefined> = {
+export const reactiveMapDeltaRestoreDescriptor: GraphRestoreExtension<undefined> = {
 	ref: "reactiveMap.delta",
-	validateConfig(config, configVersion) {
-		return noCollectionConfig(config, configVersion, "reactiveMap.delta");
+	validateConfig(config) {
+		return noCollectionConfig(config, "reactiveMap.delta");
 	},
 	create(ctx) {
 		return existingMapNode(ctx, "reactiveMap.delta", ".delta");
 	},
 };
 
-export const reactiveMapSnapshotRestoreDescriptor: GraphRestoreDescriptor<undefined> = {
+export const reactiveMapSnapshotRestoreDescriptor: GraphRestoreExtension<undefined> = {
 	ref: "reactiveMap.snapshot",
-	validateConfig(config, configVersion) {
-		return noCollectionConfig(config, configVersion, "reactiveMap.snapshot");
+	validateConfig(config) {
+		return noCollectionConfig(config, "reactiveMap.snapshot");
 	},
 	create(ctx) {
 		return existingMapNode(ctx, "reactiveMap.snapshot", ".snapshot");
 	},
 };
 
-export const defaultRestoreRegistry: Readonly<Record<string, GraphRestoreDescriptor>> = {
-	state: stateRestoreDescriptor,
+export const defaultRestoreRegistry: Readonly<Record<string, GraphRestoreEntry>> = {
 	map: mapRestoreDescriptor,
 	take: takeRestoreDescriptor,
 	timer: timerRestoreDescriptor,
@@ -653,29 +601,17 @@ export const defaultRestoreRegistry: Readonly<Record<string, GraphRestoreDescrip
 	"reactiveMap.snapshot": reactiveMapSnapshotRestoreDescriptor,
 };
 
-type PreparedNode = {
+type Prepared = {
 	checkpoint: GraphCheckpointNode;
-	localId: string;
-	descriptor: GraphRestoreDescriptor;
+	entry: GraphRecipeFactory | GraphRestoreExtension | undefined;
 	config: GraphCheckpointJson | undefined;
-	deps: string[];
-	runtime: PreparedRuntime;
+	terminal: true | unknown | undefined;
 };
 
 type PreparedCheckpoint = {
 	checkpoint: GraphCheckpoint;
-	nodes: Map<string, PreparedNode>;
+	nodes: Map<string, Prepared>;
 	mounts: Array<{ at: string; prepared: PreparedCheckpoint }>;
-};
-
-type PreparedRuntime = {
-	cache: unknown;
-	hasData: boolean;
-	status: Status;
-	terminal: true | unknown | undefined;
-	hasCalledFnOnce: boolean;
-	ctxState: { value: unknown };
-	version: NodeVersionJson | false;
 };
 
 function registryGet(registry: GraphRestoreRegistry, ref: string): GraphRestoreEntry | undefined {
@@ -684,15 +620,17 @@ function registryGet(registry: GraphRestoreRegistry, ref: string): GraphRestoreE
 		: (registry as Readonly<Record<string, GraphRestoreEntry>>)[ref];
 }
 
-function isRestoreDescriptor(
-	entry: GraphRestoreEntry | undefined,
-): entry is GraphRestoreDescriptor {
+function isFactory(entry: GraphRestoreEntry | undefined): entry is GraphRecipeFactory {
+	return entry !== undefined && "build" in entry;
+}
+
+function isExtension(entry: GraphRestoreEntry | undefined): entry is GraphRestoreExtension {
 	return entry !== undefined && "create" in entry;
 }
 
-function isRestoreDefinition(
+function isDefinition(
 	entry: GraphRestoreEntry | undefined,
-): entry is GraphRestoreDefinition {
+): entry is GraphRestoreDefinition<any, any> {
 	return entry !== undefined && "kind" in entry && entry.kind === "definition";
 }
 
@@ -701,148 +639,87 @@ function assertString(value: unknown, label: string): string {
 	return value;
 }
 
-function assertStatus(value: unknown, id: string): Status {
-	const v = value as Partial<Record<keyof Status, unknown>> | null;
-	if (
-		typeof v !== "object" ||
-		v === null ||
-		!["empty", "stale", "ready"].includes(v.cache as string) ||
-		!["open", "completed", "errored"].includes(v.output as string) ||
-		!["inactive", "active", "closing"].includes(v.lifecycle as string)
-	) {
-		throw new Error(`restoreGraph: node '${id}' has an invalid status`);
-	}
-	if (v.cache === "stale") {
-		throw new Error(
-			`restoreGraph: node '${id}' has a stale cache (an unsettled pending mark) that cannot be checkpoint-restored yet`,
-		);
-	}
-	return v as Status;
+function assertArray(value: unknown, label: string): unknown[] {
+	if (!Array.isArray(value)) throw new Error(`restoreGraph: ${label} must be an array`);
+	return value;
 }
 
-function checkpointDataValue(
-	value: GraphCheckpointValue,
-	id: string,
-): {
-	cache: unknown;
-	hasData: boolean;
-} {
-	if (value.kind === "SENTINEL") return { cache: SENTINEL, hasData: false };
-	if (value.kind === "DATA") return { cache: value.data, hasData: true };
-	throw new Error(`restoreGraph: node '${id}' has invalid checkpoint value`);
-}
-
-function checkpointTerminal(
+function restoredTerminal(
 	value: GraphCheckpointTerminal,
-	id: string,
+	label: string,
 ): true | unknown | undefined {
-	if (value.kind === "none") return undefined;
-	if (value.kind === "COMPLETE") return true;
-	if (value.kind === "ERROR") return value.error;
-	throw new Error(`restoreGraph: node '${id}' has invalid terminal state`);
+	if (value?.kind === "none") return undefined;
+	if (value?.kind === "COMPLETE") return true;
+	if (value?.kind === "ERROR") return value.error;
+	throw new Error(`restoreGraph: ${label} has an invalid terminal`);
 }
 
-function prepareRuntime(node: GraphCheckpointNode): PreparedRuntime {
-	const nonAuthoritativeCollectionHelper = isCollectionHelperNonAuthoritative(node);
-	const value = nonAuthoritativeCollectionHelper
-		? { cache: SENTINEL, hasData: false }
-		: checkpointDataValue(node.value, node.id);
-	const terminal = checkpointTerminal(node.terminal, node.id);
-	const status = assertStatus(node.status, node.id);
-	if (terminal === true && status.output !== "completed") {
-		throw new Error(`restoreGraph: node '${node.id}' COMPLETE terminal requires completed status`);
-	}
-	if (terminal !== undefined && terminal !== true && status.output !== "errored") {
-		throw new Error(`restoreGraph: node '${node.id}' ERROR terminal requires errored status`);
-	}
-	if (terminal === undefined && status.output !== "open") {
-		throw new Error(`restoreGraph: node '${node.id}' terminal status requires terminal state`);
-	}
-	if (typeof node.lifecycle.activated !== "boolean") {
-		throw new Error(`restoreGraph: node '${node.id}' lifecycle.activated must be boolean`);
-	}
-	if (typeof node.lifecycle.hasCalledFnOnce !== "boolean") {
-		throw new Error(`restoreGraph: node '${node.id}' lifecycle.hasCalledFnOnce must be boolean`);
-	}
-	if (typeof node.ctxState.persist !== "boolean") {
-		throw new Error(`restoreGraph: node '${node.id}' ctxState.persist must be boolean`);
-	}
-	const ctxState = nonAuthoritativeCollectionHelper
-		? { cache: SENTINEL, hasData: false }
-		: checkpointDataValue(node.ctxState.value, `${node.id}.ctxState`);
-	const version =
-		node.version === undefined
-			? false
-			: validateNodeVersionJson(node.version, `${node.id}.version`);
-	return {
-		cache: value.cache,
-		hasData: value.hasData,
-		status,
-		terminal,
-		hasCalledFnOnce: node.lifecycle.hasCalledFnOnce,
-		ctxState: { value: ctxState.cache },
-		version,
-	};
-}
-
-function isCollectionHelperNonAuthoritative(node: GraphCheckpointNode): boolean {
-	if (node.factory.kind !== "registry-ref") return false;
-	return (
-		node.factory.ref === "reactiveList.delta" ||
-		node.factory.ref === "reactiveList.request" ||
-		node.factory.ref === "reactiveList.snapshot" ||
-		node.factory.ref === "reactiveIndex.delta" ||
-		node.factory.ref === "reactiveIndex.request" ||
-		node.factory.ref === "reactiveIndex.snapshot" ||
-		node.factory.ref === "reactiveLog.delta" ||
-		node.factory.ref === "reactiveLog.request" ||
-		node.factory.ref === "reactiveLog.snapshot" ||
-		node.factory.ref === "reactiveMap.intent" ||
-		node.factory.ref === "reactiveMap.apply" ||
-		node.factory.ref === "reactiveMap.delta" ||
-		node.factory.ref === "reactiveMap.request" ||
-		node.factory.ref === "reactiveMap.snapshotPrep" ||
-		node.factory.ref === "reactiveMap.snapshot"
-	);
-}
-
-function validateFactory(
-	factory: GraphCheckpointFactory,
-	registry: GraphRestoreRegistry,
-	id: string,
-): GraphRestoreDescriptor {
-	if (factory.kind === "local-only") {
-		throw new Error(
-			`restoreGraph: node '${id}' uses local-only factory '${factory.name}' (${factory.reason})`,
-		);
-	}
-	const ref = assertString(factory.ref, `factory ref for node '${id}'`);
-	const entry = registryGet(registry, ref);
-	if (!isRestoreDescriptor(entry)) {
-		throw new Error(`restoreGraph: missing registry descriptor for '${ref}' (node '${id}')`);
-	}
-	const descriptor = entry;
-	if (descriptor.ref !== ref) {
-		throw new Error(
-			`restoreGraph: registry descriptor for '${ref}' reports ref '${descriptor.ref}'`,
-		);
-	}
-	if (factory.config !== undefined) toCheckpointJson(factory.config, `${id}.factory.config`);
-	if (factory.configVersion !== undefined)
-		toCheckpointJson(factory.configVersion, `${id}.factory.configVersion`);
-	return descriptor;
-}
-
-function resolveDefinition<S, T>(
+function entryFor(
 	registry: GraphRestoreRegistry,
 	ref: string,
-	nodeId: string,
-): GraphRestoreDefinition<S, T> {
+	id: string,
+): GraphRecipeFactory | GraphRestoreExtension {
 	const entry = registryGet(registry, ref);
-	if (!isRestoreDefinition(entry)) {
-		throw new Error(`restoreGraph: missing function definition for '${ref}' (node '${nodeId}')`);
+	if (!isFactory(entry) && !isExtension(entry))
+		throw new Error(`restoreGraph: missing recipe '${ref}' in the registry (node '${id}')`);
+	if (entry.ref !== ref)
+		throw new Error(`restoreGraph: registry entry for '${ref}' reports ref '${entry.ref}'`);
+	return entry;
+}
+
+function prepareNode(node: GraphCheckpointNode, registry: GraphRestoreRegistry): Prepared {
+	const id = node.id;
+	if (node.kind !== "state" && node.kind !== "computed")
+		throw new Error(`restoreGraph: node '${id}' has an invalid kind`);
+	assertString(node.factory, `node '${id}' factory`);
+	assertArray(node.deps, `node '${id}' deps`).forEach((d, i) => {
+		assertString(d, `${id}.deps[${i}]`);
+	});
+	assertArray(node.values, `node '${id}' values`);
+	const terminal = restoredTerminal(node.terminal, `node '${id}'`);
+	if (node.kind === "state" && node.deps.length !== 0)
+		throw new Error(`restoreGraph: state node '${id}' cannot have dependencies`);
+	if (node.lifetime !== undefined) {
+		if (node.kind !== "computed")
+			throw new Error(`restoreGraph: state node '${id}' cannot have a lifetime`);
+		const lifetimeDeps = node.lifetime.deps ?? node.deps;
+		assertArray(node.lifetime.deps ?? [], `node '${id}' lifetime.deps`);
+		const received = assertArray(node.lifetime.received, `node '${id}' lifetime.received`);
+		if (received.length !== lifetimeDeps.length)
+			throw new Error(
+				`restoreGraph: node '${id}' records what it received from ${received.length} dependencies, not ${lifetimeDeps.length}`,
+			);
+		received.forEach((r, i) => {
+			const rec = r as { values?: unknown; terminal?: GraphCheckpointTerminal };
+			assertArray(rec.values, `${id}.lifetime.received[${i}].values`);
+			restoredTerminal(rec.terminal as GraphCheckpointTerminal, `${id}.lifetime.received[${i}]`);
+		});
+		if (typeof node.lifetime.ran !== "boolean")
+			throw new Error(`restoreGraph: node '${id}' lifetime.ran must be a boolean`);
 	}
-	return entry as GraphRestoreDefinition<S, T>;
+	if (node.kind === "computed" && node.policies === undefined)
+		throw new Error(`restoreGraph: computed node '${id}' has no policies`);
+	if (node.recipe === undefined) {
+		if (node.kind === "computed")
+			throw new Error(
+				`restoreGraph: node '${id}' is local-only: its instance carries no recipe (R-checkpoint)`,
+			);
+		return { checkpoint: node, entry: undefined, config: undefined, terminal };
+	}
+	const ref = assertString(node.recipe.ref, `node '${id}' recipe.ref`);
+	const entry = entryFor(registry, ref, id);
+	if (node.kind === "state" && !isExtension(entry))
+		throw new Error(`restoreGraph: state node '${id}' recipe '${ref}' is not a restore extension`);
+	const raw = node.recipe.config;
+	if (raw !== undefined) toCheckpointJson(raw, `${id}.recipe.config`);
+	const config = isExtension(entry)
+		? entry.validateConfig
+			? entry.validateConfig(raw, node)
+			: raw
+		: entry.validateConfig
+			? entry.validateConfig(raw)
+			: raw;
+	return { checkpoint: node, entry, config, terminal };
 }
 
 function prepareCheckpoint(
@@ -851,76 +728,27 @@ function prepareCheckpoint(
 	path = "checkpoint",
 	mountAt?: string,
 ): PreparedCheckpoint {
-	if (checkpoint.version !== GRAPH_CHECKPOINT_VERSION) {
-		throw new Error(`restoreGraph: unsupported checkpoint version at ${path}`);
-	}
+	// R-checkpoint: a checkpoint lacking what the rule saves, such as one written to an earlier
+	// format, is refused rather than completed.
+	if (checkpoint?.format !== GRAPH_CHECKPOINT_FORMAT)
+		throw new Error(
+			`restoreGraph: ${path} is not a ${GRAPH_CHECKPOINT_FORMAT} checkpoint (an earlier format lacks what R-checkpoint saves)`,
+		);
 	toCheckpointJson(checkpoint, path);
-	const nodes = new Map<string, PreparedNode>();
-	const localIds = new Set<string>();
-	for (const node of checkpoint.nodes) {
-		assertString(node.id, `${path}.nodes[].id`);
-		if (nodes.has(node.id)) throw new Error(`restoreGraph: duplicate node id '${node.id}'`);
-		if (mountAt !== undefined && node.id.startsWith(`${mountAt}::`)) {
+	const nodes = new Map<string, Prepared>();
+	for (const node of assertArray(checkpoint.nodes, `${path}.nodes`) as GraphCheckpointNode[]) {
+		const id = assertString(node.id, `${path}.nodes[].id`);
+		if (nodes.has(id)) throw new Error(`restoreGraph: duplicate node id '${id}'`);
+		if (mountAt !== undefined && id.startsWith(`${mountAt}::`))
 			throw new Error(
-				`restoreGraph: mounted checkpoint at '${mountAt}' must use child-local node id '${node.id.slice(`${mountAt}::`.length)}', not '${node.id}'`,
+				`restoreGraph: mounted checkpoint at '${mountAt}' must use child-local node id '${id.slice(`${mountAt}::`.length)}', not '${id}'`,
 			);
-		}
-		const id = node.id;
-		if (localIds.has(id)) {
-			throw new Error(`restoreGraph: duplicate restored local node id '${id}'`);
-		}
-		localIds.add(id);
-		const factory = node.factory;
-		const descriptor = validateFactory(factory, registry, node.id);
-		const rawConfig = factory.kind === "registry-ref" ? factory.config : undefined;
-		const configVersion = factory.kind === "registry-ref" ? factory.configVersion : undefined;
-		const config = descriptor.validateConfig
-			? descriptor.validateConfig(rawConfig, configVersion, node)
-			: rawConfig;
-		assertStatus(node.status, node.id);
-		nodes.set(node.id, {
-			checkpoint: node,
-			localId: id,
-			descriptor,
-			config,
-			runtime: prepareRuntime(node),
-			deps: node.deps.map((dep, i) => assertString(dep, `${node.id}.deps[${i}]`)),
-		});
+		nodes.set(id, prepareNode(node, registry));
 	}
-	for (const prepared of nodes.values()) {
-		for (const dep of prepared.deps) {
-			if (!nodes.has(dep)) {
-				throw new Error(`restoreGraph: node '${prepared.checkpoint.id}' has missing dep '${dep}'`);
-			}
-		}
-	}
-	const edgeKeys = new Set<string>();
-	for (const edge of checkpoint.edges) {
-		const edgeKey = canonicalTupleKey([edge.from, edge.to]);
-		if (edgeKeys.has(edgeKey)) {
-			throw new Error(`restoreGraph: duplicate edge '${edge.from}' -> '${edge.to}'`);
-		}
-		edgeKeys.add(edgeKey);
-		if (!nodes.has(edge.from) || !nodes.has(edge.to)) {
-			throw new Error(
-				`restoreGraph: edge '${edge.from}' -> '${edge.to}' references a missing node`,
-			);
-		}
-		const target = nodes.get(edge.to) as PreparedNode;
-		if (!target.deps.includes(edge.from)) {
-			throw new Error(
-				`restoreGraph: edge '${edge.from}' -> '${edge.to}' is not present in target deps`,
-			);
-		}
-	}
-	for (const prepared of nodes.values()) {
-		for (const dep of prepared.deps) {
-			if (!edgeKeys.has(canonicalTupleKey([dep, prepared.checkpoint.id]))) {
-				throw new Error(
-					`restoreGraph: node '${prepared.checkpoint.id}' dep '${dep}' is missing its edge`,
-				);
-			}
-		}
+	for (const { checkpoint: node } of nodes.values()) {
+		for (const dep of [...node.deps, ...(node.lifetime?.deps ?? [])])
+			if (!nodes.has(dep))
+				throw new Error(`restoreGraph: node '${node.id}' has missing dep '${dep}'`);
 	}
 	const mountPaths = new Set<string>();
 	const mounts: PreparedCheckpoint["mounts"] = [];
@@ -937,6 +765,41 @@ function prepareCheckpoint(
 	return { checkpoint, nodes, mounts };
 }
 
+function recipeContext(registry: GraphRestoreRegistry, out: Graph, id: string): GraphRecipeContext {
+	const ctx: GraphRecipeContext = {
+		graph: out,
+		id,
+		make(recipe) {
+			const entry = registryGet(registry, recipe.ref);
+			if (!isFactory(entry))
+				throw new Error(
+					`restoreGraph: missing recipe '${recipe.ref}' in the registry (node '${id}')`,
+				);
+			const config = entry.validateConfig ? entry.validateConfig(recipe.config) : recipe.config;
+			return entry.build(config, ctx);
+		},
+		definition<S, T>(ref: string) {
+			const entry = registryGet(registry, ref);
+			if (!isDefinition(entry))
+				throw new Error(`restoreGraph: missing function definition for '${ref}' (node '${id}')`);
+			return entry as unknown as GraphRestoreDefinition<S, T>;
+		},
+	};
+	return ctx;
+}
+
+function policyOptions(p: GraphCheckpointPolicies): Partial<NodeOptions<unknown>> {
+	return {
+		complete: p.complete,
+		error: p.error,
+		invalidate: p.invalidate,
+		partial: p.partial,
+		quiet: p.quiet,
+		dynamic: p.dynamic,
+		pool: p.pool,
+	};
+}
+
 function constructPrepared(
 	prepared: PreparedCheckpoint,
 	registry: GraphRestoreRegistry,
@@ -947,46 +810,53 @@ function constructPrepared(
 	try {
 		const built = new Map<string, Node<unknown>>();
 		const visiting = new Set<string>();
-
+		// R-checkpoint: each node is built after its declared dependencies, otherwise in checkpoint
+		// order; no recipe function runs.
 		const buildNode = (id: string): Node<unknown> => {
 			const existing = built.get(id);
 			if (existing) return existing;
-			const item = prepared.nodes.get(id);
-			if (item === undefined) throw new Error(`restoreGraph: missing prepared node '${id}'`);
+			const item = prepared.nodes.get(id) as Prepared;
 			if (visiting.has(id)) throw new Error(`restoreGraph: dependency cycle at '${id}'`);
 			visiting.add(id);
-			const deps = item.deps.map(buildNode);
-			const node = item.descriptor.create({
-				graph: out,
-				id: item.localId,
-				name: item.checkpoint.name,
-				deps,
-				config: item.config,
-				configVersion:
-					item.checkpoint.factory.kind === "registry-ref"
-						? item.checkpoint.factory.configVersion
-						: undefined,
-				checkpoint: item.checkpoint,
-				resolveDefinition: (ref) => resolveDefinition(registry, ref, item.checkpoint.id),
-				registerState: (opts) => restoreStateNodeInGraph(out, item.localId, opts),
-				registerNode: (factory, nodeDeps, fn, opts) =>
-					restoreNodeInGraph(out, item.localId, factory, nodeDeps, fn, opts),
-			});
-			if (out.find(item.localId) !== node) {
-				throw new Error(
-					`restoreGraph: descriptor '${item.descriptor.ref}' did not register node '${item.localId}'`,
-				);
+			const node = item.checkpoint;
+			const deps = node.deps.map(buildNode);
+			const common = {
+				name: node.name,
+				meta: node.meta,
+				...(node.recipe === undefined ? {} : { recipe: node.recipe }),
+			};
+			let made: Node<unknown>;
+			if (item.entry === undefined) {
+				made = restoreStateNodeInGraph(out, id, common) as Node<unknown>;
+			} else if (isExtension(item.entry)) {
+				made = item.entry.create({
+					graph: out,
+					id,
+					name: node.name,
+					deps,
+					config: item.config,
+					checkpoint: node,
+				});
+				if (out.find(id) !== made)
+					throw new Error(
+						`restoreGraph: restore extension '${item.entry.ref}' did not register node '${id}'`,
+					);
+			} else {
+				const build = item.entry.build(item.config, recipeContext(registry, out, id));
+				made = restoreNodeInGraph(out, id, node.factory, deps, build.fn, {
+					...common,
+					...policyOptions(node.policies as GraphCheckpointPolicies),
+					...(build.setup === undefined ? {} : { setup: build.setup }),
+				});
 			}
-			if (node.deps.length !== deps.length || node.deps.some((dep, i) => dep !== deps[i])) {
+			if (made.deps.length !== deps.length || made.deps.some((dep, i) => dep !== deps[i]))
 				throw new Error(
-					`restoreGraph: descriptor '${item.descriptor.ref}' registered node '${item.localId}' with deps that do not match the checkpoint`,
+					`restoreGraph: node '${id}' was built with dependencies that do not match the checkpoint`,
 				);
-			}
-			built.set(id, node);
+			built.set(id, made);
 			visiting.delete(id);
-			return node;
+			return made;
 		};
-
 		for (const id of prepared.nodes.keys()) buildNode(id);
 
 		for (const mount of prepared.mounts) {
@@ -995,30 +865,44 @@ function constructPrepared(
 			});
 		}
 
-		for (const [id, node] of built) {
-			const runtime = (prepared.nodes.get(id) as PreparedNode).runtime;
-			restoreStateOfNode(node, {
-				cache: runtime.cache,
-				hasData: runtime.hasData,
-				terminal: runtime.terminal,
-				hasCalledFnOnce: runtime.hasCalledFnOnce,
-				ctxState: runtime.ctxState,
-				version: runtime.version,
+		for (const [id, made] of built) {
+			const item = prepared.nodes.get(id) as Prepared;
+			const node = item.checkpoint;
+			const lifetime = node.lifetime;
+			// A ctx.rewire's lifetime dependencies; the declared ones come back when it closes.
+			if (lifetime?.deps !== undefined)
+				nodeRuntimeHost(made)._rewire(
+					lifetime.deps.map((dep) => built.get(dep) as Node<unknown>),
+					undefined,
+					{ declare: false },
+				);
+			const received: NodeReceived[] | undefined = lifetime?.received.map((r) => ({
+				values: r.values,
+				terminal: restoredTerminal(r.terminal, `node '${id}' received`),
+			}));
+			restoreStateOfNode(made, {
+				values: node.values,
+				terminal: item.terminal,
+				privateState: lifetime?.state ?? SENTINEL,
+				seed:
+					lifetime === undefined || received === undefined
+						? undefined
+						: { received, ran: lifetime.ran },
 			});
 		}
 	} finally {
 		clearRestoredCollectionMap(out);
 	}
-
 	return out;
 }
 
 /**
- * Restore a graph instance from a checkpoint and restore registry.
+ * Restore a new graph from a checkpoint and a registry of recipes (R-checkpoint).
  *
- * @param checkpoint - Serialized graph checkpoint to restore.
- * @param options - Restore registry and optional dispatcher/versioning overrides.
- * @returns A live graph rebuilt from the checkpoint.
+ * @param checkpoint - A `graphrefly.checkpoint.v2` checkpoint.
+ * @param options - The registry of recipe factories, restore extensions and named definitions,
+ *   and optional dispatcher and versioning overrides.
+ * @returns A new graph with no subscribers; no recipe function has run.
  * @example
  * ```ts
  * import { defaultRestoreRegistry, graph, restoreGraph } from "@graphrefly/ts/graph";

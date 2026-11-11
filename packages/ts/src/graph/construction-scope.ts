@@ -181,7 +181,7 @@ export class ConstructionScope {
 		return this.node(deps, operatorNodeFn(op), {
 			factory: op.factory,
 			...op.opts,
-			...(op.restore === undefined ? {} : { restore: op.restore }),
+			...(op.recipe === undefined ? {} : { recipe: op.recipe }),
 			...opts,
 		});
 	}

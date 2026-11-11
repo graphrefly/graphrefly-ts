@@ -1,59 +1,83 @@
-import { nodeBackendContributor, setNodeBackendContributor } from "../node/runtime-accessors.js";
 /**
- * Graph checkpoint public data shape (D83/D86/D90/D116).
+ * Graph checkpoint data shape (R-checkpoint@1, graphrefly:D802; TS layout graphrefly-ts:D178).
  *
- * Checkpoint is a graph lifecycle snapshot: strict-JSON-compatible data, no storage I/O,
- * no observe-log replay, and no restore runtime in this first TS slice.
+ * A checkpoint is strict JSON, taken only at a wave boundary. It saves the topology in creation
+ * order, each computed node's recipe and policies, and each node's last-array values, terminal,
+ * private state and what it received from each dependency. It holds no revision or version
+ * evidence. No storage I/O.
  */
 
 import { type StrictJsonValue, strictJsonCodec } from "../json/codec.js";
 import type { Node } from "../node/node.js";
-import type { NodeVersionJson } from "../node/versioning.js";
-import { SENTINEL } from "../protocol/messages.js";
+import { nodeBackendContributor, setNodeBackendContributor } from "../node/runtime-accessors.js";
 
-export const GRAPH_CHECKPOINT_VERSION = "graphrefly.checkpoint.v1" as const;
+export const GRAPH_CHECKPOINT_FORMAT = "graphrefly.checkpoint.v2" as const;
 
-export type GraphCheckpointVersion = typeof GRAPH_CHECKPOINT_VERSION;
+export type GraphCheckpointFormat = typeof GRAPH_CHECKPOINT_FORMAT;
 
 export type GraphCheckpointJson = StrictJsonValue;
-
-export type GraphCheckpointValue =
-	| { kind: "SENTINEL" }
-	| { kind: "DATA"; data: GraphCheckpointJson };
 
 export type GraphCheckpointTerminal =
 	| { kind: "none" }
 	| { kind: "COMPLETE" }
 	| { kind: "ERROR"; error: GraphCheckpointJson };
 
-export type GraphCheckpointFactory =
-	| {
-			kind: "registry-ref";
-			ref: string;
-			config?: GraphCheckpointJson;
-			configVersion?: GraphCheckpointJson;
-	  }
-	| { kind: "local-only"; name: string; reason: string };
+/** R-node / R-checkpoint: a registered factory reference and its JSON configuration. */
+export interface GraphCheckpointRecipe {
+	ref: string;
+	config?: GraphCheckpointJson;
+}
+
+/** The policies a computed node is restored with (R-checkpoint). */
+export interface GraphCheckpointPolicies {
+	complete: "auto" | "manual";
+	error: "auto" | "manual";
+	invalidate: "auto" | "manual";
+	/** TS first-run gate off (sugar). */
+	partial: boolean;
+	quiet: boolean;
+	dynamic: boolean;
+	pool: "sync" | "async";
+}
+
+/** What a node received from one dependency: that dependency's last-array values and terminal. */
+export interface GraphCheckpointReceived {
+	values: GraphCheckpointJson[];
+	terminal: GraphCheckpointTerminal;
+}
+
+/** A computed node's lifetime at capture: its private state and what it received. */
+export interface GraphCheckpointLifetime {
+	/** Private state; absent when the lifetime has none. */
+	state?: GraphCheckpointJson;
+	/** One record per dependency of the lifetime, in dependency order. */
+	received: GraphCheckpointReceived[];
+	/** The TS first-run gate had opened (sugar). */
+	ran: boolean;
+	/** The lifetime's dependencies, when a ctx.rewire changed them from the declared ones. */
+	deps?: string[];
+}
 
 export interface GraphCheckpointNode {
 	id: string;
 	name?: string;
-	factory: GraphCheckpointFactory;
-	/** R-node@2 derived status at checkpoint time. */
-	status: { cache: string; output: string; lifecycle: string };
+	/** The factory name describe shows. */
+	factory: string;
+	kind: "state" | "computed";
+	/** Declared dependencies. */
 	deps: string[];
-	value: GraphCheckpointValue;
-	backendState?: GraphCheckpointJson;
-	version?: NodeVersionJson;
+	/** Computed nodes: the current instance's recipe; absent makes the node local-only. */
+	recipe?: GraphCheckpointRecipe;
+	/** Computed nodes: the policies. */
+	policies?: GraphCheckpointPolicies;
+	/** The values of the node's last array. */
+	values: GraphCheckpointJson[];
 	terminal: GraphCheckpointTerminal;
-	lifecycle: { activated: boolean; hasCalledFnOnce: boolean };
-	ctxState: { persist: boolean; value: GraphCheckpointValue };
+	/** Computed nodes with a lifetime (or a restored seed not yet activated). */
+	lifetime?: GraphCheckpointLifetime;
+	/** TS package extension: a collection's backend, rebuilt by its restore extension. */
+	backendState?: GraphCheckpointJson;
 	meta?: { [key: string]: GraphCheckpointJson };
-}
-
-export interface GraphCheckpointEdge {
-	from: string;
-	to: string;
 }
 
 export interface GraphCheckpointMount {
@@ -62,10 +86,9 @@ export interface GraphCheckpointMount {
 }
 
 export interface GraphCheckpoint {
-	version: GraphCheckpointVersion;
+	format: GraphCheckpointFormat;
 	name?: string;
 	nodes: GraphCheckpointNode[];
-	edges: GraphCheckpointEdge[];
 	mounts?: GraphCheckpointMount[];
 }
 
@@ -79,15 +102,6 @@ export function toCheckpointJson(value: unknown, path = "$"): GraphCheckpointJso
 	}
 }
 
-export function checkpointValue(
-	value: unknown,
-	hasData: boolean,
-	path: string,
-): GraphCheckpointValue {
-	if (!hasData || value === SENTINEL) return { kind: "SENTINEL" };
-	return { kind: "DATA", data: toCheckpointJson(value, path) };
-}
-
 export function checkpointTerminal(value: unknown, path: string): GraphCheckpointTerminal {
 	if (value === undefined) return { kind: "none" };
 	if (value === true) return { kind: "COMPLETE" };
@@ -96,7 +110,7 @@ export function checkpointTerminal(value: unknown, path: string): GraphCheckpoin
 
 type BackendStateContributor = () => unknown;
 
-/** @internal D160: collection-owned backend checkpoint contributor for graph checkpoint. */
+/** @internal TS extension (graphrefly-ts:D178): a collection's backend contributor. */
 export function registerBackendStateContributor(
 	node: Node<unknown>,
 	contributor: BackendStateContributor,

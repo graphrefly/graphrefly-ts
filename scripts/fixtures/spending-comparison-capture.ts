@@ -63,7 +63,7 @@ for (const arm of ["graph", "plain"] as const) {
 		const capture = (label: string) => {
 			const state =
 				host && graph
-					? checkpointStateOfNode(graph.find("proof/causal/authority")!).ctxState?.value
+					? checkpointStateOfNode(graph.find("proof/causal/authority")!).privateState
 					: plain!.observations();
 			snapshots.push(
 				copy({
@@ -117,7 +117,7 @@ for (const arm of ["graph", "plain"] as const) {
 				assert.equal(before.records[0].outcome.state, "unknown");
 				const authorityBefore = copy(
 					host && graph
-						? checkpointStateOfNode(graph.find("proof/causal/authority")!).ctxState?.value
+						? checkpointStateOfNode(graph.find("proof/causal/authority")!).privateState
 						: plain!.observations(),
 				);
 				disconnect();
@@ -131,7 +131,7 @@ for (const arm of ["graph", "plain"] as const) {
 				assert.deepEqual(
 					copy(
 						host && graph
-							? checkpointStateOfNode(graph.find("proof/causal/authority")!).ctxState?.value
+							? checkpointStateOfNode(graph.find("proof/causal/authority")!).privateState
 							: plain!.observations(),
 					),
 					authorityBefore,

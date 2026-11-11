@@ -42,7 +42,7 @@ const doubled = g.initNode(map((value: number) => value * 2), [count]);
 
 ## Remarks
 
-- **Restorable maps:** Passing a named `define()` registers semantic restore metadata.
+- **Restorable maps:** Passing a named `define()` gives the node a recipe (R-checkpoint).
 
 ## Source
 

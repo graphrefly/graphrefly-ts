@@ -424,7 +424,7 @@ function createReactiveMap<K, V>(
 				factory: "reactiveMap.intent",
 				name: name ? `${name}.intent` : undefined,
 				meta: { kind: "collection_intent", collection: "reactiveMap" },
-				...(restorable ? { restore: { ref: "reactiveMap.intent" } } : {}),
+				...(restorable ? { recipe: { ref: "reactiveMap.intent" } } : {}),
 			})
 		: new StateNode<MapIntent<K, V>>([], null, {
 				...base,
@@ -604,7 +604,7 @@ function createReactiveMap<K, V>(
 		? graph.initNode(applyOp, policyInputs.deps as readonly Node<unknown>[], {
 				name: name ? `${name}.apply` : undefined,
 				meta: { kind: "collection_policy_apply", collection: "reactiveMap" },
-				...(restorable ? { restore: { ref: "reactiveMap.apply" } } : {}),
+				...(restorable ? { recipe: { ref: "reactiveMap.apply" } } : {}),
 			})
 		: initNode(applyOp, policyInputs.deps, {
 				...base,
@@ -617,7 +617,7 @@ function createReactiveMap<K, V>(
 				factory: "reactiveMap.request",
 				name: name ? `${name}.request` : undefined,
 				meta: { kind: "collection_request", collection: "reactiveMap" },
-				...(restorable ? { restore: { ref: "reactiveMap.request" } } : {}),
+				...(restorable ? { recipe: { ref: "reactiveMap.request" } } : {}),
 			})
 		: new StateNode<true>([], null, {
 				...base,
@@ -648,7 +648,7 @@ function createReactiveMap<K, V>(
 		? graph.initNode(snapshotPrepOp, [apply as Node<unknown>, request as Node<unknown>], {
 				name: name ? `${name}.snapshotPrep` : undefined,
 				meta: { kind: "collection_snapshot_prep", collection: "reactiveMap" },
-				...(restorable ? { restore: { ref: "reactiveMap.snapshotPrep" } } : {}),
+				...(restorable ? { recipe: { ref: "reactiveMap.snapshotPrep" } } : {}),
 			})
 		: initNode(snapshotPrepOp, [apply as Node<unknown>, request as Node<unknown>], {
 				...base,
@@ -670,7 +670,7 @@ function createReactiveMap<K, V>(
 		? graph.initNode(deltaOp, [apply as Node<unknown>, snapshotPrep as Node<unknown>], {
 				name: name ? `${name}.delta` : undefined,
 				meta: { kind: "collection_delta", collection: "reactiveMap" },
-				...(restorable ? { restore: { ref: "reactiveMap.delta" } } : {}),
+				...(restorable ? { recipe: { ref: "reactiveMap.delta" } } : {}),
 			})
 		: initNode(deltaOp, [apply as Node<unknown>, snapshotPrep as Node<unknown>], {
 				...base,
@@ -689,7 +689,7 @@ function createReactiveMap<K, V>(
 		? graph.initNode(snapshotOp, [snapshotPrep as Node<unknown>], {
 				name: name ? `${name}.snapshot` : undefined,
 				meta: { kind: "collection_snapshot", collection: "reactiveMap" },
-				...(restorable ? { restore: { ref: "reactiveMap.snapshot" } } : {}),
+				...(restorable ? { recipe: { ref: "reactiveMap.snapshot" } } : {}),
 			})
 		: initNode(snapshotOp, [snapshotPrep as Node<unknown>], {
 				...base,

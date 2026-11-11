@@ -102,8 +102,8 @@ export function referenceRun(
 		stops = [];
 	};
 	const state = () =>
-		checkpointStateOfNode(graph.find("spending/causal/authority")!).ctxState
-			?.value as RuntimeState<unknown>;
+		checkpointStateOfNode(graph.find("spending/causal/authority")!)
+			.privateState as RuntimeState<unknown>;
 	const send = (lane: ReferenceLane, ...values: unknown[]) =>
 		batch(() => {
 			for (const v of values) sources[lane].set(v);

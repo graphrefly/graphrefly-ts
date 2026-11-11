@@ -5,7 +5,6 @@ import { nodeRestoreState } from "./node-checkpoint-runtime.js";
 import { type NodeRuntimeHost, nodeRuntimeHost } from "./node-runtime-host.js";
 import type { RuntimeReleaseFailure } from "./owned-acquisition.js";
 import type { NodeCheckpointState, NodeRestoreState } from "./types.js";
-import { cloneNodeVersion } from "./versioning.js";
 
 type TopologyDepsChangedObserver = (
 	node: Node<unknown>,
@@ -150,18 +149,19 @@ export function checkpointStateOfNode(n: Node<unknown>): NodeCheckpointState {
 	const self = liveRegistration(n)?.host;
 	if (self === undefined) throw new Error("checkpoint: unknown node state");
 	return {
+		values: [...self._value.lastArray],
 		cache: self._value.cache,
 		hasData: self._value.hasData,
 		terminal: self._value.terminal,
 		activated: self._lifecycle.activated,
 		hasCalledFnOnce: self._wave.hasCalledFnOnce,
-		ctxState: { value: self._privateState.value },
-		version: cloneNodeVersion(self._version.value),
+		privateState: self._privateState.value,
+		seed: self._seed,
 		handle: self._slot.handle,
 	};
 }
 
-/** @internal D94 restore commit: install runtime state without a protocol wave or subscription. */
+/** @internal R-checkpoint restore commit: install a seed without a protocol wave or subscription. */
 export function restoreStateOfNode(n: Node<unknown>, state: NodeRestoreState): void {
 	const self = liveRegistration(n)?.host;
 	if (self === undefined) throw new Error("restoreGraph: unknown node state");

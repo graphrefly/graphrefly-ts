@@ -97,8 +97,8 @@ export function runHost(
 		});
 	};
 	const state = () =>
-		checkpointStateOfNode(graph.find("spending/causal/authority")!).ctxState
-			?.value as RuntimeState<unknown>;
+		checkpointStateOfNode(graph.find("spending/causal/authority")!)
+			.privateState as RuntimeState<unknown>;
 	// Forced test teardown is not a successful normal end of the run lifecycle.
 	const teardown = () => {
 		disconnect();

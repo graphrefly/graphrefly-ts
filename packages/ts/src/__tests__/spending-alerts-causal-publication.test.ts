@@ -216,7 +216,7 @@ function fixture(p: MaterialProfile = profile) {
 		send("effectAdmissions", a.admission);
 	};
 	const state = () =>
-		checkpointStateOfNode(graph.find("causal/authority")!).ctxState?.value as RuntimeState<number>;
+		checkpointStateOfNode(graph.find("causal/authority")!).privateState as RuntimeState<number>;
 	return {
 		graph,
 		sources,
@@ -378,7 +378,7 @@ describe("private publication material-v1", () => {
 		f.frame([a.material]);
 		f.admit(a);
 		out.stop();
-		expect(checkpointStateOfNode(f.built.requestMaterialJoin).ctxState?.value).toBeUndefined();
+		expect(checkpointStateOfNode(f.built.requestMaterialJoin).privateState).toBeUndefined();
 		f.send("effectOutcomes", { ...a.outcome, admissionRef: { kind: "admission", id: "wrong" } });
 		const mid = collect(f.built.causal.committedEffects);
 		expect(mid.last().effects[0].outcome).toBeUndefined();
@@ -739,7 +739,7 @@ describe("private publication material-v1", () => {
 				),
 			).toBe(true);
 			const memory = () =>
-				checkpointStateOfNode(f.built.requestMaterialJoin).ctxState?.value as {
+				checkpointStateOfNode(f.built.requestMaterialJoin).privateState as {
 					index: { rows: ReadonlyMap<string, unknown> };
 				};
 			const firstIndex = memory().index;
@@ -759,7 +759,7 @@ describe("private publication material-v1", () => {
 			expect(memory().index).not.toBe(firstIndex);
 			f.disconnect();
 			for (const n of [f.built.requestMaterialJoin, f.built.publication]) {
-				expect(checkpointStateOfNode(n).ctxState?.value).toBeUndefined();
+				expect(checkpointStateOfNode(n).privateState).toBeUndefined();
 				expect(checkpointStateOfNode(n).cache).toBeUndefined();
 			}
 			vi.mocked(createHash).mockClear();
@@ -786,7 +786,7 @@ describe("private publication material-v1", () => {
 			descriptors.mockRestore();
 		}
 		out.stop();
-		expect(checkpointStateOfNode(f.built.requestMaterialJoin).ctxState?.value).toBeUndefined();
+		expect(checkpointStateOfNode(f.built.requestMaterialJoin).privateState).toBeUndefined();
 	});
 	it("mutable authority binding is revalidated even at the same reference", () => {
 		const f = fixture(),

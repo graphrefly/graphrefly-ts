@@ -384,7 +384,7 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof graphLayer.explainPath).toBe("function");
 		expect(typeof graphLayer.fetchHttpDriver).toBe("function");
 		expect(typeof graphLayer.filterObserve).toBe("function");
-		expect(typeof graphLayer.GRAPH_CHECKPOINT_VERSION).toBe("string");
+		expect(typeof graphLayer.GRAPH_CHECKPOINT_FORMAT).toBe("string");
 		expect(typeof graphLayer.reachable).toBe("function");
 		expect(typeof graphLayer.restoreGraph).toBe("function");
 		expect(typeof graphLayer.validateNoIslands).toBe("function");

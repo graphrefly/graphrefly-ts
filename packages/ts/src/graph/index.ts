@@ -44,16 +44,17 @@ export {
 	reactiveCascadingCache,
 } from "./cascading-cache.js";
 export {
-	GRAPH_CHECKPOINT_VERSION,
+	GRAPH_CHECKPOINT_FORMAT,
 	type GraphCheckpoint,
-	type GraphCheckpointEdge,
-	type GraphCheckpointFactory,
+	type GraphCheckpointFormat,
 	type GraphCheckpointJson,
+	type GraphCheckpointLifetime,
 	type GraphCheckpointMount,
 	type GraphCheckpointNode,
+	type GraphCheckpointPolicies,
+	type GraphCheckpointReceived,
+	type GraphCheckpointRecipe,
 	type GraphCheckpointTerminal,
-	type GraphCheckpointValue,
-	type GraphCheckpointVersion,
 } from "./checkpoint.js";
 export type {
 	DescribeEdge,
@@ -151,12 +152,14 @@ export {
 } from "./resilience.js";
 export {
 	defaultRestoreRegistry,
-	type GraphRestoreDescriptor,
-	type GraphRestoreDescriptorContext,
+	type GraphRecipeBuild,
+	type GraphRecipeContext,
+	type GraphRecipeFactory,
+	type GraphRestoreExtension,
+	type GraphRestoreExtensionContext,
 	type GraphRestoreRegistry,
 	type RestoreGraphOptions,
 	restoreGraph,
-	stateRestoreDescriptor,
 	takeRestoreDescriptor,
 	timerRestoreDescriptor,
 } from "./restore.js";

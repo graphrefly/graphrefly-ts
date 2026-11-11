@@ -1,4 +1,5 @@
-import { SENTINEL } from "../protocol/messages.js";
+import { strictCanonicalJsonBytes } from "../json/codec.js";
+import { errorPayload, isTerminal, SENTINEL } from "../protocol/messages.js";
 import { makeDepBookkeeping } from "./core.js";
 import type { Node } from "./node.js";
 import { type NodeRuntimeHost, nodeRuntimeHost } from "./node-runtime-host.js";
@@ -8,20 +9,29 @@ import {
 	notifyTopologyDepsChanged,
 	setRuntimeReleaseFailures,
 } from "./runtime-accessors.js";
-import type { Status } from "./types.js";
+import type { NodeReceived, Status } from "./types.js";
 
 export function nodeActivate<T>(self: NodeRuntimeHost<T>): void {
 	self._lifecycle.activated = true;
-	const seedRestoredDeps = self._restoredActivationPending;
-	self._restoredActivationPending = false;
+	const seed = self._seed;
+	self._seed = undefined;
 	self._dep.unsubs = new Array(self._slot.deps.length);
 	self._dep.idxBoxes = new Array(self._slot.deps.length);
+	// R-checkpoint: a restored node's first activation compares what it had received from each
+	// dependency with what the dependency holds now; only a changed dependency gives input.
+	const restored = { changed: false };
 	// R-lifetime: activation acquires every dependency, then runs the function once on their
 	// snapshots (and whatever they sent as they activated).
 	self._wave.activating = true;
 	try {
-		for (const dep of self._slot.deps)
-			self._subscribeDepAt(dep, { seedRestored: seedRestoredDeps });
+		self._slot.deps.forEach((dep, i) => {
+			self._subscribeDepAt(
+				dep,
+				seed === undefined
+					? undefined
+					: { received: seed.received[i], onChange: () => (restored.changed = true) },
+			);
+		});
 	} finally {
 		self._wave.activating = false;
 	}
@@ -29,32 +39,91 @@ export function nodeActivate<T>(self: NodeRuntimeHost<T>): void {
 	self._wave.rewireRunPending = false;
 	if (self._slot.handle === null && self._slot.deps.length === 0) return; // a state node has no function
 	if (self._wave.pending > 0) return; // a dependency is mid-wave; the run waits for it
-	// A seeded restore holds its restored values as if it had produced them; it runs only when a
-	// dependency sends something live (the checkpoint stage of D797-KERNEL-MIGRATION-TS revisits
-	// this against R-subscription's seed note).
-	if (seedRestoredDeps) {
-		if (self._slot.deps.length === 0) {
-			if (!self._wave.hasCalledFnOnce) self._runWave();
-		} else if (deferred) self._tryRun();
+	if (seed !== undefined) {
+		// R-checkpoint: the function runs once if a dependency changed, with only the changed ones as
+		// input, and otherwise does not run; the setup runs either way, as at every activation.
+		if (restored.changed || deferred) self._runWave();
+		else nodeRunSetup(self);
 		return;
 	}
 	self._runWave();
 }
 
+/**
+ * R-lifetime: run the lifetime's setup without a run of the function (a restored first activation
+ * with nothing changed). What it sends goes out as the node's output; a throw is its ERROR.
+ */
+function nodeRunSetup<T>(self: NodeRuntimeHost<T>): void {
+	const setup = self._slot.setup;
+	const lifetime = self._lifetime;
+	if (setup === undefined || lifetime.setupDone || self._value.terminal !== undefined) return;
+	lifetime.setupDone = true;
+	const ctx = self._buildCtx();
+	try {
+		const cleanup = setup(ctx);
+		if (typeof cleanup === "function") lifetime.cleanup = cleanup;
+	} catch (error) {
+		ctx.down([["ERROR", errorPayload(error, "node setup threw without a valid error payload")]]);
+	}
+}
+
+/** Whether a dependency still holds what a restored node had received from it (R-checkpoint). */
+function sameAsReceived(
+	received: NodeReceived,
+	values: readonly unknown[],
+	terminal: unknown,
+): { values: boolean; terminal: boolean } {
+	const same = (a: unknown, b: unknown): boolean => {
+		if (a === b) return true;
+		try {
+			return (
+				new TextDecoder().decode(strictCanonicalJsonBytes(a)) ===
+				new TextDecoder().decode(strictCanonicalJsonBytes(b))
+			);
+		} catch {
+			return false;
+		}
+	};
+	return {
+		values: same([...received.values], [...values]),
+		terminal: same(received.terminal ?? null, terminal ?? null),
+	};
+}
+
 export function nodeSubscribeDepAt<T>(
 	self: NodeRuntimeHost<T>,
 	depNode: Node<unknown>,
-	opts: { seedRestored?: boolean } = {},
+	seed?: { readonly received: NodeReceived | undefined; readonly onChange: () => void },
 ): void {
 	const idx0 = self._slot.deps.indexOf(depNode);
 	const box = { v: idx0 };
-	// A seeded restore holds what the dependency held at the checkpoint; a dependency that held
-	// nothing and has something after activating gives real input through its snapshot.
-	if (opts.seedRestored === true && idx0 !== -1) self._seedRestoredDepAt(idx0, depNode);
-	let ignoreInitialPush = opts.seedRestored === true && nodeRuntimeHost(depNode)._value.hasData;
+	// R-checkpoint: a restored node decides at the dependency's snapshot, once the dependency has
+	// activated: unchanged, the snapshot is dropped and the node holds what it had received; a
+	// changed value gives the snapshot as input; an end alone gives only the terminal.
+	let decision: "drop" | "terminal" | "pass" | undefined = seed === undefined ? "pass" : undefined;
+	const decide = (): void => {
+		const dep = nodeRuntimeHost(depNode);
+		const received = seed?.received;
+		const same =
+			received === undefined
+				? { values: false, terminal: false }
+				: sameAsReceived(received, dep._value.lastArray, dep._value.terminal);
+		decision = same.values ? (same.terminal ? "drop" : "terminal") : "pass";
+		if (decision !== "pass" && idx0 !== -1) {
+			self._seedRestoredDepAt(idx0, depNode);
+			if (decision === "terminal") self._dep.terminal[idx0] = undefined;
+		}
+		if (decision !== "drop") seed?.onChange();
+	};
 	const dependent: import("../ctx/types.js").DependentSink = (msg, delivery) => {
-		if (ignoreInitialPush && delivery?.snapshot === true) return;
-		if (ignoreInitialPush) ignoreInitialPush = false;
+		if (decision === undefined) {
+			if (delivery?.snapshot === true) decide();
+			else decision = "pass";
+		}
+		if (delivery?.snapshot === true) {
+			if (decision === "drop") return;
+			if (decision === "terminal" && !isTerminal(msg[0])) return;
+		}
 		if (box.v === -1) return; // dep removed — stale callback, drop (drain)
 		self._receiveFromDep(box.v, msg, delivery);
 	};
@@ -69,8 +138,7 @@ export function nodeSubscribeDepAt<T>(
 			},
 		},
 	);
-	if (ignoreInitialPush && idx0 !== -1 && box.v !== -1) self._seedRestoredDepAt(idx0, depNode);
-	ignoreInitialPush = false;
+	if (decision === undefined && box.v !== -1) decide();
 }
 
 export function nodeSeedRestoredDepAt<T>(
@@ -251,7 +319,7 @@ export function nodeReleaseRuntime<T>(self: NodeRuntimeHost<T>): void {
 	self._privateState.value = SENTINEL;
 	self._syncCtx = null;
 	self._resetDepState();
-	self._restoredActivationPending = false;
+	self._seed = undefined;
 	closeNodeRegistration(node);
 	try {
 		self._core.releaseSlot(self._id);

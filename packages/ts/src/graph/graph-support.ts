@@ -1,5 +1,3 @@
-import { checkpointStateOfNode, type Node } from "../node/node.js";
-import { type GraphCheckpointFactory, toCheckpointJson } from "./checkpoint.js";
 import type { DescribeSnapshot } from "./describe.js";
 import type { TopologyEvent } from "./inspect.js";
 
@@ -47,53 +45,6 @@ export function cloneTopologyEvent(event: TopologyEvent): TopologyEvent {
 		...(event.factory !== undefined ? { factory: event.factory } : {}),
 		seq: event.seq,
 	});
-}
-
-export function checkpointFactory(
-	name: string,
-	node: Node<unknown>,
-	unregistered: boolean,
-	restore?: { ref: string; config?: unknown; configVersion?: unknown },
-	meta?: Record<string, unknown>,
-): GraphCheckpointFactory {
-	const state = checkpointStateOfNode(node);
-	if (unregistered) {
-		return {
-			kind: "local-only",
-			name,
-			reason: "node is an unregistered live dependency auto-discovered from topology",
-		};
-	}
-	if (
-		restore === undefined &&
-		typeof meta?.kind === "string" &&
-		meta.kind.startsWith("collection_")
-	) {
-		return {
-			kind: "local-only",
-			name,
-			reason: "collection helper node has no backend checkpoint restore metadata",
-		};
-	}
-	if (restore !== undefined) {
-		const out: GraphCheckpointFactory = {
-			kind: "registry-ref",
-			ref: toCheckpointJson(restore.ref, `${name}.factory.ref`) as string,
-		};
-		if (restore.config !== undefined)
-			out.config = toCheckpointJson(restore.config, `${name}.factory.config`);
-		if (restore.configVersion !== undefined)
-			out.configVersion = toCheckpointJson(restore.configVersion, `${name}.factory.configVersion`);
-		return out;
-	}
-	if (state.handle !== null) {
-		return {
-			kind: "local-only",
-			name,
-			reason: "node uses a function body; first-cut checkpoints do not serialize local functions",
-		};
-	}
-	return { kind: "registry-ref", ref: name };
 }
 
 /** Filter a snapshot to the causal chain from→to (forward-reachable(from) ∩ back-reachable(to)). */

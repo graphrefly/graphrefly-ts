@@ -1,7 +1,7 @@
 import type { Ctx, NodeFn } from "../ctx/types.js";
 import type { Dispatcher, Handle } from "../dispatcher/index.js";
 import type { Node } from "./node.js";
-import type { NodeVersion, NodeVersioningPolicy } from "./versioning.js";
+import type { NodeVersioningPolicy } from "./versioning.js";
 
 /**
  * R-node@2: a node's status, derived from what it holds and never stored. Reading it changes
@@ -63,6 +63,12 @@ export interface NodeOptions<T = unknown> {
 	// biome-ignore lint/suspicious/noConfusingVoidType: a setup returns its cleanup or nothing.
 	setup?: (ctx: Ctx) => (() => void) | undefined | void;
 	/**
+	 * R-node: an opaque description of how this instance was built, such as a checkpoint's
+	 * `{ ref, config }` (R-checkpoint); the kernel stores it and never reads it. A computed node
+	 * without one is local-only in a checkpoint.
+	 */
+	recipe?: unknown;
+	/**
 	 * D109 node runtime versioning policy. Default is nodev0 (`{level:0,counter}`); `false`
 	 * disables runtime version metadata for this node.
 	 */
@@ -85,24 +91,45 @@ export interface NodeOptions<T = unknown> {
 	factory?: string;
 }
 
+/**
+ * R-checkpoint: what a node received from one dependency, the values of that dependency's last
+ * array and its terminal.
+ */
+export interface NodeReceived {
+	readonly values: readonly unknown[];
+	readonly terminal: true | unknown | undefined;
+}
+
+/**
+ * R-checkpoint / R-subscription: a restored computed node's construction seed beyond its values,
+ * terminal and private state. Its first activation compares what it had received with what its
+ * dependencies hold then. `ran` is the TS first-run gate (sugar) at capture.
+ */
+export interface NodeSeed {
+	readonly received: readonly NodeReceived[];
+	readonly ran: boolean;
+}
+
 export interface NodeCheckpointState {
+	/** The values of the node's last array (R-subscription). */
+	readonly values: readonly unknown[];
 	readonly cache: unknown;
 	readonly hasData: boolean;
 	readonly terminal: true | unknown | undefined;
 	readonly activated: boolean;
 	readonly hasCalledFnOnce: boolean;
-	readonly ctxState: { readonly value: unknown };
-	readonly version: NodeVersion | undefined;
+	/** The current lifetime's private state; `undefined` (SENTINEL) when there is none. */
+	readonly privateState: unknown;
+	/** A restored node's seed, until its first activation. */
+	readonly seed: NodeSeed | undefined;
 	readonly handle: Handle | null;
 }
 
 export interface NodeRestoreState {
-	readonly cache: unknown;
-	readonly hasData: boolean;
+	readonly values: readonly unknown[];
 	readonly terminal: true | unknown | undefined;
-	readonly hasCalledFnOnce: boolean;
-	readonly ctxState: { readonly value: unknown };
-	readonly version: NodeVersion | false;
+	readonly privateState: unknown;
+	readonly seed: NodeSeed | undefined;
 }
 
 /** R-node: what replace gives a new instance besides its dependencies and function. */

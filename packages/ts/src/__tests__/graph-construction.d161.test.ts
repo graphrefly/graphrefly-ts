@@ -445,7 +445,7 @@ describe("D161 graph construction ownership", () => {
 		expect(full.startup.cache?.code).toBe("protocol-error");
 		expect(authority.status.output).toBe("errored");
 		// R-lifetime: the ended authority's private state, where effects are admitted, is gone.
-		expect(checkpointStateOfNode(authority).ctxState.value).toBeUndefined();
+		expect(checkpointStateOfNode(authority).privateState).toBeUndefined();
 		expect(constructionOf(f.graph, "causal")?.phase).toBe("faulted");
 	});
 
@@ -466,7 +466,7 @@ describe("D161 graph construction ownership", () => {
 		expect(late.at(-1)).toBe("ERROR");
 		expect(authority.status.output).toBe("errored");
 		// R-lifetime: the ended authority dropped its private state when its lifetime closed.
-		expect(checkpointStateOfNode(authority).ctxState.value).toBeUndefined();
+		expect(checkpointStateOfNode(authority).privateState).toBeUndefined();
 	});
 
 	it("returns exact narrow handles with real payload projection and rejects wrong bindings", () => {
@@ -819,8 +819,8 @@ describe("D161 graph construction ownership", () => {
 			stop();
 		}
 		asState(f.options.occurrences).set(f.occurrence);
-		const state = checkpointStateOfNode(f.graph.find("causal/authority")!).ctxState
-			.value as RuntimeState<string>;
+		const state = checkpointStateOfNode(f.graph.find("causal/authority")!)
+			.privateState as RuntimeState<string>;
 		expect(state.effects.size).toBe(0);
 		expect(constructionOf(f.graph, "causal")?.phase).toBe("started");
 	});

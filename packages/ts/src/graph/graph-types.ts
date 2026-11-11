@@ -23,11 +23,6 @@ export type EffectFn<D extends readonly Node<unknown>[]> = (
 export interface SugarOpts<T = unknown> extends Omit<NodeOptions<T>, "dispatcher"> {
 	name?: string;
 	meta?: Record<string, unknown>;
-	/**
-	 * D95: explicit restorable factory metadata. Static JSON-compatible config may live here;
-	 * reactive options must remain graph deps. Without this, function-backed nodes are local-only.
-	 */
-	restore?: { ref: string; config?: unknown; configVersion?: unknown };
 }
 
 export interface GraphOptions {

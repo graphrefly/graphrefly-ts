@@ -56,13 +56,12 @@ export interface Operator<TIn = unknown, TOut = unknown> {
 	/** Behavioral node options the operator needs (e.g. `partial:true` for combine-family). */
 	readonly opts?: Partial<NodeOptions<TOut>>;
 	/**
-	 * D97/D100 restore metadata derived from a named definition or static built-in config.
-	 * This is semantic metadata only; dispatcher handles stay graph-local runtime state.
+	 * R-node / R-checkpoint: the recipe the operator's node instance carries, a registered factory
+	 * reference and its JSON configuration. Without one the node is local-only in a checkpoint.
 	 */
-	readonly restore?: {
+	readonly recipe?: {
 		ref: string;
 		config?: GraphCheckpointJson;
-		configVersion?: GraphCheckpointJson;
 	};
 	/** @internal phantom — never set; carries the dep element type for `g.initNode` inference. */
 	readonly __in?: TIn;
@@ -214,7 +213,12 @@ function makeInitNode<TIn, TOut>(
 	// inner (created here via fromAny, NOT registered in any graph) is named in describe's
 	// auto-discovery. A graph-bound g.initNode also records it in `_entries` (entry.factory wins
 	// there); this field is only read for a node absent from the graph index. Caller opts win.
-	const merged = { factory: op.factory, ...op.opts, ...opts };
+	const merged = {
+		factory: op.factory,
+		...op.opts,
+		...(op.recipe === undefined ? {} : { recipe: op.recipe }),
+		...opts,
+	};
 	if (acquired !== undefined) constructionAcquisitions.set(merged, acquired);
 	try {
 		return new Node<TOut>([...deps], body, merged);
@@ -258,7 +262,7 @@ export function operatorNodeFn<TIn, TOut>(op: Operator<TIn, TOut>): NodeFn {
  * const count = g.state(1);
  * const doubled = g.initNode(map((value: number) => value * 2), [count]);
  * ```
- * @remarks **Restorable maps:** Passing a named `define()` registers semantic restore metadata.
+ * @remarks **Restorable maps:** Passing a named `define()` gives the node a recipe (R-checkpoint).
  * @category operators
  */
 export function map<S, T>(fn: ((v: S) => T) | Definition<S, T>): Operator<S, T> {
@@ -273,15 +277,14 @@ export function map<S, T>(fn: ((v: S) => T) | Definition<S, T>): Operator<S, T> 
 
 function mapFromFunction<S, T>(
 	fn: (v: S) => T,
-	restore?: {
+	recipe?: {
 		ref: string;
 		config?: GraphCheckpointJson;
-		configVersion?: GraphCheckpointJson;
 	},
 ): Operator<S, T> {
 	return {
 		factory: "map",
-		...(restore ? { restore } : {}),
+		...(recipe ? { recipe } : {}),
 		body: (ctx) => {
 			eachInputArray<S>(ctx, 0, (v, out) => {
 				out.push(["DATA", fn(v)]);
@@ -366,7 +369,7 @@ export function scan<S, T>(reducer: (acc: T, v: S) => T, seed: T): Operator<S, T
 export function take<S>(n: number): Operator<S, S> {
 	return {
 		factory: "take",
-		restore: { ref: "take", config: { n: toCheckpointJson(n, "take.n") } },
+		recipe: { ref: "take", config: { n: toCheckpointJson(n, "take.n") } },
 		body: (ctx) => {
 			if (n <= 0) {
 				ctx.down([["COMPLETE"]]);

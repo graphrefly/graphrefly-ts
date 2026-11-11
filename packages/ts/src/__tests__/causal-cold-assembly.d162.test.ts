@@ -246,8 +246,8 @@ function own(f: ReturnType<typeof combined>, extra = true) {
 function effects(f: ReturnType<typeof combined>) {
 	return [
 		...(
-			checkpointStateOfNode(f.graph.find("run/causal/authority")!).ctxState
-				.value as RuntimeState<string>
+			checkpointStateOfNode(f.graph.find("run/causal/authority")!)
+				.privateState as RuntimeState<string>
 		).effects.values(),
 	];
 }

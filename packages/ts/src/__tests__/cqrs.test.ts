@@ -710,19 +710,13 @@ describe("CQRS application infrastructure (B63 / D125 / D129)", () => {
 		const checkpoint = g.checkpoint();
 		expect(() => JSON.stringify(checkpoint)).not.toThrow();
 		const runtime = checkpoint.nodes.find((node) => node.id === "orders/runtime");
-		expect(runtime?.ctxState).toEqual({
-			persist: false,
-			value: {
-				kind: "DATA",
-				data: {
-					eventSeq: 1,
-					commandCount: 1,
-					errorCount: 0,
-					auditSeq: 1,
-					seenCommandIds: ["cmd-1"],
-					seenEventIds: ["event-1"],
-				},
-			},
+		expect(runtime?.lifetime?.state).toEqual({
+			eventSeq: 1,
+			commandCount: 1,
+			errorCount: 0,
+			auditSeq: 1,
+			seenCommandIds: ["cmd-1"],
+			seenEventIds: ["event-1"],
 		});
 	});
 

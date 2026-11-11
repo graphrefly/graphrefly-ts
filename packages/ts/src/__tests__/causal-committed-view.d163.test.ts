@@ -129,8 +129,8 @@ function fixture(maxOccurrences = 8, viewFirst = false) {
 		send("effectAdmissions", f.admission);
 	}
 	function state() {
-		return checkpointStateOfNode(graph.find("causal/authority")!).ctxState
-			?.value as RuntimeState<number>;
+		return checkpointStateOfNode(graph.find("causal/authority")!)
+			.privateState as RuntimeState<number>;
 	}
 	return { graph, sources, built, owner, send, release, admit, state };
 }

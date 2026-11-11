@@ -192,7 +192,7 @@ export function graphArm(arm: Exclude<Arm, "plain">, mode: Mode) {
 				for (const v of step.values) sources[step.lane].set(v as never);
 			}),
 		state: () =>
-			checkpointStateOfNode(graph.find("spending/causal/authority")!).ctxState?.value as
+			checkpointStateOfNode(graph.find("spending/causal/authority")!).privateState as
 				| RuntimeState<unknown>
 				| undefined,
 		cleanup: () => {

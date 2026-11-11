@@ -271,7 +271,7 @@ export function collectionCore<S, C>(
 				factory: `${factory}.delta`,
 				name: name ? `${name}.delta` : undefined,
 				meta: { kind: "collection_delta", collection: factory },
-				...(restore ? { restore: { ref: restore.deltaRef, config: restore.config } } : {}),
+				...(restore ? { recipe: { ref: restore.deltaRef, config: restore.config } } : {}),
 			})
 		: new StateNode<C>([], null, {
 				...base,
@@ -285,7 +285,7 @@ export function collectionCore<S, C>(
 				factory: `${factory}.request`,
 				name: name ? `${name}.request` : undefined,
 				meta: { kind: "collection_request", collection: factory },
-				...(restore ? { restore: { ref: restore.requestRef, config: restore.config } } : {}),
+				...(restore ? { recipe: { ref: restore.requestRef, config: restore.config } } : {}),
 			})
 		: new StateNode<true>([], null, {
 				...base,
@@ -310,7 +310,7 @@ export function collectionCore<S, C>(
 				factory: `${factory}.snapshot`,
 				name: name ? `${name}.snapshot` : undefined,
 				meta: { kind: "collection_snapshot", collection: factory },
-				...(restore ? { restore: { ref: restore.snapshotRef, config: restore.config } } : {}),
+				...(restore ? { recipe: { ref: restore.snapshotRef, config: restore.config } } : {}),
 			})
 		: new Node<S>([delta as Node<unknown>, request as Node<unknown>], snapFn, {
 				...base,

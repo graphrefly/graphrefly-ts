@@ -847,7 +847,7 @@ function timerSource(factory: string, ms: number, opts?: TimerSourceOpts): Opera
 		{ pool: "sync" },
 	);
 	if (factory === "timer" && period === undefined && signal === undefined) {
-		return { ...op, restore: { ref: "timer", config: { ms: toCheckpointJson(ms, "timer.ms") } } };
+		return { ...op, recipe: { ref: "timer", config: { ms: toCheckpointJson(ms, "timer.ms") } } };
 	}
 	return op;
 }

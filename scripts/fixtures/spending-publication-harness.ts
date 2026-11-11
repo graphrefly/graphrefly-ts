@@ -252,7 +252,7 @@ export function publicationRun(
 		send("effectAdmissions", f.admission);
 	};
 	const state = () =>
-		checkpointStateOfNode(graph.find("causal/authority")!).ctxState?.value as
+		checkpointStateOfNode(graph.find("causal/authority")!).privateState as
 			| RuntimeState<number>
 			| undefined;
 	const close = () => {

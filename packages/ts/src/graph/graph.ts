@@ -13,7 +13,8 @@ import type { OwnedConstruction } from "./construction-scope.js";
  * R-describe, R-fn-contract, R-edges-derived, R-meta-presentation.
  */
 
-import { type BatchCtx, batch as batchRun } from "../batch/batch.js";
+import { type BatchCtx, batch as batchRun, currentBatch } from "../batch/batch.js";
+import { isWaveActive } from "../batch/boundary.js";
 import { type Ctx, depCount, depLatest, type NodeFn } from "../ctx/types.js";
 import { type Dispatcher, defaultDispatcher } from "../dispatcher/index.js";
 import { NodeCore } from "../node/core.js";
@@ -55,12 +56,12 @@ import {
 import {
 	checkpointBackendStateOfNode,
 	checkpointTerminal,
-	checkpointValue,
-	GRAPH_CHECKPOINT_VERSION,
+	GRAPH_CHECKPOINT_FORMAT,
 	type GraphCheckpoint,
-	type GraphCheckpointFactory,
 	type GraphCheckpointJson,
+	type GraphCheckpointLifetime,
 	type GraphCheckpointNode,
+	type GraphCheckpointRecipe,
 	toCheckpointJson,
 } from "./checkpoint.js";
 import {
@@ -75,7 +76,6 @@ import { EnvironmentDrivers } from "./environment.js";
 import { type GraphLifecycleRegistrar, graphRegistrations } from "./graph-lifecycle.js";
 import {
 	assertCheckpointQuiescentStatus,
-	checkpointFactory,
 	cloneTopologyEvent,
 	explainSubset,
 	isNonAuthoritativeCollectionHelperMeta,
@@ -118,7 +118,6 @@ interface Entry {
 	factory: string;
 	deps: readonly Node<unknown>[];
 	meta?: Record<string, unknown>;
-	restore?: { ref: string; config?: unknown; configVersion?: unknown };
 }
 
 interface TopologyObserver {
@@ -249,7 +248,6 @@ export class Graph {
 			factory,
 			deps,
 			meta,
-			restore: opts.restore,
 		};
 		this._assertDepsLocal(deps, `dep of '${id}'`);
 		this._assertAvailableId(id);
@@ -280,7 +278,7 @@ export class Graph {
 			normalizeTopologyMeta(opts.meta, `graph node '${opts.name ?? opts.factory ?? "node"}' meta`);
 		}
 		// strip graph-only fields; inject the bound dispatcher
-		const { name: _n, meta: _m, restore: _r, ...rest } = opts;
+		const { name: _n, meta: _m, ...rest } = opts;
 		return {
 			...rest,
 			versioning: rest.versioning ?? this._versioning,
@@ -576,7 +574,7 @@ export class Graph {
 		opts: SugarOpts<TOut> = {},
 	): Node<TOut> {
 		const entryOpts =
-			op.restore !== undefined && !("restore" in opts) ? { ...opts, restore: op.restore } : opts;
+			op.recipe !== undefined && !("recipe" in opts) ? { ...opts, recipe: op.recipe } : opts;
 		for (const dep of deps as readonly Node<unknown>[])
 			assertGraphLocalNode(this, dep, `dep of '${entryOpts.name ?? op.factory}'`);
 		// Node<T> is invariant (T appears in NodeOptions.initial); widen the typed deps to the
@@ -946,8 +944,15 @@ export class Graph {
 		return { totalInvokes, nodes };
 	}
 
-	/** Versioned graph lifecycle checkpoint (R-snapshot / D83 / D90). Pure capture, no storage I/O. */
+	/**
+	 * Capture a checkpoint (R-checkpoint, graphrefly:D802): strict JSON, no storage I/O. It is
+	 * taken only at a wave boundary; inside a wave or an open batch body it is refused.
+	 */
 	checkpoint(): GraphCheckpoint {
+		if (isWaveActive() || currentBatch())
+			throw new Error(
+				"checkpoint: a checkpoint is taken only at a wave boundary, not inside a wave or a batch body (R-checkpoint)",
+			);
 		return this._checkpoint("", new WeakSet());
 	}
 
@@ -971,19 +976,14 @@ export class Graph {
 			return `${_prefix}${sid}`;
 		};
 		const nodes: GraphCheckpointNode[] = [];
-		const edges: DescribeEdge[] = [];
 		for (const entry of this._entries.values()) {
-			const id = `${_prefix}${entry.id}`;
-			const liveIds = entry.node.deps.map(localId);
 			nodes.push(
-				this._checkpointNode(entry.node, id, {
+				this._checkpointNode(entry.node, `${_prefix}${entry.id}`, localId, {
 					name: entry.name,
-					factory: checkpointFactory(entry.factory, entry.node, false, entry.restore, entry.meta),
-					deps: liveIds,
+					factory: entry.factory,
 					meta: entry.meta,
 				}),
 			);
-			for (const from of liveIds) edges.push({ from, to: id });
 		}
 		const visited = new Set<Node<unknown>>();
 		const queue: Node<unknown>[] = [...discovered.keys()];
@@ -993,24 +993,22 @@ export class Graph {
 			visited.add(inner);
 			const sid = discovered.get(inner);
 			if (sid === undefined) continue;
-			const liveIds = inner.deps.map(localId);
-			for (const dep of inner.deps) {
+			const host = nodeRuntimeHost(inner);
+			for (const dep of [...host._slot.declaredDeps, ...host._slot.deps]) {
 				if (!this._entries.has(dep) && !visited.has(dep)) queue.push(dep);
 			}
-			const id = `${_prefix}${sid}`;
+			// A live dependency found from topology was built outside the graph: it carries no
+			// recipe, so it is local-only.
 			nodes.push(
-				this._checkpointNode(inner, id, {
-					factory: checkpointFactory(inner.factory ?? "?", inner, true),
-					deps: liveIds,
+				this._checkpointNode(inner, `${_prefix}${sid}`, localId, {
+					factory: inner.factory ?? "?",
+					unregistered: true,
 				}),
 			);
-			for (const from of liveIds) edges.push({ from, to: id });
+			for (const dep of [...host._slot.declaredDeps, ...host._slot.deps])
+				if (discovered.has(dep) && !visited.has(dep)) queue.push(dep);
 		}
-		const checkpoint: GraphCheckpoint = {
-			version: GRAPH_CHECKPOINT_VERSION,
-			nodes,
-			edges,
-		};
+		const checkpoint: GraphCheckpoint = { format: GRAPH_CHECKPOINT_FORMAT, nodes };
 		if (this.name !== undefined) checkpoint.name = this.name;
 		if (this._mounts.length > 0) {
 			checkpoint.mounts = this._mounts.map((m) => ({
@@ -1025,47 +1023,103 @@ export class Graph {
 	private _checkpointNode(
 		node: Node<unknown>,
 		id: string,
+		localId: (n: Node<unknown>) => string,
 		opts: {
 			name?: string;
-			factory: GraphCheckpointFactory;
-			deps: string[];
+			factory: string;
 			meta?: Record<string, unknown>;
+			unregistered?: boolean;
 		},
 	): GraphCheckpointNode {
 		const state = checkpointStateOfNode(node);
 		assertCheckpointQuiescentStatus(node.status, id, "checkpoint");
-		const nonAuthoritativeCollectionHelper = isNonAuthoritativeCollectionHelperMeta(opts.meta);
+		const slot = nodeRuntimeHost(node)._slot;
+		const isState = slot.fn === null && slot.declaredDeps.length === 0;
+		const helper = isNonAuthoritativeCollectionHelperMeta(opts.meta);
+		const json = (value: unknown, path: string) => toCheckpointJson(value, `${id}.${path}`);
 		const out: GraphCheckpointNode = {
 			id,
 			factory: opts.factory,
-			status: node.status,
-			deps: opts.deps,
-			value: nonAuthoritativeCollectionHelper
-				? { kind: "SENTINEL" }
-				: checkpointValue(state.cache, state.hasData, `${id}.value`),
+			kind: isState ? "state" : "computed",
+			deps: slot.declaredDeps.map(localId),
+			values: helper ? [] : state.values.map((v, i) => json(v, `values[${i}]`)),
 			terminal: checkpointTerminal(state.terminal, `${id}.terminal`),
-			lifecycle: { activated: state.activated, hasCalledFnOnce: state.hasCalledFnOnce },
-			ctxState: {
-				persist: false, // the checkpoint stage drops ctxState from the format
-				value: nonAuthoritativeCollectionHelper
-					? { kind: "SENTINEL" }
-					: checkpointValue(
-							state.ctxState.value,
-							state.ctxState.value !== SENTINEL,
-							`${id}.ctxState`,
-						),
-			},
 		};
 		if (opts.name !== undefined) out.name = opts.name;
+		// A state needs no recipe; one that carries one (a collection's input) keeps it.
+		const recipe = opts.unregistered ? undefined : checkpointRecipe(slot.recipe, id);
+		if (recipe !== undefined) out.recipe = recipe;
+		if (!isState) {
+			out.policies = {
+				complete: slot.completePolicy,
+				error: slot.errorPolicy,
+				invalidate: slot.invalidatePolicy,
+				partial: slot.partial,
+				quiet: slot.quiet,
+				dynamic: slot.dynamic,
+				pool: slot.pool,
+			};
+			const lifetime = helper ? undefined : this._checkpointLifetime(node, id, localId);
+			if (lifetime !== undefined) out.lifetime = lifetime;
+		}
 		const backendState = checkpointBackendStateOfNode(node, `${id}.backendState`);
 		if (backendState !== undefined) out.backendState = backendState;
-		if (state.version !== undefined) out.version = state.version;
 		if (opts.meta !== undefined)
-			out.meta = toCheckpointJson(opts.meta, `${id}.meta`) as {
-				[key: string]: GraphCheckpointJson;
-			};
+			out.meta = json(opts.meta, "meta") as { [key: string]: GraphCheckpointJson };
 		return out;
 	}
+
+	/**
+	 * R-checkpoint: a computed node with a lifetime saves its private state, what it received from
+	 * each dependency, and the lifetime's dependencies when a ctx.rewire changed them; a restored
+	 * node not activated since keeps its seed. A node without a lifetime saves none.
+	 */
+	private _checkpointLifetime(
+		node: Node<unknown>,
+		id: string,
+		localId: (n: Node<unknown>) => string,
+	): GraphCheckpointLifetime | undefined {
+		const host = nodeRuntimeHost(node);
+		const state = checkpointStateOfNode(node);
+		if (state.terminal !== undefined) return undefined;
+		const received =
+			state.seed !== undefined
+				? state.seed.received
+				: state.activated
+					? host._slot.deps.map((dep) => {
+							const d = checkpointStateOfNode(dep);
+							return { values: d.values, terminal: d.terminal };
+						})
+					: undefined;
+		if (received === undefined) return undefined;
+		const out: GraphCheckpointLifetime = {
+			received: received.map((r, i) => ({
+				values: r.values.map((v, j) =>
+					toCheckpointJson(v, `${id}.lifetime.received[${i}].values[${j}]`),
+				),
+				terminal: checkpointTerminal(r.terminal, `${id}.lifetime.received[${i}].terminal`),
+			})),
+			ran: state.seed?.ran ?? state.hasCalledFnOnce,
+		};
+		if (state.privateState !== SENTINEL)
+			out.state = toCheckpointJson(state.privateState, `${id}.lifetime.state`);
+		const deps = host._slot.deps;
+		const declared = host._slot.declaredDeps;
+		if (deps.length !== declared.length || deps.some((d, i) => d !== declared[i]))
+			out.deps = deps.map(localId);
+		return out;
+	}
+}
+
+/** R-node: a recipe the checkpoint can save is a factory reference with a JSON configuration. */
+function checkpointRecipe(recipe: unknown, id: string): GraphCheckpointRecipe | undefined {
+	if (recipe === undefined) return undefined;
+	const r = recipe as { ref?: unknown; config?: unknown };
+	if (typeof recipe !== "object" || recipe === null || typeof r.ref !== "string")
+		throw new TypeError(`checkpoint: node '${id}' carries a recipe that is not { ref, config }`);
+	const out: GraphCheckpointRecipe = { ref: r.ref };
+	if (r.config !== undefined) out.config = toCheckpointJson(r.config, `${id}.recipe.config`);
+	return out;
 }
 
 /**

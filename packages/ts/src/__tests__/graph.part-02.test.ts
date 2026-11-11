@@ -6,7 +6,7 @@ import type { Message, TopologyEvent } from "../index.js";
 import {
 	Dispatcher,
 	defaultRestoreRegistry,
-	GRAPH_CHECKPOINT_VERSION,
+	GRAPH_CHECKPOINT_FORMAT,
 	graph,
 	Node,
 	reactiveIndex,
@@ -418,8 +418,8 @@ describe("Graph.topologyGroup — graph-owned dynamic topology release (D152/D15
 	});
 });
 
-describe("Graph.checkpoint — public data shape (R-snapshot / D83 / D90)", () => {
-	it("returns a versioned strict-JSON-compatible checkpoint with live topology and mounts", () => {
+describe("Graph.checkpoint — data shape (R-checkpoint / D802, TS layout D178)", () => {
+	it("returns a strict-JSON checkpoint with topology, values, lifetimes and mounts", () => {
 		const parent = graph({ name: "parent" });
 		const count = parent.state(0, { name: "count" });
 		const doubled = parent.derived([count], (n) => n * 2, { name: "doubled" });
@@ -430,34 +430,33 @@ describe("Graph.checkpoint — public data shape (R-snapshot / D83 / D90)", () =
 		parent.mount(child, { at: "child" });
 
 		const checkpoint = parent.checkpoint();
-		expect(checkpoint.version).toBe(GRAPH_CHECKPOINT_VERSION);
+		expect(checkpoint.format).toBe(GRAPH_CHECKPOINT_FORMAT);
 		expect(() => strictJsonCodec.encode(checkpoint)).not.toThrow();
 		const byId = Object.fromEntries(checkpoint.nodes.map((n) => [n.id, n]));
-		expect(byId.count.factory).toEqual({ kind: "registry-ref", ref: "state" });
-		expect(byId.count.value).toEqual({ kind: "DATA", data: 5 });
-		expect(byId.doubled.factory.kind).toBe("local-only");
-		expect(byId.doubled.value).toEqual({ kind: "DATA", data: 10 });
-		expect(byId.doubled.deps).toEqual(["count"]);
-		expect(byId.doubled.lifecycle.hasCalledFnOnce).toBe(true);
-		expect(checkpoint.edges).toContainEqual({ from: "count", to: "doubled" });
-		expect(checkpoint.mounts?.[0].at).toBe("child");
-		expect(checkpoint.mounts?.[0].checkpoint.nodes[0]).toMatchObject({
-			id: "nil",
-			value: { kind: "DATA", data: null },
+		expect(byId.count).toMatchObject({ kind: "state", factory: "state", values: [5] });
+		expect(byId.count.recipe).toBeUndefined();
+		expect(byId.doubled).toMatchObject({ kind: "computed", values: [10], deps: ["count"] });
+		// No recipe: local-only.
+		expect(byId.doubled.recipe).toBeUndefined();
+		expect(byId.doubled.lifetime).toEqual({
+			received: [{ values: [5], terminal: { kind: "none" } }],
+			ran: true,
 		});
+		expect(checkpoint.mounts?.[0].at).toBe("child");
+		expect(checkpoint.mounts?.[0].checkpoint.nodes[0]).toMatchObject({ id: "nil", values: [null] });
 	});
 
-	it("captures ran-but-SENTINEL lifecycle state explicitly", () => {
+	it("saves a lifetime that ran without sending a value", () => {
 		const g = graph();
 		const quiet = g.producer(() => {}, { name: "quiet" });
 		collect(quiet);
 
 		const node = g.checkpoint().nodes.find((n) => n.id === "quiet");
-		expect(node?.value).toEqual({ kind: "SENTINEL" });
-		expect(node?.lifecycle).toEqual({ activated: true, hasCalledFnOnce: true });
+		expect(node?.values).toEqual([]);
+		expect(node?.lifetime).toEqual({ received: [], ran: true });
 	});
 
-	it("uses explicit SENTINEL/DATA discriminants for absence, null, and empty arrays", () => {
+	it("keeps no value apart from null and an empty array; an inactive computed node holds nothing", () => {
 		const g = graph();
 		const src = g.state(0, { name: "src" });
 		g.derived([src], (n) => n, { name: "cold" });
@@ -465,12 +464,13 @@ describe("Graph.checkpoint — public data shape (R-snapshot / D83 / D90)", () =
 		g.state([], { name: "empty" });
 
 		const byId = Object.fromEntries(g.checkpoint().nodes.map((n) => [n.id, n]));
-		expect(byId.cold.value).toEqual({ kind: "SENTINEL" });
-		expect(byId.nil.value).toEqual({ kind: "DATA", data: null });
-		expect(byId.empty.value).toEqual({ kind: "DATA", data: [] });
+		expect(byId.cold.values).toEqual([]);
+		expect(byId.cold.lifetime).toBeUndefined();
+		expect(byId.nil.values).toEqual([null]);
+		expect(byId.empty.values).toEqual([[]]);
 	});
 
-	it("captures node-private ctx.state even when the state is non-persist", () => {
+	it("saves an active node's private state", () => {
 		const g = graph();
 		const src = g.state(1, { name: "src" });
 		const memo = g.node(
@@ -484,10 +484,7 @@ describe("Graph.checkpoint — public data shape (R-snapshot / D83 / D90)", () =
 		collect(memo);
 
 		const node = g.checkpoint().nodes.find((n) => n.id === "memo");
-		expect(node?.ctxState).toEqual({
-			persist: false,
-			value: { kind: "DATA", data: { latest: 1, runs: 1 } },
-		});
+		expect(node?.lifetime?.state).toEqual({ latest: 1, runs: 1 });
 	});
 
 	it("discriminates COMPLETE and ERROR terminal state when represented", () => {
@@ -502,7 +499,7 @@ describe("Graph.checkpoint — public data shape (R-snapshot / D83 / D90)", () =
 		expect(byId.failed.terminal).toEqual({ kind: "ERROR", error: "boom" });
 	});
 
-	it("fails honestly for non-strict-JSON cache, ctx.state, and terminal payloads", () => {
+	it("fails honestly for non-strict-JSON values, private state and terminal payloads", () => {
 		const badCache = graph();
 		badCache.state(1n, { name: "big" });
 		expect(() => badCache.checkpoint()).toThrow(/strict JSON compatible/);
@@ -544,7 +541,7 @@ describe("Graph.checkpoint — public data shape (R-snapshot / D83 / D90)", () =
 		expect(() => cyclic.checkpoint()).toThrow(/cyclic graph mount/);
 	});
 
-	it("rejects non-quiescent checkpoint statuses that cannot be restored yet", () => {
+	it("refuses a capture inside a wave, as one leg of a diamond runs (R-checkpoint)", () => {
 		const g = graph();
 		const source = g.state(1, { name: "source" });
 		// A pending mark never outlives its wave (R-wave), so a node is "dirty" only mid-wave: here
@@ -580,7 +577,7 @@ describe("Graph.checkpoint — public data shape (R-snapshot / D83 / D90)", () =
 		);
 		join.subscribe(() => {});
 		source.set(2);
-		expect(String(midWave)).toMatch(/stale cache/);
+		expect(String(midWave)).toMatch(/wave boundary/);
 	});
 
 	it("keeps graph checkpoint strict JSON validation independent from storage codecs (D96)", () => {
@@ -588,7 +585,7 @@ describe("Graph.checkpoint — public data shape (R-snapshot / D83 / D90)", () =
 		expect(source).not.toContain("../storage/codec.js");
 	});
 
-	it("captures D160 collection backendState without mirroring it into ctx.state", () => {
+	it("saves a collection's backend in backendState, not in private state (TS extension)", () => {
 		const g = graph();
 		const list = reactiveList<number>([1], { graph: g, name: "list" });
 		list.append(2);
@@ -599,31 +596,21 @@ describe("Graph.checkpoint — public data shape (R-snapshot / D83 / D90)", () =
 		log.append("b");
 
 		const byId = Object.fromEntries(g.checkpoint().nodes.map((n) => [n.id, n]));
-		expect(byId["list.delta"].factory).toEqual({
-			kind: "registry-ref",
-			ref: "reactiveList.delta",
-		});
+		expect(byId["list.delta"].recipe).toEqual({ ref: "reactiveList.delta" });
 		expect(byId["list.delta"].backendState).toEqual([1, 2]);
-		expect(byId["list.delta"].ctxState.value).toEqual({ kind: "SENTINEL" });
-		expect(byId["list.snapshot"].factory).toEqual({
-			kind: "registry-ref",
-			ref: "reactiveList.snapshot",
-		});
+		expect(byId["list.delta"].lifetime).toBeUndefined();
+		expect(byId["list.snapshot"].recipe).toEqual({ ref: "reactiveList.snapshot" });
 		expect(byId["list.snapshot"].backendState).toBeUndefined();
 
 		expect(byId["idx.delta"].backendState).toEqual([
 			{ primary: "a", secondary: 1, value: 10 },
 			{ primary: "b", secondary: 2, value: 20 },
 		]);
-		expect(byId["log.delta"].factory).toEqual({
-			kind: "registry-ref",
-			ref: "reactiveLog.delta",
-			config: { maxSize: 3 },
-		});
+		expect(byId["log.delta"].recipe).toEqual({ ref: "reactiveLog.delta", config: { maxSize: 3 } });
 		expect(byId["log.delta"].backendState).toEqual(["a", "b"]);
 	});
 
-	it("treats D160 collection snapshot caches as non-authoritative checkpoint state", () => {
+	it("does not save a collection's helper values or lifetimes; its backend is the authority", () => {
 		const g = graph();
 		const list = reactiveList<number>([1], { graph: g, name: "list" });
 		const mapCollection = reactiveMap<string, number>({ graph: g, name: "map" });
@@ -637,10 +624,11 @@ describe("Graph.checkpoint — public data shape (R-snapshot / D83 / D90)", () =
 		expect(() => strictJsonCodec.encode(checkpoint)).not.toThrow();
 		const byId = Object.fromEntries(checkpoint.nodes.map((n) => [n.id, n]));
 		expect(byId["list.delta"].backendState).toEqual([1]);
-		expect(byId["list.snapshot"].value).toEqual({ kind: "SENTINEL" });
+		expect(byId["list.snapshot"].values).toEqual([]);
+		expect(byId["list.snapshot"].lifetime).toBeUndefined();
 		expect(byId["map.intent"].backendState).toEqual([["k", 42]]);
-		expect(byId["map.snapshotPrep"].value).toEqual({ kind: "SENTINEL" });
-		expect(byId["map.snapshot"].value).toEqual({ kind: "SENTINEL" });
+		expect(byId["map.snapshotPrep"].values).toEqual([]);
+		expect(byId["map.snapshot"].values).toEqual([]);
 	});
 
 	it("fails honestly when a collection backendState is not strict JSON", () => {
@@ -658,7 +646,7 @@ describe("Graph.checkpoint — public data shape (R-snapshot / D83 / D90)", () =
 		expect(() => g.checkpoint()).toThrow(/backendState\[0\]\.primary.*JSON primitive/);
 	});
 
-	it("marks deferred collection policy variants local-only instead of advertising restore", () => {
+	it("gives deferred collection policy variants no recipe, so they are local-only", () => {
 		const g = graph();
 		reactiveList<number>([], { graph: g, name: "capped", maxSize: 2 });
 		reactiveIndex<string, number>({
@@ -668,14 +656,8 @@ describe("Graph.checkpoint — public data shape (R-snapshot / D83 / D90)", () =
 		});
 
 		const byId = Object.fromEntries(g.checkpoint().nodes.map((n) => [n.id, n]));
-		expect(byId["capped.delta"].factory).toMatchObject({
-			kind: "local-only",
-			reason: expect.stringMatching(/no backend checkpoint restore metadata/),
-		});
-		expect(byId["limited.delta"].factory).toMatchObject({
-			kind: "local-only",
-			reason: expect.stringMatching(/no backend checkpoint restore metadata/),
-		});
+		expect(byId["capped.snapshot"].recipe).toBeUndefined();
+		expect(byId["limited.snapshot"].recipe).toBeUndefined();
 		expect(() => restoreGraph(g.checkpoint(), { registry: defaultRestoreRegistry })).toThrow(
 			/local-only/,
 		);

@@ -39,7 +39,7 @@ try {
   sources.arrivals.down([['DATA',{packRef:binding.packRef,evaluationRefs:[e.evaluationRef]}]]);
  });
  await drain();
- const state=checkpointStateOfNode(graph.find('spending/causal/authority')).ctxState.value;
+ const state=checkpointStateOfNode(graph.find('spending/causal/authority')).privateState;
  const effects=[...state.effects.values()];
  const expected=oracleRequest(e,binding).body.payloadText+'\\n';
  if(config.stale) {
