@@ -68,10 +68,10 @@ describe("C-17 — absorbed-error dep counts as terminal for auto-COMPLETE (B42 
 		const d = g.node([b, c], fwd, { terminal: { error: "manual" } }); // absorbs C's error, stays live
 		collect(d);
 		c.down([["ERROR", new Error("boom")]]); // absorbed; B still live → not yet all-terminal
-		expect(d.status).not.toBe("completed");
-		expect(d.status).not.toBe("errored"); // errorWhenDepsError:false → no auto-ERROR
+		expect(d.status.output).not.toBe("completed");
+		expect(d.status.output).not.toBe("errored"); // errorWhenDepsError:false → no auto-ERROR
 		b.down([["DATA", 1], ["COMPLETE"]]); // B terminal → ALL deps terminal (C errored) → COMPLETE
-		expect(d.status).toBe("completed");
+		expect(d.status.output).toBe("completed");
 	});
 
 	it("(b) complete-then-error: B completes, then C errors LAST → D still auto-COMPLETEs (ERROR-arm mirror)", () => {
@@ -81,9 +81,9 @@ describe("C-17 — absorbed-error dep counts as terminal for auto-COMPLETE (B42 
 		const d = g.node([b, c], fwd, { terminal: { error: "manual" } });
 		collect(d);
 		b.down([["DATA", 1], ["COMPLETE"]]); // B terminal; C still live → not yet all-terminal
-		expect(d.status).not.toBe("completed");
+		expect(d.status.output).not.toBe("completed");
 		c.down([["ERROR", new Error("boom")]]); // C absorbed-error LANDS LAST → all terminal → COMPLETE
-		expect(d.status).toBe("completed"); // the ERROR-absorbed arm mirrors the COMPLETE arm (B42)
+		expect(d.status.output).toBe("completed"); // the ERROR-absorbed arm mirrors the COMPLETE arm (B42)
 	});
 
 	it("(c) errorWhenDepsError:true (default) auto-ERRORs on a dep error (absorbed path gated off)", () => {
@@ -93,7 +93,7 @@ describe("C-17 — absorbed-error dep counts as terminal for auto-COMPLETE (B42 
 		const d = g.node([b, c], fwd); // defaults: errorWhenDepsError:true
 		collect(d);
 		c.down([["ERROR", new Error("boom")]]); // auto-cascade → ERROR before any complete-check
-		expect(d.status).toBe("errored");
+		expect(d.status.output).toBe("errored");
 	});
 });
 
@@ -165,7 +165,7 @@ describe("C-22 — batch commit precedes rewire requested during the open batch 
 			expect(d.deps[0]).toBe(a);
 		});
 
-		expect(d.status).toBe("completed");
+		expect(d.status.output).toBe("completed");
 		expect(d.deps[0]).toBe(b);
 		expect(types(msgs)).toEqual(["PENDING", "COMPLETE"]);
 		msgs.length = 0;

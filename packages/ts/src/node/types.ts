@@ -3,14 +3,18 @@ import type { Dispatcher, Handle } from "../dispatcher/index.js";
 import type { Node } from "./node.js";
 import type { NodeVersion, NodeVersioningPolicy } from "./versioning.js";
 
-export type Status =
-	| "sentinel"
-	| "pending"
-	| "dirty"
-	| "settled"
-	| "resolved"
-	| "completed"
-	| "errored";
+/**
+ * R-node@2: a node's status, derived from what it holds and never stored. Reading it changes
+ * nothing.
+ */
+export interface Status {
+	/** empty: no retained value; stale: a pending mark it received or sent in the current wave is unsettled; ready. */
+	readonly cache: "empty" | "stale" | "ready";
+	/** open, or ended by COMPLETE or ERROR. */
+	readonly output: "open" | "completed" | "errored";
+	/** inactive; active (subscribed or held by a dependent); closing (its lifetime's cleanup is running). */
+	readonly lifecycle: "inactive" | "active" | "closing";
+}
 
 /** An auto or manual policy (R-terminals, R-invalidation). */
 export type TerminalPolicy = "auto" | "manual";
@@ -90,7 +94,6 @@ export interface NodeCheckpointState {
 export interface NodeRestoreState {
 	readonly cache: unknown;
 	readonly hasData: boolean;
-	readonly status: Status;
 	readonly terminal: true | unknown | undefined;
 	readonly hasCalledFnOnce: boolean;
 	readonly ctxState: { readonly value: unknown; readonly persist: boolean };

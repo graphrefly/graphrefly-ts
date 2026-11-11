@@ -57,7 +57,7 @@ describe("restoreGraph — fresh graph restore (R-restore / D94 / D95)", () => {
 				id: "cold",
 				name: "cold",
 				factory: { kind: "registry-ref", ref: "state" },
-				status: "sentinel",
+				status: { cache: "empty", output: "open", lifecycle: "inactive" },
 				deps: [],
 				value: { kind: "SENTINEL" },
 				terminal: { kind: "none" },
@@ -68,7 +68,7 @@ describe("restoreGraph — fresh graph restore (R-restore / D94 / D95)", () => {
 				id: "nil",
 				name: "nil",
 				factory: { kind: "registry-ref", ref: "state" },
-				status: "settled",
+				status: { cache: "ready", output: "open", lifecycle: "inactive" },
 				deps: [],
 				value: { kind: "DATA", data: null },
 				terminal: { kind: "none" },
@@ -79,7 +79,7 @@ describe("restoreGraph — fresh graph restore (R-restore / D94 / D95)", () => {
 				id: "empty",
 				name: "empty",
 				factory: { kind: "registry-ref", ref: "state" },
-				status: "settled",
+				status: { cache: "ready", output: "open", lifecycle: "inactive" },
 				deps: [],
 				value: { kind: "DATA", data: [] },
 				terminal: { kind: "none" },
@@ -304,7 +304,7 @@ describe("restoreGraph — fresh graph restore (R-restore / D94 / D95)", () => {
 			id: "mapped",
 			name: "mapped",
 			factory: { kind: "registry-ref", ref: "map", config: { fn: "missing.inc" } },
-			status: "sentinel",
+			status: { cache: "empty", output: "open", lifecycle: "inactive" },
 			deps: ["src"],
 			value: { kind: "SENTINEL" },
 			terminal: { kind: "none" },
@@ -431,8 +431,8 @@ describe("restoreGraph — fresh graph restore (R-restore / D94 / D95)", () => {
 		failed.down([["ERROR", "boom"]]);
 
 		const restored = restoreGraph(g.checkpoint(), { registry: defaultRestoreRegistry });
-		expect(restored.find("done")?.status).toBe("completed");
-		expect(restored.find("failed")?.status).toBe("errored");
+		expect(restored.find("done")?.status.output).toBe("completed");
+		expect(restored.find("failed")?.status.output).toBe("errored");
 		// R-terminals: an ended node can be subscribed; its snapshot carries its values and terminal.
 		const doneLog: unknown[] = [];
 		const failedLog: unknown[] = [];
@@ -440,7 +440,7 @@ describe("restoreGraph — fresh graph restore (R-restore / D94 / D95)", () => {
 		restored.find("failed")?.subscribe((msgs) => failedLog.push(msgs));
 		expect(doneLog).toEqual([[["START"], ["DATA", 1], ["COMPLETE"]]]);
 		expect(failedLog).toEqual([[["START"], ["DATA", 2], ["ERROR", "boom"]]]);
-		expect(restored.find("done")?.status).toBe("completed");
+		expect(restored.find("done")?.status.output).toBe("completed");
 	});
 
 	it("checkpoints and restores D109 node runtime versions", () => {
@@ -700,13 +700,13 @@ describe("restoreGraph — fresh graph restore (R-restore / D94 / D95)", () => {
 		);
 
 		const nonQuiescent = missingRef.checkpoint();
-		nonQuiescent.nodes[0].status = "pending";
+		nonQuiescent.nodes[0].status = { ...nonQuiescent.nodes[0].status, cache: "stale" };
 		expect(() => restoreGraph(nonQuiescent, { registry: defaultRestoreRegistry })).toThrow(
-			/non-quiescent status 'pending'/,
+			/stale cache/,
 		);
 
 		const terminalMismatch = missingRef.checkpoint();
-		terminalMismatch.nodes[0].status = "completed";
+		terminalMismatch.nodes[0].status = { ...terminalMismatch.nodes[0].status, output: "completed" };
 		terminalMismatch.nodes[0].terminal = { kind: "none" };
 		expect(() => restoreGraph(terminalMismatch, { registry: defaultRestoreRegistry })).toThrow(
 			/terminal status requires terminal state/,

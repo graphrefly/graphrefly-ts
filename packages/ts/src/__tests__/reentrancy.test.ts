@@ -25,7 +25,7 @@ describe("R-reentrancy (D37) — synchronous feedback cycle is rejected", () => 
 				}),
 			),
 		).not.toThrow();
-		expect(e.status).toBe("errored");
+		expect(e.status.output).toBe("errored");
 		expect(String((error as Error).message)).toMatch(/feedback cycle|R-reentrancy/i);
 	});
 
@@ -44,7 +44,7 @@ describe("R-reentrancy (D37) — synchronous feedback cycle is rejected", () => 
 			s.down([["DATA", depLatest(ctx, 0) as number]]);
 		});
 		e.subscribe(() => {});
-		expect(e.status).toBe("errored");
+		expect(e.status.output).toBe("errored");
 		// A fresh, independent chain still computes — no node left with a stuck in-wave flag.
 		const a = node<number>([], null, { initial: 7 });
 		const b = node<number>([a], plus1);

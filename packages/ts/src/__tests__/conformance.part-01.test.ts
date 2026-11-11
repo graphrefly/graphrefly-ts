@@ -64,7 +64,7 @@ describe("C-3 INVALIDATE × ctx.state, manual INVALIDATE policy (R-invalidation)
 		expect(types(msgs)).toEqual(["PENDING", "INVALIDATE"]); // cascaded downstream exactly once
 		expect(onInv).toBe(1);
 		expect(d.cache).toBeUndefined();
-		expect(d.status).toBe("sentinel");
+		expect(d.status.cache).toBe("empty");
 
 		// idempotent: a second INVALIDATE on an already-reset upstream is a no-op
 		msgs.length = 0;
@@ -117,7 +117,7 @@ describe("C-4 a sync leg and an async leg: the async result is a later wave, not
 		expect(dRuns).toBe(2);
 		expect(d.cache).toBe(33); // 12 + 21
 		expect(types(msgs)).toEqual(["PENDING", "DATA"]);
-		expect(d.status).not.toBe("dirty");
+		expect(d.status.cache).not.toBe("stale");
 
 		// c's result is a new wave from c, in which d runs once more.
 		msgs.length = 0;
@@ -146,7 +146,7 @@ describe("C-6 synchronous feedback cycle → ERROR (R-reentrancy / D37)", () => 
 		expect(escaped).toBe(false);
 		// R-reentrancy: ERROR lands on a node ON the cycle — the value-level catch nearest the
 		// throw on the unwind (impl-determined, d or e), not necessarily the re-entered node.
-		expect([d.status, e.status]).toContain("errored");
+		expect([d.status.output, e.status.output]).toContain("errored");
 	});
 });
 
@@ -302,7 +302,7 @@ describe("C-11 higher-order inner rewire at the wave boundary (R-rewire-deferred
 		expect(data(msgs)).toContain(60);
 
 		// OP stays live: S is still live, completeWhenDepsComplete:false → no terminal cascade.
-		expect(op.status).not.toBe("completed");
+		expect(op.status.output).not.toBe("completed");
 		expect(types(msgs)).not.toContain("COMPLETE");
 	});
 
@@ -360,7 +360,7 @@ describe("C-11 higher-order inner rewire at the wave boundary (R-rewire-deferred
 			escaped = true; // the substrate throw must be caught by the graph layer (D30), not escape
 		}
 		expect(escaped).toBe(false);
-		expect(op.status).toBe("errored");
+		expect(op.status.output).toBe("errored");
 	});
 
 	it("(variant) a terminal OP still drains its pending rewireNext queue; terminal seals output", () => {
@@ -377,7 +377,7 @@ describe("C-11 higher-order inner rewire at the wave boundary (R-rewire-deferred
 		});
 		const { msgs } = collect(op);
 		s.down([["DATA", 1]]);
-		expect(op.status).toBe("completed");
+		expect(op.status.output).toBe("completed");
 		expect(inner.isActivated()).toBe(true); // D62: queued subscribeDep drains after terminal
 		expect(op.deps).toContain(inner.node);
 		msgs.length = 0;
@@ -407,7 +407,7 @@ describe("C-11 higher-order inner rewire at the wave boundary (R-rewire-deferred
 		s.down([["DATA", 1]]);
 		expect(inner.isActivated()).toBe(true);
 		s.down([["COMPLETE"]]);
-		expect(op.status).toBe("completed");
+		expect(op.status.output).toBe("completed");
 		expect(op.deps).not.toContain(inner.node);
 		expect(inner.isDeactivated()).toBe(true);
 	});
@@ -452,7 +452,7 @@ describe("C-12 occurrences stay DATA; RESOLVED is undirty-only (R-resolved-undir
 		const t = g.initNode(take<number>(3), [src]);
 		const { msgs } = collect(t);
 		expect(data(msgs)).toEqual([1, 1, 1]);
-		expect(t.status).toBe("completed");
+		expect(t.status.output).toBe("completed");
 	});
 
 	it("(c) filter-reject: the substrate synthesizes one undirty RESOLVED — no DATA, no wedge", () => {
@@ -464,13 +464,13 @@ describe("C-12 occurrences stay DATA; RESOLVED is undirty-only (R-resolved-undir
 		);
 		const { msgs } = collect(f);
 		// activation: 50 rejected, f never produced — no PENDING on activation, no synth
-		expect(f.status).toBe("sentinel");
+		expect(f.status.cache).toBe("empty");
 		expect(f.cache).toBeUndefined();
 		msgs.length = 0;
 
 		s.set(60); // rejected: PENDING'd but no value → substrate-synthesized undirty RESOLVED
 		expect(types(msgs)).toEqual(["PENDING", "RESOLVED"]); // un-dirtied, no DATA, not wedged
-		expect(f.status).toBe("sentinel"); // never valued
+		expect(f.status.cache).toBe("empty"); // never valued
 		msgs.length = 0;
 
 		s.set(150); // accepted → real DATA occurrence
@@ -480,7 +480,7 @@ describe("C-12 occurrences stay DATA; RESOLVED is undirty-only (R-resolved-undir
 
 		s.set(70); // rejected, but f now carries 150 → undirty RESOLVED, status resolved
 		expect(types(msgs)).toEqual(["PENDING", "RESOLVED"]);
-		expect(f.status).toBe("resolved");
+		expect(f.status.cache).toBe("ready");
 		expect(f.cache).toBe(150); // cache preserved across the undirty wave
 	});
 

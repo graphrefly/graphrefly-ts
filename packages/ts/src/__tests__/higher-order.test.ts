@@ -169,18 +169,18 @@ describe("mergeMap (D47 / R-rewire-deferred)", () => {
 		inners[0].next(10);
 		inners[1].next(20);
 		expect(data(msgs)).toEqual([10, 20]);
-		expect(op.status).not.toBe("completed");
+		expect(op.status.output).not.toBe("completed");
 
 		inners[0].complete();
 		expect(inners).toHaveLength(3);
 		expect(inners[2].isActivated()).toBe(true);
 		inners[2].next(30);
 		expect(data(msgs)).toEqual([10, 20, 30]);
-		expect(op.status).not.toBe("completed");
+		expect(op.status.output).not.toBe("completed");
 
 		inners[1].complete();
 		inners[2].complete();
-		expect(op.status).toBe("completed");
+		expect(op.status.output).toBe("completed");
 	});
 
 	it("rejects non-positive mergeMap concurrency", () => {
@@ -200,11 +200,11 @@ describe("mergeMap (D47 / R-rewire-deferred)", () => {
 
 		s.down([["DATA", 1], ["DATA", 2], ["COMPLETE"]]);
 		expect(inner.isActivated()).toBe(true);
-		expect(op.status).not.toBe("completed");
+		expect(op.status.output).not.toBe("completed");
 
 		inner.complete();
 		expect(inner.isDeactivated()).toBe(true);
-		expect(op.status).toBe("completed");
+		expect(op.status.output).toBe("completed");
 	});
 
 	it("a projector returning an ALREADY-LIVE inner is merged once (no inners↔deps desync)", () => {
@@ -258,12 +258,12 @@ describe("mergeMap (D47 / R-rewire-deferred)", () => {
 
 		s.down([["DATA", 1]]); // add inner a
 		s.down([["COMPLETE"]]); // source done, but inner a still live → NOT complete yet
-		expect(op.status).not.toBe("completed");
+		expect(op.status.output).not.toBe("completed");
 
 		a.next(9);
 		a.complete(); // last inner done + source done → op COMPLETEs
 		expect(data(msgs)).toEqual([9]);
-		expect(op.status).toBe("completed");
+		expect(op.status.output).toBe("completed");
 	});
 
 	it("a throwing projector → ERROR (D30, self-catch survives rewire)", () => {
@@ -277,7 +277,7 @@ describe("mergeMap (D47 / R-rewire-deferred)", () => {
 		);
 		collect(op);
 		s.down([["DATA", 1]]);
-		expect(op.status).toBe("errored");
+		expect(op.status.output).toBe("errored");
 	});
 
 	it("source ERROR detaches every live inner before emitting ERROR (D81)", () => {
@@ -297,15 +297,15 @@ describe("mergeMap (D47 / R-rewire-deferred)", () => {
 		const err = new Error("source boom");
 		s.down([["ERROR", err]]);
 
-		expect(op.status).toBe("errored");
+		expect(op.status.output).toBe("errored");
 		expect(msgs.at(-1)).toEqual(["ERROR", err]);
 		expect(a.isDeactivated()).toBe(true);
 		expect(b.isDeactivated()).toBe(true);
 		expect(op.deps).toEqual([s]);
-		expect(a.node.status).not.toBe("completed");
-		expect(a.node.status).not.toBe("errored");
-		expect(b.node.status).not.toBe("completed");
-		expect(b.node.status).not.toBe("errored");
+		expect(a.node.status.output).not.toBe("completed");
+		expect(a.node.status.output).not.toBe("errored");
+		expect(b.node.status.output).not.toBe("completed");
+		expect(b.node.status.output).not.toBe("errored");
 
 		const afterError = msgs.length;
 		a.next(11);
@@ -331,13 +331,13 @@ describe("mergeMap (D47 / R-rewire-deferred)", () => {
 		const err = new Error("inner boom");
 		a.error(err);
 
-		expect(op.status).toBe("errored");
+		expect(op.status.output).toBe("errored");
 		expect(msgs.at(-1)).toEqual(["ERROR", err]);
 		expect(a.isDeactivated()).toBe(true);
 		expect(b.isDeactivated()).toBe(true);
 		expect(op.deps).toEqual([s]);
-		expect(b.node.status).not.toBe("completed");
-		expect(b.node.status).not.toBe("errored");
+		expect(b.node.status.output).not.toBe("completed");
+		expect(b.node.status.output).not.toBe("errored");
 
 		const afterError = msgs.length;
 		b.next(21);
@@ -386,12 +386,12 @@ describe("mergeMap (D47 / R-rewire-deferred)", () => {
 		a.next(10);
 		s.down([["DATA", 2]]);
 
-		expect(op.status).toBe("errored");
+		expect(op.status.output).toBe("errored");
 		expect(msgs.at(-1)?.[0]).toBe("ERROR");
 		expect(a.isDeactivated()).toBe(true);
 		expect(op.deps).toEqual([s]);
-		expect(a.node.status).not.toBe("completed");
-		expect(a.node.status).not.toBe("errored");
+		expect(a.node.status.output).not.toBe("completed");
+		expect(a.node.status.output).not.toBe("errored");
 
 		const afterError = msgs.length;
 		a.next(11);
@@ -488,7 +488,7 @@ describe("concatMap (D47)", () => {
 		const err = new Error("source boom");
 		s.down([["ERROR", err]]);
 
-		expect(op.status).toBe("errored");
+		expect(op.status.output).toBe("errored");
 		expect(msgs.at(-1)).toEqual(["ERROR", err]);
 		expect(a.isDeactivated()).toBe(true);
 		expect(b.isActivated()).toBe(false);
@@ -537,7 +537,7 @@ describe("repeat (D47 self-rewire, factory-based — clean-slate complete design
 		const { msgs } = collect(r);
 		expect(data(msgs)).toEqual([1, 2, 1, 2, 1, 2]);
 		expect(msgs[msgs.length - 1][0]).toBe("COMPLETE");
-		expect(r.status).toBe("completed");
+		expect(r.status.output).toBe("completed");
 	});
 
 	it("count=1 plays the source exactly once", () => {
@@ -548,7 +548,7 @@ describe("repeat (D47 self-rewire, factory-based — clean-slate complete design
 		);
 		const { msgs } = collect(r);
 		expect(data(msgs)).toEqual([7]);
-		expect(r.status).toBe("completed");
+		expect(r.status.output).toBe("completed");
 	});
 
 	it("an inner ERROR aborts repeat (errorWhenDepsError)", () => {
@@ -565,7 +565,7 @@ describe("repeat (D47 self-rewire, factory-based — clean-slate complete design
 			[],
 		);
 		const { msgs } = collect(r);
-		expect(r.status).toBe("errored");
+		expect(r.status.output).toBe("errored");
 		expect(msgs.some((m) => m[0] === "ERROR")).toBe(true);
 	});
 
@@ -581,7 +581,7 @@ describe("repeat (D47 self-rewire, factory-based — clean-slate complete design
 
 		const { msgs } = collect(r);
 		expect(msgs.at(-1)).toEqual(["ERROR", boom]);
-		expect(r.status).toBe("errored");
+		expect(r.status.output).toBe("errored");
 	});
 
 	it("describe shows repeat's real factory name + its live inner (D6/D51)", () => {

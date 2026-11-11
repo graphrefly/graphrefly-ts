@@ -57,6 +57,7 @@ import {
 	nodeReleaseRuntime,
 	nodeResetDepState,
 	nodeSeedRestoredDepAt,
+	nodeStatus,
 	nodeSubscribeDepAt,
 	nodeSubscriberCount,
 } from "./node-lifecycle-runtime.js";
@@ -203,7 +204,6 @@ export class Node<T = unknown> {
 			const value = {
 				cache: SENTINEL as T | undefined,
 				hasData: false,
-				status: "sentinel" as Status,
 				terminal: undefined,
 				lastArray: [] as T[],
 			};
@@ -211,7 +211,6 @@ export class Node<T = unknown> {
 				value.cache = opts.initial as T;
 				value.lastArray = [opts.initial as T];
 				value.hasData = true;
-				value.status = "settled";
 			}
 			this._core = core ?? new NodeCore();
 			const created = this._core.createSlot<T>(
@@ -247,7 +246,7 @@ export class Node<T = unknown> {
 						rewireRunPending: false,
 					},
 					privateState: { value: SENTINEL, persist: false },
-					lifetime: { controller: null, cleanup: undefined, setupDone: false },
+					lifetime: { controller: null, cleanup: undefined, setupDone: false, closing: false },
 					syncCtx: { value: null },
 					version: {
 						policy: versioning,
@@ -285,8 +284,9 @@ export class Node<T = unknown> {
 		return this._value.cache;
 	}
 
+	/** R-node@2: derived from what the node holds; reading it changes nothing. */
 	get status(): Status {
-		return this._value.status;
+		return nodeStatus(nodeRuntimeHost(this));
 	}
 
 	get version(): NodeVersion | undefined {

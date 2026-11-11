@@ -41,7 +41,7 @@ describe("C-26: the message set is closed: PULL, PAUSE, RESUME and TEARDOWN are 
 		n.subscribe(eachMessage(s.sink));
 
 		expect(runs).toBe(1);
-		expect(n.status).toBe("errored");
+		expect(n.status.output).toBe("errored");
 		expect(types(s.msgs)).not.toContain(type);
 		expect(types(s.msgs).at(-1)).toBe("ERROR");
 		expect(String((s.msgs.at(-1) as readonly ["ERROR", unknown])[1])).toContain("closed");
@@ -95,7 +95,7 @@ describe("C-42: the message set is closed and nothing travels upstream", () => {
 			"PAUSE",
 		]);
 		expect(n.cache).toBe(42);
-		expect(n.status).not.toBe("errored");
+		expect(n.status.output).not.toBe("errored");
 		expect(s.msgs.filter((m) => m[0] === "DATA")).toEqual([["DATA", 42]]);
 		for (const type of ["PULL", "PAUSE", "RESUME", "TEARDOWN", "NOT_A_MESSAGE"])
 			expect(types(s.msgs)).not.toContain(type);
@@ -108,7 +108,7 @@ describe("C-42: the message set is closed and nothing travels upstream", () => {
 		});
 		const s = recorder();
 		n.subscribe(eachMessage(s.sink));
-		expect(n.status).toBe("errored");
+		expect(n.status.output).toBe("errored");
 		expect(types(s.msgs).at(-1)).toBe("ERROR");
 		expect(types(s.msgs).filter((t) => t === "ERROR")).toHaveLength(1);
 	});
@@ -156,12 +156,12 @@ describe("C-12 (c): RESOLVED is the kernel's alone", () => {
 		d.subscribe(eachMessage(ds.sink));
 		s.msgs.length = 0;
 		a.down([["DATA", 2]]);
-		expect(n.status).toBe("errored");
+		expect(n.status.output).toBe("errored");
 		expect(types(s.msgs)).not.toContain("RESOLVED");
 		expect(types(s.msgs).at(-1)).toBe("ERROR");
 		expect(String((s.msgs.at(-1) as readonly ["ERROR", unknown])[1])).toContain("kernel");
 		// Its dependent is not left pending: the ERROR settles it (auto ERROR).
-		expect(d.status).toBe("errored");
+		expect(d.status.output).toBe("errored");
 	});
 
 	it("a pending node that sends nothing gets the kernel's RESOLVED", () => {

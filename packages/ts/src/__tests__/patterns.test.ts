@@ -15,9 +15,13 @@ describe("patterns inspection helpers (B62 / D125)", () => {
 
 		expect(summary.nodeCount).toBe(2);
 		expect(summary.totalInvokes).toBeGreaterThanOrEqual(3);
-		expect(summary.byStatus.settled).toBe(2);
+		expect(summary.byStatus["ready/open/active"]).toBe(2);
 		expect(summary.hotNodes).toEqual([
-			expect.objectContaining({ path: "doubled", invokes: 3, status: "settled" }),
+			expect.objectContaining({
+				path: "doubled",
+				invokes: 3,
+				status: expect.objectContaining({ cache: "ready" }),
+			}),
 		]);
 	});
 });

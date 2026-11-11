@@ -51,7 +51,7 @@ describe("D161 B1 incoming inspection", () => {
 		f.root.replaceDeps([f.b], null);
 		expect(f.scope.readIncoming().edges).toEqual([{ from: "b", to: "view/root" }]);
 		expect(f.g.find("view/future")).toBeUndefined();
-		expect(f.root.status).toBe("sentinel");
+		expect(f.root.status.cache).toBe("empty");
 	});
 
 	it("avoids unrelated value snapshot reads without activating nodes", () => {

@@ -21,7 +21,7 @@ describe("terminal (R-terminal, R-deps-terminal)", () => {
 		a.down([["COMPLETE"]]);
 		// R-wave: a terminal array carries the kernel's PENDING like a value array.
 		expect(types(msgs)).toEqual(["PENDING", "COMPLETE"]);
-		expect(d.status).toBe("completed");
+		expect(d.status.output).toBe("completed");
 	});
 
 	it("requires ALL deps complete, not ANY", () => {
@@ -36,7 +36,7 @@ describe("terminal (R-terminal, R-deps-terminal)", () => {
 		expect(types(msgs)).not.toContain("COMPLETE"); // only one dep complete
 		b.down([["COMPLETE"]]);
 		expect(types(msgs)).toContain("COMPLETE"); // now all complete
-		expect(d.status).toBe("completed");
+		expect(d.status.output).toBe("completed");
 	});
 
 	it("auto-ERROR when any dep errors (errorWhenDepsError)", () => {
@@ -47,7 +47,7 @@ describe("terminal (R-terminal, R-deps-terminal)", () => {
 		const err = new Error("boom");
 		a.down([["ERROR", err]]);
 		expect(msgs).toContainEqual(["ERROR", err]);
-		expect(d.status).toBe("errored");
+		expect(d.status.output).toBe("errored");
 	});
 
 	it("ERROR with undefined or boolean payload is rejected (R-data-payload)", () => {
@@ -65,20 +65,20 @@ describe("terminal (R-terminal, R-deps-terminal)", () => {
 		const late: unknown[] = [];
 		s.subscribe((msgs) => late.push(msgs));
 		expect(late).toEqual([[["START"], ["DATA", 1], ["COMPLETE"]]]);
-		expect(s.status).toBe("completed");
+		expect(s.status.output).toBe("completed");
 	});
 
 	it("host input to an ended node is refused and changes nothing (R-terminals)", () => {
 		const s = node<number>([], null, { initial: 1 });
 		const { msgs } = collect(s);
 		s.down([["COMPLETE"]]);
-		expect(s.status).toBe("completed");
+		expect(s.status.output).toBe("completed");
 		msgs.length = 0;
 
 		expect(() => s.down([["DATA", 42]])).toThrow(/ended/);
 		expect(msgs).toEqual([]);
 		expect(s.cache).toBe(1);
-		expect(s.status).toBe("completed");
+		expect(s.status.output).toBe("completed");
 
 		const e = node<number>([], null, { initial: 7 });
 		const ce = collect(e);
@@ -88,7 +88,7 @@ describe("terminal (R-terminal, R-deps-terminal)", () => {
 		expect(() => e.down([["INVALIDATE"]])).toThrow(/ended/);
 		expect(ce.msgs).toEqual([]);
 		expect(e.cache).toBe(7);
-		expect(e.status).toBe("errored");
+		expect(e.status.output).toBe("errored");
 	});
 });
 
@@ -166,7 +166,7 @@ describe("ROM/RAM + cleanup (R-rom-ram, R-cleanup-hooks)", () => {
 		unsub();
 		expect(cleaned).toBe(1);
 		expect(d.cache).toBeUndefined(); // RAM
-		expect(d.status).toBe("sentinel");
+		expect(d.status.cache).toBe("empty");
 	});
 
 	it("state node retains cache across disconnect (ROM)", () => {

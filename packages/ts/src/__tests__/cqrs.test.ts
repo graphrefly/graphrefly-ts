@@ -18,7 +18,7 @@ function watchError(g: ReturnType<typeof graph>, path: string): () => string {
 		}),
 	);
 	return () => {
-		expect(n.status).toBe("errored");
+		expect(n.status.output).toBe("errored");
 		return String((error as Error | undefined)?.message ?? error);
 	};
 }

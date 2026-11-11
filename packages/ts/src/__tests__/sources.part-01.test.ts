@@ -219,7 +219,7 @@ describe("timer / interval sources (fake timers, D43)", () => {
 		vi.advanceTimersByTime(50);
 		expect(data(msgs)).toEqual([0]);
 		expect(msgs[msgs.length - 1][0]).toBe("COMPLETE");
-		expect(n.status).toBe("completed");
+		expect(n.status.output).toBe("completed");
 	});
 
 	it("timer one-shot is canceled by deactivation before its first tick", () => {
@@ -267,7 +267,7 @@ describe("timer / interval sources (fake timers, D43)", () => {
 		expect(last[0]).toBe("ERROR");
 		expect((last as ["ERROR", unknown])[1]).toBeInstanceOf(Error);
 		expect(data(msgs)).toEqual([]);
-		expect(n.status).toBe("errored");
+		expect(n.status.output).toBe("errored");
 	});
 
 	it("fromTimer periodic mode stops emitting after abort", () => {
@@ -285,7 +285,7 @@ describe("timer / interval sources (fake timers, D43)", () => {
 		expect(data(msgs)).toEqual([0, 1]);
 		expect(last[0]).toBe("ERROR");
 		expect((last as ["ERROR", unknown])[1]).toBeInstanceOf(Error);
-		expect(n.status).toBe("errored");
+		expect(n.status.output).toBe("errored");
 	});
 
 	it("interval emits periodic ticks 0,1,2,…", () => {

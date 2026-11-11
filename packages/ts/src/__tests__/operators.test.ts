@@ -67,7 +67,7 @@ describe("core operators (free-standing factories via g.initNode, D43/D6)", () =
 
 		expect(data(msgs)).toEqual([]);
 		expect(msgs.at(-1)).toEqual(["ERROR", boom]);
-		expect(t.status).toBe("errored");
+		expect(t.status.output).toBe("errored");
 	});
 
 	it("map consumes every DATA occurrence in one dep-batch (B43 / D49)", () => {
@@ -97,7 +97,7 @@ describe("core operators (free-standing factories via g.initNode, D43/D6)", () =
 		// R-wave: the source's array is split at its last INVALIDATE, so map sees only the INVALIDATE.
 		expect(msgs).toEqual([["PENDING"], ["INVALIDATE"]]);
 		expect(m.cache).toBeUndefined();
-		expect(m.status).toBe("sentinel");
+		expect(m.status.cache).toBe("empty");
 	});
 
 	it("filter emits only when pred holds", () => {
@@ -180,7 +180,7 @@ describe("core operators (free-standing factories via g.initNode, D43/D6)", () =
 		s.set(3); // ignored (terminated)
 		expect(data(msgs)).toEqual([1, 2]);
 		expect(msgs[msgs.length - 1][0]).toBe("COMPLETE");
-		expect(first2.status).toBe("completed");
+		expect(first2.status.output).toBe("completed");
 	});
 
 	it("take counts occurrences inside one dep-batch (B43 / D49)", () => {
@@ -190,7 +190,7 @@ describe("core operators (free-standing factories via g.initNode, D43/D6)", () =
 		const msgs: Message[] = [];
 		first2.subscribe(eachMessage((m) => msgs.push(m)));
 		expect(data(msgs)).toEqual([1, 2]);
-		expect(first2.status).toBe("completed");
+		expect(first2.status.output).toBe("completed");
 	});
 
 	it("take(0) emits no DATA and completes immediately", () => {
@@ -204,7 +204,7 @@ describe("core operators (free-standing factories via g.initNode, D43/D6)", () =
 		expect(data(msgs)).toEqual([]);
 		expect(lastType(msgs)).toBe("COMPLETE");
 		expect(msgs).toEqual(terminalMsgs);
-		expect(none.status).toBe("completed");
+		expect(none.status.output).toBe("completed");
 	});
 
 	it("take completes quietly when upstream completes before n", () => {
@@ -215,7 +215,7 @@ describe("core operators (free-standing factories via g.initNode, D43/D6)", () =
 		first5.subscribe(eachMessage((m) => msgs.push(m)));
 		expect(data(msgs)).toEqual([1, 2]);
 		expect(lastType(msgs)).toBe("COMPLETE");
-		expect(first5.status).toBe("completed");
+		expect(first5.status.output).toBe("completed");
 	});
 
 	it("distinctUntilChanged suppresses repeats", () => {
@@ -312,7 +312,7 @@ describe("Slice 1 — single-dep transform/take/control (CSP-2.7)", () => {
 		r.subscribe(eachMessage((m) => msgs.push(m)));
 		expect(data(msgs)).toEqual([6]);
 		expect(lastType(msgs)).toBe("COMPLETE");
-		expect(r.status).toBe("completed");
+		expect(r.status.output).toBe("completed");
 	});
 
 	it("reduce on an empty source emits the seed", () => {
@@ -384,7 +384,7 @@ describe("Slice 1 — single-dep transform/take/control (CSP-2.7)", () => {
 		sk.subscribe(eachMessage((m) => msgs.push(m)));
 		expect(data(msgs)).toEqual([]);
 		expect(lastType(msgs)).toBe("COMPLETE");
-		expect(sk.status).toBe("completed");
+		expect(sk.status.output).toBe("completed");
 	});
 
 	it("takeWhile emits while pred holds, then COMPLETE (non-inclusive)", () => {
@@ -400,7 +400,7 @@ describe("Slice 1 — single-dep transform/take/control (CSP-2.7)", () => {
 		s.set(3); // fails pred → COMPLETE, not emitted
 		s.set(4); // terminated, ignored
 		expect(data(msgs)).toEqual([1, 2]);
-		expect(tw.status).toBe("completed");
+		expect(tw.status.output).toBe("completed");
 	});
 
 	it("takeWhile processes each in-batch occurrence and completes at first failing item (B43)", () => {
@@ -413,7 +413,7 @@ describe("Slice 1 — single-dep transform/take/control (CSP-2.7)", () => {
 		const msgs: Message[] = [];
 		tw.subscribe(eachMessage((m) => msgs.push(m)));
 		expect(data(msgs)).toEqual([1, 2]);
-		expect(tw.status).toBe("completed");
+		expect(tw.status.output).toBe("completed");
 	});
 
 	it("first emits the first matching value then COMPLETE", () => {
@@ -429,7 +429,7 @@ describe("Slice 1 — single-dep transform/take/control (CSP-2.7)", () => {
 		s.set(5); // first match
 		s.set(6); // terminated
 		expect(data(msgs)).toEqual([5]);
-		expect(f.status).toBe("completed");
+		expect(f.status.output).toBe("completed");
 	});
 
 	it("first picks the earliest matching occurrence in one dep-batch (B43)", () => {
@@ -442,7 +442,7 @@ describe("Slice 1 — single-dep transform/take/control (CSP-2.7)", () => {
 		const msgs: Message[] = [];
 		f.subscribe(eachMessage((m) => msgs.push(m)));
 		expect(data(msgs)).toEqual([2]);
-		expect(f.status).toBe("completed");
+		expect(f.status.output).toBe("completed");
 	});
 
 	it("last emits the last matching value on COMPLETE", () => {
@@ -469,7 +469,7 @@ describe("Slice 1 — single-dep transform/take/control (CSP-2.7)", () => {
 		l.subscribe(eachMessage((m) => msgs.push(m)));
 		expect(data(msgs)).toEqual([]);
 		expect(lastType(msgs)).toBe("COMPLETE");
-		expect(l.status).toBe("completed");
+		expect(l.status.output).toBe("completed");
 	});
 
 	it("find emits the first matching value then COMPLETE", () => {
@@ -482,7 +482,7 @@ describe("Slice 1 — single-dep transform/take/control (CSP-2.7)", () => {
 		const msgs: Message[] = [];
 		fd.subscribe(eachMessage((m) => msgs.push(m)));
 		expect(data(msgs)).toEqual([3]);
-		expect(fd.status).toBe("completed");
+		expect(fd.status.output).toBe("completed");
 	});
 
 	it("find not-found → bare COMPLETE (no undefined emit, SENTINEL edge)", () => {
@@ -505,7 +505,7 @@ describe("Slice 1 — single-dep transform/take/control (CSP-2.7)", () => {
 		const msgs: Message[] = [];
 		e.subscribe(eachMessage((m) => msgs.push(m)));
 		expect(data(msgs)).toEqual([20]);
-		expect(e.status).toBe("completed");
+		expect(e.status.output).toBe("completed");
 	});
 
 	it("tap (function form) runs the side effect and passes values through", () => {
@@ -557,7 +557,7 @@ describe("Slice 1 — single-dep transform/take/control (CSP-2.7)", () => {
 		s.set(1); // no change → quiet 1
 		s.set(1); // no change → quiet 2 → COMPLETE
 		expect(data(msgs)).toEqual([1, 1, 1]);
-		expect(st.status).toBe("completed");
+		expect(st.status.output).toBe("completed");
 	});
 
 	it("describe shows the real catalog factory names (D6)", () => {
@@ -594,7 +594,7 @@ describe("Slice 3 — error-handling control (CSP-2.7)", () => {
 		expect(data(msgs)).toEqual([10]);
 		s.set(2); // bad throws → ERROR → rescue recovers → -1
 		expect(data(msgs)).toEqual([10, -1]);
-		expect(r.status).not.toBe("errored");
+		expect(r.status.output).not.toBe("errored");
 	});
 
 	it("rescue forwards a normal source COMPLETE", () => {

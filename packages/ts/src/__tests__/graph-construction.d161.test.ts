@@ -157,7 +157,7 @@ describe("D161 graph construction ownership", () => {
 		const stop = f.graph.observeTopology().subscribe((event) => {
 			if (event.path !== "causal/issues") return;
 			const authority = f.graph.find("causal/authority")!;
-			expect(authority.status).toBe("sentinel");
+			expect(authority.status.cache).toBe("empty");
 			authority.replaceDeps([], null);
 			changed = true;
 		});
@@ -433,7 +433,7 @@ describe("D161 graph construction ownership", () => {
 		const authority = f.graph.find("causal/authority")!;
 		expect(full.startup.cache?.state).toBe("faulted");
 		expect(full.startup.cache?.code).toBe("protocol-error");
-		expect(authority.status).toBe("errored");
+		expect(authority.status.output).toBe("errored");
 		// R-lifetime: the ended authority's private state, where effects are admitted, is gone.
 		expect(checkpointStateOfNode(authority).ctxState.value).toBeUndefined();
 		expect(constructionOf(f.graph, "causal")?.phase).toBe("faulted");
@@ -444,13 +444,13 @@ describe("D161 graph construction ownership", () => {
 		const full = causalComposition(f.graph).composeFull(f.options, binding);
 		const authority = f.graph.find("causal/authority")!;
 		f.outcomes.down([["ERROR", "outcome source lost"]]);
-		expect(authority.status).toBe("errored");
+		expect(authority.status.output).toBe("errored");
 		// R-terminals: an ended node can still be subscribed; its snapshot ends with its terminal,
 		// and nothing restarts it.
 		const late: unknown[] = [];
 		full.execution.conservation.subscribe(eachMessage((m) => late.push(m[0])));
 		expect(late.at(-1)).toBe("ERROR");
-		expect(authority.status).toBe("errored");
+		expect(authority.status.output).toBe("errored");
 		// R-lifetime: the ended authority dropped its private state when its lifetime closed.
 		expect(checkpointStateOfNode(authority).ctxState.value).toBeUndefined();
 	});
@@ -716,7 +716,7 @@ describe("D161 graph construction ownership", () => {
 		expect(owner.phase).toBe("faulted");
 		// The failed handshake is root's ERROR; an ended node closes its lifetime and releases every
 		// dependency it acquired, the rewired one included (R-terminals, R-lifetime).
-		expect(root.status).toBe("errored");
+		expect(root.status.output).toBe("errored");
 		expect(subscriberCountOfNode(b)).toBe(0);
 		expect(nodeRuntimeHost(root)._dep.unsubs).toEqual([]);
 	});

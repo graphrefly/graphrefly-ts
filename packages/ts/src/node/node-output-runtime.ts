@@ -103,13 +103,11 @@ export function nodePublish<T>(self: NodeRuntimeHost<T>, arrays: readonly Messag
 				self._version.value = advanceNodeVersion(self._version.value, self._version.policy, v);
 				self._value.cache = v;
 				self._value.hasData = true;
-				self._value.status = "settled";
 				values.push(v);
 				kept.push(m);
 				continue;
 			}
 			if (m[0] === "RESOLVED") {
-				self._value.status = self._value.hasData ? "resolved" : "sentinel";
 				kept.push(m);
 				continue;
 			}
@@ -119,19 +117,16 @@ export function nodePublish<T>(self: NodeRuntimeHost<T>, arrays: readonly Messag
 				self._value.cache = SENTINEL;
 				self._value.hasData = false;
 				self._value.lastArray = [];
-				self._value.status = "sentinel";
 				kept.push(m);
 				continue;
 			}
 			if (m[0] === "COMPLETE") {
 				self._value.terminal = true;
-				self._value.status = "completed";
 				kept.push(m);
 				continue;
 			}
 			if (m[0] === "ERROR") {
 				self._value.terminal = m[1];
-				self._value.status = "errored";
 				kept.push(m);
 			}
 		}
@@ -222,7 +217,6 @@ export function nodeMarkBatchedWave<T>(self: NodeRuntimeHost<T>, wave: Wave): vo
 	if (self._released || self._value.terminal !== undefined) return;
 	if (!wave.some(isMarking) || self._wave.emittedDirtyThisWave) return;
 	self._wave.emittedDirtyThisWave = true;
-	self._value.status = "dirty";
 	nodeMarkDependents(self);
 }
 

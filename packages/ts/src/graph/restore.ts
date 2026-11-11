@@ -701,24 +701,23 @@ function assertString(value: unknown, label: string): string {
 	return value;
 }
 
-function assertStatus(value: string, id: string): Status {
+function assertStatus(value: unknown, id: string): Status {
+	const v = value as Partial<Record<keyof Status, unknown>> | null;
 	if (
-		value !== "sentinel" &&
-		value !== "pending" &&
-		value !== "dirty" &&
-		value !== "settled" &&
-		value !== "resolved" &&
-		value !== "completed" &&
-		value !== "errored"
+		typeof v !== "object" ||
+		v === null ||
+		!["empty", "stale", "ready"].includes(v.cache as string) ||
+		!["open", "completed", "errored"].includes(v.output as string) ||
+		!["inactive", "active", "closing"].includes(v.lifecycle as string)
 	) {
-		throw new Error(`restoreGraph: node '${id}' has invalid status '${value}'`);
+		throw new Error(`restoreGraph: node '${id}' has an invalid status`);
 	}
-	if (value === "pending" || value === "dirty") {
+	if (v.cache === "stale") {
 		throw new Error(
-			`restoreGraph: node '${id}' has non-quiescent status '${value}' that cannot be checkpoint-restored yet`,
+			`restoreGraph: node '${id}' has a stale cache (an unsettled pending mark) that cannot be checkpoint-restored yet`,
 		);
 	}
-	return value;
+	return v as Status;
 }
 
 function checkpointDataValue(
@@ -750,13 +749,13 @@ function prepareRuntime(node: GraphCheckpointNode): PreparedRuntime {
 		: checkpointDataValue(node.value, node.id);
 	const terminal = checkpointTerminal(node.terminal, node.id);
 	const status = assertStatus(node.status, node.id);
-	if (terminal === true && status !== "completed") {
+	if (terminal === true && status.output !== "completed") {
 		throw new Error(`restoreGraph: node '${node.id}' COMPLETE terminal requires completed status`);
 	}
-	if (terminal !== undefined && terminal !== true && status !== "errored") {
+	if (terminal !== undefined && terminal !== true && status.output !== "errored") {
 		throw new Error(`restoreGraph: node '${node.id}' ERROR terminal requires errored status`);
 	}
-	if (terminal === undefined && (status === "completed" || status === "errored")) {
+	if (terminal === undefined && status.output !== "open") {
 		throw new Error(`restoreGraph: node '${node.id}' terminal status requires terminal state`);
 	}
 	if (typeof node.lifecycle.activated !== "boolean") {
@@ -1001,7 +1000,6 @@ function constructPrepared(
 			restoreStateOfNode(node, {
 				cache: runtime.cache,
 				hasData: runtime.hasData,
-				status: runtime.status,
 				terminal: runtime.terminal,
 				hasCalledFnOnce: runtime.hasCalledFnOnce,
 				ctxState: runtime.ctxState,

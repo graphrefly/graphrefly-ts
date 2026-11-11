@@ -224,8 +224,8 @@ describe("wire bridge envelopes (D134)", () => {
 				/wire-admissible payload|strict JSON|stableJsonString|invalid canonical wire DTO/,
 			),
 		]);
-		expect(bridge.errors.status).not.toBe("errored");
-		expect(bridge.outbound.status).not.toBe("errored");
+		expect(bridge.errors.status.output).not.toBe("errored");
+		expect(bridge.outbound.status.output).not.toBe("errored");
 	});
 
 	it("exposes command, outbound, inbound, ack, cursor, status, and error nodes in describe", () => {
@@ -489,8 +489,8 @@ describe("wire bridge envelopes (D134)", () => {
 			"DATA",
 			"wireBridge: ack-timeout command attempt must be a positive integer",
 		]);
-		expect(bridge.events.status).not.toBe("errored");
-		expect(bridge.status.status).not.toBe("errored");
+		expect(bridge.events.status.output).not.toBe("errored");
+		expect(bridge.status.status.output).not.toBe("errored");
 	});
 
 	it("keeps retry exhaustion graph-visible for matching ack-timeout commands (D502)", () => {
@@ -522,8 +522,8 @@ describe("wire bridge envelopes (D134)", () => {
 				lastSeq: 1,
 			}),
 		]);
-		expect(bridge.events.status).not.toBe("errored");
-		expect(bridge.status.status).not.toBe("errored");
+		expect(bridge.events.status.output).not.toBe("errored");
+		expect(bridge.status.status.output).not.toBe("errored");
 	});
 
 	it("derives ack-timeout commands from graph-visible clock facts and declared deps (D502)", () => {
@@ -836,8 +836,8 @@ describe("wire bridge envelopes (D134)", () => {
 			"session-a: inbound protocol ERROR remote protocol error is local misuse; remote errors must arrive as DATA envelope facts",
 		]);
 		expect(cursor).toContainEqual(["DATA", 1]);
-		expect(bridge.events.status).not.toBe("errored");
-		expect(bridge.status.status).not.toBe("errored");
+		expect(bridge.events.status.output).not.toBe("errored");
+		expect(bridge.status.status.output).not.toBe("errored");
 	});
 
 	it("treats remote error and out-of-order receipt as inbound facts, not local terminal errors", () => {
@@ -891,7 +891,7 @@ describe("wire bridge envelopes (D134)", () => {
 				lastSeq: 1,
 			},
 		]);
-		expect(bridge.status.status).not.toBe("errored");
+		expect(bridge.status.status.output).not.toBe("errored");
 	});
 
 	it("requires ackForSeq on inbound ack/nack before advancing cursor", () => {
@@ -1089,7 +1089,7 @@ describe("wire bridge envelopes (D134)", () => {
 				lastSeq: 1,
 			},
 		]);
-		expect(bridge.status.status).not.toBe("errored");
+		expect(bridge.status.status.output).not.toBe("errored");
 	});
 
 	it("surfaces malformed command facts without treating them as close", () => {
@@ -1468,8 +1468,8 @@ describe("wire bridge envelopes (D134)", () => {
 		expect(dataValues(issues)).toContainEqual(
 			expect.objectContaining({ code: "wire-edge-group-duplicate-pending", causeId: "c1" }),
 		);
-		expect(group.issues.status).not.toBe("errored");
-		expect(group.status.status).not.toBe("errored");
+		expect(group.issues.status.output).not.toBe("errored");
+		expect(group.status.status.output).not.toBe("errored");
 	});
 
 	it("wireEdgeGroup D562 drains adapter-owned inbound projectors before tombstoning without public inbound subscribers", () => {
@@ -1601,8 +1601,8 @@ describe("wire bridge envelopes (D134)", () => {
 			expect(dataValues(result.inbound)).toEqual([]);
 			expect(dataValues(result.issues)).toContainEqual(expect.objectContaining({ code }));
 			expect(result.status.at(-1)).toEqual(["DATA", expect.objectContaining({ state: "issues" })]);
-			expect(result.group.issues.status).not.toBe("errored");
-			expect(result.group.status.status).not.toBe("errored");
+			expect(result.group.issues.status.output).not.toBe("errored");
+			expect(result.group.status.status.output).not.toBe("errored");
 		}
 	});
 

@@ -76,7 +76,7 @@ describe("Slice 2 — multi-source combinators (CSP-2.7 / D45)", () => {
 			[1, "a"],
 			[2, "a"],
 		]);
-		expect(paired.status).not.toBe("completed");
+		expect(paired.status.output).not.toBe("completed");
 
 		const errorCase = graph();
 		const primary2 = errorCase.state(1);
@@ -87,7 +87,7 @@ describe("Slice 2 — multi-source combinators (CSP-2.7 / D45)", () => {
 		const err = new Error("secondary boom");
 		secondary2.down([["ERROR", err]]);
 		expect(errorMsgs.at(-1)).toEqual(["ERROR", err]);
-		expect(paired2.status).toBe("errored");
+		expect(paired2.status.output).toBe("errored");
 	});
 
 	it("withLatestFrom completes only when the primary completes", () => {
@@ -99,12 +99,12 @@ describe("Slice 2 — multi-source combinators (CSP-2.7 / D45)", () => {
 		paired.subscribe(eachMessage((m) => msgs.push(m)));
 
 		secondary.set("b");
-		expect(paired.status).not.toBe("completed");
+		expect(paired.status.output).not.toBe("completed");
 		primary.down([["COMPLETE"]]);
 
 		expect(data(msgs)).toEqual([[1, "a"]]);
 		expect(msgs.at(-1)?.[0]).toBe("COMPLETE");
-		expect(paired.status).toBe("completed");
+		expect(paired.status.output).toBe("completed");
 	});
 
 	it("zip combines one value from each dep in lockstep, completes with the shorter", () => {
@@ -128,7 +128,7 @@ describe("Slice 2 — multi-source combinators (CSP-2.7 / D45)", () => {
 		z.subscribe(eachMessage((m) => msgs.push(m)));
 		expect(data(msgs)).toEqual([]);
 		expect(lastType(msgs)).toBe("COMPLETE");
-		expect(z.status).toBe("completed");
+		expect(z.status.output).toBe("completed");
 	});
 
 	it("concat plays all of dep 0 then all of dep 1, then COMPLETE", () => {
@@ -165,12 +165,12 @@ describe("Slice 2 — multi-source combinators (CSP-2.7 / D45)", () => {
 		r.subscribe(eachMessage((m) => msgs.push(m)));
 		a.down([["COMPLETE"]]); // 1 terminal
 		b.down([["COMPLETE"]]); // 2 terminal — OLD code: 1+2=3>=n → premature COMPLETE
-		expect(r.status).not.toBe("completed"); // c still live → race open
+		expect(r.status.output).not.toBe("completed"); // c still live → race open
 		c.down([["DATA", 99]]); // c wins
 		c.down([["DATA", 100]]);
 		expect(data(msgs)).toEqual([99, 100]);
 		c.down([["COMPLETE"]]); // winner terminal → COMPLETE
-		expect(r.status).toBe("completed");
+		expect(r.status.output).toBe("completed");
 	});
 
 	it("race COMPLETEs when EVERY dep terminates without any DATA", () => {
@@ -183,10 +183,10 @@ describe("Slice 2 — multi-source combinators (CSP-2.7 / D45)", () => {
 		r.subscribe(eachMessage((m) => msgs.push(m)));
 		a.down([["COMPLETE"]]);
 		b.down([["COMPLETE"]]);
-		expect(r.status).not.toBe("completed");
+		expect(r.status.output).not.toBe("completed");
 		c.down([["COMPLETE"]]); // all terminal, no winner → COMPLETE
 		expect(data(msgs)).toEqual([]);
-		expect(r.status).toBe("completed");
+		expect(r.status.output).toBe("completed");
 	});
 });
 
@@ -243,7 +243,7 @@ describe("Slice 2 — notifier-driven (D46 first-cut)", () => {
 
 		notify.down([["COMPLETE"]]);
 		expect(msgs.at(-1)?.[0]).toBe("COMPLETE");
-		expect(sampled.status).toBe("completed");
+		expect(sampled.status.output).toBe("completed");
 	});
 
 	it("sample forwards ERROR from either source or notifier", () => {
@@ -256,7 +256,7 @@ describe("Slice 2 — notifier-driven (D46 first-cut)", () => {
 		const sourceErr = new Error("source boom");
 		src.down([["ERROR", sourceErr]]);
 		expect(sourceMsgs.at(-1)).toEqual(["ERROR", sourceErr]);
-		expect(sampled.status).toBe("errored");
+		expect(sampled.status.output).toBe("errored");
 
 		const notifierCase = graph();
 		const src2 = notifierCase.state(1);
@@ -267,7 +267,7 @@ describe("Slice 2 — notifier-driven (D46 first-cut)", () => {
 		const notifierErr = new Error("notifier boom");
 		notify2.down([["ERROR", notifierErr]]);
 		expect(notifierMsgs.at(-1)).toEqual(["ERROR", notifierErr]);
-		expect(sampled2.status).toBe("errored");
+		expect(sampled2.status.output).toBe("errored");
 	});
 
 	it("takeUntil forwards source DATA until the notifier delivers, then COMPLETE", () => {
@@ -281,7 +281,7 @@ describe("Slice 2 — notifier-driven (D46 first-cut)", () => {
 		stop.down([["DATA", true]]); // notifier fires → stop
 		src.set(3); // terminated, ignored
 		expect(data(msgs)).toEqual([1, 2]);
-		expect(tu.status).toBe("completed");
+		expect(tu.status.output).toBe("completed");
 	});
 
 	it("takeUntil ignores notifier COMPLETE without DATA and still forwards source COMPLETE", () => {
@@ -295,11 +295,11 @@ describe("Slice 2 — notifier-driven (D46 first-cut)", () => {
 		stop.down([["COMPLETE"]]);
 		src.set(2);
 		expect(data(msgs)).toEqual([1, 2]);
-		expect(tu.status).not.toBe("completed");
+		expect(tu.status.output).not.toBe("completed");
 
 		src.down([["COMPLETE"]]);
 		expect(msgs.at(-1)?.[0]).toBe("COMPLETE");
-		expect(tu.status).toBe("completed");
+		expect(tu.status.output).toBe("completed");
 	});
 
 	it("describe shows the combinator factory names (D6)", () => {

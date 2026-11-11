@@ -9203,7 +9203,7 @@ export function createRootEvalTopology(options: RootEvalTopologyOptions): RootEv
 	// Fail closed: the profile is admitted inside the root Graph, and an admission that ended with
 	// ERROR (an ineligible or stale profile) stops the topology before it is returned. An ended node
 	// can still be subscribed (R-terminals), so this is checked rather than left to a subscribe.
-	if (profileAdmission.status === "errored") {
+	if (profileAdmission.status.output === "errored") {
 		let failure: unknown;
 		profileAdmission.subscribe((msgs) => {
 			for (const m of msgs) if (m[0] === "ERROR") failure = m[1];

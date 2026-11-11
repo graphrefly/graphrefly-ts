@@ -112,7 +112,7 @@ describe("C-15: a dependency's terminal settles its pending mark", () => {
 			f.a.down([["COMPLETE"]]);
 			f.a2.down([["DATA", 7]]);
 		});
-		expect(f.b.status).toBe("completed");
+		expect(f.b.status.output).toBe("completed");
 		expect(f.runs).toEqual([{ terminal: [true, false], waves: [[], [[7]]] }]);
 	});
 
@@ -122,7 +122,7 @@ describe("C-15: a dependency's terminal settles its pending mark", () => {
 		f.a.down([["COMPLETE"]]);
 		expect(f.runs).toEqual([{ terminal: [true, false], waves: [[], []] }]);
 		expect(f.sink.log).toEqual([[["PENDING"], ["RESOLVED"]]]);
-		expect(f.d.status).not.toBe("dirty");
+		expect(f.d.status.cache).not.toBe("stale");
 	});
 
 	it("(c) B's ERROR and C's value: D runs once with both", () => {
@@ -132,9 +132,9 @@ describe("C-15: a dependency's terminal settles its pending mark", () => {
 			f.a.down([["ERROR", e]]);
 			f.a2.down([["DATA", 3]]);
 		});
-		expect(f.b.status).toBe("errored");
+		expect(f.b.status.output).toBe("errored");
 		expect(f.runs).toEqual([{ terminal: [e, false], waves: [[], [[3]]] }]);
-		expect(f.d.status).not.toBe("errored");
+		expect(f.d.status.output).not.toBe("errored");
 	});
 });
 
@@ -173,13 +173,13 @@ describe("C-17: an ended dependency counts toward auto COMPLETE, in any order", 
 		const e = new Error("e");
 		f.c.down([["ERROR", e]]);
 		expect(f.runs).toEqual([{ terminal: [false, e], waves: [[], []] }]);
-		expect(f.d.status).not.toBe("errored");
-		expect(f.dctrl.status).toBe("errored");
+		expect(f.d.status.output).not.toBe("errored");
+		expect(f.dctrl.status.output).toBe("errored");
 		expect(f.ctrlRuns()).toBe(0);
 		f.b.down([["DATA", 1], ["COMPLETE"]]);
 		// The function sees the wave's terminal whatever the policy; under auto it does not end D.
 		expect(f.runs.at(-1)).toEqual({ terminal: [true, false], waves: [[[1]], []] });
-		expect(f.d.status).toBe("completed");
+		expect(f.d.status.output).toBe("completed");
 		expect(completes(f.ds.log)).toBe(1);
 	});
 
@@ -187,12 +187,12 @@ describe("C-17: an ended dependency counts toward auto COMPLETE, in any order", 
 		const f = topology();
 		const e = new Error("e");
 		f.b.down([["DATA", 1], ["COMPLETE"]]);
-		expect(f.d.status).not.toBe("completed");
+		expect(f.d.status.output).not.toBe("completed");
 		f.c.down([["ERROR", e]]);
 		expect(f.runs.at(-1)).toEqual({ terminal: [false, e], waves: [[], []] });
-		expect(f.d.status).toBe("completed");
+		expect(f.d.status.output).toBe("completed");
 		expect(completes(f.ds.log)).toBe(1);
-		expect(f.dctrl.status).toBe("errored");
+		expect(f.dctrl.status.output).toBe("errored");
 	});
 });
 
@@ -240,7 +240,7 @@ describe("C-34: terminal fanout, the ended node's lifetime closing, and acquirin
 		expect(y).toEqual([[["PENDING"], ["DATA", 1], ["COMPLETE"]]]);
 		expect(z).toEqual([[["START"], ["DATA", 1], ["COMPLETE"]]]);
 		expect(reports).toEqual([boom]);
-		expect(s.status).toBe("completed");
+		expect(s.status.output).toBe("completed");
 		expect(s.cache).toBe(1);
 		expect(cleanups).toBe(1);
 		// The lifetime released T, which has no other dependent.
@@ -267,7 +267,7 @@ describe("C-36: input arrays and terminal admission in one invocation", () => {
 		seen.length = 0;
 		a.down([["DATA", 20], ["COMPLETE"]]);
 		expect(seen).toEqual([{ waves: [[[20]]], terminal: [true] }]);
-		expect(d.status).not.toBe("completed");
+		expect(d.status.output).not.toBe("completed");
 	});
 
 	it("auto COMPLETE: the run's output, then COMPLETE, with no balancing RESOLVED", () => {
@@ -328,7 +328,7 @@ describe("C-40: an ended node can be subscribed and depended on", () => {
 		const ds = arrays();
 		d.subscribe(ds.sink);
 		expect(dRuns).toBe(1);
-		expect(d.status).toBe("completed");
+		expect(d.status.output).toBe("completed");
 		expect(ds.log.at(-1)).toEqual([["PENDING"], ["COMPLETE"]]);
 
 		let eRuns = 0;
@@ -337,7 +337,7 @@ describe("C-40: an ended node can be subscribed and depended on", () => {
 		});
 		en.subscribe(() => {});
 		expect(eRuns).toBe(0);
-		expect(en.status).toBe("errored");
+		expect(en.status.output).toBe("errored");
 
 		const mSeen: unknown[][] = [];
 		const m = node<number>(
@@ -349,7 +349,7 @@ describe("C-40: an ended node can be subscribed and depended on", () => {
 		);
 		m.subscribe(() => {});
 		expect(mSeen).toEqual([[e]]);
-		expect(m.status).not.toBe("errored");
+		expect(m.status.output).not.toBe("errored");
 
 		expect(() => s.down([["DATA", 2]])).toThrow(/ended/);
 		expect(s.cache).toBe(1);

@@ -124,7 +124,7 @@ describe("profile — dispatcher-backed counters, never on the thin node (R-prof
 		const p = g.profile();
 		// d's fn ran: once on activation + once per set = 3
 		expect(p.nodes.d.invokes).toBe(3);
-		expect(p.nodes.d.status).toBe("settled");
+		expect(p.nodes.d.status.cache).toBe("ready");
 		// state node has no fn → no invokes
 		expect(p.nodes.s.invokes).toBe(0);
 		expect(p.totalInvokes).toBeGreaterThanOrEqual(3);

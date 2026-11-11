@@ -54,7 +54,7 @@ describe("C-12: occurrences stay DATA; RESOLVED only settles a node that sent no
 			[["PENDING"], ["RESOLVED"]],
 			[["PENDING"], ["RESOLVED"]],
 		]);
-		expect(below.status).not.toBe("dirty");
+		expect(below.status.cache).not.toBe("stale");
 	});
 });
 
@@ -85,7 +85,7 @@ describe("C-16: a quiet node absorbs its input waves without leaving dependents 
 		for (const v of [1, 2, 3]) a.down([["DATA", v]]);
 		expect(s.log).toEqual([]); // not even PENDING
 		expect(eRuns).toBe(0);
-		expect(e.status).not.toBe("dirty");
+		expect(e.status.cache).not.toBe("stale");
 
 		const held = (kept as Ctx).state.get<number[]>() as number[];
 		(kept as Ctx).down(held.map((v) => ["DATA", v] as Message));

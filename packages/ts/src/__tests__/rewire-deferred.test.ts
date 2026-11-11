@@ -200,7 +200,7 @@ describe("ctx.rewireNext — switch (replaceDeps) + terminal + no-net-change (D4
 		);
 		collect(op);
 		s.down([["DATA", 1]]);
-		expect(op.status).toBe("completed");
+		expect(op.status.output).toBe("completed");
 		expect(inner.isActivated()).toBe(true); // D62: queued subscribeDep drains after terminal
 		expect(op.deps).toContain(inner.node);
 		inner.emit(2);
@@ -230,7 +230,7 @@ describe("ctx.rewireNext — switch (replaceDeps) + terminal + no-net-change (D4
 		s.down([["DATA", 1]]);
 		expect(inner.isActivated()).toBe(true);
 		s.down([["COMPLETE"]]);
-		expect(op.status).toBe("completed");
+		expect(op.status.output).toBe("completed");
 		expect(op.deps).not.toContain(inner.node);
 		expect(inner.isDeactivated()).toBe(true);
 	});
@@ -260,7 +260,7 @@ describe("ctx.rewireNext — switch (replaceDeps) + terminal + no-net-change (D4
 		});
 		// R-failure@3: the rejected immediate self-rewire is op's ERROR, not a host throw.
 		const { msgs } = collect(op);
-		expect(op.status).toBe("errored");
+		expect(op.status.output).toBe("errored");
 		expect(String((msgs.find((m) => m[0] === "ERROR") as ["ERROR", Error])[1].message)).toMatch(
 			/mid-fn|feedback/,
 		);
@@ -307,7 +307,7 @@ describe("ctx.rewireNext — drain robustness (QA: per-thunk isolation)", () => 
 				sB.down([["DATA", 1]]); // opB's thunk queued second
 			}),
 		).not.toThrow();
-		expect(opA.status).toBe("errored");
+		expect(opA.status.output).toBe("errored");
 		expect(innerB.isActivated()).toBe(true); // opB's rewire STILL applied despite opA's failure
 	});
 });

@@ -29,7 +29,6 @@ export interface DepBookkeeping {
 export interface ValueState<T> {
 	cache: T | undefined;
 	hasData: boolean;
-	status: Status;
 	terminal: true | unknown | undefined;
 	/** R-subscription: the DATA values of the last array this node sent that carried any DATA. */
 	lastArray: T[];
@@ -64,6 +63,8 @@ export interface PrivateState {
  * run after activation and closes at deactivation or when the node ends.
  */
 export interface LifetimeState {
+	/** The lifetime's cleanup is running (status lifecycle "closing"). */
+	closing: boolean;
 	/** The lifetime's abort controller (ctx.signal); null while no lifetime is open. */
 	controller: AbortController | null;
 	/** The cleanup the node's setup returned for this lifetime. */

@@ -81,7 +81,7 @@ describe("Graph — 8-verb sugar (CSP-2)", () => {
 		});
 		const msgs = collect(bad);
 		expect(types(msgs)).toContain("ERROR");
-		expect(bad.status).toBe("errored");
+		expect(bad.status.output).toBe("errored");
 	});
 
 	it("R-reentrancy via graph (D37): a synchronous feedback cycle yields ERROR, not a hang", () => {
@@ -98,7 +98,7 @@ describe("Graph — 8-verb sugar (CSP-2)", () => {
 		// R-reentrancy: the ERROR lands on a node ON the cycle — the value-level catch nearest
 		// the throw on the synchronous unwind (impl-determined, d or e), NOT necessarily the
 		// re-entered node. Assert SOME cycle node errored, not which (per the amended spec).
-		expect([d.status, e.status]).toContain("errored");
+		expect([d.status.output, e.status.output]).toContain("errored");
 	});
 });
 
@@ -115,7 +115,7 @@ describe("Graph.describe — snapshot shape (R-describe / D39)", () => {
 		const byId = Object.fromEntries(snap.nodes.map((n) => [n.id, n]));
 		expect(byId.count.factory).toBe("state");
 		expect(byId.count.value).toBe(5);
-		expect(byId.count.status).toBe("settled");
+		expect(byId.count.status).toEqual({ cache: "ready", output: "open", lifecycle: "active" });
 		expect(byId.doubled.factory).toBe("derived");
 		expect(byId.doubled.value).toBe(10);
 		expect(byId.doubled.deps).toEqual(["count"]);

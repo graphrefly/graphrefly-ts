@@ -16,10 +16,14 @@ export function isNonAuthoritativeCollectionHelperMeta(
 	);
 }
 
-export function assertCheckpointQuiescentStatus(status: string, id: string, op: string): void {
-	if (status === "pending" || status === "dirty") {
+export function assertCheckpointQuiescentStatus(
+	status: { readonly cache: string },
+	id: string,
+	op: string,
+): void {
+	if (status.cache === "stale") {
 		throw new Error(
-			`${op}: node '${id}' has non-quiescent status '${status}' that cannot be checkpoint-restored yet`,
+			`${op}: node '${id}' has a stale cache (an unsettled pending mark) that cannot be checkpoint-restored yet`,
 		);
 	}
 }

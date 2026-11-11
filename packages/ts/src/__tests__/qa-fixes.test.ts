@@ -49,6 +49,6 @@ describe("QA fixes", () => {
 		msgs.length = 0;
 		src.down([["DATA", 1]]); // dep settles with no value → PENDING then RESOLVED to the passthrough
 		expect(types(msgs)).toEqual(["PENDING", "RESOLVED"]); // balanced, not a dangling ["PENDING"]
-		expect(pass.status).not.toBe("dirty"); // un-wedged
+		expect(pass.status.cache).not.toBe("stale"); // un-wedged
 	});
 });

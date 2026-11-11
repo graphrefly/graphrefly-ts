@@ -230,7 +230,7 @@ describe("promise / iterable / coercion sources (D43)", () => {
 		const last = msgs[msgs.length - 1];
 		expect(last[0]).toBe("ERROR");
 		expect((last as ["ERROR", unknown])[1]).toBe(boom);
-		expect(n.status).toBe("errored");
+		expect(n.status.output).toBe("errored");
 	});
 
 	it("fromPromise rejecting with undefined/boolean → clean ERROR, never invalid ERROR payload", async () => {
@@ -243,7 +243,7 @@ describe("promise / iterable / coercion sources (D43)", () => {
 			const last = msgs[msgs.length - 1];
 			expect(last[0]).toBe("ERROR");
 			expect((last as ["ERROR", unknown])[1]).toBeInstanceOf(Error);
-			expect(n.status).toBe("errored");
+			expect(n.status.output).toBe("errored");
 		}
 	});
 
@@ -278,7 +278,7 @@ describe("promise / iterable / coercion sources (D43)", () => {
 		expect(last[0]).toBe("ERROR");
 		expect((last as ["ERROR", unknown])[1]).toBeInstanceOf(Error);
 		expect((last as ["ERROR", Error])[1].message).toBe("async iter boom");
-		expect(n.status).toBe("errored");
+		expect(n.status.output).toBe("errored");
 	});
 
 	it("of emits a single value then COMPLETE synchronously", () => {
@@ -332,7 +332,7 @@ describe("promise / iterable / coercion sources (D43)", () => {
 		expect(last[0]).toBe("ERROR");
 		expect((last as ["ERROR", unknown])[1]).toBeInstanceOf(Error);
 		expect((last as ["ERROR", Error])[1].message).toBe("iter boom");
-		expect(n.status).toBe("errored");
+		expect(n.status.output).toBe("errored");
 	});
 
 	it("empty completes without DATA", () => {
@@ -342,7 +342,7 @@ describe("promise / iterable / coercion sources (D43)", () => {
 		n.subscribe(eachMessage((x) => msgs.push(x)));
 		expect(data(msgs)).toEqual([]);
 		expect(msgs[msgs.length - 1][0]).toBe("COMPLETE");
-		expect(n.status).toBe("completed");
+		expect(n.status.output).toBe("completed");
 	});
 
 	it("never stays silent after START until deactivation", () => {
@@ -351,7 +351,7 @@ describe("promise / iterable / coercion sources (D43)", () => {
 		const msgs: Message[] = [];
 		const unsub = n.subscribe(eachMessage((x) => msgs.push(x)));
 		expect(msgs).toEqual([["START"]]);
-		expect(n.status).toBe("sentinel");
+		expect(n.status.cache).toBe("empty");
 		unsub();
 	});
 
@@ -364,7 +364,7 @@ describe("promise / iterable / coercion sources (D43)", () => {
 			const last = msgs[msgs.length - 1];
 			expect(last[0]).toBe("ERROR");
 			expect((last as ["ERROR", unknown])[1]).toBeInstanceOf(Error);
-			expect(n.status).toBe("errored");
+			expect(n.status.output).toBe("errored");
 		}
 	});
 
@@ -423,7 +423,7 @@ describe("promise / iterable / coercion sources (D43)", () => {
 
 		expect(data(msgs)).toEqual([null]);
 		expect(msgs[msgs.length - 1][0]).toBe("COMPLETE");
-		expect(n.status).toBe("completed");
+		expect(n.status.output).toBe("completed");
 	});
 
 	it("fromAny rejects undefined as DATA because it is the protocol SENTINEL", () => {
@@ -435,7 +435,7 @@ describe("promise / iterable / coercion sources (D43)", () => {
 		const last = msgs[msgs.length - 1];
 		expect(last[0]).toBe("ERROR");
 		expect((last as ["ERROR", unknown])[1]).toBeInstanceOf(Error);
-		expect(n.status).toBe("errored");
+		expect(n.status.output).toBe("errored");
 	});
 
 	it("describe shows the source factory name (D6)", () => {

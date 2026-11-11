@@ -106,9 +106,35 @@ describe("C-33: a closed lifetime revokes old ctx, and cleanup failures stay iso
 		);
 		n.subscribe(() => {});
 		a.set(2);
-		expect(n.status).toBe("completed");
+		expect(n.status.output).toBe("completed");
 		expect(signal?.aborted).toBe(true);
 		expect(cleaned).toBe(1);
+	});
+});
+
+describe("C-33: status is derived, not stored (R-node@2)", () => {
+	it("reports cache, output and lifecycle from what the node holds", () => {
+		const g = graph();
+		const a = g.state(1, { name: "a" });
+		let duringCleanup: unknown;
+		const n = g.node<number>([a], (ctx) => ctx.down([["DATA", depLatest(ctx, 0) as number]]), {
+			name: "n",
+			setup: () => () => {
+				duringCleanup = n.status;
+			},
+		});
+		expect(n.status).toEqual({ cache: "empty", output: "open", lifecycle: "inactive" });
+		const stop = n.subscribe(() => {});
+		expect(n.status).toEqual({ cache: "ready", output: "open", lifecycle: "active" });
+		a.invalidate();
+		expect(n.status).toEqual({ cache: "empty", output: "open", lifecycle: "active" });
+		a.set(2);
+		stop();
+		expect(duringCleanup).toMatchObject({ lifecycle: "closing" });
+		expect(n.status).toEqual({ cache: "empty", output: "open", lifecycle: "inactive" });
+		n.subscribe(() => {});
+		a.complete();
+		expect(n.status).toEqual({ cache: "ready", output: "completed", lifecycle: "active" });
 	});
 });
 

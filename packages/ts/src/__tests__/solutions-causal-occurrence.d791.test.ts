@@ -1414,7 +1414,7 @@ describe("causal topology exact-string index", () => {
 				const authority = this.find("causal/authority");
 				if (authority && !changed) {
 					changed = true;
-					expect(authority.status).toBe("sentinel");
+					expect(authority.status.cache).toBe("empty");
 					authority.unsubscribeDep(this.find("causal/arrivals")!, () => {
 						calls += 1;
 					});

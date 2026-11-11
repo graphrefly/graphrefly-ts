@@ -575,7 +575,7 @@ describe("Graph.checkpoint — public data shape (R-snapshot / D83 / D90)", () =
 		);
 		join.subscribe(() => {});
 		source.set(2);
-		expect(String(midWave)).toMatch(/non-quiescent status 'dirty'/);
+		expect(String(midWave)).toMatch(/stale cache/);
 	});
 
 	it("keeps graph checkpoint strict JSON validation independent from storage codecs (D96)", () => {

@@ -31,7 +31,7 @@ describe("state node (manual source)", () => {
 		const { msgs } = collect(s);
 		expect(msgs).toEqual([["START"], ["DATA", 5]]);
 		expect(s.cache).toBe(5);
-		expect(s.status).toBe("settled");
+		expect(s.status.cache).toBe("ready");
 	});
 
 	it("uncached subscribe delivers only START", () => {
@@ -39,7 +39,7 @@ describe("state node (manual source)", () => {
 		const { msgs } = collect(s);
 		expect(msgs).toEqual([["START"]]);
 		expect(s.cache).toBeUndefined();
-		expect(s.status).toBe("sentinel");
+		expect(s.status.cache).toBe("empty");
 	});
 
 	it("external down emits PENDING before DATA (R-dirty-before-data, two-phase)", () => {
@@ -251,7 +251,7 @@ describe("B49 core-slot migration", () => {
 		expect(sideTableCounts(coreOf(s))).toEqual([1, 1, 1, 1, 1, 1, 1, 1]);
 
 		expect(s.cache).toBe(1);
-		expect(s.status).toBe("settled");
+		expect(s.status.cache).toBe("ready");
 		expect(s.factory).toBe("probe");
 	});
 
@@ -590,7 +590,7 @@ describe("D109 node runtime versioning", () => {
 		expect(() => s.down([["DATA", 2n]])).toThrow(/not JSON-encodable/);
 		expect(s.version).toEqual(before);
 		expect(s.cache).toBe(1);
-		expect(s.status).toBe("settled");
+		expect(s.status.cache).toBe("ready");
 		expect(msgs).toEqual([]);
 		expect(downstreamMsgs).toEqual([]);
 
@@ -616,7 +616,7 @@ describe("D109 node runtime versioning", () => {
 		expect(() => terminal.down([["DATA", 2n]])).toThrow(/ended/);
 		expect(terminal.version).toEqual(terminalBefore);
 		expect(terminal.cache).toBe(1);
-		expect(terminal.status).toBe("completed");
+		expect(terminal.status.output).toBe("completed");
 	});
 
 	it("V1 rejects deferred batch DATA before PENDING, cache, or version changes", () => {
@@ -629,7 +629,7 @@ describe("D109 node runtime versioning", () => {
 		expect(batchedMsgs).toEqual([]);
 		expect(batched.version).toEqual(batchedBefore);
 		expect(batched.cache).toBe(1);
-		expect(batched.status).toBe("settled");
+		expect(batched.status.cache).toBe("ready");
 
 		const batchedSnapshot = node<Record<string, unknown>>([], null, {
 			initial: { a: 0 },

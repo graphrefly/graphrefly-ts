@@ -3,6 +3,7 @@ import type { Node } from "./node.js";
 import { type NodeRuntimeHost, nodeRuntimeHost } from "./node-runtime-host.js";
 import type { RuntimeReleaseFailure } from "./owned-acquisition.js";
 import { closeNodeRegistration, setRuntimeReleaseFailures } from "./runtime-accessors.js";
+import type { Status } from "./types.js";
 
 export function nodeActivate<T>(self: NodeRuntimeHost<T>): void {
 	self._lifecycle.activated = true;
@@ -117,6 +118,7 @@ export function nodeCloseLifetime<T>(
 	self._dep.unsubs = [];
 	self._dep.idxBoxes = [];
 	for (const u of unsubs) if (u) run(u, "subscription");
+	lifetime.closing = true;
 	if (cleanup !== undefined) {
 		if (onError !== undefined) run(cleanup, "deactivation");
 		else {
@@ -133,10 +135,29 @@ export function nodeCloseLifetime<T>(
 			}
 		}
 	}
+	lifetime.closing = false;
 	// ctx.state.persist keeps private state across deactivation until its replacement is settled
 	// (open with the alignment session); an ended node always drops it.
 	if (!self._privateState.persist || self._value.terminal !== undefined)
 		self._privateState.value = SENTINEL;
+}
+
+/** R-node@2: a node's status, derived from what it holds. */
+export function nodeStatus<T>(self: NodeRuntimeHost<T>): Status {
+	const terminal = self._value.terminal;
+	return {
+		cache: !self._value.hasData
+			? "empty"
+			: self._wave.emittedDirtyThisWave || self._wave.pending > 0
+				? "stale"
+				: "ready",
+		output: terminal === undefined ? "open" : terminal === true ? "completed" : "errored",
+		lifecycle: self._lifetime.closing
+			? "closing"
+			: self._lifecycle.activated
+				? "active"
+				: "inactive",
+	};
 }
 
 export function nodeDeactivate<T>(self: NodeRuntimeHost<T>): void {
@@ -150,7 +171,6 @@ export function nodeDeactivate<T>(self: NodeRuntimeHost<T>): void {
 		self._value.cache = SENTINEL;
 		self._value.hasData = false;
 		self._value.lastArray = [];
-		self._value.status = "sentinel";
 	}
 	self._resetDepState();
 	self._wave.hasCalledFnOnce = false;
@@ -163,8 +183,7 @@ export function nodeSubscriberCount<T>(self: NodeRuntimeHost<T>): number {
 export function nodeIsRuntimeQuiescentForRelease<T>(self: NodeRuntimeHost<T>): boolean {
 	return (
 		!self._released &&
-		self._value.status !== "dirty" &&
-		self._value.status !== "pending" &&
+		!self._wave.emittedDirtyThisWave &&
 		self._wave.pending === 0 &&
 		!self._wave.insideRunWave &&
 		!self._wave.inDepMutation &&
@@ -216,7 +235,6 @@ export function nodeReleaseRuntime<T>(self: NodeRuntimeHost<T>): void {
 	self._dep.terminalInput = [];
 	self._value.cache = SENTINEL;
 	self._value.hasData = false;
-	self._value.status = "sentinel";
 	self._value.terminal = undefined;
 	self._value.lastArray = [];
 	self._privateState.value = SENTINEL;

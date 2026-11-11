@@ -18,7 +18,7 @@ describe("tap observer terminal edges (Worker C)", () => {
 		expect(onError).toHaveBeenCalledWith(err);
 		expect(msgs).toContainEqual(["ERROR", err]);
 		expect(msgs.at(-1)).toEqual(["ERROR", err]);
-		expect(t.status).toBe("errored");
+		expect(t.status.output).toBe("errored");
 	});
 });
 

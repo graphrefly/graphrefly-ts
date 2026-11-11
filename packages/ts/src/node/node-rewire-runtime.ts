@@ -148,7 +148,7 @@ export function nodeRewire<T>(
 		// gets a substrate-synthesized undirty RESOLVED per R-resolved-undirty/D49 — NOT
 		// equals-absorption, which is gone). With zero deps the node is inert (degenerate
 		// fn-no-deps) — just un-dirty downstream. Cache is preserved either way (Q7).
-		if (removedDirtyContributor && self._wave.pending === 0 && self._value.status === "dirty") {
+		if (removedDirtyContributor && self._wave.pending === 0 && self._wave.emittedDirtyThisWave) {
 			if (newDeps.length > 0) self._wave.rewireRunPending = true;
 			else zeroDepUnDirty = true;
 		}
@@ -164,7 +164,6 @@ export function nodeRewire<T>(
 		self._settleRewire();
 	} else if (zeroDepUnDirty) {
 		if (self._wave.emittedDirtyThisWave) self._down([["RESOLVED"]]);
-		else self._value.status = self._value.hasData ? "settled" : "sentinel";
 	}
 	return false;
 }

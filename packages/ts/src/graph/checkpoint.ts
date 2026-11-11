@@ -39,7 +39,8 @@ export interface GraphCheckpointNode {
 	id: string;
 	name?: string;
 	factory: GraphCheckpointFactory;
-	status: string;
+	/** R-node@2 derived status at checkpoint time. */
+	status: { cache: string; output: string; lifecycle: string };
 	deps: string[];
 	value: GraphCheckpointValue;
 	backendState?: GraphCheckpointJson;

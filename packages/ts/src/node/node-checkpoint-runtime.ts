@@ -7,7 +7,6 @@ export function nodeRestoreState(self: NodeRuntimeHost, state: NodeRestoreState)
 	self._assertNotReleased("restoreGraph");
 	self._value.cache = state.cache as unknown;
 	self._value.hasData = state.hasData;
-	self._value.status = state.status;
 	self._value.terminal = state.terminal;
 	// R-subscription: a restored value is the node's last array (a checkpoint keeps one value).
 	self._value.lastArray = state.hasData ? [state.cache as unknown] : [];

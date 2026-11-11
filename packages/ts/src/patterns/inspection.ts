@@ -20,7 +20,8 @@ export interface ProfileSummary {
 	/** Number of nodes in describe(), including nodes with zero invokes. */
 	nodeCount: number;
 	totalInvokes: number;
-	byStatus: Partial<Record<NodeProfile["status"], number>>;
+	/** Node counts keyed by `cache/output/lifecycle` (R-node@2 status). */
+	byStatus: Partial<Record<string, number>>;
 	/** Nodes sorted by invokes desc, then path asc. */
 	hotNodes: ProfileSummaryNode[];
 }
@@ -43,12 +44,14 @@ export function profileSummary(graph: Graph, opts: { limit?: number } = {}): Pro
 	const nodeIds = new Set(described.nodes.map((node) => node.id));
 	for (const id of Object.keys(profile.nodes)) nodeIds.add(id);
 
-	const byStatus: Partial<Record<NodeProfile["status"], number>> = {};
+	const byStatus: Partial<Record<string, number>> = {};
 	const hotNodes: ProfileSummaryNode[] = [];
 	for (const path of [...nodeIds].sort()) {
 		const nodeProfile = profile.nodes[path];
 		if (nodeProfile === undefined) continue;
-		byStatus[nodeProfile.status] = (byStatus[nodeProfile.status] ?? 0) + 1;
+		const { cache, output, lifecycle } = nodeProfile.status;
+		const key = `${cache}/${output}/${lifecycle}`;
+		byStatus[key] = (byStatus[key] ?? 0) + 1;
 		hotNodes.push({
 			path,
 			invokes: nodeProfile.invokes,

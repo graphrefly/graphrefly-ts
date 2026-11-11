@@ -171,7 +171,7 @@ describe("rewire — rejects (R-rewire / D42)", () => {
 	it("an ended node can be added as a dependency; its snapshot carries its terminal (R-terminals)", () => {
 		const term = node<number>([], (ctx) => ctx.down([["COMPLETE"]])); // producer → terminal on activation
 		collect(term);
-		expect(term.status).toBe("completed");
+		expect(term.status.output).toBe("completed");
 
 		const a = node<number>([], null, { initial: 1 });
 		const d = node<number>([a], (ctx) => ctx.down([["DATA", num(ctx, 0)]]));
@@ -179,7 +179,7 @@ describe("rewire — rejects (R-rewire / D42)", () => {
 		expect(() => d.subscribeDep(term, (ctx) => ctx.down([["DATA", num(ctx, 0)]]))).not.toThrow();
 		expect(d.deps).toEqual([a, term]);
 		// Not every dependency has ended, so auto COMPLETE does not end d.
-		expect(d.status).not.toBe("completed");
+		expect(d.status.output).not.toBe("completed");
 	});
 
 	it("rejects mid-fn rewire (a fn mutating its own deps mid-wave = D37 feedback cycle)", () => {
@@ -192,7 +192,7 @@ describe("rewire — rejects (R-rewire / D42)", () => {
 		});
 		// R-failure@3: the rejected mid-fn rewire is the node's ERROR, not a host throw.
 		const { msgs } = collect(dh as Node);
-		expect((dh as Node).status).toBe("errored");
+		expect((dh as Node).status.output).toBe("errored");
 		expect(String((msgs.find((m) => m[0] === "ERROR") as ["ERROR", Error])[1].message)).toMatch(
 			/mid-fn|feedback/,
 		);

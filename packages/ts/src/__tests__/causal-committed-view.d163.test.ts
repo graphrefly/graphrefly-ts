@@ -376,7 +376,7 @@ describe("D163 committed effects through ordinary DATA", () => {
 			});
 		// R-failure@3: the throw inside the authority's function is its ERROR, not a host throw.
 		expect(() => f.send("effectOutcomes", a.outcome)).not.toThrow();
-		expect(f.graph.find("causal/authority")?.status).toBe("errored");
+		expect(f.graph.find("causal/authority")?.status.output).toBe("errored");
 		expect(failure).toHaveBeenCalled();
 		// The ended authority dropped its private state with its lifetime (R-lifetime); the prior
 		// commit it held was not changed by the failed run.

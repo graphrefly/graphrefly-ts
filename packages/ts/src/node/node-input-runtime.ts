@@ -87,7 +87,6 @@ export function nodeMarkDirty<T>(self: NodeRuntimeHost<T>): void {
 	// function sends goes out after the current wave as a new wave of its own (the quiet branch
 	// of ctx.down). Its internal dep pending accounting (the PENDING-branch _pending++) still runs.
 	if (self._slot.quiet) return;
-	self._value.status = "dirty";
 	if (!self._wave.emittedDirtyThisWave) {
 		self._wave.emittedDirtyThisWave = true;
 		self._markDependents();
