@@ -2,7 +2,7 @@
  * A graph's batch (R-request-order, R-graph-domain@3).
  *
  * A batch body runs at once and delivers nothing; its writes to the graph's nodes commit as one
- * array per node in one wave. Success commits; a throw or `bctx.rollback()` discards. The open
+ * array per node in one wave. Success commits; a throw discards (R-request-order). The open
  * batch lives on the graph's wave domain, so graphs share no batch (graphrefly:D803).
  */
 
@@ -31,11 +31,6 @@ import {
  */
 export type BatchTarget = Node<unknown>;
 
-export interface BatchCtx {
-	/** Discard all deferred emissions in this batch instead of committing. */
-	rollback(): void;
-}
-
 /** A function write staged by set(fn), computed when the write runs (R-request-order). */
 export class DeferredWrite {
 	constructor(readonly fn: (prev: unknown) => unknown) {}
@@ -49,7 +44,6 @@ interface ActiveBatch {
 	/** Topology requests the body made; they run after the commit (R-request-order). */
 	requests: Array<() => void>;
 	committed: boolean;
-	rolledBack: boolean;
 }
 
 function activeOf(core: NodeCore): ActiveBatch | null {
@@ -172,20 +166,16 @@ function rollback(core: NodeCore, b: ActiveBatch): void {
  * array per node in one wave, so shared downstream nodes recompute once (R-request-order). A
  * write to another graph's node inside the body is that graph's own request (R-graph-domain@3).
  */
-export function batchIn<R>(core: NodeCore, fn: (bctx: BatchCtx) => R): R {
+export function batchIn<R>(core: NodeCore, fn: () => R): R {
 	// O3: a batch is one synchronous wave, which an async function cannot hold open.
 	if (Object.prototype.toString.call(fn) === "[object AsyncFunction]")
 		throw new TypeError(
 			"batch: the body must be synchronous; finish asynchronous work first, then batch the writes",
 		);
-	const outer = activeOf(core);
-	if (outer !== null) {
-		// A batch inside a batch body of the same graph joins the outer one (one commit).
-		return fn({
-			rollback: () => {
-				outer.rolledBack = true;
-			},
-		});
+	if (activeOf(core) !== null) {
+		// A batch inside a batch body of the same graph joins the outer one (one commit); a throw
+		// from it discards the outer batch too when it reaches the outer body.
+		return fn();
 	}
 	const b: ActiveBatch = {
 		order: [],
@@ -193,12 +183,6 @@ export function batchIn<R>(core: NodeCore, fn: (bctx: BatchCtx) => R): R {
 		lifetimes: new Map(),
 		requests: [],
 		committed: false,
-		rolledBack: false,
-	};
-	const bctx: BatchCtx = {
-		rollback: () => {
-			b.rolledBack = true;
-		},
 	};
 	// The body runs at once, also during a wave, and nothing is delivered while it runs.
 	const during = isWaveActive(core);
@@ -207,12 +191,11 @@ export function batchIn<R>(core: NodeCore, fn: (bctx: BatchCtx) => R): R {
 	let result: R;
 	try {
 		try {
-			result = fn(bctx);
+			result = fn();
 		} finally {
 			core.domain.batch = null;
 		}
-		if (b.rolledBack) rollback(core, b);
-		else if (during)
+		if (during)
 			deferRequest(core, () => commit(core, b)); // the commit is a request (R-request-order)
 		else commit(core, b);
 	} catch (e) {

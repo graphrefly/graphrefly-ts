@@ -32,17 +32,12 @@ function check(name, graphFactory, exercise) {
 function update(f, a, b) { f.left.set(a); f.right.set(b); }
 function assertRolledBack(f) {
  assert.equal(f.left.cache, 1); assert.equal(f.right.cache, 2);
- assert.deepEqual(f.values, [], "rollback published a value: " + JSON.stringify(f.values));
+ assert.deepEqual(f.values, [], "a discarded batch published a value: " + JSON.stringify(f.values));
 }
 for (const [origin, graphFactory] of [["root", root.graph], ["graph", graphLayer.graph]]) {
  check(origin + "/commit", graphFactory, f => {
   const result = f.g.batch(() => { update(f, 10, 20); assert.deepEqual(f.values, []); return "committed"; });
   assert.equal(result, "committed"); assert.deepEqual(f.values, [30]);
- });
- check(origin + "/explicit-rollback-recovery", graphFactory, f => {
-  f.g.batch(bctx => { update(f, 10, 20); bctx.rollback(); });
-  assertRolledBack(f);
-  f.g.batch(() => update(f, 100, 200)); assert.deepEqual(f.values, [300]);
  });
  check(origin + "/throw-recovery", graphFactory, f => {
   const failure = new Error("abort batch");
@@ -58,11 +53,12 @@ for (const [origin, graphFactory] of [["root", root.graph], ["graph", graphLayer
    f.values.length = 0; f.g.batch(() => update(f, 100, 200)); assert.deepEqual(f.values, [300]);
   } finally { unsubscribe(); }
  });
- check(origin + "/invalidate-rollback-recovery", graphFactory, f => {
-  f.g.batch(bctx => { f.left.invalidate(); bctx.rollback(); });
+ check(origin + "/invalidate-throw-recovery", graphFactory, f => {
+  const failure = new Error("abort invalidate");
+  assert.throws(() => f.g.batch(() => { f.left.invalidate(); throw failure; }), error => error === failure);
   assertRolledBack(f); f.g.batch(() => update(f, 100, 200)); assert.deepEqual(f.values, [300]);
  });
- for (const mode of ["commit", "rollback", "throw"]) {
+ for (const mode of ["commit", "throw"]) {
   check(origin + "/deferred-rewire-" + mode, graphFactory, f => {
    const request = f.g.state(0, { name: "rewire-request" });
    const added = f.g.state(42, { name: "added" });
@@ -78,11 +74,10 @@ for (const [origin, graphFactory] of [["root", root.graph], ["graph", graphLayer
    const stop = op.subscribe(msgs => { for (const m of msgs) if (m[0] === "DATA") values.push(m[1]); });
    const failure = new Error("rewire abort");
    try {
-    const action = () => f.g.batch(bctx => {
+    const action = () => f.g.batch(() => {
      insideBody = true;
      try {
       request.set(1); assert.deepEqual(op.deps, [request]); assert.equal(requests, 0);
-      if (mode === "rollback") bctx.rollback();
       if (mode === "throw") throw failure;
      } finally { insideBody = false; }
     });
@@ -105,12 +100,13 @@ for (const [origin, graphFactory] of [["root", root.graph], ["graph", graphLayer
   });
   assert.deepEqual(f.values, [30]);
  });
- check(origin + "/nested-rollback-recovery", graphFactory, f => {
-  f.g.batch(bctx => {
+ check(origin + "/nested-throw-recovery", graphFactory, f => {
+  const failure = new Error("abort nested");
+  assert.throws(() => f.g.batch(() => {
    f.left.set(10);
    f.g.batch(() => f.right.set(20));
-   bctx.rollback();
-  });
+   throw failure;
+  }), error => error === failure);
   assertRolledBack(f);
   f.g.batch(() => update(f, 100, 200)); assert.deepEqual(f.values, [300]);
  });
@@ -142,7 +138,7 @@ try {
 			);
 		}
 		const report = JSON.parse(worker.stdout);
-		assert.equal(report.results.length, 20, `${format}: incomplete behavioral matrix`);
+		assert.equal(report.results.length, 16, `${format}: incomplete behavioral matrix`);
 		const failures = report.results.filter((result) => !result.passed);
 		assert.equal(worker.status, failures.length ? 1 : 0, `${format}: inconsistent worker exit`);
 		if (failures.length) failed = true;
@@ -158,7 +154,7 @@ try {
 	if (failed) process.exitCode = 1;
 	else
 		console.log(
-			"check-ts-package-batch: installed ESM/CJS commit, nesting, rollback and recovery passed (40 cases)",
+			"check-ts-package-batch: installed ESM/CJS commit, nesting, discard-by-throw and recovery passed (32 cases)",
 		);
 } finally {
 	rmSync(temp, { recursive: true, force: true });

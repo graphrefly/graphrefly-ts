@@ -1,4 +1,3 @@
-export type { BatchCtx } from "../batch/batch.js";
 export type {
 	Ctx,
 	CtxDep,

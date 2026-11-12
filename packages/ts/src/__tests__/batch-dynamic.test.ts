@@ -65,14 +65,17 @@ describe("batch (R-batch-coalesce / D12)", () => {
 		expect(types(msgs)).toEqual([]); // nothing was delivered, so nothing to balance
 	});
 
-	it("bctx.rollback() is the explicit escape hatch", () => {
+	it("a throw from the body discards its writes (R-request-order)", () => {
 		const g = graph();
 		const a = g.node<number>([], null, { initial: 1 });
 		collect(a);
-		g.batch((bctx) => {
-			a.set(50);
-			bctx.rollback();
-		});
+		const abort = new Error("abort");
+		expect(() =>
+			g.batch(() => {
+				a.set(50);
+				throw abort;
+			}),
+		).toThrow(abort);
 		expect(a.cache).toBe(1);
 	});
 });

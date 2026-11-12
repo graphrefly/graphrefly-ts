@@ -130,10 +130,13 @@ it("delivers after nested batch commits, with one immutable complete snapshot", 
 it("does not create a host record or notification from rolled back input", async () => {
 	const f = fixture();
 	try {
-		f.graph.batch((ctx) => {
-			f.input.set(1);
-			ctx.rollback();
-		});
+		const abort = new Error("abort");
+		expect(() =>
+			f.graph.batch(() => {
+				f.input.set(1);
+				throw abort;
+			}),
+		).toThrow(abort);
 		await checkpoint();
 		expect(f.records.size).toBe(0);
 		expect(f.status().notifications).toBe(0);

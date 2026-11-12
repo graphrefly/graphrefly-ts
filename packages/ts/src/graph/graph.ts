@@ -13,7 +13,7 @@ import type { OwnedConstruction } from "./construction-scope.js";
  * R-graph-surface, R-fn-contract, R-edges-derived, R-meta-presentation.
  */
 
-import { type BatchCtx, batchIn, currentBatch } from "../batch/batch.js";
+import { batchIn, currentBatch } from "../batch/batch.js";
 import { isWaveActive, observeFailures, reportFailure } from "../batch/boundary.js";
 import type { Ctx, NodeFn } from "../ctx/types.js";
 import { type Dispatcher, defaultDispatcher } from "../dispatcher/index.js";
@@ -507,11 +507,11 @@ export class Graph {
 
 	/**
 	 * Run a batch of this graph (R-request-order): the body runs at once and delivers nothing; its
-	 * writes to this graph's nodes commit as one wave when it returns, and a throw or
-	 * `bctx.rollback()` discards them. A write to another graph's node inside the body is that
+	 * writes to this graph's nodes commit as one wave when it returns, and a throw from it discards
+	 * them. A write to another graph's node inside the body is that
 	 * graph's own request, not part of this commit (R-graph-domain@3).
 	 */
-	batch<T>(fn: (bctx: BatchCtx) => T): T {
+	batch<T>(fn: () => T): T {
 		const result = batchIn(this._core, fn);
 		// A body that returns a promise committed its synchronous part; later writes are separate.
 		if (typeof (result as { then?: unknown } | null | undefined)?.then === "function")

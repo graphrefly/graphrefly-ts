@@ -343,13 +343,16 @@ describe("D167 exact command binding and existing D110 batch fate", () => {
 	});
 	it.each([false, true])("two deferred adds use actual deps; rollback=%s", (rollback) => {
 		const f = busFixture();
-		f.graph.batch((ctx) => {
+		const abort = new Error("abort");
+		const body = () => {
 			pending(f.bus);
 			attachMessageBusCommandSource(f.graph, f.bus, f.a);
 			attachMessageBusCommandSource(f.graph, f.bus, f.b);
 			expect(f.bus.commands.deps).toEqual([f.publish]);
-			if (rollback) ctx.rollback();
-		});
+			if (rollback) throw abort;
+		};
+		if (rollback) expect(() => f.graph.batch(body)).toThrow(abort);
+		else f.graph.batch(body);
 		expect(f.bus.commands.deps).toEqual(rollback ? [f.publish] : [f.publish, f.a, f.b]);
 		if (!rollback) {
 			const seen: unknown[] = [];
@@ -391,11 +394,14 @@ describe("D167 exact command binding and existing D110 batch fate", () => {
 	it("rolled-back removal remains removable through the same disposer", () => {
 		const f = busFixture();
 		const remove = attachMessageBusCommandSource(f.graph, f.bus, f.a);
-		f.graph.batch((ctx) => {
-			pending(f.bus);
-			remove();
-			ctx.rollback();
-		});
+		const abort = new Error("abort");
+		expect(() =>
+			f.graph.batch(() => {
+				pending(f.bus);
+				remove();
+				throw abort;
+			}),
+		).toThrow(abort);
 		expect(f.bus.commands.deps).toEqual([f.publish, f.a]);
 		remove();
 		expect(f.bus.commands.deps).toEqual([f.publish]);
@@ -443,11 +449,14 @@ describe("D167 exact command binding and existing D110 batch fate", () => {
 		const f = busFixture();
 		const source = f.graph.state(1);
 		const binding = toTopic(f.graph, source, f.bus, "t", { name: "public" });
-		f.graph.batch((ctx) => {
-			pending(f.bus);
-			binding.release();
-			ctx.rollback();
-		});
+		const abort = new Error("abort");
+		expect(() =>
+			f.graph.batch(() => {
+				pending(f.bus);
+				binding.release();
+				throw abort;
+			}),
+		).toThrow(abort);
 		expect(f.bus.commands.deps).toContain(binding.commands);
 		binding.release();
 		expect(f.bus.commands.deps).not.toContain(binding.commands);

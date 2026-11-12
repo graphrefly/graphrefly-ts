@@ -25,7 +25,6 @@ export {
 	type ReactiveCollectionPersistenceHandle,
 	type ReactiveCollectionPersistenceStatus,
 } from "./adapters/reactive-collection-storage.js";
-export type { BatchCtx } from "./batch/batch.js";
 export type {
 	Ctx,
 	CtxDep,
