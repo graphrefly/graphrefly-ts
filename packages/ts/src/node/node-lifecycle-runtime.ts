@@ -406,8 +406,6 @@ function unwindTeardowns(base: number, failed: Teardown, thrown: unknown): void 
 /** The close after the dependencies are released (R-lifetime@2), then a deactivation's own end. */
 function finishTeardown(f: Teardown): void {
 	const self = f.self;
-	const lifetime = self[LIFETIME];
-	const onError = f.onError;
 	// R-lifetime: a ctx.rewire belongs to its lifetime; closing puts the declared dependencies back.
 	if (!self[RELEASED] && self[SLOT].deps !== self[SLOT].declaredDeps) {
 		const prev = self[SLOT].deps;
@@ -415,30 +413,30 @@ function finishTeardown(f: Teardown): void {
 		Object.assign(self[DEP], makeDepBookkeeping(self[SLOT].deps.length));
 		notifyTopologyDepsChanged(self, prev, self[SLOT].deps);
 	}
-	lifetime.closing = true;
-	lifetime.closingSignal = f.controller?.signal ?? null;
-	const cleanup = f.cleanup;
-	if (cleanup !== undefined) {
-		if (onError !== undefined)
-			try {
-				cleanup();
-			} catch (error) {
-				onError(error, "deactivation");
-			}
-		else {
-			// R-failure: a cleanup that throws has no node to end; its failure goes to the graph's
-			// host reporter and the close completes.
-			try {
-				cleanup();
-			} catch (error) {
-				reportFailure(self[CORE], `cleanup of ${self[SLOT].name ?? "node"}`, error);
-			}
-		}
-	}
-	lifetime.closing = false;
-	lifetime.closingSignal = null;
-	self[PRIVATE_STATE].value = SENTINEL;
+	nodeFinishCleanup(self, f.controller?.signal ?? null, f.cleanup, f.onError);
 	if (f.kind === TD_DEACTIVATE) nodeDeactivateEnd(self);
+}
+
+/** R-lifetime: replacement and teardown share the same final access to the old private state. */
+export function nodeFinishCleanup(
+	self: Node<unknown>,
+	signal: AbortSignal | null,
+	cleanup: (() => void) | undefined,
+	onError?: CloseErrorSink,
+): void {
+	const lifetime = self[LIFETIME];
+	lifetime.closing = true;
+	lifetime.closingSignal = signal;
+	try {
+		cleanup?.();
+	} catch (error) {
+		if (onError !== undefined) onError(error, "deactivation");
+		else reportFailure(self[CORE], `cleanup of ${self[SLOT].name ?? "node"}`, error);
+	} finally {
+		lifetime.closing = false;
+		lifetime.closingSignal = null;
+		self[PRIVATE_STATE].value = SENTINEL;
+	}
 }
 
 /** R-node@2: a node's status, derived from what it holds. */

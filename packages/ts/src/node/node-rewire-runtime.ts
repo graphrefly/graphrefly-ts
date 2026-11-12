@@ -1,7 +1,6 @@
 import { deferAfterBatchForTarget, request } from "../batch/batch.js";
-import { reportFailure } from "../batch/boundary.js";
 import type { NodeFn } from "../ctx/types.js";
-import { type Message, SENTINEL } from "../protocol/messages.js";
+import type { Message } from "../protocol/messages.js";
 import { type DepInput, makeDepBookkeeping, makeDepInput } from "./core.js";
 import type { Node } from "./node.js";
 import { nodeSettle, nodeSettleRewire } from "./node-input-runtime.js";
@@ -10,7 +9,6 @@ import {
 	DEP,
 	LIFECYCLE,
 	LIFETIME,
-	PRIVATE_STATE,
 	RELEASED,
 	SEED_NOTE,
 	SLOT,
@@ -18,7 +16,7 @@ import {
 	VALUE,
 	WAVE,
 } from "./node-keys.js";
-import { nodeSubscribeDepAt } from "./node-lifecycle-runtime.js";
+import { nodeFinishCleanup, nodeSubscribeDepAt } from "./node-lifecycle-runtime.js";
 import { nodeCallSink, nodeDown, nodeMarkDependents } from "./node-output-runtime.js";
 import { getNodeOwner, notifyTopologyDepsChanged } from "./runtime-accessors.js";
 import type { NodeDefinition, ReplaceOptions } from "./types.js";
@@ -282,6 +280,7 @@ function nodeApplyReplace<T>(
 	// Close the old instance's lifetime: abort its signal; its dependencies are released after the
 	// new ones are acquired, so a shared upstream stays active; then its cleanup runs.
 	const lifetime = self[LIFETIME];
+	const closingSignal = lifetime.controller?.signal ?? null;
 	lifetime.controller?.abort();
 	const cleanup = lifetime.cleanup;
 	lifetime.controller = null;
@@ -325,17 +324,7 @@ function nodeApplyReplace<T>(
 		self[WAVE].rewireRunPending = false;
 	}
 	for (const u of oldUnsubs) u();
-	if (cleanup !== undefined) {
-		lifetime.closing = true;
-		try {
-			cleanup();
-		} catch (error) {
-			reportFailure(self[CORE], `cleanup of ${self[SLOT].name ?? "node"}`, error);
-		} finally {
-			lifetime.closing = false;
-		}
-	}
-	self[PRIVATE_STATE].value = SENTINEL;
+	nodeFinishCleanup(self, closingSignal, cleanup);
 	notifyTopologyDepsChanged(node, oldDeps, deps);
 	if (!active) return; // the next subscription activates the new instance
 

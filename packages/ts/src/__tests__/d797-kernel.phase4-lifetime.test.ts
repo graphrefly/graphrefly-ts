@@ -16,6 +16,41 @@ import { graph } from "../graph/graph.js";
 import { collect } from "./helpers/collect.js";
 
 describe("C-33: a closed lifetime revokes old ctx, and cleanup failures stay isolated", () => {
+	it("replace cleanup reads and saves the old private state, then revokes it even when it throws (N1)", () => {
+		const reports: unknown[] = [];
+		const g = graph({ report: (failure) => reports.push(failure.error) });
+		const ledger = g.state({ count: 0 });
+		const source = g.state(42);
+		const contexts: Ctx[] = [];
+		const failure = new Error("cleanup");
+		const n = g.node(
+			[source],
+			(ctx) => {
+				contexts.push(ctx);
+				ctx.state.set({ count: ctx.deps[0].value });
+			},
+			{
+				setup: (ctx) => () => {
+					expect(ctx.signal.aborted).toBe(true);
+					ledger.set(ctx.state.get<{ count: number }>()!);
+					throw failure;
+				},
+			},
+		);
+		n.subscribe(() => {});
+		const old = contexts[0]!;
+		g.replace(n, [source], (ctx) => {
+			contexts.push(ctx);
+			expect(ctx.state.get()).toBeUndefined();
+			ctx.state.set({ count: 100 });
+		});
+		expect(ledger.cache).toEqual({ count: 42 });
+		expect(reports).toEqual([failure]);
+		expect(old.state.get()).toBeUndefined();
+		old.state.set({ count: -1 });
+		expect(contexts[1]!.state.get()).toEqual({ count: 100 });
+	});
+
 	it("runs setup once per lifetime, closes in order, and drops the old ctx", () => {
 		const reports: unknown[] = [];
 		const g = graph({ report: (failure) => reports.push(failure.error) });
