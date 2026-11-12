@@ -179,6 +179,14 @@ export const apiSidebar = [
 				"link": "/api/restoregraph"
 			},
 			{
+				"label": "graphName()",
+				"link": "/api/graphname"
+			},
+			{
+				"label": "mountGraph()",
+				"link": "/api/mountgraph"
+			},
+			{
 				"label": "workerDerived()",
 				"link": "/api/workerderived"
 			}

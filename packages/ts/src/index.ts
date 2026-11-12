@@ -390,6 +390,7 @@ export {
 	throttle,
 	timeout,
 } from "./graph/time.js";
+export { graphName, mountGraph } from "./graph/topology.js";
 export {
 	type WorkerDerivedBackend,
 	type WorkerDerivedCancel,

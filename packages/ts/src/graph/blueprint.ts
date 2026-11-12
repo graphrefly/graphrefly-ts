@@ -1,6 +1,7 @@
 import { cloneTopologyMeta } from "./describe.js";
 import type { Graph } from "./graph.js";
 import { graphRegistrations } from "./graph-lifecycle.js";
+import { graphName } from "./topology.js";
 /**
  * GraphBlueprint first slice (D173/D177).
  *
@@ -493,7 +494,7 @@ export function graphTopology(graph: Graph): GraphTopologySnapshot {
 		});
 		const mounts = registrar.mounts();
 		return {
-			...(g.name === undefined ? {} : { name: g.name }),
+			...(graphName(g) === undefined ? {} : { name: graphName(g) }),
 			nodes,
 			edges: nodes.flatMap((node) => node.deps.map((from) => ({ from, to: node.id }))),
 			...(mounts.length === 0

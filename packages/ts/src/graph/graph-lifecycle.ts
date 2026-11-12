@@ -19,6 +19,8 @@ export interface GraphRestoreRegistrar {
 }
 
 export interface GraphLifecycleRegistrar extends GraphRestoreRegistrar {
+	readonly name?: string;
+	mount(child: Graph, opts: { at: string }): void;
 	metadata(
 		node: Node<unknown>,
 	): { name?: string; factory: string; meta?: Record<string, unknown> } | undefined;

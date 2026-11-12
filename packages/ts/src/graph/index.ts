@@ -165,6 +165,7 @@ export {
 	takeRestoreDescriptor,
 	timerRestoreDescriptor,
 } from "./restore.js";
+export { graphName, mountGraph } from "./topology.js";
 export {
 	type WorkerDerivedBackend,
 	type WorkerDerivedCancel,

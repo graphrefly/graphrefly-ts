@@ -1,3 +1,4 @@
+import { graphName, mountGraph } from "../graph/topology.js";
 /**
  * C-48 (R-graph-surface@1, graphrefly:D805): the graph layer's find, describe, observe and retain,
  * with R-node, R-subscription and R-lifetime; and how each one's stop behaves within a wave.
@@ -84,6 +85,8 @@ describe("C-48: find, describe, observe and retain (R-graph-surface@1)", () => {
 	it("keeps richer diagnostics in modules, with no Graph aliases", () => {
 		const { g, b } = c48();
 		for (const name of [
+			"name",
+			"mount",
 			"inspect",
 			"topology",
 			"blueprint",
@@ -231,4 +234,19 @@ describe("stop within a wave (R-request-order, C-33, R-graph-surface@1)", () => 
 		expect(n.status.lifecycle).toBe("inactive");
 		stopTrigger();
 	});
+});
+
+// D189 keeps metadata/mount ownership in the existing registrar.
+it("names and mounts graphs through modules without activation", () => {
+	const parent = graph({ name: "parent" }),
+		child = graph({ name: "child" });
+	const n = child.node([], () => {
+		throw new Error("must stay cold");
+	});
+	mountGraph(parent, child, { at: "child" });
+	expect(graphName(parent)).toBe("parent");
+	expect(graphName(graph())).toBeUndefined();
+	expect(graphTopology(parent).subgraphs?.[0]).toMatchObject({ name: "child", mountId: "child" });
+	expect(parent.checkpoint().mounts?.[0].checkpoint.name).toBe("child");
+	expect(n.status.lifecycle).toBe("inactive");
 });

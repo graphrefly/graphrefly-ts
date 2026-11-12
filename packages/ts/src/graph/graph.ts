@@ -150,7 +150,6 @@ const graphsByCore = new WeakMap<NodeCore, Graph>();
  * @category graph
  */
 export class Graph {
-	readonly name?: string;
 	private readonly _dispatcher: Dispatcher;
 	private readonly _environment: EnvironmentDrivers;
 	private readonly _core = new NodeCore();
@@ -169,13 +168,12 @@ export class Graph {
 	private _synthSeq = 0;
 
 	constructor(opts: GraphOptions = {}) {
-		this.name = opts.name;
 		this._dispatcher = opts.dispatcher ?? defaultDispatcher;
 		this._environment = opts.environment ?? EnvironmentDrivers.empty();
 		if (opts.profile) this._dispatcher.setRecording(true);
 		this._core.report = opts.report;
 		graphsByCore.set(this._core, this);
-		graphRegistrations.set(this, new GraphRegistration(this));
+		graphRegistrations.set(this, new GraphRegistration(this, opts.name));
 	}
 
 	// ── registration / inspection index ──
@@ -512,20 +510,6 @@ export class Graph {
 		return result;
 	}
 
-	/** Embed a child graph addressable under `at`; mount is this package's own (R-graph-surface). */
-	mount(child: Graph, opts: { at: string }): void {
-		if (typeof opts.at !== "string" || opts.at.length === 0) {
-			throw new TypeError("graph.mount: at must be a non-empty string");
-		}
-		if (this._mounts.some((mounted) => mounted.at === opts.at)) {
-			throw new Error(`graph.mount: duplicate sibling mount id '${opts.at}'`);
-		}
-		const mount = { at: opts.at, graph: child };
-		this._mounts.push(mount);
-		if (this._topologyObservers.size > 0) this._ensureMountedTopologyForwarders();
-		this._emitTopologyMountChanged(opts.at);
-	}
-
 	// ── operator funnel (D43): instantiate any free-standing Operator (node sugar, D6/L1.5) ──
 	// g.initNode is the single graph-bound entry for the whole operator/source catalog (D40):
 	// it delegates to the FREE initNode (graph/operators.ts — the D30 throw→ERROR boundary +
@@ -691,6 +675,7 @@ export class Graph {
 		});
 	}
 
+	// biome-ignore lint/correctness/noUnusedPrivateClassMembers: used by the internal registrar.
 	private _emitTopologyMountChanged(path: string): void {
 		if (this._topologyObservers.size === 0) return;
 		this._emitTopologyEvent({
@@ -702,6 +687,7 @@ export class Graph {
 		});
 	}
 
+	// biome-ignore lint/correctness/noUnusedPrivateClassMembers: used by the internal registrar.
 	private _ensureMountedTopologyForwarders(): void {
 		if (this._topologyObservers.size === 0) return;
 		for (const mount of this._mounts) {
@@ -822,7 +808,8 @@ export class Graph {
 				if (discovered.has(dep) && !visited.has(dep)) queue.push(dep);
 		}
 		const checkpoint: GraphCheckpoint = { format: GRAPH_CHECKPOINT_FORMAT, nodes };
-		if (this.name !== undefined) checkpoint.name = this.name;
+		const name = graphRegistrations.get(this)!.name;
+		if (name !== undefined) checkpoint.name = name;
 		if (this._mounts.length > 0) {
 			checkpoint.mounts = this._mounts.map((m) => ({
 				at: m.at,
@@ -1134,6 +1121,7 @@ interface GraphRuntimeHost {
 	_topologyObserverSeq: number;
 	_topologyObservers: Map<number, TopologyObserver>;
 	_ensureMountedTopologyForwarders(): void;
+	_emitTopologyMountChanged(at: string): void;
 	_releaseMountedTopologyForwarders(): void;
 	_emitTopologyDepsChanged(
 		node: Node<unknown>,
@@ -1152,9 +1140,26 @@ interface GraphRuntimeHost {
 class GraphRegistration implements GraphLifecycleRegistrar {
 	readonly host: GraphRuntimeHost;
 	private owners?: Map<string, OwnedConstruction>;
-	constructor(readonly graph: Graph) {
+	constructor(
+		readonly graph: Graph,
+		readonly name?: string,
+	) {
 		this.host = graph as unknown as GraphRuntimeHost;
 	}
+	/** Embed a child graph addressable under `at`; mount is this package's own (R-graph-surface). */
+	mount(child: Graph, opts: { at: string }): void {
+		if (typeof opts.at !== "string" || opts.at.length === 0) {
+			throw new TypeError("mountGraph: at must be a non-empty string");
+		}
+		if (this.host._mounts.some((mounted) => mounted.at === opts.at)) {
+			throw new Error(`mountGraph: duplicate sibling mount id '${opts.at}'`);
+		}
+		const mount = { at: opts.at, graph: child };
+		this.host._mounts.push(mount);
+		if (this.host._topologyObservers.size > 0) this.host._ensureMountedTopologyForwarders();
+		this.host._emitTopologyMountChanged(opts.at);
+	}
+
 	get existingConstructions() {
 		return this.owners;
 	}

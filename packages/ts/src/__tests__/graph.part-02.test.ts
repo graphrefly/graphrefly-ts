@@ -4,6 +4,7 @@ import { releaseGraphNodes } from "../graph/graph.js";
 import { topologyGroup } from "../graph/graph-topology-group.js";
 import { graphProfile, observeTopology } from "../graph/inspect.js";
 import { renderSnapshot } from "../graph/render.js";
+import { mountGraph } from "../graph/topology.js";
 import type { Message, TopologyEvent } from "../index.js";
 import {
 	Dispatcher,
@@ -79,7 +80,7 @@ describe("observeTopology — read-only topology egress (D145)", () => {
 		const events: TopologyEvent[] = [];
 		const unsub = observeTopology(parent, "sub").subscribe((event) => events.push(event));
 
-		parent.mount(child, { at: "sub" });
+		mountGraph(parent, child, { at: "sub" });
 
 		unsub();
 		expect(events).toEqual([
@@ -92,7 +93,7 @@ describe("observeTopology — read-only topology egress (D145)", () => {
 	it("forwards mounted child topology events through mount-aware parent paths", () => {
 		const parent = graph();
 		const child = graph();
-		parent.mount(child, { at: "sub" });
+		mountGraph(parent, child, { at: "sub" });
 		const events: TopologyEvent[] = [];
 		const unsub = observeTopology(parent, "sub").subscribe((event) => events.push(event));
 
@@ -131,7 +132,7 @@ describe("observeTopology — read-only topology egress (D145)", () => {
 	it("stops forwarding mounted child topology events after parent unsubscribe", () => {
 		const parent = graph();
 		const child = graph();
-		parent.mount(child, { at: "sub" });
+		mountGraph(parent, child, { at: "sub" });
 		const events: TopologyEvent[] = [];
 		const unsub = observeTopology(parent).subscribe((event) => events.push(event));
 		unsub();
@@ -417,7 +418,7 @@ describe("Graph.checkpoint — data shape (R-checkpoint / D802, TS layout D178)"
 		count.set(5);
 		const child = graph({ name: "child" });
 		child.state(null, { name: "nil" });
-		parent.mount(child, { at: "child" });
+		mountGraph(parent, child, { at: "child" });
 
 		const checkpoint = parent.checkpoint();
 		expect(checkpoint.format).toBe(GRAPH_CHECKPOINT_FORMAT);
@@ -534,7 +535,7 @@ describe("Graph.checkpoint — data shape (R-checkpoint / D802, TS layout D178)"
 		expect(() => duplicate.state(2, { name: "same" })).toThrow(/duplicate node id/);
 
 		const cyclic = graph();
-		cyclic.mount(cyclic, { at: "self" });
+		mountGraph(cyclic, cyclic, { at: "self" });
 		expect(() => cyclic.checkpoint()).toThrow(/cyclic graph mount/);
 	});
 

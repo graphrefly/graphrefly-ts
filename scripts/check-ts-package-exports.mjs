@@ -30,6 +30,7 @@ const removedEcosystemSubpaths = [
 	"./adapters/vue",
 ];
 const expectedSubpaths = {
+	"./graph": { present: ["graphName", "mountGraph"], absent: [] },
 	"./adapters": {
 		present: [
 			"CanonicalProtobufError",
