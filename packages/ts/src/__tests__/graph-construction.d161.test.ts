@@ -404,7 +404,7 @@ describe("D161 graph construction ownership", () => {
 		expect(String(owner.startupError)).toBe("Error: deep handshake");
 		expect(subscriberCountOfNode(f.a)).toBe(3);
 		expect(subscriberCountOfNode(f.b)).toBe(1);
-		expect(nodeRuntimeHost(f.right)._dep.unsubs[1]).toBeTypeOf("function");
+		expect(nodeRuntimeHost(f.right)._dep.inputs[1].unsub).toBeTypeOf("function");
 		f.a.set(4);
 		expect(values).toEqual([2, 4]);
 	});

@@ -2,7 +2,7 @@ import { deferAfterBatchForTarget, request } from "../batch/batch.js";
 import { reportFailure } from "../batch/boundary.js";
 import type { NodeFn } from "../ctx/types.js";
 import { type Message, SENTINEL } from "../protocol/messages.js";
-import { makeDepBookkeeping } from "./core.js";
+import { type DepInput, makeDepBookkeeping, makeDepInput } from "./core.js";
 import type { Node } from "./node.js";
 import { nodeCallSink } from "./node-output-runtime.js";
 import type { NodeRuntimeHost } from "./node-runtime-host.js";
@@ -103,63 +103,44 @@ export function nodeRewire<T>(self: NodeRuntimeHost<T>, newDeps: Node<unknown>[]
 	self._wave.rewireRunPending = false;
 	let zeroDepUnDirty = false;
 	try {
+		const oldInputs = self._dep.inputs;
 		const removed = oldDeps.filter((d) => !newDeps.includes(d));
 		let removedDirtyContributor = false;
 		for (const d of removed) {
-			const oldIdx = oldDeps.indexOf(d);
-			if (self._dep.dirty[oldIdx]) {
+			const input = oldInputs[oldDeps.indexOf(d)];
+			if (input.dirty) {
 				removedDirtyContributor = true;
 				self._wave.pending--;
 			}
+			// drain: the record is its subscription's index box; any stale in-flight callback drops
+			input.idx = -1;
 			if (self._lifecycle.activated) {
-				const box = self._dep.idxBoxes[oldIdx];
-				if (box) box.v = -1; // drain: any stale in-flight callback drops
-				const unsub = self._dep.unsubs[oldIdx];
+				const unsub = input.unsub;
 				if (unsub) unsub(); // stops the removed dep's edge — no further delivery
 			}
 		}
 
-		// Rebuild per-dep parallel arrays in newDeps order; kept deps carry their state
-		// + subscription, added deps start fresh (R-request-order).
+		// Reorder the records to newDeps: a kept dep keeps its record (its state and subscription),
+		// pointed at its new index; an added dep gets a fresh one (R-request-order). The run's
+		// input starts over.
 		const n = newDeps.length;
-		const newBatch: Array<unknown[] | null> = new Array(n).fill(null);
-		const newPrev: unknown[] = new Array(n).fill(SENTINEL);
-		const newHasData: boolean[] = new Array(n).fill(false);
-		const newDirty: boolean[] = new Array(n).fill(false);
-		const newTier: number[] = new Array(n).fill(0);
-		const newTerminal: Array<true | unknown | undefined> = new Array(n).fill(undefined);
-		const newTerminalInput: Array<true | unknown | undefined> = new Array(n).fill(undefined);
-		const newUnsubs: Array<() => void> = new Array(n);
-		const newBoxes: Array<{ v: number }> = new Array(n);
+		const inputs: DepInput[] = [];
 		for (let j = 0; j < n; j++) {
 			const oldIdx = oldDeps.indexOf(newDeps[j]);
-			if (oldIdx !== -1) {
-				newBatch[j] = self._dep.batch[oldIdx];
-				newPrev[j] = self._dep.prev[oldIdx];
-				newHasData[j] = self._dep.hasData[oldIdx];
-				newDirty[j] = self._dep.dirty[oldIdx];
-				newTier[j] = self._dep.tier[oldIdx];
-				newTerminal[j] = self._dep.terminal[oldIdx];
-				newUnsubs[j] = self._dep.unsubs[oldIdx];
-				// carry the kept dep's subscription box and point it at the new index (O(1) reroute)
-				const box = self._dep.idxBoxes[oldIdx];
-				if (box) box.v = j;
-				newBoxes[j] = box;
+			if (oldIdx === -1) {
+				inputs.push(makeDepInput(j));
+				continue;
 			}
+			const input = oldInputs[oldIdx];
+			input.idx = j;
+			input.waveData = [];
+			input.waveLive = [];
+			input.terminalInput = undefined;
+			input.invalidated = false;
+			inputs.push(input);
 		}
 		self._slot.deps = newDeps;
-		self._dep.batch = newBatch;
-		self._dep.prev = newPrev;
-		self._dep.hasData = newHasData;
-		self._dep.dirty = newDirty;
-		self._dep.tier = newTier;
-		self._dep.terminal = newTerminal;
-		self._dep.terminalInput = newTerminalInput;
-		self._dep.invalidated = new Array(n).fill(false);
-		self._dep.unsubs = newUnsubs;
-		self._dep.idxBoxes = newBoxes;
-		self._dep.waveData = newDeps.map(() => []);
-		self._dep.waveLive = newDeps.map(() => []);
+		self._dep.inputs = inputs;
 		self._syncCtx = null;
 
 		// Subscribe added deps — push-on-subscribe (R-subscription) delivers a cached
@@ -264,8 +245,15 @@ function nodeApplyReplace<T>(
 	lifetime.cleanup = undefined;
 	lifetime.setupDone = false;
 	const oldDeps = self._slot.deps;
-	const oldUnsubs = self._dep.unsubs;
-	for (const box of self._dep.idxBoxes) if (box) box.v = -1;
+	const oldInputs = self._dep.inputs;
+	const oldUnsubs: Array<() => void> = [];
+	for (let i = 0; i < oldInputs.length; i++) {
+		const input = oldInputs[i];
+		input.idx = -1;
+		if (input.unsub === undefined) continue;
+		oldUnsubs.push(input.unsub);
+		input.unsub = undefined;
+	}
 	// The new instance.
 	const oldHandle = self._slot.handle;
 	self._slot.handle = self._slot.dispatcher.register(fn, self._slot.pool);
@@ -293,7 +281,7 @@ function nodeApplyReplace<T>(
 		}
 		self._wave.rewireRunPending = false;
 	}
-	for (const u of oldUnsubs) u?.();
+	for (const u of oldUnsubs) u();
 	if (cleanup !== undefined) {
 		lifetime.closing = true;
 		try {

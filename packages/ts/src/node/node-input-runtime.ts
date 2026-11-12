@@ -1,6 +1,7 @@
 import type { Handle } from "../dispatcher/index.js";
 import type { Message, Wave } from "../protocol/messages.js";
 import { errorPayload, isTerminal, SENTINEL } from "../protocol/messages.js";
+import type { DepInput } from "./core.js";
 import { nodeDeferQuietOutput } from "./node-context-runtime.js";
 import {
 	isMarking,
@@ -13,11 +14,11 @@ import {
 import type { NodeRuntimeHost } from "./node-runtime-host.js";
 import { withRunningGraph } from "./runtime-accessors.js";
 
-/** R-wave: a new input array on dependency `idx`; a snapshot's array is not a live wave. */
-function nodeOpenDepWave<T>(self: NodeRuntimeHost<T>, idx: number, live: boolean): unknown[] {
+/** R-wave: a new input array on a dependency's record; a snapshot's array is not a live wave. */
+function nodeOpenDepWave(input: DepInput, live: boolean): unknown[] {
 	const wave: unknown[] = [];
-	self._dep.waveData[idx].push(wave);
-	self._dep.waveLive[idx].push(live);
+	input.waveData.push(wave);
+	input.waveLive.push(live);
 	return wave;
 }
 
@@ -36,6 +37,7 @@ export function nodeReceiveFromDep<T>(
 	// Q15: a call straight from a delivery or marking loop continues that loop instead of recursing.
 	const tail = takeTailCall();
 	if (self._released) return;
+	const input = self._dep.inputs[idx];
 	// Whether the delivery's last message settled this input; only then may the node run.
 	let settled = false;
 	for (let a = 0; a < arrays.length; a++) {
@@ -48,14 +50,14 @@ export function nodeReceiveFromDep<T>(
 			const t = msg[0];
 			if (t === "START") {
 				// R-subscription: a new instance of this dependency (a replace) starts its record over.
-				self._dep.waveData[idx] = [];
-				self._dep.waveLive[idx] = [];
-				self._dep.batch[idx] = null;
-				self._dep.prev[idx] = SENTINEL;
-				self._dep.hasData[idx] = false;
-				self._dep.terminal[idx] = undefined;
-				self._dep.terminalInput[idx] = undefined;
-				self._dep.invalidated[idx] = false;
+				input.waveData = [];
+				input.waveLive = [];
+				input.batch = null;
+				input.prev = SENTINEL;
+				input.hasData = false;
+				input.terminal = undefined;
+				input.terminalInput = undefined;
+				input.invalidated = false;
 				wave = null;
 				continue;
 			}
@@ -63,10 +65,9 @@ export function nodeReceiveFromDep<T>(
 			if (self._value.terminal !== undefined) continue;
 
 			if (t === "PENDING") {
-				if (!self._dep.dirty[idx]) {
-					self._dep.dirty[idx] = true;
+				if (!input.dirty) {
+					input.dirty = true;
 					self._wave.pending++;
-					self._dep.tier[idx] = 2;
 					nodeMarkDirty(self, tail === TAIL_MARK);
 				}
 				continue;
@@ -74,38 +75,36 @@ export function nodeReceiveFromDep<T>(
 
 			if (t === "DATA") {
 				const v = msg[1];
-				if (wave === null) wave = nodeOpenDepWave(self, idx, !snapshot);
+				if (wave === null) wave = nodeOpenDepWave(input, !snapshot);
 				wave.push(v);
-				const b = self._dep.batch[idx];
-				if (b === null) self._dep.batch[idx] = [v];
+				const b = input.batch;
+				if (b === null) input.batch = [v];
 				else b.push(v);
-				self._dep.prev[idx] = v;
-				self._dep.hasData[idx] = true;
-				self._dep.tier[idx] = 3;
+				input.prev = v;
+				input.hasData = true;
 			} else if (t === "RESOLVED") {
-				if (wave === null) wave = nodeOpenDepWave(self, idx, !snapshot);
-				self._dep.tier[idx] = 3;
+				if (wave === null) wave = nodeOpenDepWave(input, !snapshot);
 			} else if (t === "INVALIDATE") {
 				// R-invalidation: what came before an INVALIDATE on this input is gone, and what comes
 				// after it is ordinary input. What it does to this node is decided once the wave settles.
-				self._dep.waveData[idx] = [];
-				self._dep.waveLive[idx] = [];
-				self._dep.batch[idx] = null;
-				self._dep.prev[idx] = SENTINEL;
-				self._dep.hasData[idx] = false;
-				self._dep.invalidated[idx] = true;
+				input.waveData = [];
+				input.waveLive = [];
+				input.batch = null;
+				input.prev = SENTINEL;
+				input.hasData = false;
+				input.invalidated = true;
 				wave = null;
 			} else if (isTerminal(t)) {
 				// R-terminals: record the dependency's end; the policies are applied once the wave
 				// settles.
 				const ended = t === "ERROR" ? (msg as readonly ["ERROR", unknown])[1] : true;
-				self._dep.terminal[idx] = ended;
-				self._dep.terminalInput[idx] = ended;
+				input.terminal = ended;
+				input.terminalInput = ended;
 			} else continue;
 			// R-wave: DATA, RESOLVED, INVALIDATE and a terminal each settle this input's pending mark
 			// once.
-			if (self._dep.dirty[idx]) {
-				self._dep.dirty[idx] = false;
+			if (input.dirty) {
+				input.dirty = false;
 				self._wave.pending--;
 			}
 			settled = true;
@@ -172,12 +171,26 @@ export function nodeSettle<T>(self: NodeRuntimeHost<T>, force: boolean, tail = f
 	if (self._value.terminal !== undefined || self._released) return;
 	const wasDirty = self._wave.emittedDirtyThisWave;
 	const n = self._slot.deps.length;
-	const anyInvalidated = self._dep.invalidated.some((b) => b);
+	const inputs = self._dep.inputs;
+	let anyInvalidated = false;
+	for (let i = 0; i < inputs.length; i++) {
+		if (inputs[i].invalidated) {
+			anyInvalidated = true;
+			break;
+		}
+	}
 
 	if (self._slot.errorPolicy === "auto") {
-		const at = self._dep.terminalInput.findIndex((t) => t !== undefined && t !== true);
+		let at = -1;
+		for (let i = 0; i < inputs.length; i++) {
+			const t = inputs[i].terminalInput;
+			if (t !== undefined && t !== true) {
+				at = i;
+				break;
+			}
+		}
 		if (at >= 0) {
-			const error = self._dep.terminalInput[at];
+			const error = inputs[at].terminalInput;
 			nodeConsumeInput(self);
 			const end: Message[][] = [];
 			if (anyInvalidated && self._value.hasData) end.push([["INVALIDATE"]]);
@@ -193,21 +206,30 @@ export function nodeSettle<T>(self: NodeRuntimeHost<T>, force: boolean, tail = f
 			: [];
 
 	let out: Message[][] = [];
-	const allEnded = n > 0 && self._dep.terminal.every((t) => t !== undefined);
+	let allEnded = n > 0;
+	for (let i = 0; allEnded && i < inputs.length; i++) {
+		if (inputs[i].terminal === undefined) allEnded = false;
+	}
 	if (self._slot.handle !== null) {
 		// graphrefly-ts:D184 (the user's Q1): the kernel has no first-run gate; a function runs on
 		// activation and on any input, and the value-level sugar keeps its own gate.
-		const manualTerminal = self._dep.terminalInput.some(
-			(t) => t !== undefined && nodeTerminalPolicy(self, t) === "manual",
-		);
-		const lastTerminal =
-			self._slot.completePolicy === "auto" &&
-			allEnded &&
-			self._dep.terminalInput.some((t) => t !== undefined);
+		let anyTerminalInput = false;
+		let manualTerminal = false;
+		let anyWave = false;
+		for (let i = 0; i < inputs.length; i++) {
+			const input = inputs[i];
+			const t = input.terminalInput;
+			if (t !== undefined) {
+				anyTerminalInput = true;
+				if (nodeTerminalPolicy(self, t) === "manual") manualTerminal = true;
+			}
+			if (input.waveData.length > 0) anyWave = true;
+		}
+		const lastTerminal = self._slot.completePolicy === "auto" && allEnded && anyTerminalInput;
 		const runs =
 			force ||
 			!self._lifetime.setupDone ||
-			self._dep.waveData.some((w) => w.length > 0) ||
+			anyWave ||
 			manualTerminal ||
 			lastTerminal ||
 			(anyInvalidated && self._slot.invalidatePolicy === "manual");
@@ -222,12 +244,14 @@ export function nodeSettle<T>(self: NodeRuntimeHost<T>, force: boolean, tail = f
 
 /** The input a settlement consumed. */
 function nodeConsumeInput<T>(self: NodeRuntimeHost<T>): void {
-	for (let i = 0; i < self._dep.batch.length; i++) {
-		self._dep.batch[i] = null;
-		self._dep.waveData[i] = [];
-		self._dep.waveLive[i] = [];
-		self._dep.terminalInput[i] = undefined;
-		self._dep.invalidated[i] = false;
+	const inputs = self._dep.inputs;
+	for (let i = 0; i < inputs.length; i++) {
+		const input = inputs[i];
+		input.batch = null;
+		input.waveData = [];
+		input.waveLive = [];
+		input.terminalInput = undefined;
+		input.invalidated = false;
 	}
 }
 

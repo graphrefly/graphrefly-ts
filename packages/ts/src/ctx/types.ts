@@ -28,7 +28,8 @@ export type Sink = (msgs: Wave) => void;
 export type DependentSink = (arrays: readonly Wave[], snapshot: boolean) => void;
 
 export interface CtxDepWaveOrigin {
-	readonly live: readonly (readonly boolean[])[];
+	/** For each array dependency `depIndex` delivered in the run, whether it came live. */
+	readonly live: (depIndex: number) => readonly boolean[] | undefined;
 }
 
 const ctxDepWaveOrigins = new WeakMap<Ctx, CtxDepWaveOrigin>();
@@ -162,7 +163,7 @@ export type NodeFn = (ctx: Ctx) => void;
 /** Internal adapter helper: the waves dependency `depIndex` delivered live, not as a snapshot. */
 export function depLiveWaves(ctx: Ctx, depIndex: number): readonly (readonly unknown[])[] {
 	const waves = ctx.deps[depIndex]?.waves ?? [];
-	const live = ctxDepWaveOrigins.get(ctx)?.live[depIndex] ?? [];
+	const live = ctxDepWaveOrigins.get(ctx)?.live(depIndex) ?? [];
 	return waves.filter((_, index) => live[index]);
 }
 

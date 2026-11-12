@@ -1,6 +1,6 @@
 import { enterWave, exitWave, reportFailure } from "../batch/boundary.js";
 import { type Message, SENTINEL } from "../protocol/messages.js";
-import { makeDepBookkeeping, type Subscriber } from "./core.js";
+import { makeDepBookkeeping, makeDepInput, type Subscriber } from "./core.js";
 import type { Node } from "./node.js";
 import { nodeCallSink } from "./node-output-runtime.js";
 import { type NodeRuntimeHost, nodeRuntimeHost } from "./node-runtime-host.js";
@@ -143,8 +143,8 @@ function stepActivation(f: Activation): void {
 function beginActivation(f: Activation): void {
 	const self = f.self;
 	self._lifecycle.activated = true;
-	self._dep.unsubs = new Array(self._slot.deps.length);
-	self._dep.idxBoxes = new Array(self._slot.deps.length);
+	const inputs = self._dep.inputs;
+	for (let i = 0; i < inputs.length; i++) inputs[i].unsub = undefined;
 	// R-lifetime: activation acquires every dependency, then runs the function once on their
 	// snapshots (and whatever they sent as they activated).
 	self._wave.activating = true;
@@ -254,20 +254,18 @@ interface DepLink {
 }
 
 function nodeDepLink<T>(self: NodeRuntimeHost<T>, depNode: Node<unknown>): DepLink {
+	// The dependency's record is the subscription's index box: a rewire re-points its idx.
 	const idx0 = self._slot.deps.indexOf(depNode);
-	const box = { v: idx0 };
+	const input = idx0 === -1 ? makeDepInput(-1) : self._dep.inputs[idx0];
 	const dependent: import("../ctx/types.js").DependentSink = (arrays, snapshot) => {
-		if (box.v === -1) return; // dep removed — stale callback, drop (drain)
-		self._receiveFromDep(box.v, arrays, snapshot);
+		if (input.idx === -1) return; // dep removed — stale callback, drop (drain)
+		self._receiveFromDep(input.idx, arrays, snapshot);
 	};
 	return {
 		subscriber: { kind: "dependent", fn: dependent },
 		acquisition: {
 			record: (release) => {
-				if (idx0 !== -1) {
-					self._dep.unsubs[idx0] = release;
-					self._dep.idxBoxes[idx0] = box;
-				}
+				if (idx0 !== -1) input.unsub = release;
 			},
 		},
 	};
@@ -332,9 +330,14 @@ function beginTeardown(
 				onError(error, "deactivation");
 			}
 	}
-	const unsubs = self._dep.unsubs;
-	self._dep.unsubs = [];
-	self._dep.idxBoxes = [];
+	const inputs = self._dep.inputs;
+	const unsubs: Array<() => void> = [];
+	for (let i = 0; i < inputs.length; i++) {
+		const input = inputs[i];
+		if (input.unsub === undefined) continue;
+		unsubs.push(input.unsub);
+		input.unsub = undefined;
+	}
 	return { self, kind, onError, unsubs, i: 0, controller, cleanup };
 }
 
@@ -479,7 +482,7 @@ export function nodeIsRuntimeQuiescentForRelease<T>(self: NodeRuntimeHost<T>): b
 		!self._wave.insideRunWave &&
 		!self._wave.inDepMutation &&
 		!self._wave.rewireRunPending &&
-		self._dep.dirty.every((dirty) => !dirty)
+		self._dep.inputs.every((input) => !input.dirty)
 	);
 }
 
@@ -514,15 +517,7 @@ export function nodeReleaseRuntime<T>(self: NodeRuntimeHost<T>): void {
 		}
 	}
 	self._slot.deps = [];
-	self._dep.batch = [];
-	self._dep.waveData = [];
-	self._dep.waveLive = [];
-	self._dep.prev = [];
-	self._dep.hasData = [];
-	self._dep.dirty = [];
-	self._dep.tier = [];
-	self._dep.terminal = [];
-	self._dep.terminalInput = [];
+	self._dep.inputs = [];
 	self._value.cache = SENTINEL;
 	self._value.hasData = false;
 	self._value.terminal = undefined;
@@ -544,18 +539,18 @@ export function nodeReleaseRuntime<T>(self: NodeRuntimeHost<T>): void {
 }
 
 export function nodeResetDepState<T>(self: NodeRuntimeHost<T>): void {
-	const n = self._slot.deps.length;
-	for (let i = 0; i < n; i++) {
-		self._dep.batch[i] = null;
-		self._dep.waveData[i] = [];
-		self._dep.waveLive[i] = [];
-		self._dep.prev[i] = SENTINEL;
-		self._dep.hasData[i] = false;
-		self._dep.dirty[i] = false;
-		self._dep.tier[i] = 0;
-		self._dep.terminal[i] = undefined;
-		self._dep.terminalInput[i] = undefined;
-		self._dep.invalidated[i] = false;
+	const inputs = self._dep.inputs;
+	for (let i = 0; i < inputs.length; i++) {
+		const input = inputs[i];
+		input.batch = null;
+		input.waveData = [];
+		input.waveLive = [];
+		input.prev = SENTINEL;
+		input.hasData = false;
+		input.dirty = false;
+		input.terminal = undefined;
+		input.terminalInput = undefined;
+		input.invalidated = false;
 	}
 	self._wave.pending = 0;
 	self._wave.emittedDirtyThisWave = false;

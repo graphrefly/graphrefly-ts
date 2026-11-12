@@ -9,20 +9,34 @@ import type { NodeAcquisition } from "./owned-acquisition.js";
 
 export type NodeId = number & { readonly __nodeId: unique symbol };
 
-export interface DepBookkeeping {
-	batch: Array<unknown[] | null>;
-	waveData: unknown[][][];
-	waveLive: boolean[][];
-	prev: unknown[];
-	hasData: boolean[];
-	dirty: boolean[];
-	tier: number[];
-	terminal: Array<true | unknown | undefined>;
-	terminalInput: Array<true | unknown | undefined>;
+/**
+ * One dependency's input record. Created only by `makeDepInput`, with every field set, so every
+ * record has one shape. The record is also the dependency subscription's index box: its delivery
+ * callback reads `idx`, which a rewire points at the dependency's new position and sets to -1 when
+ * the dependency is removed (a stale in-flight callback then drops).
+ */
+export interface DepInput {
+	/** The dependency's position in the node's current dependencies; -1 once it has been removed. */
+	idx: number;
+	batch: unknown[] | null;
+	/** The input arrays of the current run, each an array of its DATA values. */
+	waveData: unknown[][];
+	/** For each array in `waveData`, whether it came live, not as a snapshot. */
+	waveLive: boolean[];
+	prev: unknown;
+	hasData: boolean;
+	dirty: boolean;
+	terminal: true | unknown | undefined;
+	terminalInput: true | unknown | undefined;
 	/** Under the manual INVALIDATE policy: an INVALIDATE arrived on this input in this run. */
-	invalidated: boolean[];
-	unsubs: Array<() => void>;
-	idxBoxes: Array<{ v: number }>;
+	invalidated: boolean;
+	/** The release of the dependency subscription while the node is active. */
+	unsub: (() => void) | undefined;
+}
+
+export interface DepBookkeeping {
+	/** One record per dependency, in the order of the node's current dependencies. */
+	inputs: DepInput[];
 }
 
 export interface ValueState<T> {
@@ -212,32 +226,24 @@ export class NodeCore {
 	}
 }
 
-export function makeDepBookkeeping(depCount: number): DepBookkeeping {
-	const dep: DepBookkeeping = {
-		batch: new Array(depCount),
-		waveData: new Array(depCount),
-		waveLive: new Array(depCount),
-		prev: new Array(depCount),
-		hasData: new Array(depCount),
-		dirty: new Array(depCount),
-		tier: new Array(depCount),
-		terminal: new Array(depCount),
-		terminalInput: new Array(depCount),
-		invalidated: new Array(depCount),
-		unsubs: [],
-		idxBoxes: [],
+export function makeDepInput(idx: number): DepInput {
+	return {
+		idx,
+		batch: null,
+		waveData: [],
+		waveLive: [],
+		prev: SENTINEL,
+		hasData: false,
+		dirty: false,
+		terminal: undefined,
+		terminalInput: undefined,
+		invalidated: false,
+		unsub: undefined,
 	};
-	for (let i = 0; i < depCount; i++) {
-		dep.batch[i] = null;
-		dep.waveData[i] = [];
-		dep.waveLive[i] = [];
-		dep.prev[i] = SENTINEL;
-		dep.hasData[i] = false;
-		dep.dirty[i] = false;
-		dep.tier[i] = 0;
-		dep.terminal[i] = undefined;
-		dep.terminalInput[i] = undefined;
-		dep.invalidated[i] = false;
-	}
-	return dep;
+}
+
+export function makeDepBookkeeping(depCount: number): DepBookkeeping {
+	const inputs: DepInput[] = [];
+	for (let i = 0; i < depCount; i++) inputs.push(makeDepInput(i));
+	return { inputs };
 }

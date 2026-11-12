@@ -36,14 +36,24 @@ export function nodeBuildCtx<T>(self: NodeRuntimeHost<T>): Ctx {
 		return self._syncCtx;
 	}
 	// async: snapshot dep inputs so a deferred late-emit reads this wave's view.
-	return self._makeCtx({
-		waveData: self._dep.waveData.map((waves) => waves.map((w) => [...w])),
-		waveLive: self._dep.waveLive.map((waves) => [...waves]),
-		terminal: [...self._dep.terminalInput],
-		invalidated: nodeInvalidatedView(self),
-		latest: [...self._dep.prev],
-		has: [...self._dep.hasData],
-	});
+	const inputs = self._dep.inputs;
+	const manual = self._slot.invalidatePolicy === "manual";
+	const waveData: unknown[][][] = [];
+	const waveLive: boolean[][] = [];
+	const terminal: unknown[] = [];
+	const invalidated: boolean[] = [];
+	const latest: unknown[] = [];
+	const has: boolean[] = [];
+	for (let i = 0; i < inputs.length; i++) {
+		const input = inputs[i];
+		waveData.push(input.waveData.map((w) => [...w]));
+		waveLive.push([...input.waveLive]);
+		terminal.push(input.terminalInput);
+		invalidated.push(manual && input.invalidated);
+		latest.push(input.prev);
+		has.push(input.hasData);
+	}
+	return self._makeCtx({ waveData, waveLive, terminal, invalidated, latest, has });
 }
 
 /** What a ctx's dependency views read: the node's live inputs, or an async run's snapshot. */
@@ -80,22 +90,26 @@ function makeDepView<T>(self: NodeRuntimeHost<T>, index: number, snapshot?: DepI
 			return id;
 		},
 		get waves() {
-			const arrays = (snapshot ?? self._dep).waveData[index];
+			const arrays = snapshot ? snapshot.waveData[index] : self._dep.inputs[index]?.waveData;
 			if (arrays === undefined || arrays.length === 0) return NO_WAVES;
 			return arrays.map((a) => (a.includes(SENTINEL) ? a.filter((v) => v !== SENTINEL) : a));
 		},
 		get terminal() {
-			return depTerminalOf(snapshot ? snapshot.terminal[index] : self._dep.terminalInput[index]);
+			return depTerminalOf(
+				snapshot ? snapshot.terminal[index] : self._dep.inputs[index]?.terminalInput,
+			);
 		},
 		get value() {
-			return snapshot ? snapshot.latest[index] : self._dep.prev[index];
+			return snapshot ? snapshot.latest[index] : self._dep.inputs[index]?.prev;
 		},
 		get has() {
-			return (snapshot ? snapshot.has[index] : self._dep.hasData[index]) === true;
+			return (snapshot ? snapshot.has[index] : self._dep.inputs[index]?.hasData) === true;
 		},
 		get invalidated() {
 			if (snapshot) return snapshot.invalidated[index] === true;
-			return self._slot.invalidatePolicy === "manual" && self._dep.invalidated[index] === true;
+			return (
+				self._slot.invalidatePolicy === "manual" && self._dep.inputs[index]?.invalidated === true
+			);
 		},
 	};
 }
@@ -176,7 +190,15 @@ export function nodeMakeCtx<T>(
 			rewireDiffNow: (add, remove) => nodeApplyRewireDiff(self, signal, add, remove),
 		},
 	};
-	setCtxDepWaveOrigin(ctx, { live: snapshot?.waveLive ?? self._dep.waveLive });
+	// The live flags of each dependency's arrays: an async run's snapshot, or the node's live
+	// inputs, which a reused sync ctx reads as its views do, so it needs no refresh.
+	const live = snapshot?.waveLive;
+	setCtxDepWaveOrigin(ctx, {
+		live:
+			live === undefined
+				? (depIndex) => self._dep.inputs[depIndex]?.waveLive
+				: (depIndex) => live[depIndex],
+	});
 	return ctx;
 }
 
@@ -190,13 +212,6 @@ export function nodeRefreshCtx<T>(self: NodeRuntimeHost<T>, ctx: Ctx): void {
 	// The views read the node's live inputs; only a rewire changes how many there are.
 	if (ctx.deps.length !== self._slot.deps.length)
 		(ctx as { deps: readonly CtxDep[] }).deps = makeDepViews(self);
-	setCtxDepWaveOrigin(ctx, { live: self._dep.waveLive });
-}
-
-function nodeInvalidatedView<T>(self: NodeRuntimeHost<T>): boolean[] {
-	return self._slot.invalidatePolicy === "manual"
-		? [...self._dep.invalidated]
-		: self._dep.invalidated.map(() => false);
 }
 
 /** R-lifetime: whether `signal` is the node's current lifetime (also while its cleanup runs). */
