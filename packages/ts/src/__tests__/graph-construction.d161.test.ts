@@ -727,9 +727,9 @@ describe("D161 graph construction ownership", () => {
 				subscriber.kind === "dependent"
 					? {
 							kind: "dependent",
-							fn: (m, d) => {
-								if (m[0] === "START") throw new Error("rewire handshake");
-								subscriber.fn(m, d);
+							fn: (arrays, snapshot) => {
+								if (arrays[0]?.[0]?.[0] === "START") throw new Error("rewire handshake");
+								subscriber.fn(arrays, snapshot);
 							},
 						}
 					: subscriber,

@@ -12,7 +12,6 @@ export type NodeId = number & { readonly __nodeId: unique symbol };
 export interface DepBookkeeping {
 	batch: Array<unknown[] | null>;
 	waveData: unknown[][][];
-	waveTokens: Array<object | undefined>;
 	waveLive: boolean[][];
 	prev: unknown[];
 	hasData: boolean[];
@@ -72,7 +71,7 @@ export interface SyncCtxState {
 	value: Ctx | null;
 }
 
-/** A subscriber: an external sink gets whole arrays, a dependent gets messages plus delivery. */
+/** A subscriber: an external sink gets each array, a dependent each delivery's arrays at once. */
 export type Subscriber =
 	| { readonly kind: "sink"; readonly fn: Sink }
 	| { readonly kind: "dependent"; readonly fn: DependentSink };
@@ -217,7 +216,6 @@ export function makeDepBookkeeping(depCount: number): DepBookkeeping {
 	const dep: DepBookkeeping = {
 		batch: new Array(depCount),
 		waveData: new Array(depCount),
-		waveTokens: new Array(depCount),
 		waveLive: new Array(depCount),
 		prev: new Array(depCount),
 		hasData: new Array(depCount),
@@ -232,7 +230,6 @@ export function makeDepBookkeeping(depCount: number): DepBookkeeping {
 	for (let i = 0; i < depCount; i++) {
 		dep.batch[i] = null;
 		dep.waveData[i] = [];
-		dep.waveTokens[i] = undefined;
 		dep.waveLive[i] = [];
 		dep.prev[i] = SENTINEL;
 		dep.hasData[i] = false;

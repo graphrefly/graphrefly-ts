@@ -1,4 +1,4 @@
-import type { Ctx, CtxState, DeliveryMeta } from "../ctx/types.js";
+import type { Ctx, CtxState } from "../ctx/types.js";
 import type { Message, Wave } from "../protocol/messages.js";
 import type {
 	DepBookkeeping,
@@ -44,8 +44,7 @@ export interface NodeRuntimeHost<T = unknown> {
 	_isRuntimeQuiescentForRelease(): boolean;
 	_releaseRuntime(): void;
 	_resetDepState(): void;
-	_recordDepProjection(idx: number, delivery: DeliveryMeta | undefined): unknown[];
-	_receiveFromDep(idx: number, msg: Message, delivery?: DeliveryMeta): void;
+	_receiveFromDep(idx: number, arrays: readonly Wave[], snapshot: boolean): void;
 	_markDirty(): void;
 	_maybeRun(): void;
 	_settleRewire(): void;

@@ -79,7 +79,7 @@ export function nodeDown<T>(self: NodeRuntimeHost<T>, msgs: Wave): void {
  * over the frames it pushes, so it is finished when it returns, as before.
  */
 const NOT_TAIL = 0;
-/** Set by the delivery loop just before it hands a dependent a message. */
+/** Set by the delivery loop just before it hands a dependent its delivery. */
 export const TAIL_DELIVERY = 1;
 /** Set by the marking loop just before it hands a dependent its PENDING. */
 export const TAIL_MARK = 2;
@@ -104,17 +104,19 @@ interface Delivery {
 	readonly out: readonly Message[][];
 	readonly subs: Subscriber[];
 	readonly ending: boolean;
-	/** Next subscriber, and the next array and message for a dependent. */
+	/** Next subscriber. */
 	si: number;
-	ai: number;
-	mi: number;
-	wave: object;
 	readonly after: SettleTail | undefined;
 	readonly rest: Message[][] | undefined;
 }
 
 const deliveries: Delivery[] = [];
-const NO_WAVE: object = Object.freeze({});
+
+/**
+ * R-wave: the kernel's pending mark, as a dependent receives it: one array, a bare PENDING. Not
+ * frozen, so a dependent's input reads it as it reads any delivery; nothing writes to it.
+ */
+const PENDING_MARK: readonly Wave[] = [[["PENDING"]]];
 
 /**
  * Apply arrays to what this node holds (value, last array, terminal, invalidation) and send what
@@ -212,9 +214,6 @@ function nodeBeginPublish<T>(
 		subs: [...self._lifecycle.subscribers],
 		ending,
 		si: 0,
-		ai: 0,
-		mi: 0,
-		wave: NO_WAVE,
 		after,
 		rest,
 	};
@@ -247,46 +246,28 @@ function nodeFinishPublish(d: Delivery): void {
 }
 
 /**
- * One step of a delivery: every sink up to the next dependent message, then that message. Returns
- * false once every subscriber has had it (or the node was released).
+ * One step of a delivery: every sink up to the next dependent, then that dependent's delivery.
+ * Returns false once every subscriber has had it (or the node was released).
  */
 function nodeDeliverStep(d: Delivery): boolean {
 	const self = d.self;
 	const out = d.out;
-	for (;;) {
-		if (d.si >= d.subs.length) return false;
-		const sub = d.subs[d.si] as Subscriber;
-		if (d.ai === 0 && d.mi === 0) {
-			if (self._released) return false;
-			if (sub.kind === "sink") {
-				for (const array of out) nodeCallSink(self, sub, [["PENDING"], ...array]);
-				d.si++;
-				continue;
-			}
-			d.wave = {};
+	while (d.si < d.subs.length) {
+		if (self._released) return false;
+		const sub = d.subs[d.si++] as Subscriber;
+		if (sub.kind === "sink") {
+			for (const array of out) nodeCallSink(self, sub, [["PENDING"], ...array]);
+			continue;
 		}
-		// One delivery: each array is an input array of its own, and the dependent settles once,
-		// after the last of them.
-		const array = out[d.ai] as Message[];
-		const i = d.mi;
-		const lastArray = d.ai === out.length - 1;
-		const wave = d.wave;
-		const last = lastArray && i === array.length - 1;
-		if (i + 1 < array.length) d.mi = i + 1;
-		else if (lastArray) {
-			d.mi = 0;
-			d.ai = 0;
-			d.si++;
-		} else {
-			d.mi = 0;
-			d.ai++;
-			d.wave = {};
-		}
+		// One delivery: the dependent gets every array, each an input array of its own, and
+		// settles once, after the last of them. Only that settling publishes, so its publication is
+		// a frame on top of this one (Q15).
 		tailCall = TAIL_DELIVERY;
-		(sub as Subscriber & { kind: "dependent" }).fn(array[i] as Message, { wave, last });
+		sub.fn(out, false);
 		tailCall = NOT_TAIL;
 		return true;
 	}
+	return false;
 }
 
 /**
@@ -331,7 +312,7 @@ export function nodeMarkDependents<T>(self: NodeRuntimeHost<T>, tail = false): v
 			const sub = top.subs[top.i++] as Subscriber;
 			if (sub.kind !== "dependent") continue;
 			tailCall = TAIL_MARK;
-			sub.fn(["PENDING"]);
+			sub.fn(PENDING_MARK, false);
 			tailCall = NOT_TAIL;
 		}
 	} catch (error) {

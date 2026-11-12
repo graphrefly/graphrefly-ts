@@ -14,7 +14,7 @@
  */
 
 import { currentBatch, DeferredWrite, request, stageToBatch } from "../batch/batch.js";
-import type { Ctx, CtxState, DeliveryMeta, NodeFn, Sink } from "../ctx/types.js";
+import type { Ctx, CtxState, NodeFn, Sink } from "../ctx/types.js";
 import { defaultDispatcher, type Handle } from "../dispatcher/index.js";
 import { EnvironmentDrivers } from "../graph/environment.js";
 import { type Message, SENTINEL, type Wave } from "../protocol/messages.js";
@@ -42,7 +42,6 @@ import {
 	nodeMarkDirty,
 	nodeMaybeRun,
 	nodeReceiveFromDep,
-	nodeRecordDepProjection,
 	nodeSettle,
 	nodeSettleRewire,
 	nodeTryRun,
@@ -158,7 +157,6 @@ export class Node<T = unknown> {
 		void node._reachableUpstream;
 		void node._assertRewireDepOwner;
 		void node._subscribeDepAt;
-		void node._recordDepProjection;
 		void node._receiveFromDep;
 		void node._markDirty;
 		void node._maybeRun;
@@ -491,12 +489,8 @@ export class Node<T = unknown> {
 		nodeSubscribeDepAt(nodeRuntimeHost(this), depNode);
 	}
 
-	private _recordDepProjection(idx: number, delivery: DeliveryMeta | undefined): unknown[] {
-		return nodeRecordDepProjection(nodeRuntimeHost(this), idx, delivery);
-	}
-
-	private _receiveFromDep(idx: number, msg: Message, delivery?: DeliveryMeta): void {
-		nodeReceiveFromDep(nodeRuntimeHost(this), idx, msg, delivery);
+	private _receiveFromDep(idx: number, arrays: readonly Wave[], snapshot: boolean): void {
+		nodeReceiveFromDep(nodeRuntimeHost(this), idx, arrays, snapshot);
 	}
 
 	private _markDirty(): void {

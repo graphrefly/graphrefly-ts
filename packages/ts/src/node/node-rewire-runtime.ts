@@ -159,7 +159,6 @@ export function nodeRewire<T>(self: NodeRuntimeHost<T>, newDeps: Node<unknown>[]
 		self._dep.unsubs = newUnsubs;
 		self._dep.idxBoxes = newBoxes;
 		self._dep.waveData = newDeps.map(() => []);
-		self._dep.waveTokens = new Array(newDeps.length).fill(undefined);
 		self._dep.waveLive = newDeps.map(() => []);
 		self._syncCtx = null;
 
@@ -329,11 +328,7 @@ function nodeApplyReplace<T>(
 	const start: Message[] = [["START"], ...snapshot];
 	for (const sub of [...subscribers]) {
 		if (sub.kind === "sink") nodeCallSink(self, sub, start);
-		else {
-			const wave = {};
-			for (let i = 0; i < start.length; i++)
-				sub.fn(start[i] as Message, { wave, last: i === start.length - 1, snapshot: true });
-		}
+		else sub.fn([start], true);
 	}
 }
 

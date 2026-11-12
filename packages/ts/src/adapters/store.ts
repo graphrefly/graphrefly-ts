@@ -6,7 +6,7 @@
  * (D125/D238).
  */
 
-import type { DeliveryMeta, Sink } from "../ctx/types.js";
+import type { Sink } from "../ctx/types.js";
 import type { Node } from "../node/node.js";
 
 /** A minimal readable store contract shared by Svelte/Nanostores-style adapters. */

@@ -9,7 +9,7 @@
 import type { Dispatcher } from "../dispatcher/index.js";
 import type { EnvironmentDrivers } from "../graph/environment.js";
 import type { Node } from "../node/node.js";
-import { type Message, SENTINEL, type Wave } from "../protocol/messages.js";
+import { SENTINEL, type Wave } from "../protocol/messages.js";
 
 /**
  * A downstream sink (graphrefly-ts:D175): called once per array the node sends, with the whole
@@ -19,19 +19,13 @@ import { type Message, SENTINEL, type Wave } from "../protocol/messages.js";
 export type Sink = (msgs: Wave) => void;
 
 /**
- * @internal A dependent node's connection to one dependency: it receives each message with the
- * array it belongs to (`wave` is one token per array, `last` marks its end); `snapshot` marks the
- * snapshot a new dependent receives, which is not a live wave. A bare PENDING with no delivery is
- * the kernel's pending mark, sent ahead of the values through the whole cone (R-wave).
+ * @internal A dependent node's connection to one dependency: one call per delivery, with every
+ * array the dependency publishes for the wave, in order; each array is an input array of its own
+ * and the delivery ends with the call. `snapshot` marks the START array a new dependent receives,
+ * which is not a live wave. A single array holding a bare PENDING is the kernel's pending mark,
+ * sent ahead of the values through the whole cone (R-wave).
  */
-export type DependentSink = (msg: Message, delivery?: DeliveryMeta) => void;
-
-/** Internal delivery metadata used to preserve the upstream `ctx.down(msgs)` wave boundary. */
-export interface DeliveryMeta {
-	readonly wave: object;
-	readonly last: boolean;
-	readonly snapshot?: boolean;
-}
+export type DependentSink = (arrays: readonly Wave[], snapshot: boolean) => void;
 
 export interface CtxDepWaveOrigin {
 	readonly live: readonly (readonly boolean[])[];

@@ -1,6 +1,5 @@
-import type { DeliveryMeta } from "../ctx/types.js";
 import type { Handle } from "../dispatcher/index.js";
-import type { Message } from "../protocol/messages.js";
+import type { Message, Wave } from "../protocol/messages.js";
 import { errorPayload, isTerminal, SENTINEL } from "../protocol/messages.js";
 import { nodeDeferQuietOutput } from "./node-context-runtime.js";
 import {
@@ -14,93 +13,106 @@ import {
 import type { NodeRuntimeHost } from "./node-runtime-host.js";
 import { withRunningGraph } from "./runtime-accessors.js";
 
-export function nodeRecordDepProjection<T>(
-	self: NodeRuntimeHost<T>,
-	idx: number,
-	delivery: DeliveryMeta | undefined,
-): unknown[] {
-	const token = delivery?.wave ?? {};
-	if (self._dep.waveTokens[idx] !== token) {
-		self._dep.waveData[idx].push([]);
-		// A snapshot (what a new dependent receives at subscription) is not a live wave.
-		self._dep.waveLive[idx].push(delivery !== undefined && delivery.snapshot !== true);
-		self._dep.waveTokens[idx] = token;
-	}
-	return self._dep.waveData[idx][self._dep.waveData[idx].length - 1];
+/** R-wave: a new input array on dependency `idx`; a snapshot's array is not a live wave. */
+function nodeOpenDepWave<T>(self: NodeRuntimeHost<T>, idx: number, live: boolean): unknown[] {
+	const wave: unknown[] = [];
+	self._dep.waveData[idx].push(wave);
+	self._dep.waveLive[idx].push(live);
+	return wave;
 }
 
+/**
+ * One delivery from dependency `idx`: all of its arrays for the wave, each an input array of its
+ * own, and the node settles once, after the last message. `snapshot` marks what a new dependent
+ * receives at subscription (START and the retained values), which is not a live wave. A single
+ * array holding a bare PENDING is the kernel's pending mark.
+ */
 export function nodeReceiveFromDep<T>(
 	self: NodeRuntimeHost<T>,
 	idx: number,
-	msg: Message,
-	delivery?: DeliveryMeta,
+	arrays: readonly Wave[],
+	snapshot: boolean,
 ): void {
 	// Q15: a call straight from a delivery or marking loop continues that loop instead of recursing.
 	const tail = takeTailCall();
 	if (self._released) return;
-	const t = msg[0];
-	if (t === "START") {
-		// R-subscription: a new instance of this dependency (a replace) starts its record over.
-		self._dep.waveData[idx] = [];
-		self._dep.waveLive[idx] = [];
-		self._dep.waveTokens[idx] = undefined;
-		self._dep.batch[idx] = null;
-		self._dep.prev[idx] = SENTINEL;
-		self._dep.hasData[idx] = false;
-		self._dep.terminal[idx] = undefined;
-		self._dep.terminalInput[idx] = undefined;
-		self._dep.invalidated[idx] = false;
-		return;
-	}
-	// R-terminals: an ended node's function never runs again; its input is dropped.
-	if (self._value.terminal !== undefined) return;
-	const last = delivery?.last ?? true;
+	// Whether the delivery's last message settled this input; only then may the node run.
+	let settled = false;
+	for (let a = 0; a < arrays.length; a++) {
+		const array = arrays[a] as Wave;
+		// The array's input record, opened at its first DATA or RESOLVED.
+		let wave: unknown[] | null = null;
+		for (let i = 0; i < array.length; i++) {
+			const msg = array[i] as Message;
+			settled = false;
+			const t = msg[0];
+			if (t === "START") {
+				// R-subscription: a new instance of this dependency (a replace) starts its record over.
+				self._dep.waveData[idx] = [];
+				self._dep.waveLive[idx] = [];
+				self._dep.batch[idx] = null;
+				self._dep.prev[idx] = SENTINEL;
+				self._dep.hasData[idx] = false;
+				self._dep.terminal[idx] = undefined;
+				self._dep.terminalInput[idx] = undefined;
+				self._dep.invalidated[idx] = false;
+				wave = null;
+				continue;
+			}
+			// R-terminals: an ended node's function never runs again; its input is dropped.
+			if (self._value.terminal !== undefined) continue;
 
-	if (t === "PENDING") {
-		if (!self._dep.dirty[idx]) {
-			self._dep.dirty[idx] = true;
-			self._wave.pending++;
-			self._dep.tier[idx] = 2;
-			nodeMarkDirty(self, tail === TAIL_MARK);
+			if (t === "PENDING") {
+				if (!self._dep.dirty[idx]) {
+					self._dep.dirty[idx] = true;
+					self._wave.pending++;
+					self._dep.tier[idx] = 2;
+					nodeMarkDirty(self, tail === TAIL_MARK);
+				}
+				continue;
+			}
+
+			if (t === "DATA") {
+				const v = msg[1];
+				if (wave === null) wave = nodeOpenDepWave(self, idx, !snapshot);
+				wave.push(v);
+				const b = self._dep.batch[idx];
+				if (b === null) self._dep.batch[idx] = [v];
+				else b.push(v);
+				self._dep.prev[idx] = v;
+				self._dep.hasData[idx] = true;
+				self._dep.tier[idx] = 3;
+			} else if (t === "RESOLVED") {
+				if (wave === null) wave = nodeOpenDepWave(self, idx, !snapshot);
+				self._dep.tier[idx] = 3;
+			} else if (t === "INVALIDATE") {
+				// R-invalidation: what came before an INVALIDATE on this input is gone, and what comes
+				// after it is ordinary input. What it does to this node is decided once the wave settles.
+				self._dep.waveData[idx] = [];
+				self._dep.waveLive[idx] = [];
+				self._dep.batch[idx] = null;
+				self._dep.prev[idx] = SENTINEL;
+				self._dep.hasData[idx] = false;
+				self._dep.invalidated[idx] = true;
+				wave = null;
+			} else if (isTerminal(t)) {
+				// R-terminals: record the dependency's end; the policies are applied once the wave
+				// settles.
+				const ended = t === "ERROR" ? (msg as readonly ["ERROR", unknown])[1] : true;
+				self._dep.terminal[idx] = ended;
+				self._dep.terminalInput[idx] = ended;
+			} else continue;
+			// R-wave: DATA, RESOLVED, INVALIDATE and a terminal each settle this input's pending mark
+			// once.
+			if (self._dep.dirty[idx]) {
+				self._dep.dirty[idx] = false;
+				self._wave.pending--;
+			}
+			settled = true;
 		}
-		return;
-	}
-
-	if (t === "DATA") {
-		const v = msg[1];
-		self._recordDepProjection(idx, delivery).push(v);
-		const b = self._dep.batch[idx];
-		if (b === null) self._dep.batch[idx] = [v];
-		else b.push(v);
-		self._dep.prev[idx] = v;
-		self._dep.hasData[idx] = true;
-		self._dep.tier[idx] = 3;
-	} else if (t === "RESOLVED") {
-		self._recordDepProjection(idx, delivery);
-		self._dep.tier[idx] = 3;
-	} else if (t === "INVALIDATE") {
-		// R-invalidation: what came before an INVALIDATE on this input is gone, and what comes
-		// after it is ordinary input. What it does to this node is decided once the wave settles.
-		self._dep.waveData[idx] = [];
-		self._dep.waveLive[idx] = [];
-		self._dep.waveTokens[idx] = undefined;
-		self._dep.batch[idx] = null;
-		self._dep.prev[idx] = SENTINEL;
-		self._dep.hasData[idx] = false;
-		self._dep.invalidated[idx] = true;
-	} else if (isTerminal(t)) {
-		// R-terminals: record the dependency's end; the policies are applied once the wave settles.
-		const ended = t === "ERROR" ? (msg as readonly ["ERROR", unknown])[1] : true;
-		self._dep.terminal[idx] = ended;
-		self._dep.terminalInput[idx] = ended;
-	} else return;
-	// R-wave: DATA, RESOLVED, INVALIDATE and a terminal each settle this input's pending mark once.
-	if (self._dep.dirty[idx]) {
-		self._dep.dirty[idx] = false;
-		self._wave.pending--;
 	}
 	// A delivery is all of a node's arrays for the wave; the node settles once, at its end.
-	if (last) nodeMaybeRun(self, tail === TAIL_DELIVERY);
+	if (settled) nodeMaybeRun(self, tail === TAIL_DELIVERY);
 }
 
 export function nodeMarkDirty<T>(self: NodeRuntimeHost<T>, tail = false): void {
@@ -213,7 +225,6 @@ function nodeConsumeInput<T>(self: NodeRuntimeHost<T>): void {
 	for (let i = 0; i < self._dep.batch.length; i++) {
 		self._dep.batch[i] = null;
 		self._dep.waveData[i] = [];
-		self._dep.waveTokens[i] = undefined;
 		self._dep.waveLive[i] = [];
 		self._dep.terminalInput[i] = undefined;
 		self._dep.invalidated[i] = false;

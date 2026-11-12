@@ -184,9 +184,7 @@ function attachSubscriber(f: Activation, subscriber: Subscriber): void {
 	// handshake throws is not subscribed, unless an owned acquisition records the lease for its
 	// owner to release (D161).
 	f.handshake = true;
-	const wave = {};
-	for (let i = 0; i < start.length; i++)
-		subscriber.fn(start[i] as Message, { wave, last: i === start.length - 1, snapshot: true });
+	subscriber.fn([start], true);
 	f.handshake = false;
 }
 
@@ -258,9 +256,9 @@ interface DepLink {
 function nodeDepLink<T>(self: NodeRuntimeHost<T>, depNode: Node<unknown>): DepLink {
 	const idx0 = self._slot.deps.indexOf(depNode);
 	const box = { v: idx0 };
-	const dependent: import("../ctx/types.js").DependentSink = (msg, delivery) => {
+	const dependent: import("../ctx/types.js").DependentSink = (arrays, snapshot) => {
 		if (box.v === -1) return; // dep removed — stale callback, drop (drain)
-		self._receiveFromDep(box.v, msg, delivery);
+		self._receiveFromDep(box.v, arrays, snapshot);
 	};
 	return {
 		subscriber: { kind: "dependent", fn: dependent },
@@ -518,7 +516,6 @@ export function nodeReleaseRuntime<T>(self: NodeRuntimeHost<T>): void {
 	self._slot.deps = [];
 	self._dep.batch = [];
 	self._dep.waveData = [];
-	self._dep.waveTokens = [];
 	self._dep.waveLive = [];
 	self._dep.prev = [];
 	self._dep.hasData = [];
@@ -551,7 +548,6 @@ export function nodeResetDepState<T>(self: NodeRuntimeHost<T>): void {
 	for (let i = 0; i < n; i++) {
 		self._dep.batch[i] = null;
 		self._dep.waveData[i] = [];
-		self._dep.waveTokens[i] = undefined;
 		self._dep.waveLive[i] = [];
 		self._dep.prev[i] = SENTINEL;
 		self._dep.hasData[i] = false;
