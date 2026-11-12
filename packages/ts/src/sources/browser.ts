@@ -213,7 +213,7 @@ export function fromIDBRequest<T>(request: IDBRequestLike<T>): Operator<never, T
  * Wrap an IndexedDB transaction lifecycle as a terminal-only source.
  *
  * Success emits COMPLETE without DATA: undefined is the TypeScript SENTINEL and cannot be a DATA
- * payload under R-data-payload.
+ * payload under R-messages.
  * @param transaction - transaction value used by the helper.
  * @returns A Operator<never, never> value for the boundary or adapter.
  * @category sources

@@ -2,11 +2,12 @@
  * Async + sync sources (binding-layer sugar, D43 / D40 / feedback_async_sources_binding_layer).
  *
  * Sources are depless {@link Operator}`<never, T>` specs built on the `producer`/`node` path:
- * the body runs ONCE on activation (node `_activate`), schedules its work, and emits later via
- * the captured `ctx.down` (an external tier-3 emit → the leading PENDING is synthesized for it,
- * R-dirty-before-data). Async lives ONLY here (R-no-raw-async / F-SYNC-CORE): `setTimeout` /
- * `Promise` / `for await` are confined to source bodies; the wave core stays sync. Cleanup is
- * `ctx.onDeactivation` (D28), NOT a returned object. Per-language (D6/D24), never in parity.
+ * the work is the node's lifetime setup, which runs once per activation, schedules its work, and
+ * emits later via the captured `ctx.down`; each later call starts its own wave, and the kernel
+ * puts PENDING at the head of the array (R-wave). Async lives ONLY here (R-no-raw-async /
+ * F-SYNC-CORE): `setTimeout` / `Promise` / `for await` are confined to source bodies; the wave
+ * core stays sync. Cleanup is the function the setup returns (R-lifetime). Per-language
+ * (D6/D24), never in parity.
  *
  * Instantiate via `g.initNode(timer(1000), [])` (graph-bound, inspectable) or
  * {@link initNode}(timer(1000), []) (bare). Pool defaults (D43): timer/interval = sync;

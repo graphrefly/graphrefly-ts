@@ -1,9 +1,11 @@
 /**
  * A graph's batch (R-request-order, R-graph-domain@3).
  *
- * A batch body runs at once and delivers nothing; its writes to the graph's nodes commit as one
- * array per node in one wave. Success commits; a throw discards (R-request-order). The open
- * batch lives on the graph's wave domain, so graphs share no batch (graphrefly:D803).
+ * A batch body runs at once, also during a wave, and delivers nothing; when it returns, its host
+ * inputs commit as one wave, one array per node, and its topology requests then run in order. The
+ * commit is a request, so during a wave it waits like the others. A body that throws commits
+ * nothing and drops its requests (R-request-order). The open batch lives on the graph's wave
+ * domain, so graphs share no batch (graphrefly:D803).
  */
 
 import type { NodeCore } from "../node/core.js";
@@ -60,10 +62,9 @@ export function currentBoundaryBatchToken(core: NodeCore): object | undefined {
 }
 
 /**
- * Defer a node's tier-3 settle slice into the active batch. Returns true if a batch
- * captured it; false if there is no active batch (caller emits normally).
+ * Stage a node's whole array for the commit (the caller passes what is staged so far plus more).
+ * Returns false when no batch is open, so the caller sends normally.
  */
-/** Stage a node's whole array for the commit (the caller passes what is staged so far plus more). */
 export function deferToBatch(core: NodeCore, target: BatchTarget, wave: Wave): boolean {
 	const active = activeOf(core);
 	if (active === null) return false;

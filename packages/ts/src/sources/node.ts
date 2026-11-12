@@ -201,7 +201,7 @@ function scanFiles(
  * fromFSWatch: Node.js filesystem watcher source.
  *
  * External fs callbacks are a source boundary (R-no-raw-async): events enter the graph only via
- * `ctx.down`, and cleanup is tied to node deactivation through `ctx.onDeactivation`.
+ * `ctx.down`, and cleanup is the function its setup returns, run when the lifetime closes (R-lifetime).
  * @param paths - paths value used by the helper.
  * @param opts - Options that configure the helper.
  * @returns A Operator<never, FSEvent> value for the boundary or adapter.

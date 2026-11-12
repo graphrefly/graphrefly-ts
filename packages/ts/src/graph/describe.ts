@@ -49,7 +49,7 @@ export interface GraphTopologySnapshot {
 }
 
 export interface InspectNode extends GraphTopologyNode {
-	/** R-status-enum (7). */
+	/** The node's derived status: cache, output and lifecycle (R-node). */
 	status: Status;
 	/** Cache snapshot at call time; field ABSENT = SENTINEL / never-emitted. */
 	value?: unknown;

@@ -2,7 +2,7 @@
  * Wall-clock time operators (CSP-2.7 / D52 / B23). Authored as COMPOSITIONS over the already-active
  * higher-order *Map machinery (D47) + the `timer` source — NO raw `setTimeout` in any operator body
  * (R-no-raw-async / check-no-raw-async; `setTimeout` stays confined to `sources.ts`'s `timer`). The
- * timer source's `onDeactivation` clearTimeout IS the reset/cancel: switchMap's rewire away on a new
+ * timer source's lifetime cleanup (its clearTimeout) IS the reset/cancel: switchMap's rewire away on a new
  * source value tears the in-flight timer down (the declarative equivalent of the frozen reference's
  * imperative clearTimeout-then-setTimeout). Per-language (D6/D24), never in parity.
  *
@@ -13,7 +13,7 @@
  *
  * Behavior on source COMPLETE (per-operator, NOT a uniform DROP): debounce EMITs its
  * pending trailing value — switchMap does not cancel the in-flight inner on source COMPLETE (only a
- * superseding source value cancels it via rewire away→onDeactivation→clearTimeout), so the timer still
+ * superseding source value cancels it via rewire away → lifetime cleanup → clearTimeout), so the timer still
  * fires at `ms`, emits the debounced value, and only THEN does the operator COMPLETE (RxJS
  * debounceTime parity). delay emits every still-pending delayed value then COMPLETEs (mergeMap keeps
  * all inners). throttle has NO trailing value (leading-edge only, RxJS default
@@ -89,7 +89,7 @@ export function delay<S>(ms: number): Operator<S, S> {
 
 /**
  * debounce: emit the latest value only after `ms` of quiet. `switchMap`
- * cancels the prior timer (its onDeactivation clearTimeout) on each new source value and restarts —
+ * cancels the prior timer (its lifetime cleanup's clearTimeout) on each new source value and restarts —
  * the declarative debounce.
  *
  * RxJS-7 divergence (reference rxjs@7.8, B44): RxJS `debounceTime` FLUSHES the pending value
@@ -266,11 +266,11 @@ interface TimeoutState {
  * is why this is a HELPER returning a Node, not a `g.initNode(op, [source])` operator.
  *
  * Each source value forwards as-is and RESETS the idle timer (rewire away the current `timer(ms)`,
- * rewire to a fresh one — its `onDeactivation` clearTimeout cancels the prior countdown). The timer
+ * rewire to a fresh one — its lifetime cleanup's clearTimeout cancels the prior countdown). The timer
  * firing (its DATA/COMPLETE) is the timeout → `[[ERROR]]`. Source COMPLETE forwards COMPLETE (no
  * error) and removes the idle timer during the terminal wave (D62 terminal-drains-queued-rewire);
  * a source ERROR forwards likewise. The idle timer is also torn down when the consumer unsubscribes
- * (timeout deactivates → dep unsub → timer onDeactivation). Self-catching (D30).
+ * (timeout deactivates → dep unsub → the timer's lifetime cleanup). Self-catching (D30).
  * @param source - Source node that provides graph-visible input.
  * @param ms - Duration or timestamp in milliseconds.
  * @returns A `Node<S>` value.

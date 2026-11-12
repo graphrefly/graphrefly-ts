@@ -1,5 +1,5 @@
 /**
- * Wave-protocol message types and the tier const table.
+ * The message types, the SENTINEL and the payload checks.
  *
  * Canonical authority: ~/src/graphrefly/spec/rules.jsonl
  *   R-messages, R-wave, R-sentinel (the D797 kernel set, graphrefly:D798/D799).
@@ -19,7 +19,7 @@ export type Message =
 	| readonly ["COMPLETE"]
 	| readonly ["ERROR", unknown];
 
-/** One array of messages delivered in one call = one Wave (R-wave-boundary). */
+/** One array of messages, as one `ctx.down` call sends it and a sink receives it (R-wave). */
 export type Wave = readonly Message[];
 
 /** The message-type tag (the first tuple element). */
@@ -31,7 +31,7 @@ export type MessageType = Message[0];
  */
 export const SENTINEL = undefined;
 
-/** R-data-payload: ERROR payloads must not collide with terminal metadata shorthand.
+/** Whether `v` is not a valid ERROR payload: SENTINEL or a boolean (R-messages).
  * @param v - v value used by the helper.
  * @returns `true` when the value matches the expected shape.
  * @category core
@@ -44,7 +44,7 @@ export function isInvalidErrorPayload(v: unknown): boolean {
 	return v === SENTINEL || typeof v === "boolean";
 }
 
-/** R-data-payload / D78: host-language failures that are not a valid ERROR payload become diagnostics.
+/** A host failure that is not a valid ERROR payload becomes an Error diagnostic (R-messages, D78).
  * @param reason - reason value used by the helper.
  * @param fallback - fallback value used by the helper.
  * @returns The error payload result.

@@ -147,13 +147,13 @@ describe("C-42: the message set is closed and nothing travels upstream", () => {
 			for (const message of incoming) s.sink(message);
 		});
 		expect(() => a.set(undefined as unknown as number)).toThrow(
-			"down: DATA requires a non-SENTINEL payload (R-data-payload)",
+			"down: DATA requires a non-SENTINEL payload (R-messages)",
 		);
 		expect(() => a.error(undefined)).toThrow(
-			"down: ERROR requires a non-SENTINEL, non-boolean payload (R-data-payload)",
+			"down: ERROR requires a non-SENTINEL, non-boolean payload (R-messages)",
 		);
 		expect(() => a.error(false)).toThrow(
-			"down: ERROR requires a non-SENTINEL, non-boolean payload (R-data-payload)",
+			"down: ERROR requires a non-SENTINEL, non-boolean payload (R-messages)",
 		);
 		expect(a.cache).toBe(1);
 		a.set(2);
@@ -174,7 +174,7 @@ describe("C-42: the message set is closed and nothing travels upstream", () => {
 		for (const [attempt, message] of [
 			...Object.entries(retired).map(
 				([type, wave]) =>
-					[wave, `down: ${type} is not in the closed message-type set (R-msg-closed-set)`] as const,
+					[wave, `down: ${type} is not in the closed message-type set (R-messages)`] as const,
 			),
 			...(["START", "PENDING", "RESOLVED"] as const).map(
 				(type) =>

@@ -1,7 +1,7 @@
 /**
  * Higher-order operators — switchMap / mergeMap / concatMap / exhaustMap / flatMap
- * (D47 / R-rewire-deferred / CSP-2.7). Per-language sugar (D6/D24); built on the deferred
- * self-rewire substrate (ctx.rewireNext) + the g.initNode funnel (D43). Each test drives a
+ * (D47 / R-request-order / CSP-2.7). Per-language sugar (D6/D24); built on the node's own
+ * rewire (ctx.rewire, a request that runs after the wave) + the g.initNode funnel (D43). Each test drives a
  * controllable inner "subject" so the flatten policy + inner-lifecycle folding are observable.
  */
 
@@ -57,7 +57,7 @@ function subject(g: Graph) {
 	};
 }
 
-describe("mergeMap (D47 / R-rewire-deferred)", () => {
+describe("mergeMap (D47 / R-request-order)", () => {
 	it("binds coerced runtime inners to the owning graph dispatcher/core (B34b / D22)", () => {
 		const dispatcher = new CountingDispatcher();
 		const g = graph({ dispatcher });
@@ -595,7 +595,7 @@ describe("higher-order — describe (D39 / D51): real factory name + LIVE inner 
 		);
 		const snap = g.inspect();
 		const sw = snap.nodes.find((dn) => dn.id === "sw");
-		expect(sw?.factory).toBe("switchMap"); // D6/R-describe: REAL operator name, not "node"
+		expect(sw?.factory).toBe("switchMap"); // D6: REAL operator name, not "node"
 		expect(sw?.deps).toEqual(["src"]); // no inner wired yet — just the construction edge
 		expect(snap.edges).toContainEqual({ from: "src", to: "sw" });
 	});

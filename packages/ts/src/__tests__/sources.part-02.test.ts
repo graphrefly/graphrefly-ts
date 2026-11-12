@@ -475,7 +475,7 @@ describe("promise / iterable / coercion sources (D43)", () => {
 		expect(got).toEqual([[1, 2, 3]]);
 	});
 
-	it("fromAny treats null as a valid scalar DATA value (R-data-payload)", () => {
+	it("fromAny treats null as a valid scalar DATA value (R-messages)", () => {
 		const n = fromAny(graph(), null);
 		const msgs: Message[] = [];
 		n.subscribe((incoming) => {

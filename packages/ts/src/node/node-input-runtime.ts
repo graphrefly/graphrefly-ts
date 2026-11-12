@@ -116,10 +116,9 @@ export function nodeMarkDirty<T>(self: NodeRuntimeHost<T>, tail = false): void {
 }
 
 export function nodeMaybeRun<T>(self: NodeRuntimeHost<T>, tail = false): void {
-	// R-rewire: an added cached dep's push-on-subscribe lands here mid-mutation. Defer
-	// the fn-run to ONE atomic two-phase settle after every added dep is wired, so the
-	// fn never fires on a partially-populated added-dep view (multi-add) — _settleRewire
-	// drains this flag. R-lifetime: activation likewise runs the function once, on every
+	// R-request-order: an added dep's snapshot lands here mid-rewire. Defer the fn-run until
+	// every added dep is wired, so the function runs once on all the added snapshots as one
+	// input wave, never on a partial view (multi-add) — _settleRewire drains this flag. R-lifetime: activation likewise runs the function once, on every
 	// dependency's snapshot.
 	if (self._wave.inDepMutation || self._wave.activating) {
 		self._wave.rewireRunPending = true;

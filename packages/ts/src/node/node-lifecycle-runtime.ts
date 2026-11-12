@@ -122,9 +122,9 @@ function stepActivation(f: Activation, base: number): void {
 				return;
 			}
 			self._assertNotReleased("subscribe");
-			// Wave-owner boundary (R-rewire-deferred / D47): the activation cascade can run fns that
-			// issue ctx.rewire; the OUTERMOST exit drains them. Nested subscribes (dep wiring)
-			// just inc/dec the depth.
+			// Wave-owner boundary (R-request-order): the activation cascade can run fns that make
+			// requests such as ctx.rewire; they wait for the OUTERMOST exit, which runs them in
+			// order. Nested subscribes (dep wiring) just inc/dec the depth.
 			enterWave(self._core);
 			f.entered = true;
 			f.unsubscribe = makeUnsubscribe(self, f.subscriber);

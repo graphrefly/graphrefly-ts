@@ -6,7 +6,7 @@
  * (review #4): `has`/`get`/`rangeByPrimary` are SYNCHRONOUS point-reads over the backend's parallel
  * Map (NOT topology, like `.cache`); `byPrimary` is an OPTIONAL reactive derived over the delta
  * backbone (a pushed primary→value map), LAZILY created on first access (no default keepalive,
- * R-rom-ram). The two coexist: the derived is the reactive reverse-lookup port; the sync reads are
+ * R-lifetime). The two coexist: the derived is the reactive reverse-lookup port; the sync reads are
  * the point query.
  *
  * Per-language (D6/D24, never in parity, no conformance).
@@ -459,7 +459,7 @@ function createReactiveIndex<K, V = unknown>(
 	}
 
 	// Lazy reactive reverse-lookup port (Z): a delta-driven pushed primary→value map. Created on
-	// first access so an index that never uses it pays nothing (no keepalive — R-rom-ram).
+	// first access so an index that never uses it pays nothing (no keepalive — R-lifetime).
 	let byPrimaryNode: Node<ReadonlyMap<K, V>> | undefined;
 	function getByPrimary(): Node<ReadonlyMap<K, V>> {
 		if (byPrimaryNode === undefined) {

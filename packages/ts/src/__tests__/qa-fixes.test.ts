@@ -16,7 +16,7 @@ function collect(n: Subscribable) {
 const types = (msgs: Message[]) => msgs.map((m) => m[0]);
 
 describe("QA fixes", () => {
-	it("EC1: rejects bare/undefined DATA payload (R-data-payload)", () => {
+	it("EC1: rejects bare/undefined DATA payload (R-messages)", () => {
 		const g = graph();
 		const s = g.node<number>([], null, { initial: 1 });
 		collect(s);
@@ -39,7 +39,7 @@ describe("QA fixes", () => {
 	});
 
 	it("BH6: INVALIDATE clears the retained value (no stale push-on-subscribe)", () => {
-		// The node's retained value is the only thing a late subscriber is sent (R-push-subscribe);
+		// The node's retained value is the only thing a late subscriber is sent (R-subscription);
 		// there is no separate replay buffer.
 		const g = graph();
 		const s = g.node<number>([], null);
@@ -53,7 +53,7 @@ describe("QA fixes", () => {
 		expect(types(msgs)).toEqual(["START"]); // no stale DATA sent
 	});
 
-	it("WEDGE: a passthrough over a RESOLVED-only dep balances its PENDING (R-resolved-undirty / D49)", () => {
+	it("WEDGE: a passthrough over a RESOLVED-only dep balances its PENDING (R-wave / D49)", () => {
 		const g = graph();
 		// Regression for the D49-widened wedge: a passthrough wire (deps, no fn) that broadcast
 		// PENDING then receives an undirty RESOLVED from its dep (no DATA in the batch) must emit a

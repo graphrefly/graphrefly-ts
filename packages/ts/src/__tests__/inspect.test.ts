@@ -41,7 +41,7 @@ describe("observe — an ordinary subscriber, one event per array (R-graph-surfa
 	});
 });
 
-describe("profile — dispatcher-backed counters, never on the thin node (R-profile / D39)", () => {
+describe("profile — dispatcher-backed counters, never on the thin node (R-node-thin / D39)", () => {
 	it("counts invokes per node when profiling is enabled (opt-in)", () => {
 		const g = graph({ dispatcher: new Dispatcher(), profile: true });
 		const s = g.state(0, { name: "s" });

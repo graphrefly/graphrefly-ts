@@ -3,7 +3,7 @@ import type { Message, Wave } from "../index.js";
 import { assertPendingPrecedesTerminalData, graph } from "../index.js";
 
 describe("testing assertions", () => {
-	it("accepts a normal PENDING then DATA wave (R-dirty-before-data)", () => {
+	it("accepts a normal PENDING then DATA wave (R-wave)", () => {
 		const messages: Wave[] = [[["PENDING"], ["DATA", 1]]];
 		expect(() => assertPendingPrecedesTerminalData(messages)).not.toThrow();
 	});
@@ -36,7 +36,7 @@ describe("testing assertions", () => {
 
 	it("rejects DATA without a preceding PENDING outside the START handshake", () => {
 		const messages: Wave[] = [[["DATA", 1]]];
-		expect(() => assertPendingPrecedesTerminalData(messages)).toThrow(/R-dirty-before-data/);
+		expect(() => assertPendingPrecedesTerminalData(messages)).toThrow(/same wave \(R-wave\)/);
 	});
 
 	it("rejects a later wave DATA even when the previous wave had PENDING", () => {

@@ -385,8 +385,8 @@ describe("core operators (free-standing factories via g.initNode, D43/D6)", () =
 
 // CSP-2.7 catalog re-derive (D40): Slice 1 (single-dep transform/take/control) + Slice 3
 // (error-handling). Per-language sugar (D6/D24, never in parity). Terminal-emitting operators read
-// ctx.deps[0].terminal (R-deps-terminal). D49: every occurrence is DATA; a no-emit wave →
-// substrate-synthesized undirty RESOLVED.
+// ctx.deps[0].terminal (R-terminals). D49: every occurrence is DATA; a no-emit wave →
+// the kernel's RESOLVED (R-wave).
 describe("Slice 1 — single-dep transform/take/control (CSP-2.7)", () => {
 	it("reduce emits the final accumulator on source COMPLETE", () => {
 		const g = graph();

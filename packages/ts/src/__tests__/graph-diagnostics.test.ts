@@ -11,7 +11,7 @@ import {
 /** R-node@2 status of a synthetic node that holds nothing. */
 const EMPTY: Status = { cache: "empty", output: "open", lifecycle: "inactive" };
 
-describe("graph diagnostics over InspectSnapshot (D39/R-describe)", () => {
+describe("graph diagnostics over InspectSnapshot (D39)", () => {
 	it("reachable walks upstream, downstream, and max-depth frontiers deterministically", () => {
 		const g = graph();
 		const a = g.state(1, { name: "a" });

@@ -51,7 +51,7 @@ export function assertPendingPrecedesTerminalData(messages: MessageSequence): vo
 			if (type === "DATA" || type === "RESOLVED") {
 				if (!openedByPending) {
 					throw new Error(
-						`assertPendingPrecedesTerminalData: ${type} at wave ${waveIndex}, index ${msgIndex} arrived without a preceding PENDING in the same wave (R-dirty-before-data). Wave: ${describeWave(wave, msgIndex)}`,
+						`assertPendingPrecedesTerminalData: ${type} at wave ${waveIndex}, index ${msgIndex} arrived without a preceding PENDING in the same wave (R-wave). Wave: ${describeWave(wave, msgIndex)}`,
 					);
 				}
 				continue;

@@ -19,7 +19,10 @@ export interface Status {
 export type TerminalPolicy = "auto" | "manual";
 
 export interface NodeOptions<T = unknown> {
-	/** Pre-populate cache; source pushes [DATA, initial] on subscribe (R-initial). `null` is valid. */
+	/**
+	 * Pre-populate cache; a subscriber's first array is START then [DATA, initial]
+	 * (R-subscription). `null` is valid.
+	 */
 	initial?: T | null;
 	/**
 	 * COMPLETE policy (R-terminals). `"auto"` (the default): once every dependency has ended, the

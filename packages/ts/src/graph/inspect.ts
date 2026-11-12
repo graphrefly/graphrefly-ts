@@ -43,7 +43,7 @@ export interface TopologyStream {
 	subscribe(sink: (e: TopologyEvent) => void): () => void;
 }
 
-/** Per-node profile counters (D39). invokes/duration are dispatcher-backed (R-profile). */
+/** Per-node profile counters (D39). invokes/duration are dispatcher-backed. */
 export interface NodeProfile {
 	invokes: number;
 	totalDurationNs: number;

@@ -7,7 +7,7 @@
  * LRU + delete-reason; Index Z reverse-lookup; Log incremental view/scan + SENTINEL reject +
  * declared-dep merge), and real factory names (D6).
  *
- * Authority: ~/src/graphrefly/decisions/decisions.jsonl D54/D60, spec/rules.jsonl R-pull/R-rom-ram.
+ * Authority: ~/src/graphrefly/decisions/decisions.jsonl D54/D60, spec/rules.jsonl R-pull/R-lifetime.
  */
 
 import { describe, expect, it, vi } from "vitest";
@@ -221,7 +221,7 @@ describe("D54 Node<T> widening — in-graph producer drives the structure (decla
 		src.set(1);
 		src.set(2);
 		expect(data(msgs)).toEqual([
-			{ kind: "append", value: 0 }, // state node pushes its initial on subscribe (R-initial)
+			{ kind: "append", value: 0 }, // state node pushes its initial on subscribe (R-subscription)
 			{ kind: "append", value: 1 },
 			{ kind: "append", value: 2 },
 		]);

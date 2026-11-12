@@ -253,10 +253,10 @@ export function operatorNodeFn<TIn, TOut>(op: Operator<TIn, TOut>): NodeFn {
 
 // ── Slice 1 — single-dep map / take / control (CSP-2.7 catalog re-derive, D40) ──
 // All read dep 0 positionally + emit via ctx.down. Under D49 every occurrence is DATA (no
-// equals-absorption); a body that returns WITHOUT emitting gets a substrate-synthesized undirty
-// RESOLVED (R-resolved-undirty) — so a "skip this wave" is a bare `return`. Terminal-emitting
-// operators (reduce/last/find/elementAt) read `ctx.deps[0].terminal` via the
-// the manual COMPLETE policy flags (R-deps-terminal): the fn fires
+// equals-absorption); a body that returns WITHOUT emitting gets the kernel's RESOLVED (R-wave) —
+// so a "skip this wave" is a bare `return`. Terminal-emitting operators
+// (reduce/last/find/elementAt) read `ctx.deps[0].terminal` under the manual COMPLETE policy
+// (R-terminals): the fn fires
 // on the source's COMPLETE and emits its final value. NOT 1:1 pure-ts ports — the frozen reference
 // (D41) uses a producer + internal `subscribeOr`, the D45-banned describe island; these are
 // declared-dep nodes whose single edge `describe` shows truthfully.
@@ -777,7 +777,7 @@ export function tap<S>(fnOrObserver: ((v: S) => void) | TapObserver<S>): Operato
  * onFirstData: invoke `fn` exactly once on the first qualifying value (default
  * `where: v => v != null` — null/undefined pass through without counting as "first"), then pass all
  * values through unchanged. The one-shot guard is per-node `ctx.state` (NOT a factory closure, so a
- * second instantiation of the same factory re-arms — R-ctx-state).
+ * second instantiation of the same factory re-arms — R-invocation).
  * @param fn - Synchronous function invoked by the helper.
  * @param opts - Options that configure the helper.
  * @returns A `Operator<S, S>` value.
@@ -818,7 +818,7 @@ export interface SettleOpts<S> {
 	equals?: (a: S, b: S) => boolean;
 }
 
-/** Internal settle accumulator state (per-node, R-ctx-state). */
+/** Internal settle accumulator state (per-node, R-invocation). */
 interface SettleState<S> {
 	last?: S;
 	hasValue: boolean;
@@ -887,7 +887,7 @@ export function settle<S>(opts: SettleOpts<S>): Operator<S, S> {
 
 // ── Slice 3 — error-handling control (CSP-2.7, D40) ──
 // rescue ABSORBs the source ERROR (the manual ERROR policy) and read the error payload
-// from `ctx.deps[0].terminal` (R-deps-terminal). They set the manual COMPLETE policy so a
+// from `ctx.deps[0].terminal` (R-terminals). They set the manual COMPLETE policy so a
 // normal source COMPLETE is forwarded explicitly — which ALSO sidesteps B40 (the
 // completeWhenDepsComplete:true × absorbed-errored-dep auto-complete gap): there is no auto-complete
 // to block. valve is a [source, control] gate (state-verb-legitimate control input).
@@ -938,7 +938,7 @@ export interface ValveOpts {
 	 * Optional AbortController (or a `() => AbortController | undefined` factory): on the control's
 	 * truthy→falsy edge, `valve` calls `controller.abort()` — cancel an in-flight async boundary
 	 * (LLM/fetch) the caller threaded `controller.signal` into. An external-resource cleanup (like
-	 * `ctx.onDeactivation`), NOT an imperative reactive trigger (R-no-imperative).
+	 * a lifetime cleanup, R-lifetime), NOT an imperative reactive trigger (R-no-imperative).
 	 */
 	abortInFlight?: AbortController | (() => AbortController | undefined);
 }

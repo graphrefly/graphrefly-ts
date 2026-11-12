@@ -3,15 +3,13 @@ import { isInvalidErrorPayload, isMessageType, type Wave } from "../protocol/mes
 export function validateDownPayloads(msgs: Wave): void {
 	for (const m of msgs) {
 		if (!isMessageType(m[0])) {
-			throw new Error(
-				`down: ${String(m[0])} is not in the closed message-type set (R-msg-closed-set)`,
-			);
+			throw new Error(`down: ${String(m[0])} is not in the closed message-type set (R-messages)`);
 		}
 		if (m[0] === "DATA" && m[1] === undefined) {
-			throw new Error("down: DATA requires a non-SENTINEL payload (R-data-payload)");
+			throw new Error("down: DATA requires a non-SENTINEL payload (R-messages)");
 		}
 		if (m[0] === "ERROR" && isInvalidErrorPayload(m[1])) {
-			throw new Error("down: ERROR requires a non-SENTINEL, non-boolean payload (R-data-payload)");
+			throw new Error("down: ERROR requires a non-SENTINEL, non-boolean payload (R-messages)");
 		}
 	}
 }

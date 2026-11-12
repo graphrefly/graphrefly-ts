@@ -162,7 +162,7 @@ export function spendingAlertsGraph(opts: SpendingAlertsOptions = {}): SpendingA
 	);
 
 	// 2. Running per-vendor stats (mean / std). The accumulator is per-node
-	// graph state (R-ctx-state), so lifecycle/checkpoint behavior stays owned
+	// private state (R-invocation), so lifecycle/checkpoint behavior stays owned
 	// by the node rather than by a factory closure.
 	const vendorStats = graph.node<VendorStats>(
 		[txFeed],

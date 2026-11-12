@@ -17,7 +17,7 @@ function collect(n: Subscribable) {
 const types = (msgs: Message[]) => msgs.map((m) => m[0]);
 
 describe("state node (manual source)", () => {
-	it("push-on-subscribe delivers START then cached DATA (R-push-subscribe, R-initial)", () => {
+	it("push-on-subscribe delivers START then cached DATA (R-subscription)", () => {
 		const g = graph();
 		const s = g.node<number>([], null, { initial: 5 });
 		const { msgs } = collect(s);
@@ -35,7 +35,7 @@ describe("state node (manual source)", () => {
 		expect(s.status.cache).toBe("empty");
 	});
 
-	it("external down emits PENDING before DATA (R-dirty-before-data, two-phase)", () => {
+	it("a host set sends PENDING then DATA in one array (R-wave)", () => {
 		const g = graph();
 		const s = g.node<number>([], null, { initial: 1 });
 		const { msgs } = collect(s);
@@ -46,7 +46,7 @@ describe("state node (manual source)", () => {
 		expect(s.cache).toBe(2);
 	});
 
-	it("null is a valid DATA value (R-data-payload)", () => {
+	it("null is a valid DATA value (R-messages)", () => {
 		const g = graph();
 		const s = g.node<number | null>([], null, { initial: null });
 		const { msgs } = collect(s);
@@ -55,7 +55,7 @@ describe("state node (manual source)", () => {
 	});
 });
 
-describe("occurrences stay DATA (R-resolved-undirty / D49, supersedes R-equals)", () => {
+describe("occurrences stay DATA (R-wave / D49)", () => {
 	it("re-emitting the same value yields DATA, not RESOLVED (no equals-substitution)", () => {
 		const g = graph();
 		const s = g.node<number>([], null, { initial: 5 });
@@ -108,7 +108,7 @@ describe("compute node (derived)", () => {
 	});
 });
 
-describe("diamond (R-diamond, glitch-free join)", () => {
+describe("diamond (R-wave, glitch-free join)", () => {
 	it("join node computes exactly once per upstream change, after both deps settle", () => {
 		const g = graph();
 		let fireCount = 0;

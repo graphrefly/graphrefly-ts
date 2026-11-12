@@ -14,7 +14,7 @@ function collect(n: { subscribe(s: (m: Wave) => void): () => void }) {
 }
 const types = (msgs: Message[]) => msgs.map((m) => m[0]);
 
-describe("terminal (R-terminal, R-deps-terminal)", () => {
+describe("terminal (R-terminals)", () => {
 	it("auto-COMPLETE when ALL deps complete", () => {
 		const g = graph();
 		const a = g.node<number>([], null, { initial: 1 });
@@ -59,7 +59,7 @@ describe("terminal (R-terminal, R-deps-terminal)", () => {
 		expect(d.status.output).toBe("errored");
 	});
 
-	it("ERROR with undefined or boolean payload is rejected (R-data-payload)", () => {
+	it("ERROR with undefined or boolean payload is rejected (R-messages)", () => {
 		const g = graph();
 		const s = g.node<number>([], null, { initial: 1 });
 		collect(s);
@@ -147,7 +147,7 @@ describe("INVALIDATE (R-invalidation)", () => {
 	});
 });
 
-describe("same-wave merge (R-same-wave-merge)", () => {
+describe("array split at INVALIDATE (R-wave, R-invalidation)", () => {
 	it("an array is split at its last INVALIDATE; what came before it is dropped (R-wave)", () => {
 		const g = graph();
 		const s = g.node<number>([], null, { initial: 1 });
@@ -174,7 +174,7 @@ describe("same-wave merge (R-same-wave-merge)", () => {
 	});
 });
 
-describe("ROM/RAM + cleanup (R-rom-ram, R-cleanup-hooks)", () => {
+describe("ROM/RAM + cleanup (R-lifetime)", () => {
 	it("compute node clears cache on deactivation and runs its setup's cleanup", () => {
 		const g = graph();
 		const a = g.node<number>([], null, { initial: 1 });

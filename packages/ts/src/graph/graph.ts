@@ -1,7 +1,7 @@
 import { nodeOwnerForGraphUse, runtimeReleaseFailuresOfNode } from "../node/runtime-accessors.js";
 import type { OwnedConstruction } from "./construction-scope.js";
 /**
- * The Graph layer (CSP-2): convenience + inspection entry (D5 / R-graph-role).
+ * The Graph layer (CSP-2): convenience + inspection entry (D5 / R-graph-surface).
  *
  * g.* sugar desugars to dispatcher.register + Node and auto-registers into the graph
  * inspection index (D27: sugar→ctx-fn conversion lives strictly here; the substrate node
@@ -9,8 +9,8 @@ import type { OwnedConstruction } from "./construction-scope.js";
  * value-level throw→ERROR boundary. The bare node()/dispatcher stay inspection-free
  * (R-node-thin).
  *
- * Canonical authority: ~/src/graphrefly — D3/D5/D27/D30/D36/D37/D39, R-graph-role,
- * R-graph-surface, R-fn-contract, R-edges-derived, R-meta-presentation.
+ * Canonical authority: ~/src/graphrefly — D3/D5/D27/D30/D36/D37/D39, R-graph-surface,
+ * R-invocation, R-edges-derived, R-meta-presentation.
  */
 
 import { batchIn, currentBatch } from "../batch/batch.js";
@@ -422,7 +422,7 @@ export class Graph {
 	}
 
 	/**
-	 * ctx-level depless source; its fn runs on activation (R-rom-ram). With `opts.recipe` it is
+	 * ctx-level depless source; its fn runs on activation (R-lifetime). With `opts.recipe` it is
 	 * restorable: the registry entry under the recipe's ref gives this `fn` again, with no setup.
 	 */
 	producer<T = unknown>(fn: NodeFn, opts: SugarOpts<T> = {}): Node<T> {
@@ -523,7 +523,7 @@ export class Graph {
 		return result;
 	}
 
-	/** Embed a child graph addressable under `at` (R-mount; mount has no deps). */
+	/** Embed a child graph addressable under `at`; mount is this package's own (R-graph-surface). */
 	mount(child: Graph, opts: { at: string }): void {
 		if (typeof opts.at !== "string" || opts.at.length === 0) {
 			throw new TypeError("graph.mount: at must be a non-empty string");
@@ -936,9 +936,9 @@ export class Graph {
 	}
 
 	/**
-	 * profile() = accumulated-counter snapshot (R-profile / D39). invokes + duration are
-	 * dispatcher-backed (the invoke funnel, F-DISPATCH-ALL) — counters never live on the
-	 * thin node (R-node-thin). Requires `graph({ profile: true })` (opt-in, F-PERF).
+	 * profile() = accumulated-counter snapshot (D39; package-level, R-graph-surface). invokes +
+	 * duration are dispatcher-backed (the invoke funnel, F-DISPATCH-ALL) — counters never live on
+	 * the thin node (R-node-thin). Requires `graph({ profile: true })` (opt-in, F-PERF).
 	 */
 	profile(): Profile {
 		const nodes: Record<string, NodeProfile> = {};

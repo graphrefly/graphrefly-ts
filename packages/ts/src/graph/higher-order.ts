@@ -1,21 +1,21 @@
 /**
  * Higher-order operators — switchMap / mergeMap / concatMap / exhaustMap
- * (D47 / R-rewire-deferred / CSP-2.7; per-language sugar, D6/D24, never in parity).
+ * (D47 / R-request-order / CSP-2.7; per-language sugar, D6/D24, never in parity).
  *
  * Each projects every outer value to an INNER source and flattens the inners' emissions. The
- * inner sources are wired as runtime DEPS via the deferred-self-rewire substrate affordance
- * (`ctx.rewire`, D47) — NOT an internal subscribe (D45 bans that; it would create a describe
- * island). Growing/shrinking the dep set is deferred to the committed wave boundary, so a fn
- * never mutates its own topology mid-run (that is the D37 feedback-cycle ERROR). An inner that
- * COMPLETEs is `rewire away`'d → its source `_deactivate`s + fires `onDeactivation`: that is the
- * cancellation / abortInFlight basis (switchMap drops the superseded inner's WORK, not just its
+ * inner sources are wired as runtime DEPS through the node's own rewire (`ctx.rewire`) — NOT an
+ * internal subscribe (D45 bans that; it would create a describe island). A rewire is a request:
+ * it runs after the current wave ends (R-request-order), so a fn never changes its own
+ * dependencies mid-run. An inner that COMPLETEs is rewired away → the released source
+ * deactivates and runs its lifetime cleanup (R-lifetime): that is the cancellation /
+ * abortInFlight basis (switchMap drops the superseded inner's WORK, not just its
  * output; mergeMap bounds memory). Built on the bare `node` primitive via the {@link Operator}
  * factory shape + the `g.initNode` funnel (D43), so the real factory name shows in describe.
  *
  * Lifecycle folding (D47/D81): the manual COMPLETE and ERROR policies — the operator owns completion (emit COMPLETE only when the SOURCE is
  * done AND no inner is live / pending), and observes source/inner ERROR so it can remove every live
- * inner before emitting ERROR. Those removals drain after terminal via D62: terminal seals output,
- * while helper-owned upstream work still sees rewire away->_deactivate->onDeactivation teardown.
+ * inner before emitting ERROR. Ending closes the operator's lifetime, which releases every
+ * dependency, so each live inner still deactivates and runs its cleanup (R-lifetime).
  *
  * Alignment: each run issues REMOVES before ADDS so the per-node FIFO drain keeps the operator's
  * tracked inner list aligned with the live dep order across the intermediate boundary waves (a

@@ -100,7 +100,7 @@ describe("Graph — 8-verb sugar (CSP-2)", () => {
 	});
 });
 
-describe("Graph.describe — snapshot shape (R-describe / D39)", () => {
+describe("Graph.inspect — snapshot shape (D39)", () => {
 	it("emits a flat snapshot with ids, factory names, status, value, deps, edges", () => {
 		const g = graph({ name: "demo" });
 		const count = g.state(0, { name: "count" });

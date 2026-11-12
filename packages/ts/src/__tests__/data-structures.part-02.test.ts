@@ -7,7 +7,7 @@
  * LRU + delete-reason; Index Z reverse-lookup; Log incremental view/scan + SENTINEL reject +
  * declared-dep merge), and real factory names (D6).
  *
- * Authority: ~/src/graphrefly/decisions/decisions.jsonl D54/D60, spec/rules.jsonl R-pull/R-rom-ram.
+ * Authority: ~/src/graphrefly/decisions/decisions.jsonl D54/D60, spec/rules.jsonl R-pull/R-lifetime.
  */
 
 import { describe, expect, it } from "vitest";
@@ -652,7 +652,7 @@ describe("reactiveLog (D60 #5) — incremental view/scan + SENTINEL reject + dec
 		expect(data(msgs).at(-1)).toBe(5);
 	});
 
-	it("append(undefined) throws — undefined is the substrate SENTINEL (R-data-payload)", () => {
+	it("append(undefined) throws — undefined is the substrate SENTINEL (R-messages)", () => {
 		const g = graph();
 		const log = reactiveLog<number | undefined>(g);
 		expect(() => log.append(undefined)).toThrow(TypeError);

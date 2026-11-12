@@ -410,8 +410,7 @@ export function bridgePayloadError(payload: unknown, fallback: unknown): unknown
 export function rethrowGraphRuntimeInvariant(error: unknown): void {
 	const message = errorMessage(error);
 	if (
-		message.includes("R-reentrancy") ||
-		message.includes("R-rewire") ||
+		message.includes("R-request-order") ||
 		message.includes("R-graph-domain") ||
 		message.includes("D37") ||
 		message.includes("D22") ||

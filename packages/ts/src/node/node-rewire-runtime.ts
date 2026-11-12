@@ -120,7 +120,7 @@ export function nodeRewire<T>(self: NodeRuntimeHost<T>, newDeps: Node<unknown>[]
 		}
 
 		// Rebuild per-dep parallel arrays in newDeps order; kept deps carry their state
-		// + subscription, added deps start fresh (R-rewire Q1/Q4).
+		// + subscription, added deps start fresh (R-request-order).
 		const n = newDeps.length;
 		const newBatch: Array<unknown[] | null> = new Array(n).fill(null);
 		const newPrev: unknown[] = new Array(n).fill(SENTINEL);
@@ -163,7 +163,7 @@ export function nodeRewire<T>(self: NodeRuntimeHost<T>, newDeps: Node<unknown>[]
 		self._dep.waveLive = newDeps.map(() => []);
 		self._syncCtx = null;
 
-		// Subscribe added deps — push-on-subscribe (R-push-subscribe) delivers a cached
+		// Subscribe added deps — push-on-subscribe (R-subscription) delivers a cached
 		// dep's DATA here, which drives _maybeRun; a SENTINEL dep delivers START only.
 		if (self._lifecycle.activated) {
 			for (const d of added) self._subscribeDepAt(d);
@@ -172,9 +172,9 @@ export function nodeRewire<T>(self: NodeRuntimeHost<T>, newDeps: Node<unknown>[]
 
 		// Q6 auto-settle: removing the sole dirty contributor closes the wave. With deps
 		// remaining, request the atomic settle (recompute → DATA for a value; a no-emit fn
-		// gets a substrate-synthesized undirty RESOLVED per R-resolved-undirty/D49 — NOT
-		// equals-absorption, which is gone). With zero deps the node is inert (degenerate
-		// fn-no-deps) — just un-dirty downstream. Cache is preserved either way (Q7).
+		// gets the kernel's RESOLVED per R-wave/D49 — NOT equals-absorption, which is gone).
+		// With zero deps the node is inert (degenerate fn-no-deps) — just un-dirty downstream.
+		// Cache is preserved either way (Q7).
 		if (removedDirtyContributor && self._wave.pending === 0 && self._wave.emittedDirtyThisWave) {
 			if (newDeps.length > 0) self._wave.rewireRunPending = true;
 			else zeroDepUnDirty = true;
@@ -184,7 +184,7 @@ export function nodeRewire<T>(self: NodeRuntimeHost<T>, newDeps: Node<unknown>[]
 	}
 
 	// Atomic post-mutation settle (outside the reentrancy guard so a fresh wave runs
-	// normally): ONE two-phase PENDING→DATA recompute if any added dep delivered data or a
+	// normally): ONE recompute if any added dep delivered data or a
 	// sole-dirty dep was removed; else the zero-dep un-dirty via _down (batch-safe).
 	if (self._wave.rewireRunPending) {
 		self._wave.rewireRunPending = false;
@@ -198,24 +198,27 @@ export function nodeRewire<T>(self: NodeRuntimeHost<T>, newDeps: Node<unknown>[]
 /** Internal adapters validate at call time and repeat against actual deps at commit. */
 export function validateNodeRewire<T>(self: NodeRuntimeHost<T>, newDeps: Node<unknown>[]): void {
 	const node = self as unknown as Node<unknown>;
-	// ── rejects (R-rewire / D42) ──
+	// ── rejects (R-request-order / D42) ──
 	if (self._value.terminal !== undefined)
 		throw new Error(
-			"rewire: node is terminal (completed/errored) — cannot rewire (R-rewire / D42)",
+			"rewire: node is terminal (completed/errored) — cannot rewire (R-request-order / D42)",
 		);
 	if (self._wave.insideRunWave)
 		throw new Error(
-			"rewire: mid-fn topology mutation — a fn mutating its own deps mid-wave is the feedback cycle (R-rewire / D37)",
+			"rewire: mid-fn topology mutation — a fn mutating its own deps mid-wave is the feedback cycle (R-request-order / D37)",
 		);
 	if (self._wave.inDepMutation)
-		throw new Error("rewire: reentrant dep mutation — another rewire is in flight (R-rewire)");
-	if (newDeps.includes(node)) throw new Error("rewire: self-dependency rejected (R-rewire / D42)");
+		throw new Error(
+			"rewire: reentrant dep mutation — another rewire is in flight (R-request-order)",
+		);
+	if (newDeps.includes(node))
+		throw new Error("rewire: self-dependency rejected (R-request-order / D42)");
 	const oldDeps = self._slot.deps;
 	const added = newDeps.filter((d) => !oldDeps.includes(d));
 	for (const d of added) {
 		if (self._reachableUpstream(d, node))
 			throw new Error(
-				"rewire: would create a cycle — dep already transitively depends on this node (R-rewire / D42)",
+				"rewire: would create a cycle — dep already transitively depends on this node (R-request-order / D42)",
 			);
 		// R-terminals: an ended node can be added; its snapshot carries its terminal.
 		self._assertRewireDepOwner(d);

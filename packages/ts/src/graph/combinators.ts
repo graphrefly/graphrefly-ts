@@ -7,7 +7,7 @@
  * show). Re-derived here as static-dep kernel nodes, which run on any dependency (graphrefly-ts:D184),
  * with `ctx.state` (queue / phase / winner) — so every edge is a real subscription `describe`
  * shows truthfully (D3 / R-edges-derived). Multi-source completion / error reads
- * `ctx.deps[i].terminal` (R-deps-terminal) via the manual COMPLETE policy.
+ * `ctx.deps[i].terminal` (R-terminals) via the manual COMPLETE policy.
  *
  * Under D49 (no equals-absorption) `combine` emits a fresh tuple on EVERY contributing wave (no
  * substrate tuple-dedup; the pure-ts `equals` tuple comparator is gone) — pair with

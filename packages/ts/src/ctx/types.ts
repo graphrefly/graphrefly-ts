@@ -2,7 +2,8 @@
  * The fn-invocation context and per-dep input shapes.
  *
  * Canonical authority: ~/src/graphrefly/spec/rules.jsonl
- *   R-fn-contract (D8/D27), R-ctx-state (D23/D29), R-cleanup-hooks (D28), R-ctx-up.
+ *   R-invocation (ctx, deps, private state, down, rewire, signal), R-lifetime (setup, cleanup,
+ *   signal), R-messages (output goes only downstream; there is no ctx.up).
  */
 
 import type { Dispatcher } from "../dispatcher/index.js";
@@ -103,7 +104,7 @@ export interface CtxState {
 }
 
 /**
- * The single argument to a node fn: `(ctx) => void` (R-fn-contract / D8). All emission
+ * The single argument to a node fn: `(ctx) => void` (R-invocation / D8). All emission
  * is explicit via `ctx.down`; there is no return-value framing.
  */
 export interface Ctx {
@@ -144,7 +145,7 @@ export interface Ctx {
 	[CTX_NODE_BINDING]?: CtxNodeBinding;
 }
 
-/** A node fn (R-fn-contract). Registered in a dispatcher pool, indexed by Handle. */
+/** A node fn (R-invocation). Registered in a dispatcher pool, indexed by Handle. */
 export type NodeFn = (ctx: Ctx) => void;
 
 /** Internal adapter helper: the waves dependency `depIndex` delivered live, not as a snapshot. */

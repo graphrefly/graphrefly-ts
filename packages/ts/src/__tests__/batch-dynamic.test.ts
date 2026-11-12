@@ -80,7 +80,7 @@ describe("batch (R-batch-coalesce / D12)", () => {
 	});
 });
 
-describe("dynamic node (R-dynamic-node / D35; D49 — no equals-absorption)", () => {
+describe("selective reads over declared deps (R-invocation; D49 — no equals-absorption)", () => {
 	it("reads a selected dep; an unread dep's change re-emits the value as DATA (D49)", () => {
 		const g = graph();
 		const sel = g.node<"a" | "b">([], null, { initial: "a" });

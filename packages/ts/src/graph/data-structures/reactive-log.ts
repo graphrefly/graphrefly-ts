@@ -6,7 +6,7 @@
  *   - SNAPSHOT (the full `readonly T[]`) is the lazy request-served port like the others, BUT the log's main
  *     consumption is INCREMENTAL: `tail()` / `slice()` / `scan()` re-derive on the DELTA backbone
  *     (dep=[delta]), folding each appended value as it arrives — NOT re-scanning a pushed full array.
- *   - `append(undefined)` throws: `undefined` is the substrate SENTINEL (R-data-payload / R-sentinel),
+ *   - `append(undefined)` throws: `undefined` is the substrate SENTINEL (R-messages / R-sentinel),
  *     not a valid value.
  *   - empty log: the snapshot is `[]` (a real empty array); a never-appended `scan` seeds its initial.
  *     There is NO `[[RESOLVED]]`-for-empty dual role (D49 narrowed RESOLVED to undirty-only, D60 #5b).
@@ -53,7 +53,7 @@ export interface ReactiveLog<T> {
 	at(index: number): T | undefined;
 	/** Full contents (O(n) fresh copy). Sync non-reactive read (cold-start peek). */
 	toArray(): readonly T[];
-	/** Append one value. Throws on `undefined` (substrate SENTINEL, R-data-payload). */
+	/** Append one value. Throws on `undefined` (substrate SENTINEL, R-messages). */
 	append(value: T): void;
 	/** Append many; one delta event. No-op if empty. Throws if any value is `undefined`. */
 	appendMany(values: readonly T[]): void;
@@ -147,7 +147,7 @@ class LogBackend<T> {
 }
 
 function rejectUndefined<T>(value: T, ctx: string): void {
-	// R-data-payload / R-sentinel (D60 #5): undefined is the substrate SENTINEL, not a valid value.
+	// R-messages / R-sentinel (D60 #5): undefined is the substrate SENTINEL, not a valid value.
 	if (value === undefined)
 		throw new TypeError(
 			`${ctx}: undefined is the substrate SENTINEL, not a valid value — use null`,

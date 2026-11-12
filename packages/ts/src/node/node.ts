@@ -3,14 +3,14 @@
  *
  * Holds a fn handle + deps + the wave state machine; ZERO inspection cruft
  * (naming/find/describe are the graph layer, CSP-2). Canonical authority:
- * ~/src/graphrefly/spec/rules.jsonl (R-node-*, R-two-phase, R-diamond, R-resolved-undirty,
- * R-push-subscribe, R-rom-ram, R-fn-contract, R-initial, R-ctx-up).
+ * ~/src/graphrefly/spec/rules.jsonl (R-node, R-wave, R-subscription, R-lifetime, R-invocation,
+ * R-terminals, R-invalidation, R-request-order).
  *
- * Slice 1 = core wave: state node, compute node, two-phase PENDING->DATA, diamond
- * pending-counter join, substrate-synthesized undirty RESOLVED
- * (R-resolved-undirty / D49 — no equals-substitution; every occurrence is DATA),
- * push-on-subscribe, lazy activation, ROM/RAM. Lifecycle (terminal/INVALIDATE/cleanup),
- * control (async), batch, and dynamicNode land in later slices.
+ * The kernel puts PENDING at the head of each array that carries a value or a terminal, runs a
+ * fan-in (a diamond included) once per wave after every pending dependency has settled, sends one
+ * RESOLVED for a pending node that sent nothing, and delivers every DATA unchanged (R-wave / D49:
+ * no equals-substitution). A subscriber's first array is START then the snapshot
+ * (R-subscription); activation is lazy (R-lifetime).
  */
 
 import {
@@ -425,7 +425,7 @@ export class Node<T = unknown> {
 		});
 	}
 
-	// ── rewire (R-rewire / D42): intra-graph runtime topology mutation ──
+	// ── rewire (R-request-order): the node's own dependencies for its current lifetime ──
 
 	private _dedupDeps(deps: Node<unknown>[]): Node<unknown>[] {
 		const seen = new Set<Node<unknown>>();
@@ -469,7 +469,7 @@ export class Node<T = unknown> {
 		return nodeRewire(nodeRuntimeHost(this), newDeps);
 	}
 
-	// ── activation / deactivation (lazy; R-rom-ram) ──
+	// ── activation / deactivation (lazy; R-lifetime) ──
 
 	// biome-ignore lint/correctness/noUnusedPrivateClassMembers: accessed through the checked internal runtime host.
 	private _activate(): void {

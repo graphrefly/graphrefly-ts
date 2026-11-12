@@ -2,7 +2,7 @@
  * Dispatcher, pools, and the pure-data Handle.
  *
  * Canonical authority: ~/src/graphrefly/spec/rules.jsonl
- *   R-handle (D7), R-dispatch-all (D21), R-sync-core (D20/D21).
+ *   R-dispatch-all (D21), R-sync-core (D20/D21); the pure-data Handle is D7.
  *
  * Lifted from the validated retired handle-dispatch PoC (R8/R9):
  * fn lives in an external pool, indexed by handle; `dispatcher.invoke` is uniformly
@@ -16,7 +16,7 @@ import type { Ctx, NodeFn } from "../ctx/types.js";
 export type PoolKind = "sync" | "async";
 
 /**
- * Handle = pure data `(poolId, handleId)`, NO methods (R-handle / D7). A serializable
+ * Handle = pure data `(poolId, handleId)`, NO methods (D7). A serializable
  * index into a pool's dispatch table. node != handle.
  */
 export interface Handle {
@@ -70,8 +70,10 @@ class PoolTable implements Pool {
 	}
 }
 
-/** Per-handle profiling counters (D39 / R-profile). Lives on the dispatcher — the invoke
- * funnel (F-DISPATCH-ALL) — NEVER on the thin node (R-node-thin). */
+/**
+ * Per-handle profiling counters (D39; profiling is the package's own, R-graph-surface). Lives on
+ * the dispatcher — the invoke funnel (F-DISPATCH-ALL) — NEVER on the thin node (R-node-thin).
+ */
 export interface HandleStat {
 	invokes: number;
 	totalDurationNs: number;
