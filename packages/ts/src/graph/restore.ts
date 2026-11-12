@@ -637,6 +637,7 @@ type Prepared = {
 	sugar?: GraphCheckpointSugar;
 	config: GraphCheckpointJson | undefined;
 	terminal: true | unknown | undefined;
+	received?: RestoredReceived[];
 };
 
 type PreparedCheckpoint = {
@@ -675,13 +676,21 @@ function assertArray(value: unknown, label: string): unknown[] {
 	return value;
 }
 
+function assertRecord(value: unknown, label: string): void {
+	if (value === null || typeof value !== "object" || Array.isArray(value))
+		throw new Error(`restoreGraph: ${label} must be an object`);
+}
+
 function restoredTerminal(
 	value: GraphCheckpointTerminal,
 	label: string,
 ): true | unknown | undefined {
-	if (value?.kind === "none") return undefined;
-	if (value?.kind === "COMPLETE") return true;
-	if (value?.kind === "ERROR") return value.error;
+	assertRecord(value, `${label} terminal`);
+	const keys = Object.keys(value);
+	if (keys.length === 1 && value.kind === "none") return undefined;
+	if (keys.length === 1 && value.kind === "COMPLETE") return true;
+	if (keys.length === 2 && value.kind === "ERROR" && Object.hasOwn(value, "error"))
+		return value.error;
 	throw new Error(`restoreGraph: ${label} has an invalid terminal`);
 }
 
@@ -703,6 +712,8 @@ function prepareNode(node: GraphCheckpointNode, registry: GraphRestoreRegistry):
 	if (node.kind !== "state" && node.kind !== "computed")
 		throw new Error(`restoreGraph: node '${id}' has an invalid kind`);
 	assertString(node.factory, `node '${id}' factory`);
+	if (node.name !== undefined) assertString(node.name, `node '${id}' name`);
+	if (node.meta !== undefined) assertRecord(node.meta, `node '${id}' meta`);
 	assertArray(node.deps, `node '${id}' deps`).forEach((d, i) => {
 		assertString(d, `${id}.deps[${i}]`);
 	});
@@ -712,17 +723,23 @@ function prepareNode(node: GraphCheckpointNode, registry: GraphRestoreRegistry):
 		throw new Error(`restoreGraph: state node '${id}' cannot have dependencies`);
 	if (node.kind === "computed" && node.lifetime === undefined)
 		throw notRestorable(id, CHECKPOINT_REFUSAL.missingReceived);
+	let receivedInputs: RestoredReceived[] | undefined;
 	if (node.lifetime != null) {
+		if (typeof node.lifetime !== "object" || Array.isArray(node.lifetime))
+			throw notRestorable(id, CHECKPOINT_REFUSAL.missingReceived);
 		if (node.kind !== "computed")
 			throw new Error(`restoreGraph: state node '${id}' cannot have a lifetime`);
 		const lifetimeDeps = node.lifetime.deps ?? node.deps;
-		assertArray(node.lifetime.deps ?? [], `node '${id}' lifetime.deps`);
+		if (node.lifetime.deps !== undefined)
+			assertArray(node.lifetime.deps, `node '${id}' lifetime.deps`).forEach((dep, i) => {
+				assertString(dep, `${id}.lifetime.deps[${i}]`);
+			});
 		if (!Array.isArray(node.lifetime.received))
 			throw notRestorable(id, CHECKPOINT_REFUSAL.missingReceived);
 		const received = node.lifetime.received;
 		if (received.length !== lifetimeDeps.length)
 			throw notRestorable(id, CHECKPOINT_REFUSAL.missingReceived);
-		received.forEach((r, i) => {
+		receivedInputs = received.map((r, i) => {
 			if (
 				r == null ||
 				typeof r !== "object" ||
@@ -730,18 +747,27 @@ function prepareNode(node: GraphCheckpointNode, registry: GraphRestoreRegistry):
 				r.terminal === undefined
 			)
 				throw notRestorable(id, CHECKPOINT_REFUSAL.missingReceived);
-			const rec = r as { values?: unknown; terminal?: GraphCheckpointTerminal };
-			assertArray(rec.values, `${id}.lifetime.received[${i}].values`);
-			restoredTerminal(rec.terminal as GraphCheckpointTerminal, `${id}.lifetime.received[${i}]`);
+			return {
+				values: r.values,
+				terminal: restoredTerminal(r.terminal, `${id}.lifetime.received[${i}]`),
+			};
 		});
 	}
-	if (node.kind === "computed" && node.policies === undefined)
-		throw new Error(`restoreGraph: computed node '${id}' has no policies`);
+	if (node.kind === "computed") {
+		assertRecord(node.policies, `computed node '${id}' policies`);
+		const policies = node.policies as GraphCheckpointPolicies;
+		if (typeof policies.quiet !== "boolean")
+			throw new Error(`restoreGraph: node '${id}' policies.quiet must be a boolean`);
+		for (const key of ["complete", "error", "invalidate"] as const)
+			if (policies[key] !== "auto" && policies[key] !== "manual")
+				throw new Error(`restoreGraph: node '${id}' policies.${key} must be auto or manual`);
+	}
 	if (node.recipe === undefined) {
 		// R-checkpoint@1: a local-only node fails at restore, not at capture.
 		if (node.kind === "computed") throw notRestorable(id, CHECKPOINT_REFUSAL.localOnly);
 		return { checkpoint: node, entry: undefined, config: undefined, terminal };
 	}
+	assertRecord(node.recipe, `node '${id}' recipe`);
 	const ref = assertString(node.recipe.ref, `node '${id}' recipe.ref`);
 	const sugar = node.recipe.sugar;
 	if (sugar !== undefined && (!isCheckpointSugar(sugar) || node.kind !== "computed"))
@@ -753,16 +779,14 @@ function prepareNode(node: GraphCheckpointNode, registry: GraphRestoreRegistry):
 		throw new Error(`restoreGraph: state node '${id}' recipe '${ref}' is not a restore extension`);
 	if (sugar !== undefined && !isFactory(entry))
 		throw notRestorable(id, `its ${sugar} recipe '${ref}' is not a recipe factory`);
-	const raw = node.recipe.config;
-	if (raw !== undefined) toCheckpointJson(raw, `${id}.recipe.config`);
-	const config = isExtension(entry)
-		? entry.validateConfig
-			? entry.validateConfig(raw, node)
-			: raw
-		: entry.validateConfig
-			? entry.validateConfig(raw)
-			: raw;
-	return { checkpoint: node, entry, config, terminal, ...(sugar === undefined ? {} : { sugar }) };
+	return {
+		checkpoint: node,
+		entry,
+		config: node.recipe.config,
+		terminal,
+		...(receivedInputs === undefined ? {} : { received: receivedInputs }),
+		...(sugar === undefined ? {} : { sugar }),
+	};
 }
 
 function validateCheckpointNodeJson(
@@ -806,10 +830,10 @@ function prepareCheckpoint(
 		throw new Error(
 			`restoreGraph: ${path} is not a ${GRAPH_CHECKPOINT_FORMAT} checkpoint (an earlier format lacks what R-checkpoint saves)`,
 		);
-	validateCheckpointNodeJson(checkpoint);
-	toCheckpointJson(checkpoint, path);
+	if (checkpoint.name !== undefined) assertString(checkpoint.name, `${path}.name`);
 	const nodes = new Map<string, Prepared>();
 	for (const node of assertArray(checkpoint.nodes, `${path}.nodes`) as GraphCheckpointNode[]) {
+		assertRecord(node, `${path}.nodes[]`);
 		const id = assertString(node.id, `${path}.nodes[].id`);
 		if (nodes.has(id)) throw new Error(`restoreGraph: duplicate node id '${id}'`);
 		if (mountAt !== undefined && id.startsWith(`${mountAt}::`))
@@ -825,9 +849,22 @@ function prepareCheckpoint(
 		for (const dep of [...node.deps, ...(node.lifetime?.deps ?? [])])
 			if (!nodes.has(dep)) throw notRestorable(node.id, `missing dep '${dep}'`);
 	}
+	const visited = new Set<string>(),
+		visiting = new Set<string>();
+	const visit = (id: string): void => {
+		if (visited.has(id)) return;
+		if (visiting.has(id)) throw notRestorable(id, "dependency cycle");
+		visiting.add(id);
+		for (const dep of nodes.get(id)!.checkpoint.deps) visit(dep);
+		visiting.delete(id);
+		visited.add(id);
+	};
+	for (const id of nodes.keys()) visit(id);
+	if (checkpoint.mounts !== undefined) assertArray(checkpoint.mounts, `${path}.mounts`);
 	const mountPaths = new Set<string>();
 	const mounts: PreparedCheckpoint["mounts"] = [];
 	for (const mount of checkpoint.mounts ?? []) {
+		assertRecord(mount, `${path}.mounts[]`);
 		const at = assertString(mount.at, `${path}.mounts[].at`);
 		if (at.length === 0) throw new Error("restoreGraph: mount path must not be empty");
 		if (mountPaths.has(at)) throw new Error(`restoreGraph: duplicate mount path '${at}'`);
@@ -889,7 +926,6 @@ function constructPrepared(
 	const out = graph({ name: prepared.checkpoint.name, dispatcher });
 	try {
 		const built = new Map<string, Node<unknown>>();
-		const visiting = new Set<string>();
 		// R-checkpoint: each node is built after its declared dependencies, otherwise in checkpoint
 		// order; no recipe function runs.
 		const buildNode = (id: string): Node<unknown> =>
@@ -897,10 +933,13 @@ function constructPrepared(
 				const existing = built.get(id);
 				if (existing) return existing;
 				const item = prepared.nodes.get(id) as Prepared;
-				if (visiting.has(id)) throw new Error(`restoreGraph: dependency cycle at '${id}'`);
-				visiting.add(id);
 				const node = item.checkpoint;
 				const deps = node.deps.map(buildNode);
+				const config = item.entry?.validateConfig
+					? isExtension(item.entry)
+						? item.entry.validateConfig!(item.config, node)
+						: item.entry.validateConfig(item.config)
+					: item.config;
 				const common = {
 					name: node.name,
 					meta: node.meta,
@@ -915,7 +954,7 @@ function constructPrepared(
 						id,
 						name: node.name,
 						deps,
-						config: item.config,
+						config,
 						checkpoint: node,
 					});
 					if (out.find(id) !== made)
@@ -925,7 +964,7 @@ function constructPrepared(
 				} else if (item.sugar !== undefined) {
 					// R-checkpoint: a sugar node gets only its value-level callback from the registry and
 					// is built with the same sugar and gate; a setup from the registry is refused.
-					const build = item.entry.build(item.config, recipeContext(registry, out, id)) as
+					const build = item.entry.build(config, recipeContext(registry, out, id)) as
 						| GraphRecipeBuild
 						| GraphSugarRecipeBuild;
 					if (build.setup !== undefined)
@@ -945,7 +984,7 @@ function constructPrepared(
 						...(parts.setup === undefined ? {} : { setup: parts.setup }),
 					});
 				} else {
-					const build = item.entry.build(item.config, recipeContext(registry, out, id));
+					const build = item.entry.build(config, recipeContext(registry, out, id));
 					made = restoreNodeInGraph(out, id, node.factory, deps, build.fn, {
 						...common,
 						...policyOptions(node.policies as GraphCheckpointPolicies),
@@ -957,7 +996,6 @@ function constructPrepared(
 						`restoreGraph: node '${id}' was built with dependencies that do not match the checkpoint`,
 					);
 				built.set(id, made);
-				visiting.delete(id);
 				return made;
 			});
 		for (const id of prepared.nodes.keys()) buildNode(id);
@@ -974,12 +1012,7 @@ function constructPrepared(
 			const lifetime = node.lifetime;
 			// An ended node never runs again, so it gets no note (R-checkpoint@1).
 			const received: RestoredReceived[] | undefined =
-				item.terminal !== undefined
-					? undefined
-					: lifetime?.received.map((r) => ({
-							values: r.values,
-							terminal: restoredTerminal(r.terminal, `node '${id}' received`),
-						}));
+				item.terminal !== undefined ? undefined : item.received;
 			if (received !== undefined) wrapFnOfNode(made, restoredFirstRun);
 			restoreStateOfNode(made, {
 				values: node.values,
@@ -1031,6 +1064,8 @@ export function restoreGraph(checkpoint: GraphCheckpoint, options: RestoreGraphO
 			throw new Error(`restoreGraph: unknown option '${key}'`);
 		}
 	}
+	validateCheckpointNodeJson(checkpoint);
+	toCheckpointJson(checkpoint);
 	const prepared = prepareCheckpoint(checkpoint, options.registry);
 	return constructPrepared(prepared, options.registry, options.dispatcher);
 }
