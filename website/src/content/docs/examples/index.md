@@ -22,7 +22,7 @@ boundary, or one package surface at a time.
 ## API starting points
 
 - [Create a graph](/api/graph/)
-- [Create a node](/api/node/)
+- [Build nodes on a graph](/api/graph-class/)
 - [Map values](/api/map/)
 - [Connect events](/api/fromevent/)
 - [Explain a path](/api/explainpath/)

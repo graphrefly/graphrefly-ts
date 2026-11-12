@@ -53,7 +53,7 @@ type NestReplyEnvelope<T = unknown> =
 ## Decorator Path
 
 ```ts
-import { graph, depLatest } from "@graphrefly/ts";
+import { graph } from "@graphrefly/ts";
 import {
   fromNestReq,
   GraphReq,
@@ -69,7 +69,9 @@ const ordersIn = fromNestReq(g, { bindingId: "node.orders.in" });
 const ordersOut = g.node<NestReplyEnvelope>(
   [ordersIn.node],
   (ctx) => {
-    const envelope = depLatest(ctx, 0) as NestBoundaryEnvelope;
+    const [input] = ctx.deps;
+    if (!input.has) return;
+    const envelope = input.value as NestBoundaryEnvelope;
     if (envelope.requestId === undefined) return;
     ctx.down([[
       "DATA",
@@ -278,14 +280,14 @@ Cron remains five-field, minute-granularity, skip/current-time-only, and deduped
 Adapter diagnostics are host-side snapshots by default. `diagnostics()` on reply/bridge objects remains a host diagnostic snapshot and does not emit graph DATA by itself. Adapter diagnostics are not a stable logging callback and are not graph inspection. Use graph-visible audit/status/issues nodes and observe them:
 
 ```ts
-const stop = g.observe("orders.audit").subscribe((event) => {
-  if (event.msg[0] === "DATA") {
-    nestLogger.log(JSON.stringify(event.msg[1]));
+const stop = g.observe(["orders.audit"], ({ msgs }) => {
+  for (const [type, value] of msgs) {
+    if (type === "DATA") nestLogger.log(JSON.stringify(value));
   }
 });
 ```
 
-`graph.describe()` and `graph.observe()` remain the inspection path. Ordinary business HTTP failures are DATA payloads such as `{ status, body }`, not protocol `ERROR`.
+`graph.describe()`, `graph.inspect()` and `graph.observe(ids, sink)` remain the inspection path. Ordinary business HTTP failures are DATA payloads such as `{ status, body }`, not protocol `ERROR`.
 
 Graph-visible adapter diagnostics require an explicitly wired diagnostic ingress boundary:
 

@@ -161,7 +161,7 @@ export function assertGraphLocalNode(owner: Graph, n: Node<unknown>, label: stri
  *
  * const g = graph({ name: "counter" });
  * const count = g.state(0, { name: "count" });
- * const doubled = g.derived([count], ([value]) => value * 2, { name: "doubled" });
+ * const doubled = g.derived([count], (value) => value * 2, { name: "doubled" });
  * ```
  * @remarks **Graph-local:** Cross-graph dependencies require a wire bridge; direct deps stay inside
  *   one graph ownership domain.
@@ -1264,7 +1264,7 @@ export function sugarNodeParts(
  *
  * const g = graph({ name: "counter" });
  * const count = g.state(0, { name: "count" });
- * const doubled = g.derived([count], ([value]) => value * 2);
+ * const doubled = g.derived([count], (value) => value * 2);
  * ```
  * @category graph
  */

@@ -22,7 +22,7 @@ This page is the **consideration-stage** comparison. For setup, APIs, and compos
 | **Reactivity** | Bring your own (store, observers, manual) | Native — only dependent nodes recompute |
 | **Beyond single-column text** | You compose by hand | `reactiveBlockLayout`, `reactiveFlowLayout`, exported slot primitives |
 | **Headless / SSR** | DOM-oriented measurement path | `cellTextMeasurements`, `precomputedTextMeasurements`, etc. |
-| **Observability** | None built-in | `graph.describe()` → mermaid; meta companions; snapshots |
+| **Observability** | None built-in | `graph.describe()`; `graph.inspect()` → `inspectToMermaid`; checkpoints |
 | **Full i18n (bidi, tab stops, emoji width)** | Strong | **Subset** — see below |
 
 ## Key Difference
@@ -38,7 +38,7 @@ Pretext is a **focused library**: measure and break lines with minimal surface a
 | Carve blocked intervals from a column | Hand-rolled per call site | `carveTextLineSlots(base, blocked, minSlotWidth)` — exported primitive |
 | Stacked heterogeneous blocks (text + image + SVG) | Not in core | `blockMeasurementProvider(...) -> reactiveBlockLayout({ measurements })` |
 | Multi-column flow around shape obstacles | Hand-rolled over `layoutNextLine` | `textMeasurements -> reactiveFlowLayout({ measurements, container, columns, obstacles })` + `Obstacle = Circle \| Rect` + built-in slot carving |
-| Observability | None | `graph.describe()` → mermaid; `.meta` companions; snapshot serialization |
+| Observability | None | `graph.describe()`; `graph.inspect()` → `inspectToMermaid`; `graph.checkpoint()` serialization |
 | Composable with other reactive work | Bring your own | Native — same protocol as harness, orchestration, messaging, resilience |
 
 ## When to Choose Reactive Layout
@@ -47,7 +47,7 @@ Pretext is a **focused library**: measure and break lines with minimal surface a
 
 - **You need more than single-column text.** `reactiveBlockLayout` for mixed content; `reactiveFlowLayout` for columns with obstacles.
 
-- **You want inspectability.** Meta companions (`cache-hit-rate`, `layout-time-ns`, `line-count`, …) and one-call graph snapshots for tests and debugging.
+- **You want inspectability.** Every layout stage is a named graph node: `graph.inspect()` shows each one's status and current value, and `graph.observe(ids, sink)` shows the messages they deliver, for tests and debugging.
 
 - **You're already composing GraphReFly.** Streaming harness output into the upstream text node, resilience around sources, virtualization with exact heights — layout stays on the same protocol.
 
@@ -75,7 +75,7 @@ Pretext is a **focused library**: measure and break lines with minimal surface a
 
 - **Higher-level layout primitives** (`reactiveBlockLayout`, `reactiveFlowLayout`, `carveTextLineSlots`) beyond single-column body text.
 
-- **Runtime inspection** via `graph.describe()` and meta companions — no separate devtools extension.
+- **Runtime inspection** via `graph.describe()`, `graph.inspect()` and `graph.observe()` — no separate devtools extension.
 
 - **Same-protocol composition** with harnesses, operators, circuit breakers, lists, and CQRS-style document graphs.
 

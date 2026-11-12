@@ -36,7 +36,7 @@ import { graph } from "@graphrefly/ts/graph";
 
 const g = graph({ name: "counter" });
 const count = g.state(0, { name: "count" });
-const doubled = g.derived([count], ([value]) => value * 2);
+const doubled = g.derived([count], (value) => value * 2);
 ```
 
 ## Source

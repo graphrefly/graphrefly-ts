@@ -18,18 +18,25 @@ const g = graph({ name: "example" });
 const count = g.state(0, { name: "count" });
 const doubled = g.derived([count], (n) => n * 2, { name: "doubled" });
 
-doubled.subscribe((msg) => {
-  if (msg[0] === "DATA") console.log("doubled", msg[1]);
+doubled.subscribe((msgs) => {
+  for (const [type, value] of msgs) {
+    if (type === "DATA") console.log("doubled", value);
+  }
 });
+// doubled 0
 
 count.set(3);
+// doubled 6
 ```
 
-The graph can also describe itself:
+A sink receives one array of messages per delivery: first `[["START"], ["DATA", 0]]`, then
+`[["PENDING"], ["DATA", 6]]` for the write. The graph can also describe itself:
 
 ```ts
-console.log(g.topology());
 console.log(g.describe());
+// [{ id: "count", kind: "state", deps: [], quiet: false },
+//  { id: "doubled", kind: "node", deps: ["count"], quiet: false }]
+console.log(g.inspect()); // names, factories, status and values as well
 ```
 
 ## Core Ideas
@@ -39,8 +46,8 @@ console.log(g.describe());
 - `producer` and source factories create graph-visible input streams.
 - `effect` performs side effects from graph-visible values.
 - Operators are node factories, not a second runtime.
-- `describe()`, `topology()`, `observe()`, and `profile()` are read-only
-  inspection surfaces.
+- `describe()`, `inspect()`, `topology()`, `observe()`, and `profile()` are
+  read-only inspection surfaces.
 
 The wave core is synchronous. Promises, timers, fetches, subprocesses, workers,
 and remote bridges belong at source, adapter, executor, worker, or wire-bridge
@@ -53,7 +60,7 @@ import { graph } from "@graphrefly/ts/graph";
 import { map, filter, scan, switchMap } from "@graphrefly/ts/operators";
 import { fromPromise, fromEvent, timer } from "@graphrefly/ts/sources";
 import { memoryKv } from "@graphrefly/ts/storage";
-import { describeToMermaid } from "@graphrefly/ts/render";
+import { inspectToMermaid } from "@graphrefly/ts/render";
 import type { DataIssue, DataResult } from "@graphrefly/ts/data";
 ```
 
@@ -71,7 +78,7 @@ sequence, and user experience levels do not select different runtime semantics.
 | Task | Entry | Responsibility |
 |---|---|---|
 | Compose an application and inspect its graph | `@graphrefly/ts/graph` or the root | Named nodes, explicit dependencies, composition and inspection |
-| Implement a node or runtime integration | `@graphrefly/ts/core` | Low-level Node, Ctx, batch, protocol and dispatcher contracts |
+| Implement a node or runtime integration | `@graphrefly/ts/core` | Low-level Node, Ctx and message types and the dispatcher; nodes are still built with `graph.node` |
 | Represent business results and issues | `@graphrefly/ts/data` | Passive `DataResult<T>` and `DataIssue` payloads; no protocol ERROR or lifecycle behavior |
 | Reuse a horizontal graph pattern | `@graphrefly/ts/patterns` | Existing patterns such as `admissionHandoff` and `eventFlow` |
 | Use a domain solution | An existing focused `@graphrefly/ts/solutions/*` entry | The selected domain's inputs, policies and lifecycle contract |
@@ -126,8 +133,10 @@ import { graph, timer } from "@graphrefly/ts";
 const g = graph({ name: "clock" });
 const tick = g.initNode(timer(1000), [], { name: "tick" });
 
-tick.subscribe((msg) => {
-  if (msg[0] === "DATA") console.log(msg[1]);
+tick.subscribe((msgs) => {
+  for (const [type, value] of msgs) {
+    if (type === "DATA") console.log("tick", value);
+  }
 });
 ```
 
@@ -139,22 +148,29 @@ cron-like schedules. Node-only process and filesystem helpers live under
 ## Inspection And Rendering
 
 ```ts
-import { describeToMermaid, graph } from "@graphrefly/ts";
+import { graph, inspectToMermaid } from "@graphrefly/ts";
 
 const g = graph({ name: "pricing" });
 const price = g.state(100, { name: "price" });
 const tax = g.derived([price], (p) => p * 0.0825, { name: "tax" });
 g.derived([price, tax], (p, t) => p + t, { name: "total" });
 
+const nodes = g.describe(); // [{ id, kind, deps, quiet }, ...]
 const topology = g.topology();
-const snapshot = g.describe();
-const mermaid = describeToMermaid(snapshot);
-const stop = g.observe().subscribe((event) => console.log(event));
+const mermaid = inspectToMermaid(g.inspect());
+
+const stop = g.observe(["total"], ({ id, msgs }) => console.log(id, msgs));
+// total [["START"], ["DATA", 108.25]]
+price.set(120);
+// total [["PENDING"], ["DATA", 129.9]]
+stop();
 ```
 
-Use `topology()` for pure structure, `describe()` for richer developer
-inspection, `observe()` for message egress, and render helpers for Mermaid, D2,
-ASCII, JSON, and pretty text.
+Use `describe()` for the topology as data (`{ id, kind, deps, quiet }` per node),
+`inspect()` for the package's richer snapshot (names, factories, status, values and
+mounted subgraphs), `topology()` for pure structure, `observe(ids, sink)` for the
+message arrays the named nodes deliver, and render helpers (`inspectToMermaid`,
+`inspectToD2`, `inspectToAscii`, `inspectToJson`, `inspectToPretty`) for text output.
 
 ## Storage And Restore
 
@@ -162,21 +178,32 @@ Storage helpers are passive. They store facts, frames, snapshots, checkpoints,
 and event logs, but they do not own graph hydration.
 
 ```ts
-import { defaultRestoreRegistry, graph, memoryKv, restoreGraph } from "@graphrefly/ts";
+import {
+  defaultRestoreRegistry,
+  type GraphCheckpoint,
+  graph,
+  memoryKv,
+  restoreGraph,
+} from "@graphrefly/ts";
 
 const g = graph({ name: "counter" });
-const count = g.state(1, { name: "count", restore: { ref: "state" } });
+const count = g.state(1, { name: "count" });
 count.set(2);
 
-const checkpoint = g.checkpoint();
-const kv = memoryKv();
-await kv.put("checkpoint:counter", checkpoint);
+const kv = memoryKv<GraphCheckpoint>();
+await kv.set("checkpoint:counter", g.checkpoint()); // format "graphrefly-ts/checkpoint@1"
 
 const saved = await kv.get("checkpoint:counter");
 if (saved !== undefined) {
   const restored = restoreGraph(saved, { registry: defaultRestoreRegistry });
+  console.log(restored.find("count")?.cache); // 2
 }
 ```
+
+State nodes restore from their values. A `derived`, `effect` or `producer` node is
+restorable when it is built with `opts.recipe` (`{ ref, config? }`) and the restoring
+caller registers that `ref` in the registry; operators and sources carry their own
+recipes, merged into `defaultRestoreRegistry`. Restore refuses a node without a recipe.
 
 ## Reactive Collections
 
@@ -184,14 +211,19 @@ if (saved !== undefined) {
 import { graph, reactiveMap } from "@graphrefly/ts";
 
 const g = graph({ name: "inventory" });
-const items = reactiveMap<string, { stock: number }>(g);
+const items = reactiveMap<string, { stock: number }>(g, { name: "items" });
+
+const log = g.effect([items.delta], (change) => console.log(change));
+const release = g.retain(log); // an effect runs only while something keeps it active
 
 items.set("sku-1", { stock: 3 });
-
-g.effect([items.snapshot], (snapshot) => {
-  console.log(snapshot.get("sku-1"));
-});
+// { kind: "set", key: "sku-1", value: { stock: 3 } }
+console.log(items.get("sku-1")); // { stock: 3 }
+release();
 ```
+
+`delta` carries one change per mutation. `snapshot` is materialized on request: it
+sends the current map each time the collection's `request` node receives a value.
 
 The package includes `reactiveMap`, `reactiveList`, `reactiveLog`,
 `reactiveIndex`, collection persistence helpers, views, and cascading cache.

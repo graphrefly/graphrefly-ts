@@ -50,9 +50,10 @@ const layout = reactiveLayout({
   maxWidth: 480,
 });
 
-layout.lineBreaks.subscribe((msg) => {
-  const [type, value] = msg;
-  if (type === "DATA") render(value as LineBreaksResult);
+layout.lineBreaks.subscribe((msgs) => {
+  for (const [type, value] of msgs) {
+    if (type === "DATA") render(value as LineBreaksResult);
+  }
 });
 
 layout.setMaxWidth(320);

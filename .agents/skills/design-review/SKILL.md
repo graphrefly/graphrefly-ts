@@ -17,7 +17,7 @@ This skill applies the 5 design-review questions (Q5–Q9 of the 9-question per-
 
 Clean-slate code lives in **`packages/ts/src/`** (`@graphrefly/ts`, D32). The language-neutral authority is **`~/src/graphrefly`** jsonl (branch `clean-slate`) — when this skill and that repo disagree, that repo wins (AGENTS.md).
 
-> **Stale-infra guard.** Do NOT cite the retired port-model: `packages/pure-ts/**` (frozen read-only reference only, D41), `docs/implementation-plan.md` / `optimizations.md` / `roadmap.md` / `test-guidance.md` / `docs-guidance.md`, `GRAPHREFLY-SPEC.md` / `COMPOSITION-GUIDE.md` (migrated to `spec/rules.jsonl` + `guide/guide.jsonl`, B7), `describe({format})` (D39: renderers are pure fns over the snapshot, NOT a `format` option), the `Impl`/facade/actor model.
+> **Stale-infra guard.** Do NOT cite the retired port-model: `packages/pure-ts/**` (frozen read-only reference only, D41), `docs/implementation-plan.md` / `optimizations.md` / `roadmap.md` / `test-guidance.md` / `docs-guidance.md`, `GRAPHREFLY-SPEC.md` / `COMPOSITION-GUIDE.md` (migrated to `spec/rules.jsonl` + `guide/guide.jsonl`, B7), `describe({format})` (renderers are pure `inspectTo*` fns over the `inspect()` snapshot, NOT a `format` option), the retired kernel vocabulary (DIRTY, tiers/`messageTier`, `ctx.up`, `dynamicNode`/`ctx.track`, `depBatch`/`depLatest`, dispatcher pools, the free `batch()`; graphrefly-ts:D179/D185/D187), the `Impl`/facade/actor model.
 
 **When to use:** before a new public symbol in `packages/ts/src/graph/` (sugar / operator / inspection) or a new substrate primitive in `packages/ts/src/{node,dispatcher,ctx,protocol,batch}/`; right after sketching a factory; when two implementations exist and you need a principled pick; when `/dev-dispatch` Phase 2 needs to go deeper than its default template.
 **When NOT:** bug fixes / pure refactors → `/qa`; already-approved work → proceed; trivial additive changes (a JSDoc field, a docstring).
@@ -79,13 +79,13 @@ For each target, produce a structured report covering all five questions. Be spe
 
 ### Q7 — Can we simplify it? Reactive, composable, explainable?
 
-The **explainability check** — a primitive's reactive shape is only as good as its `describe()` snapshot (D39).
+The **explainability check** — a primitive's reactive shape is only as good as its `describe()` topology and `inspect()` snapshot (R-graph-surface@1, graphrefly-ts:D183).
 
-- **Wire a minimal composition** (≥2 sources → target → ≥1 sink). Predict `describe()` — a flat JSON-serializable snapshot; renderers (pretty/mermaid/d2) are pure fns over it (D39), NOT a `describe({format})` option. If you can't predict the output, the topology is too imperative.
+- **Wire a minimal composition** (≥2 sources → target → ≥1 sink). Predict `describe()` — `{ id, kind, deps, quiet }` per node in creation order — and `inspect()` (names, factories, status, values); renderers (`inspectToPretty`/`inspectToMermaid`/`inspectToD2`) are pure fns over the `inspect()` snapshot, NOT a `format` option. If you can't predict the output, the topology is too imperative.
 - **Island check.** A node with zero in-edges AND zero out-edges (not an entry/exit) is a smell.
-- **Imperative escape paths.** Search for: emit/set/callback wiring that bypasses the graph (R-no-imperative); `.cache` reads inside reactive fn bodies (R-data-not-peek — data moves via messages); raw `Promise`/`setTimeout`/`queueMicrotask` outside a source/pool (R-no-raw-async / F-SYNC-CORE); hardcoded `type === "DATA"` instead of `messageTier` (R-tier); an inline fn bypassing the dispatcher (R-dispatch-all).
-- **SENTINEL / input guards.** Resolve R-sentinel, R-ctx-wave-data and R-fn-contract; distinguish no wave, RESOLVED-only wave, and INVALIDATE. D77 retired raw `prevData`/`latest` aliases. Fix eager-placeholder upstreams rather than inventing a second input channel.
-- **Feedback cycles.** A fn that re-drives its own dep mid-wave is a wave-level ERROR (D37/R-reentrancy), not iteration; legit accumulation = `ctx.state` (scan), not a topological cycle.
+- **Imperative escape paths.** Search for: emit/set/callback wiring that bypasses the graph (R-no-imperative); `.cache` reads inside reactive fn bodies (R-data-not-peek — data moves via messages); raw `Promise`/`setTimeout`/`queueMicrotask` outside a source, adapter, executor or wire bridge (R-no-raw-async / F-SYNC-CORE); a controller that acts on its target other than by writing a state node the target declares as a dependency (R-no-imperative@2).
+- **SENTINEL / input guards.** Resolve R-sentinel and R-invocation@2: read `ctx.deps[i].has`/`.value`/`.waves`/`.terminal`; distinguish no array, a RESOLVED-only array (empty in `waves`), and INVALIDATE (`invalidated` under the manual policy). The kernel has no first-run gate (graphrefly-ts:D184), so a ctx-level function guards `has` itself. Fix eager-placeholder upstreams rather than inventing a second input channel.
+- **Feedback cycles.** A fn that writes a state node it depends on makes a request that runs after the current wave (R-request-order@2) and starts another wave; nothing checks such loops (R-no-imperative@2). Legit accumulation = `ctx.state` (scan), not a write-back cycle.
 
 > **Topology / Imperative leaks / cache reads / Feedback cycles / Simplifications:** …
 

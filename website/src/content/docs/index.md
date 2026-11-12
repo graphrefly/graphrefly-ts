@@ -27,7 +27,20 @@ npm i @graphrefly/ts
 ```
 
 ```ts
-import { node } from "@graphrefly/ts/core";
 import { graph } from "@graphrefly/ts/graph";
 import { map } from "@graphrefly/ts/operators";
+
+const g = graph({ name: "hello" });
+const count = g.state(1, { name: "count" });
+const doubled = g.initNode(map((n: number) => n * 2), [count], { name: "doubled" });
+
+doubled.subscribe((msgs) => console.log(msgs));
+// [["START"], ["DATA", 2]]
+count.set(2);
+// [["PENDING"], ["DATA", 4]]
 ```
+
+Every node is built by a graph: `g.state`, `g.derived`, `g.effect`, `g.producer`,
+`g.node` for a raw `(ctx) => void` function, and `g.initNode(operator, deps)` for
+operators and sources. `@graphrefly/ts/core` holds the low-level types (`Node`,
+`Ctx`, `Message`) and the dispatcher.

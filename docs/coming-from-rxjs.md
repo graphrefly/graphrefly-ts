@@ -6,52 +6,85 @@ A concise migration guide for developers familiar with RxJS moving to GraphReFly
 
 ## Name mapping
 
-GraphReFly prefers shorter names but provides RxJS-compatible aliases.
+GraphReFly uses its own operator names and ships no RxJS aliases.
 
-| RxJS | GraphReFly | Alias available? |
-|------|-----------|-----------------|
-| `combineLatest` | `combine` | Yes — `combineLatest` |
-| `debounceTime` | `debounce` | Yes — `debounceTime` |
-| `throttleTime` | `throttle` | Yes — `throttleTime` |
-| `shareReplay` | `replay` | Yes — `shareReplay` |
-| `catchError` | `rescue` | Yes — `catchError` |
-| `mergeMap(fn, n)` | `mergeMap(source, fn, { concurrent: n })` | — |
-| `flatMap` | `flatMap` | Same name (alias of `mergeMap`) |
+| RxJS | GraphReFly |
+|------|-----------|
+| `combineLatest([a, b])` | `g.initNode(combine(), [a, b])` |
+| `debounceTime(ms)` | `debounce(ms)` |
+| `throttleTime(ms)` | `throttle(ms)` |
+| `catchError(fn)` | `rescue(fn)` |
+| `mergeMap(fn, n)` | `mergeMap(fn, { concurrent: n })` |
+| `flatMap` | `mergeMap` |
+| `shareReplay(1)` | Not needed: every node multicasts and keeps its latest value |
 
 ---
 
 ## API shape differences
 
-### Variadic arguments, not arrays
+### Every node belongs to a graph
 
-Combinators accept variadic sources directly:
+An operator is a factory definition. It becomes a node when a graph instantiates it
+with its dependencies:
+
+```ts
+import { graph, map } from "@graphrefly/ts";
+
+const g = graph({ name: "app" });
+const source = g.state(1, { name: "source" });
+const doubled = g.initNode(map((x: number) => x * 2), [source], { name: "doubled" });
+```
+
+There is no standalone node. `describe()` lists every node a graph built.
+
+### Combinators take a dependency array
 
 ```ts
 // RxJS
-combineLatest([a, b, c])
+combineLatest([a, b, c]);
 
 // GraphReFly
-combine(a, b, c)
+g.initNode(combine<[number, string, boolean]>(), [a, b, c]);
 ```
 
-This applies to `merge`, `combine`, `zip`, and `race`.
+This applies to `merge`, `combine`, `zip`, `race` and `withLatestFrom`.
 
-### Direct-form operators
-
-All operators take the source as their first argument:
+### Chaining with `pipe`
 
 ```ts
 // RxJS
 source$.pipe(
-  map(x => x + 1),
-  filter(x => x > 0)
-)
+  map((x) => x - 2),
+  filter((x) => x > 0),
+);
 
-// GraphReFly — direct form
-filter(map(source, x => x + 1), x => x > 0)
+// GraphReFly: the graph and the source come first
+const positive = pipe(
+  g,
+  source,
+  map((x: number) => x - 2),
+  filter((x: number) => x > 0),
+);
 ```
 
-`pipe()` exists as a convenience, but every operator is also callable directly.
+`pipe` instantiates each step through `g.initNode`, so `describe()` shows every step
+as its own node.
+
+### Subscribers receive arrays of messages
+
+A sink receives one array of messages per delivery, not one value:
+
+```ts
+positive.subscribe((msgs) => {
+  for (const [type, value] of msgs) {
+    if (type === "DATA") console.log(value);
+  }
+});
+```
+
+The first array a subscriber receives is `START` followed by the node's current
+value, if it has one. A late subscriber therefore sees the latest value without a
+`shareReplay`.
 
 ---
 
@@ -59,22 +92,37 @@ filter(map(source, x => x + 1), x => x > 0)
 
 | Topic | RxJS | GraphReFly |
 |-------|------|-----------|
-| **scan / reduce seed** | Seed is optional (seedless mode infers from first value) | Seed is always required |
+| **scan / reduce seed** | Seed is optional (seedless mode infers from first value) | Seed is always required: `scan(reducer, seed)` |
 | **tap** | Accepts a function or a partial `Observer` | Accepts a function or `{ data, error, complete }` observer object |
-| **share / replay** | Configurable `refCount` behavior | Always resets on zero subscribers (no configurable refcount) |
-| **startWith** | Accepts multiple values: `startWith(1, 2, 3)` | Use `{ initial }` option on `derived`: `derived([source], ([v]) => v, { initial })` |
+| **share / replay** | Opt-in operators with configurable `refCount` | Built in: a node multicasts, keeps its latest value, activates on its first subscriber and deactivates when the last one leaves |
+| **startWith** | Prepends values | No operator: a state node always has a current value, and a new subscriber receives it first |
+| **distinct values** | `distinctUntilChanged` | Same name; nodes deliver every DATA unchanged, so add it where repeats should be dropped |
 
 ---
 
-## Two-phase semantics
+## Waves and glitch-freedom
 
-GraphReFly introduces a DIRTY / DATA / RESOLVED protocol that has no RxJS equivalent.
+A write starts a wave. Before any value moves, the kernel sends `PENDING` through
+every node the write can reach. Each of those nodes then receives either:
 
-When a source changes, downstream nodes first receive a **DIRTY** notification (meaning "your inputs may have changed"). They then recompute and emit either:
+- **DATA**: the new value, or
+- **RESOLVED**: "this node ran in the wave and sent nothing".
 
-- **DATA** — the recomputed value (changed), or
-- **RESOLVED** — "I recomputed but my value is the same as before" (enables skip optimization).
+A node with several dependencies runs once per wave, after every pending
+dependency has settled. A diamond therefore never exposes a half-updated state:
 
-This two-phase protocol gives GraphReFly **diamond glitch-freedom**: a `combine(a, b)` that depends on two branches of the same source will never expose an intermediate state where one branch has updated but the other has not. DIRTY propagates first through the entire graph, then DATA/RESOLVED propagates, so `combine` knows to wait for both inputs before recomputing.
+```ts
+const s = g.state(1, { name: "s" });
+const left = g.derived([s], (v) => v + 1, { name: "left" });
+const right = g.derived([s], (v) => v * 2, { name: "right" });
+const joined = g.derived([left, right], (l, r) => `${l}/${r}`, { name: "joined" });
 
-RxJS `combineLatest` is susceptible to this intermediate-state problem (commonly called "glitches") because it emits eagerly on each input change.
+joined.subscribe((msgs) => console.log(msgs));
+// [["START"], ["DATA", "2/2"]]
+s.set(2);
+// [["PENDING"], ["DATA", "3/4"]]   (never "3/2")
+```
+
+RxJS `combineLatest` emits on each input change, so the same shape can expose an
+intermediate value (a "glitch"). The message types are `START`, `PENDING`, `DATA`,
+`RESOLVED`, `INVALIDATE`, `COMPLETE` and `ERROR`.

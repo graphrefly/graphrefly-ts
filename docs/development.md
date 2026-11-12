@@ -20,7 +20,7 @@ blog and protocol/control views are [root-owned](../../graphrefly/guide/docs.jso
 Use [root contributor guidance](../../graphrefly/guide/contribute.jsonl) and
 [the authority contract](../../graphrefly/authority/README.md) for spec-first,
 owner-first admission, no-backward-compatibility migration and shared workflow
-constraints. Protocol, tier/message, ctx and batch changes require root spec-amend.
+constraints. Protocol, message, ctx and batch changes require root spec-amend.
 Operators and package ergonomics do not become cross-runtime protocol by being
 implemented here. Historical root-origin decision files are relocation-only.
 

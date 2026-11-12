@@ -9,7 +9,7 @@ description: "A 5-hop reactive pipeline that flags anomalous transactions. Ask '
 > API generator still lives in `website/`.
 
 
-Homepage pain point 02 says: _your agent flagged something. Why? Logs are a wall of text; state is a snapshot, not a story._ This demo is the short answer. A small reactive graph flags an unusual transaction; one call — `graph.describe({ explain: { from: "txFeed", to: "alertMessage" } })` — returns a step-by-step causal chain from raw input to final conclusion. No log parsing, no ad-hoc tracing code. **The graph topology is the trace.**
+Homepage pain point 02 says: _your agent flagged something. Why? Logs are a wall of text; state is a snapshot, not a story._ This demo is the short answer. A small reactive graph flags an unusual transaction; one call — `explainPath(graph.inspect(), "txFeed", "alertMessage")` — returns a step-by-step causal chain from raw input to final conclusion. No log parsing, no ad-hoc tracing code. **The graph topology is the trace.**
 
 [Node-runnable source →](https://github.com/graphrefly/graphrefly-ts/tree/main/examples/spending-alerts) · `pnpm --filter @graphrefly-examples/spending-alerts start`
 
@@ -45,55 +45,49 @@ Reasoning:
   • Category is outside the user's typical spend profile.
 ```
 
-Then: `graph.describe({ explain: { from: "txFeed", to: "alertMessage" } })` returns:
+Then `explainPath(graph.inspect(), "txFeed", "alertMessage")` returns a `CausalChain`
+whose `text` is the path itself:
 
 ```
-Causal path: txFeed → alertMessage (5 step(s))
-  · txFeed (producer/settled)
-      value: {"id":"tx-003","vendor":"UNKNOWN-OFFSHORE-LLC","amount":847,…}
-      reason: Raw transaction stream from bank API / simulator.
-  ↓ anomalyScore (derived/settled)
-      value: {"zScore":0,"dailyRatio":18.82,"categoryFamiliarity":"unknown",…}
-      reason: z-score vs vendor history + daily-spend ratio + category familiarity.
-  ↓ thresholdGate (derived/settled)
-      value: {"flagged":true,"threshold":3,…}
-      reason: Flag when zScore > 3 OR dailyRatio > 5 OR category is unknown.
-  ↓ reasonFactors (derived/settled)
-      value: {"factors":["Amount is 18.8× the user's daily average.", …],"severity":"medium",…}
-      reason: Decomposes the flag into contributing signals — trustable breakdown.
-  ↓ alertMessage (derived/settled)
-      value: "Transaction tx-003 flagged — severity: medium. …"
-      reason: Final human-readable alert.
+txFeed -> anomalyScore -> thresholdGate -> reasonFactors -> alertMessage
 ```
 
-Every step has a **value** (what the node emitted when this decision was reached) and a **reason** (the annotation we attached via `graph.trace(path, reason)` at wiring time). Future-you answering _"why was transaction X flagged?"_ reads this top-to-bottom and is done.
+Each of its `steps` carries the node's `id`, `factory`, `status`, its current `value`
+(what the node holds when the snapshot is taken), its `hop` from `txFeed`, and the
+dependency slot (`depIndex`) through which the next step reads it. Future-you
+answering _"why was transaction X flagged?"_ reads the steps top-to-bottom and is done.
 
-> **Note on `zScore: 0` above.** The flagged transaction is the first-ever sighting of `UNKNOWN-OFFSHORE-LLC`, so the vendor stats have `count=1, std=0` — there's no history to compute a z-score against. The fallback scale is the mean (so `zScore === 0`), and the flag fires entirely from `dailyRatio` (18.8×) + `categoryFamiliarity` ("unknown"). This is realistic: anomaly z-scores need history, and the causal chain makes the _actual_ reason inspectable rather than hiding behind a single opaque score.
+> **Note on `zScore: 0`.** The flagged transaction is the first-ever sighting of `UNKNOWN-OFFSHORE-LLC`, so the vendor stats have `count=1, std=0` — there's no history to compute a z-score against. The fallback scale is the mean (so `zScore === 0`), and the flag fires entirely from `dailyRatio` (18.8×) + `categoryFamiliarity` ("unknown"). This is realistic: anomaly z-scores need history, and the causal chain makes the _actual_ reason inspectable rather than hiding behind a single opaque score.
 
 ## How you get this in your own code
 
 Three ideas. That's all.
 
-**1. Compose with `derived([dep, dep], fn)` — the deps ARE the causal edges.** The graph doesn't need a separate trace format; the topology you wrote down is exactly what `explainPath` walks.
+**1. Compose with `graph.derived([dep, dep], fn)` — the deps ARE the causal edges.** The graph doesn't need a separate trace format; the topology you wrote down is exactly what `explainPath` walks.
 
 ```ts
-const anomalyScore = derived(
+const anomalyScore = graph.derived(
   [txFeed, vendorStats, userProfile],
-  ([txn, stats, prof]) => ({ zScore: …, dailyRatio: …, categoryFamiliarity: … }),
+  (txn, stats, prof) => ({ zScore: …, dailyRatio: …, categoryFamiliarity: … }),
   { name: "anomalyScore" },
 );
 ```
 
-**2. Call `graph.trace(path, reason)` once per node — the WHY shows up in the chain.** This is pure metadata; it doesn't affect behavior, only the output of `explain()`. Future readers (human or LLM) get the rationale alongside the value.
+**2. Attach the WHY as node metadata.** `meta` is pure annotation; it doesn't affect behavior, and `graph.inspect()` reports it on the node. Future readers (human or LLM) get the rationale alongside the value.
 
 ```ts
-graph.trace("anomalyScore", "z-score vs vendor history + daily-spend ratio + category familiarity.");
+const anomalyScore = graph.derived([txFeed, vendorStats, userProfile], score, {
+  name: "anomalyScore",
+  meta: { reason: "z-score vs vendor history + daily-spend ratio + category familiarity." },
+});
 ```
 
-**3. Call `graph.describe({ explain: { from, to } })` at any point — you get a typed `CausalChain`.** The returned object has `steps[]`, `text` (the pretty-printed chain above), and `toJSON()` for passing into audits or LLM prompts.
+**3. Call `explainPath(graph.inspect(), from, to)` at any point — you get a typed `CausalChain`.** The returned object has `found`, `steps[]`, `text` (the path above), and `toJSON()` for passing into audits or LLM prompts. `graph.inspect({ explain: { from, to } })` gives every node on any path from `from` to `to` as a filtered snapshot, `meta` included.
 
 ```ts
-const chain = graph.describe({ explain: { from: "txFeed", to: "alertMessage" } });
+import { explainPath } from "@graphrefly/ts";
+
+const chain = explainPath(graph.inspect(), "txFeed", "alertMessage");
 console.log(chain.text);
 // Or: send chain.toJSON() to Claude / GPT and ask "was this decision reasonable?"
 ```
@@ -114,4 +108,4 @@ pre-CSP-9 `promptNode` / AI adapter examples are not current package guidance.
 
 ## Source
 
-Runnable Node-only pipeline: [`examples/spending-alerts/`](https://github.com/graphrefly/graphrefly-ts/tree/main/examples/spending-alerts). Related: homepage pain point 02, [`explainPath`](https://github.com/graphrefly/graphrefly-ts/blob/main/src/graph/explain.ts), [§9.3e in the roadmap](/roadmap/). This page is a legacy website walkthrough for the package-local example; shared public docs ownership now lives in `~/src/graphrefly` under D563.
+Runnable Node-only pipeline: [`examples/spending-alerts/`](https://github.com/graphrefly/graphrefly-ts/tree/main/examples/spending-alerts). Related: homepage pain point 02, [`explainPath`](/api/explainpath/), [§9.3e in the roadmap](/roadmap/). This page is a legacy website walkthrough for the package-local example; shared public docs ownership now lives in `~/src/graphrefly` under D563.

@@ -14,7 +14,7 @@ inspection, and host boundaries.
 
 ## Reactive layout
 
-Text measurement and line-breaking as a reactive graph — five chapters walk through incremental recomputation, `batch()` coalescing, pluggable measurement backends, and mixed-content block flow. The demo uses the shared demo shell, so the topology mermaid and the source code driving each chapter are always visible to the right of the main canvas.
+Text measurement and line-breaking as a reactive graph — five chapters walk through incremental recomputation, `graph.batch()` coalescing, pluggable measurement backends, and mixed-content block flow. The demo uses the shared demo shell, so the topology mermaid and the source code driving each chapter are always visible to the right of the main canvas.
 
 [Read the reactive layout solution →](/solutions/reactive-layout/)
 
