@@ -10,7 +10,6 @@ import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
 import { canonicalTupleKey } from "../identity.js";
 import type { Node } from "../node/node.js";
-import { oneArrayPerRun } from "../node/one-array-per-run.js";
 import type {
 	AgentRequestIssued,
 	ExecutorOutcome,
@@ -130,12 +129,14 @@ export function executorWorkQueueRecipe(
 			? undefined
 			: graph.node<WorkQueueCommand<ExecutorQueuedDispatchPayload>>(
 					[opts.requests],
-					oneArrayPerRun((ctx) => {
+					(ctx) => {
+						const commands: WorkQueueCommand<ExecutorQueuedDispatchPayload>[] = [];
 						for (const raw of ctx.deps[0].waves.flat()) {
 							const request = raw as AgentRequestIssued;
-							ctx.down([["DATA", executorSubmitCommand(request, opts.policy)]]);
+							commands.push(executorSubmitCommand(request, opts.policy));
 						}
-					}),
+						ctx.emit(...commands);
+					},
 					{ name: `${name}/submitCommands`, factory: "executorWorkQueueSubmitCommands" },
 				);
 	const runtime = graph.node<ExecutorQueueFact>(
@@ -398,12 +399,14 @@ function project<T>(
 ): Node<T> {
 	return graph.node<T>(
 		[runtime],
-		oneArrayPerRun((ctx) => {
+		(ctx) => {
+			const values: T[] = [];
 			for (const raw of ctx.deps[0].waves.flat()) {
 				const selected = select(raw as ExecutorQueueFact);
-				if (selected !== undefined) ctx.down([["DATA", selected]]);
+				if (selected !== undefined) values.push(selected);
 			}
-		}),
+			ctx.emit(...values);
+		},
 		{ name, factory, complete: "manual", error: "manual" },
 	);
 }

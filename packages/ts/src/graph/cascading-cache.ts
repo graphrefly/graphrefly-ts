@@ -1,6 +1,5 @@
 import type { Ctx } from "../ctx/types.js";
 import type { Node } from "../node/node.js";
-import { oneArrayPerRun } from "../node/one-array-per-run.js";
 import { errorPayload } from "../protocol/messages.js";
 import { hasKvVersioned, type KvGeneration, type KvStorageTier } from "../storage/kv.js";
 import {
@@ -236,63 +235,50 @@ export function reactiveCascadingCache<K extends string, V>(
 
 	const status = g.node<CascadingCacheStatus<K>>(
 		[events],
-		oneArrayPerRun((ctx) => {
+		(ctx) => {
 			const st = ctx.state.get<SeqState>() ?? { seq: 0 };
 			const batch = (ctx.deps[0].waves.length === 0 ? null : ctx.deps[0].waves.flat()) as
 				| readonly CascadingCacheEvent<K, V>[]
 				| null;
 			if (batch === null) return;
+			const statuses: CascadingCacheStatus<K>[] = [];
 			for (const event of batch) {
 				if (event.kind === "request" || event.kind === "invalidate") {
 					st.seq = event.requestSeq;
-					ctx.down([["DATA", { kind: "loading", key: event.key, requestSeq: event.requestSeq }]]);
+					statuses.push({ kind: "loading", key: event.key, requestSeq: event.requestSeq });
 					continue;
 				}
 				if (event.requestSeq !== st.seq) continue;
 				if (event.kind === "fill") {
 					if (event.status === "hit") {
-						ctx.down([
-							[
-								"DATA",
-								{
-									kind: "hit",
-									key: event.key,
-									requestSeq: event.requestSeq,
-									tier: event.tier,
-								},
-							],
-						]);
+						statuses.push({
+							kind: "hit",
+							key: event.key,
+							requestSeq: event.requestSeq,
+							tier: event.tier,
+						});
 					} else if (event.status === "miss") {
-						ctx.down([["DATA", { kind: "miss", key: event.key, requestSeq: event.requestSeq }]]);
+						statuses.push({ kind: "miss", key: event.key, requestSeq: event.requestSeq });
 					} else {
-						ctx.down([
-							[
-								"DATA",
-								{
-									kind: "error",
-									key: event.key,
-									requestSeq: event.requestSeq,
-									error: event.error,
-								},
-							],
-						]);
+						statuses.push({
+							kind: "error",
+							key: event.key,
+							requestSeq: event.requestSeq,
+							error: event.error,
+						});
 					}
 				} else if (event.kind === "error") {
-					ctx.down([
-						[
-							"DATA",
-							{
-								kind: "error",
-								key: event.key,
-								requestSeq: event.requestSeq,
-								error: event.error,
-							},
-						],
-					]);
+					statuses.push({
+						kind: "error",
+						key: event.key,
+						requestSeq: event.requestSeq,
+						error: event.error,
+					});
 				}
 			}
 			ctx.state.set(st);
-		}),
+			ctx.emit(...statuses);
+		},
 		{
 			name: `${baseName}.status`,
 			initial: { kind: "idle" },
@@ -302,12 +288,20 @@ export function reactiveCascadingCache<K extends string, V>(
 
 	const value = g.node<V | undefined>(
 		[events],
-		oneArrayPerRun((ctx) => {
+		(ctx) => {
 			const st = ctx.state.get<SeqState>() ?? { seq: 0 };
 			const batch = (ctx.deps[0].waves.length === 0 ? null : ctx.deps[0].waves.flat()) as
 				| readonly CascadingCacheEvent<K, V>[]
 				| null;
 			if (batch === null) return;
+			// The values go out as one array; an INVALIDATE first sends the values before it, then
+			// goes out as its own array.
+			let values: V[] = [];
+			const invalidate = () => {
+				ctx.emit(...values);
+				values = [];
+				ctx.down([["INVALIDATE"]]);
+			};
 			for (const event of batch) {
 				if (event.kind === "request") {
 					st.seq = event.requestSeq;
@@ -315,18 +309,19 @@ export function reactiveCascadingCache<K extends string, V>(
 				}
 				if (event.kind === "invalidate") {
 					st.seq = event.requestSeq;
-					ctx.down([["INVALIDATE"]]);
+					invalidate();
 					continue;
 				}
 				if (event.kind !== "fill" || event.requestSeq !== st.seq) continue;
 				if (event.status === "hit" && event.value !== undefined) {
-					ctx.down([["DATA", event.value]]);
+					values.push(event.value);
 				} else {
-					ctx.down([["INVALIDATE"]]);
+					invalidate();
 				}
 			}
 			ctx.state.set(st);
-		}),
+			ctx.emit(...values);
+		},
 		{
 			name: `${baseName}.value`,
 			meta,

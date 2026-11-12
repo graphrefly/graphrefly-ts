@@ -20,7 +20,6 @@
 
 import type { Ctx } from "../../ctx/types.js";
 import { makeNodeBeside, type Node } from "../../node/node.js";
-import { oneArrayPerRun } from "../../node/one-array-per-run.js";
 import type { GraphCheckpointJson } from "../checkpoint.js";
 import type { Graph } from "../graph.js";
 import { trimHeadOverflow } from "../policies/collection.js";
@@ -375,12 +374,13 @@ export function mergeReactiveLogs<T>(logs: readonly ReactiveLog<T>[]): Node<LogC
 	const deps = logs.map((l) => l.delta as Node<unknown>);
 	return makeNodeBeside<LogChange<T>>(
 		deps,
-		oneArrayPerRun((ctx: Ctx) => {
-			for (let i = 0; i < ctx.deps.length; i++) {
-				const b = ctx.deps[i].waves.length === 0 ? null : ctx.deps[i].waves.flat();
-				if (b) for (const c of b) ctx.down([["DATA", c as LogChange<T>]]);
+		(ctx: Ctx) => {
+			const changes: LogChange<T>[] = [];
+			for (const dep of ctx.deps) {
+				for (const c of dep.waves.flat()) changes.push(c as LogChange<T>);
 			}
-		}),
+			ctx.emit(...changes);
+		},
 		{ factory: "mergeReactiveLogs" },
 	);
 }

@@ -12,7 +12,6 @@ import type { Graph } from "../graph/graph.js";
 import { canonicalTupleKey, compoundTupleKey } from "../identity.js";
 import type { BoundaryCapabilityRef, BoundaryRole } from "../inspection/boundary.js";
 import type { Node } from "../node/node.js";
-import { oneArrayPerRun } from "../node/one-array-per-run.js";
 import type { AgentRuntimeAuditRecord, SourceRef } from "../orchestration/agent-runtime.js";
 
 export type CapabilityAdmissionOutcome = "allow" | "block" | "defer";
@@ -813,13 +812,15 @@ function projectRuntimeFact<T, TOut>(
 ): Node<TOut> {
 	return graph.node<TOut>(
 		[runtime],
-		oneArrayPerRun((ctx) => {
+		(ctx) => {
+			const values: TOut[] = [];
 			for (const fact of ctx.deps[0].waves.flat()) {
 				const typed = fact as T;
 				const value = pick(typed);
-				if (value !== undefined) ctx.down([["DATA", value]]);
+				if (value !== undefined) values.push(value);
 			}
-		}),
+			ctx.emit(...values);
+		},
 		{ name, factory },
 	);
 }

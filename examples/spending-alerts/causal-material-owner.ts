@@ -2,7 +2,6 @@
 
 import type { DataIssue } from "../../packages/ts/src/data/index.js";
 import type { Node } from "../../packages/ts/src/node/node.js";
-import { oneArrayPerRun } from "../../packages/ts/src/node/one-array-per-run.js";
 import type { Message } from "../../packages/ts/src/protocol/messages.js";
 import type { CausalEffectProposal } from "../../packages/ts/src/solutions/causal-occurrence/contracts.js";
 import {
@@ -84,74 +83,67 @@ export function buildMaterials(
 			}
 		},
 	);
-	const materialStore = make<StoredFrame>(
-		"materialStore",
-		[requestMaterials],
-		oneArrayPerRun((ctx) => {
-			let s = ctx.state.get<{
-				materials: Map<string, RequestMaterial>;
-				snapshot: MaterialSnapshot;
-			}>();
-			if (!s) {
-				s = { materials: new Map(), snapshot: makeMaterialSnapshot(profile, []) };
-				ctx.state.set(s);
-			}
-			for (const f of ctx.deps[0].waves.flat() as BusinessFrame<MaterialResult>[]) {
-				const rows: Item<MaterialResult>[] = [],
-					problems: DataIssue[] = [...f.issues];
-				for (const row of f.rows) {
-					const result = row.value;
-					if (result.kind !== "retained") {
-						rows.push(row);
-						if (result.kind === "rejected") problems.push(result.issue);
+	const materialStore = make<StoredFrame>("materialStore", [requestMaterials], (ctx) => {
+		const values: unknown[] = [];
+		let s = ctx.state.get<{
+			materials: Map<string, RequestMaterial>;
+			snapshot: MaterialSnapshot;
+		}>();
+		if (!s) {
+			s = { materials: new Map(), snapshot: makeMaterialSnapshot(profile, []) };
+			ctx.state.set(s);
+		}
+		for (const f of ctx.deps[0].waves.flat() as BusinessFrame<MaterialResult>[]) {
+			const rows: Item<MaterialResult>[] = [],
+				problems: DataIssue[] = [...f.issues];
+			for (const row of f.rows) {
+				const result = row.value;
+				if (result.kind !== "retained") {
+					rows.push(row);
+					if (result.kind === "rejected") problems.push(result.issue);
+					continue;
+				}
+				const key = occurrenceKey(row.evaluation.occurrence),
+					prior = s.materials.get(key);
+				let failure: DataIssue | undefined;
+				if (prior) {
+					if (canonicalMaterial(prior) !== canonicalMaterial(result.material))
+						failure = issue("material-conflict", row.evaluation.evaluationRef);
+					else {
+						rows.push({
+							evaluation: row.evaluation,
+							value: { kind: "retained", material: prior },
+						});
 						continue;
 					}
-					const key = occurrenceKey(row.evaluation.occurrence),
-						prior = s.materials.get(key);
-					let failure: DataIssue | undefined;
-					if (prior) {
-						if (canonicalMaterial(prior) !== canonicalMaterial(result.material))
-							failure = issue("material-conflict", row.evaluation.evaluationRef);
-						else {
-							rows.push({
-								evaluation: row.evaluation,
-								value: { kind: "retained", material: prior },
-							});
-							continue;
-						}
-					} else if (s.materials.size >= 64)
-						failure = issue("material-count-capacity", row.evaluation.evaluationRef);
-					else {
-						try {
-							const next = makeMaterialSnapshot(profile, [
-								...s.materials.values(),
-								result.material,
-							]);
-							canonicalMaterial(next, 1048576);
-							s.materials.set(key, result.material);
-							s.snapshot = next;
-						} catch {
-							failure = issue("material-byte-capacity", row.evaluation.evaluationRef);
-						}
+				} else if (s.materials.size >= 64)
+					failure = issue("material-count-capacity", row.evaluation.evaluationRef);
+				else {
+					try {
+						const next = makeMaterialSnapshot(profile, [...s.materials.values(), result.material]);
+						canonicalMaterial(next, 1048576);
+						s.materials.set(key, result.material);
+						s.snapshot = next;
+					} catch {
+						failure = issue("material-byte-capacity", row.evaluation.evaluationRef);
 					}
-					if (failure) {
-						problems.push(failure);
-						rows.push({ evaluation: row.evaluation, value: { kind: "rejected", issue: failure } });
-					} else rows.push(row);
 				}
-				// State is owned by this node before any downstream proposal is delivered.
-				ctx.state.set(s);
-				ctx.down([["DATA", frozen({ ...frame(rows, problems, f.valid), snapshot: s.snapshot })]]);
+				if (failure) {
+					problems.push(failure);
+					rows.push({ evaluation: row.evaluation, value: { kind: "rejected", issue: failure } });
+				} else rows.push(row);
 			}
-		}),
-	);
-	const materialSnapshot = make<MaterialSnapshot>(
-		"materialSnapshot",
-		[materialStore],
-		oneArrayPerRun((ctx) => {
-			for (const f of ctx.deps[0].waves.flat() as StoredFrame[]) ctx.down([["DATA", f.snapshot]]);
-		}),
-	);
+			// State is owned by this node before any downstream proposal is delivered.
+			ctx.state.set(s);
+			values.push(frozen({ ...frame(rows, problems, f.valid), snapshot: s.snapshot }));
+		}
+		ctx.emit(...values);
+	});
+	const materialSnapshot = make<MaterialSnapshot>("materialSnapshot", [materialStore], (ctx) => {
+		const values: unknown[] = [];
+		for (const f of ctx.deps[0].waves.flat() as StoredFrame[]) values.push(f.snapshot);
+		ctx.emit(...values);
+	});
 	const effectProposals = make<CausalEffectProposal>("effectProposals", [materialStore], (ctx) => {
 		const outputs: Message[] = [];
 		for (const f of ctx.deps[0].waves.flat() as StoredFrame[])

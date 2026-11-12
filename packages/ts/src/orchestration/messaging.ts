@@ -14,7 +14,6 @@ import type {
 	MessageBusMessage,
 } from "../messaging/index.js";
 import type { Node } from "../node/node.js";
-import { oneArrayPerRun } from "../node/one-array-per-run.js";
 import type { ProcessCommand, ProcessEvent, ProcessStatus } from "../orchestration/index.js";
 
 export interface OrchestrationMessagingPolicy<TPayload = unknown, TCommand = unknown> {
@@ -77,20 +76,22 @@ export function orchestrationMessagingRecipe<
 	const name = opts.name ?? "orchestrationMessaging";
 	const runtime = graph.node<OrchestrationMessagingFact<TCommand>>(
 		[opts.deliveries],
-		oneArrayPerRun((ctx) => {
+		(ctx) => {
+			const facts: OrchestrationMessagingFact<TCommand>[] = [];
 			for (const raw of ctx.deps[0].waves.flat()) {
 				const page = raw as MessageBusAvailablePage<TPayload>;
 				for (const message of page.messages) {
 					const delivery = messageDelivery(page, message);
 					const command = orchestrationMessageCommand(message, delivery, opts.policy);
 					if (command === undefined) {
-						ctx.down([["DATA", { kind: "issue", issue: messageIssue(message, delivery) }]]);
+						facts.push({ kind: "issue", issue: messageIssue(message, delivery) });
 					} else {
-						ctx.down([["DATA", { kind: "command", command }]]);
+						facts.push({ kind: "command", command });
 					}
 				}
 			}
-		}),
+			ctx.emit(...facts);
+		},
 		{
 			name: `${name}/runtime`,
 			factory: "orchestrationMessagingRuntime",
@@ -198,7 +199,8 @@ export function orchestrationMessageAckCommands(
 		opts.issues === undefined
 			? [opts.commands, opts.status]
 			: [opts.commands, opts.status, opts.issues],
-		oneArrayPerRun((ctx) => {
+		(ctx) => {
+			const commands: MessageBusCommand[] = [];
 			const deliveries =
 				ctx.state.get<Map<string, MessageBusDelivery[]>>() ??
 				new Map<string, MessageBusDelivery[]>();
@@ -213,22 +215,19 @@ export function orchestrationMessageAckCommands(
 				if (status.commandId === undefined) continue;
 				const delivery = shiftDelivery(deliveries, status.commandId);
 				if (delivery === undefined) continue;
-				ctx.down([
-					["DATA", ackCommand(delivery, ackCommandId("orchestration", delivery, "status"))],
-				]);
+				commands.push(ackCommand(delivery, ackCommandId("orchestration", delivery, "status")));
 			}
 			if (opts.issues !== undefined) {
 				for (const raw of ctx.deps[2]?.waves.flat() ?? []) {
 					const delivery = issueDelivery(raw as DataIssue);
 					if (delivery !== undefined) {
-						ctx.down([
-							["DATA", ackCommand(delivery, ackCommandId("orchestration", delivery, "issue"))],
-						]);
+						commands.push(ackCommand(delivery, ackCommandId("orchestration", delivery, "issue")));
 					}
 				}
 			}
 			ctx.state.set(deliveries);
-		}),
+			ctx.emit(...commands);
+		},
 		{
 			name: opts.name ?? "orchestrationMessaging/ackCommands",
 			factory: "orchestrationMessagingAckCommands",
@@ -260,24 +259,21 @@ export function processEventOutboxCommands<TEvent>(
 ): Node<MessageBusCommand> {
 	return graph.node<MessageBusCommand>(
 		[events],
-		oneArrayPerRun((ctx) => {
+		(ctx) => {
+			const commands: MessageBusCommand[] = [];
 			for (const event of ctx.deps[0].waves.flat()) {
 				const typed = event as ProcessEvent<TEvent>;
-				ctx.down([
-					[
-						"DATA",
-						{
-							kind: "publish",
-							topic,
-							payload: typed,
-							key: typed.processId,
-							commandId: compoundTupleKey("process-outbox", [typed.id]),
-							idempotencyKey: typed.id,
-						} satisfies MessageBusCommand,
-					],
-				]);
+				commands.push({
+					kind: "publish",
+					topic,
+					payload: typed,
+					key: typed.processId,
+					commandId: compoundTupleKey("process-outbox", [typed.id]),
+					idempotencyKey: typed.id,
+				});
 			}
-		}),
+			ctx.emit(...commands);
+		},
 		{
 			name: opts.name ?? "orchestrationMessaging/outboxCommands",
 			factory: "orchestrationMessagingOutboxCommands",
@@ -296,12 +292,14 @@ function project<T, TCommand>(
 ): Node<T> {
 	return graph.node<T>(
 		[runtime],
-		oneArrayPerRun((ctx) => {
+		(ctx) => {
+			const values: T[] = [];
 			for (const fact of ctx.deps[0].waves.flat()) {
 				const value = pick(fact as OrchestrationMessagingFact<TCommand>);
-				if (value !== undefined) ctx.down([["DATA", value]]);
+				if (value !== undefined) values.push(value);
 			}
-		}),
+			ctx.emit(...values);
+		},
 		{ name, factory, complete: "manual", error: "manual" },
 	);
 }

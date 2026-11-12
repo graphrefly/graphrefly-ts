@@ -17,8 +17,7 @@ import type {
 import type { Graph } from "../graph/graph.js";
 import { nextRetryDelayMs, retryPolicy, shouldRetry } from "../graph/resilience.js";
 import type { Node } from "../node/node.js";
-import { oneArrayPerRun } from "../node/one-array-per-run.js";
-import { errorPayload } from "../protocol/messages.js";
+import { errorPayload, type Message } from "../protocol/messages.js";
 import type {
 	HttpRequestOf,
 	OutboundAdapterOptions,
@@ -97,30 +96,37 @@ function outboundNodes<TValue, TResult>(
 			}
 			ctx.state.set(next);
 			ctx.down([["DATA", next]]);
-			forwardError(ctx);
+			const error = depError(ctx);
+			if (error !== undefined) ctx.down([error]);
 		},
 		{ name: `${name}/status`, factory: "outboundStatus", error: "manual" },
 	);
 	const attempts = graph.node<number>(
 		[events],
-		oneArrayPerRun((ctx) => {
+		(ctx) => {
+			const out: Message[] = [];
 			for (const event of ctx.deps[0].waves.flat()) {
 				const typed = event as OutboundEvent<TValue, TResult>;
-				if ("attempt" in typed) ctx.down([["DATA", typed.attempt]]);
+				if ("attempt" in typed) out.push(["DATA", typed.attempt]);
 			}
-			forwardError(ctx);
-		}),
+			const error = depError(ctx);
+			if (error !== undefined) out.push(error);
+			if (out.length > 0) ctx.down(out);
+		},
 		{ name: `${name}/attempts`, factory: "outboundAttempts", error: "manual" },
 	);
 	const errors = graph.node<unknown>(
 		[events],
-		oneArrayPerRun((ctx) => {
+		(ctx) => {
+			const out: Message[] = [];
 			for (const event of ctx.deps[0].waves.flat()) {
 				const typed = event as OutboundEvent<TValue, TResult>;
-				if ("error" in typed) ctx.down([["DATA", typed.error]]);
+				if ("error" in typed) out.push(["DATA", typed.error]);
 			}
-			forwardError(ctx);
-		}),
+			const error = depError(ctx);
+			if (error !== undefined) out.push(error);
+			if (out.length > 0) ctx.down(out);
+		},
 		{ name: `${name}/errors`, factory: "outboundErrors", error: "manual" },
 	);
 	return { events, status, attempts, errors };
@@ -129,11 +135,12 @@ function outboundNodes<TValue, TResult>(
 /**
  * The ledgers record the events that came with the outbound node's ERROR in the same wave before
  * ending with it: under the auto ERROR policy a dependency's ERROR would end them without running
- * (R-terminals), dropping the final "exhausted" event.
+ * (R-terminals), dropping the final "exhausted" event. This returns the dependency's ERROR to send
+ * last, after those events.
  */
-function forwardError(ctx: Ctx): void {
+function depError(ctx: Ctx): Message | undefined {
 	const t = ctx.deps[0].terminal;
-	if (t?.kind === "error") ctx.down([["ERROR", t.error]]);
+	return t?.kind === "error" ? ["ERROR", t.error] : undefined;
 }
 
 function reduceStatus<TValue, TResult>(

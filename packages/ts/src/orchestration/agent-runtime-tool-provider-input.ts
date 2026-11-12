@@ -2,7 +2,6 @@ import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
 import { canonicalTupleKey, compoundTupleKey } from "../identity.js";
 import type { Node } from "../node/node.js";
-import { oneArrayPerRun } from "../node/one-array-per-run.js";
 import {
 	dataIssue,
 	forbiddenAdapterInputMaterialIssues,
@@ -102,7 +101,8 @@ export function toolProviderAdapterInputProjector(
 	const resolutionStart = catalogStart + catalogDeps.length;
 	const runtime = graph.node<ToolProviderAdapterInputFact>(
 		[opts.requestFacts, ...routeDeps, ...catalogDeps, ...opts.policyResolutions],
-		oneArrayPerRun((ctx) => {
+		(ctx) => {
+			const facts: ToolProviderAdapterInputFact[] = [];
 			const state = ctx.state.get<ToolProviderAdapterInputState>() ?? {
 				requests: new Map<string, AgentRequestIssued>(),
 				routes: new Map<string, ExecutorRoute>(),
@@ -139,38 +139,34 @@ export function toolProviderAdapterInputProjector(
 				const key = stableToolProviderAdapterInputKey(input);
 				if (state.emittedKeys.has(key)) continue;
 				state.emittedKeys.add(key);
-				ctx.down([["DATA", { kind: "input", input } satisfies ToolProviderAdapterInputFact]]);
+				facts.push({ kind: "input", input });
 				for (const issue of input.issues ?? []) {
-					ctx.down([["DATA", { kind: "issue", issue } satisfies ToolProviderAdapterInputFact]]);
+					facts.push({ kind: "issue", issue });
 				}
 				state.auditSeq += 1;
-				ctx.down([
-					[
-						"DATA",
-						{
-							kind: "audit",
-							audit: {
-								id: compoundTupleKey("tool-provider-adapter-input-audit", [
-									name,
-									String(state.auditSeq),
-								]),
-								kind: "tool-provider-adapter-input",
-								subjectId: input.requestId,
-								sourceRefs: input.sourceRefs,
-								metadata: {
-									status: input.status,
-									routeId: input.routeId,
-									providerId: input.providerId,
-									profileId: input.profileId,
-									toolName: input.toolName,
-								},
-							},
-						} satisfies ToolProviderAdapterInputFact,
-					],
-				]);
+				facts.push({
+					kind: "audit",
+					audit: {
+						id: compoundTupleKey("tool-provider-adapter-input-audit", [
+							name,
+							String(state.auditSeq),
+						]),
+						kind: "tool-provider-adapter-input",
+						subjectId: input.requestId,
+						sourceRefs: input.sourceRefs,
+						metadata: {
+							status: input.status,
+							routeId: input.routeId,
+							providerId: input.providerId,
+							profileId: input.profileId,
+							toolName: input.toolName,
+						},
+					},
+				});
 			}
 			ctx.state.set(state);
-		}),
+			ctx.emit(...facts);
+		},
 		{ name: `${name}/runtime`, factory: "toolProviderAdapterInputProjector" },
 	);
 	const inputs = projectRuntimeFact(

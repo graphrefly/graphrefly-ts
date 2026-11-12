@@ -2,7 +2,6 @@ import type { NodeFn } from "../ctx/types.js";
 import type { Graph } from "../graph/graph.js";
 import type { GraphRecipeContext, GraphRecipeFactory } from "../graph/restore.js";
 import type { Node } from "../node/node.js";
-import { oneArrayPerRun } from "../node/one-array-per-run.js";
 
 export interface LocalFixedWindowRateLimitOptions {
 	readonly max: number;
@@ -122,8 +121,9 @@ export function localFixedWindowRateLimitBundle<T>(
 
 function eventsFn(config: EventsConfig, now: () => number): NodeFn {
 	const { max, windowMs } = config;
-	return oneArrayPerRun((ctx) => {
+	return (ctx) => {
 		type State = { count: number; resetAtMs: number; allowed: number; dropped: number };
+		const events: LocalFixedWindowRateLimitEvent<unknown>[] = [];
 		const current = now();
 		let state =
 			ctx.state.get<State>() ??
@@ -142,29 +142,23 @@ function eventsFn(config: EventsConfig, now: () => number): NodeFn {
 				remaining: Math.max(0, max - state.count),
 				resetAtMs: state.resetAtMs,
 			} satisfies LocalFixedWindowRateLimitStatus;
-			ctx.down([
-				[
-					"DATA",
-					{
-						kind: allowed ? "allowed" : "dropped",
-						value,
-						status,
-					} satisfies LocalFixedWindowRateLimitEvent<unknown>,
-				],
-			]);
+			events.push({ kind: allowed ? "allowed" : "dropped", value, status });
 		}
 		ctx.state.set(state);
-	});
+		ctx.emit(...events);
+	};
 }
 
 function projectionFn(kind: ProjectionKind): NodeFn {
-	return oneArrayPerRun((ctx) => {
+	return (ctx) => {
+		const values: unknown[] = [];
 		for (const event of ctx.deps[0].waves.flat()) {
 			const typed = event as LocalFixedWindowRateLimitEvent<unknown>;
-			if (kind === "status") ctx.down([["DATA", typed.status]]);
-			else if (typed.kind === kind) ctx.down([["DATA", typed.value]]);
+			if (kind === "status") values.push(typed.status);
+			else if (typed.kind === kind) values.push(typed.value);
 		}
-	});
+		ctx.emit(...values);
+	};
 }
 
 function restoredClock(nowRef: string | undefined, ctx: GraphRecipeContext): () => number {

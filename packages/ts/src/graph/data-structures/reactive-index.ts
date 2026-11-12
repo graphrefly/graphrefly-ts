@@ -15,8 +15,7 @@
 import type { Ctx } from "../../ctx/types.js";
 import { attachableInput } from "../../node/attachable-input.js";
 import { makeNodeBeside, Node } from "../../node/node.js";
-import { oneArrayPerRun } from "../../node/one-array-per-run.js";
-import { errorPayload } from "../../protocol/messages.js";
+import { errorPayload, type Message } from "../../protocol/messages.js";
 import type { Graph } from "../graph.js";
 import type { Operator } from "../operators.js";
 import type { OrderedCapacityPolicy, ReactiveOpt, ViewCachePolicy } from "../policies/types.js";
@@ -558,19 +557,21 @@ function createReactiveIndex<K, V = unknown>(
 				{ primary: K; secondary: unknown; value: V }
 			> = {
 				factory: "reactiveIndex.bindSource",
-				body: oneArrayPerRun((ctx: Ctx) => {
+				body: (ctx: Ctx) => {
+					const out: Message[] = [];
 					try {
 						for (const r of ctx.deps[0].waves.flat() as readonly {
 							primary: K;
 							secondary: unknown;
 							value: V;
 						}[]) {
-							ctx.down([["DATA", r]]);
+							out.push(["DATA", r]);
 						}
 					} catch (e) {
-						ctx.down([["ERROR", errorPayload(e, "reactiveIndex.bindSource failed")]]);
+						out.push(["ERROR", errorPayload(e, "reactiveIndex.bindSource failed")]);
 					}
-				}),
+					if (out.length > 0) ctx.down(out);
+				},
 			};
 			const folder = graph.initNode(op, [src], {
 				name: name ? `${name}.bind#${bindSeq++}` : undefined,

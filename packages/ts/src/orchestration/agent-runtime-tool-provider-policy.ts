@@ -2,7 +2,6 @@ import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
 import { canonicalTupleKey, compoundTupleKey } from "../identity.js";
 import type { Node } from "../node/node.js";
-import { oneArrayPerRun } from "../node/one-array-per-run.js";
 import {
 	dataIssue,
 	forbiddenDataKeys,
@@ -473,7 +472,8 @@ export function toolProviderPolicyResolutionProjector(
 	const catalogStart = routeStart + routeDeps.length;
 	const runtime = graph.node<ToolProviderPolicyResolutionFact>(
 		[opts.requestFacts, ...routeDeps, ...catalogDeps],
-		oneArrayPerRun((ctx) => {
+		(ctx) => {
+			const facts: ToolProviderPolicyResolutionFact[] = [];
 			const state = ctx.state.get<ToolProviderPolicyResolutionState>() ?? {
 				requests: new Map<string, AgentRequestIssued>(),
 				routes: new Map<string, ExecutorRoute>(),
@@ -505,43 +505,32 @@ export function toolProviderPolicyResolutionProjector(
 					const key = stableToolProviderPolicyResolutionKey(resolution);
 					if (state.emittedKeys.has(key)) continue;
 					state.emittedKeys.add(key);
-					ctx.down([
-						["DATA", { kind: "resolution", resolution } satisfies ToolProviderPolicyResolutionFact],
-					]);
+					facts.push({ kind: "resolution", resolution });
 					for (const issue of resolution.issues ?? []) {
-						ctx.down([
-							["DATA", { kind: "issue", issue } satisfies ToolProviderPolicyResolutionFact],
-						]);
+						facts.push({ kind: "issue", issue });
 					}
 					state.auditSeq += 1;
-					ctx.down([
-						[
-							"DATA",
-							{
-								kind: "audit",
-								audit: {
-									id: compoundTupleKey("tool-provider-policy-audit", [
-										name,
-										String(state.auditSeq),
-									]),
-									kind: "tool-provider-policy-resolution",
-									subjectId: request.requestId,
-									sourceRefs: resolution.sourceRefs,
-									metadata: {
-										status: resolution.status,
-										routeId: resolution.routeId,
-										providerId: resolution.providerId,
-										profileId: resolution.profileId,
-										toolName: resolution.toolName,
-									},
-								},
-							} satisfies ToolProviderPolicyResolutionFact,
-						],
-					]);
+					facts.push({
+						kind: "audit",
+						audit: {
+							id: compoundTupleKey("tool-provider-policy-audit", [name, String(state.auditSeq)]),
+							kind: "tool-provider-policy-resolution",
+							subjectId: request.requestId,
+							sourceRefs: resolution.sourceRefs,
+							metadata: {
+								status: resolution.status,
+								routeId: resolution.routeId,
+								providerId: resolution.providerId,
+								profileId: resolution.profileId,
+								toolName: resolution.toolName,
+							},
+						},
+					});
 				}
 			}
 			ctx.state.set(state);
-		}),
+			ctx.emit(...facts);
+		},
 		{ name: `${name}/runtime`, factory: "toolProviderPolicyResolutionProjector" },
 	);
 	const resolutions = projectRuntimeFact(

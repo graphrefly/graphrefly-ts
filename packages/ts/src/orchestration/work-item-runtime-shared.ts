@@ -3,7 +3,6 @@ import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
 import { canonicalTupleKey, compoundTupleKey, parseCanonicalTupleKey } from "../identity.js";
 import type { Node } from "../node/node.js";
-import { oneArrayPerRun } from "../node/one-array-per-run.js";
 import type {
 	AgentRuntimeAuditRecord,
 	EffectRun,
@@ -50,7 +49,7 @@ export function policyAppliesToRequest(
 }
 
 export function emitWorkItemEffectRunIssue(
-	ctx: Ctx,
+	facts: WorkItemEffectRunFact[],
 	state: WorkItemEffectRunState,
 	key: string,
 	code: string,
@@ -89,11 +88,7 @@ export function emitWorkItemEffectRunIssue(
 	};
 	state.issues.push(issue);
 	state.audit.push(audit);
-	ctx.down([
-		["DATA", { kind: "issue", issue } satisfies WorkItemEffectRunFact],
-		["DATA", { kind: "status", status } satisfies WorkItemEffectRunFact],
-		["DATA", { kind: "audit", audit } satisfies WorkItemEffectRunFact],
-	]);
+	facts.push({ kind: "issue", issue }, { kind: "status", status }, { kind: "audit", audit });
 }
 
 export function emitWorkItemEvidenceIssue(
@@ -549,13 +544,15 @@ export function projectRuntimeFact<T, TOut>(
 ): Node<TOut> {
 	return graph.node<TOut>(
 		[runtime],
-		oneArrayPerRun((ctx) => {
+		(ctx) => {
+			const values: TOut[] = [];
 			for (const fact of ctx.deps[0].waves.flat()) {
 				const typed = fact as T;
 				const value = pick(typed);
-				if (value !== undefined) ctx.down([["DATA", value]]);
+				if (value !== undefined) values.push(value);
 			}
-		}),
+			ctx.emit(...values);
+		},
 		{ name, factory },
 	);
 }

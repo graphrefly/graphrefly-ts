@@ -7,7 +7,6 @@ import type {
 } from "../../packages/ts/src/graph/construction-scope.js";
 import type { Graph } from "../../packages/ts/src/graph/graph.js";
 import type { Node } from "../../packages/ts/src/node/node.js";
-import { oneArrayPerRun } from "../../packages/ts/src/node/one-array-per-run.js";
 import {
 	assertCausalCapabilities,
 	type CausalBinding,
@@ -157,17 +156,19 @@ export function buildSpendingPresetNodes(
 			admission.publicationPolicy,
 			publication.causal.ports.issues,
 		],
-		oneArrayPerRun((ctx) => {
+		(ctx) => {
+			const values: unknown[] = [];
 			for (let i = 0; i < 9; i++)
 				for (const raw of ctx.deps[i].waves.flat()) {
 					const value = raw as { kind?: string; issue?: DataIssue; issues?: readonly DataIssue[] };
-					if (value.kind === "issue") ctx.down([["DATA", raw]]);
+					if (value.kind === "issue") values.push(raw);
 					else {
-						if (value.issue) ctx.down([["DATA", value.issue]]);
-						for (const issue of value.issues ?? []) ctx.down([["DATA", issue]]);
+						if (value.issue) values.push(value.issue);
+						for (const issue of value.issues ?? []) values.push(issue);
 					}
 				}
-		}),
+			ctx.emit(...values);
+		},
 	);
 	const view = Object.freeze({
 		assessment: business.assessment,

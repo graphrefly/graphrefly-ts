@@ -11,7 +11,6 @@ import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
 import { canonicalTupleKey } from "../identity.js";
 import type { Node } from "../node/node.js";
-import { oneArrayPerRun } from "../node/one-array-per-run.js";
 import {
 	type AgentRuntimeAuditRecord,
 	type ExecutorProfile,
@@ -662,12 +661,14 @@ function project<T>(
 ): Node<T> {
 	return graph.node<T>(
 		[source],
-		oneArrayPerRun((ctx) => {
+		(ctx) => {
+			const values: T[] = [];
 			for (const raw of ctx.deps[0].waves.flat()) {
 				const value = pick(raw as GateFact);
-				if (value !== undefined) ctx.down([["DATA", value]]);
+				if (value !== undefined) values.push(value);
 			}
-		}),
+			ctx.emit(...values);
+		},
 		{ name, factory, complete: "manual", error: "manual" },
 	);
 }

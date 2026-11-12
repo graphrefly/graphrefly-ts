@@ -1,7 +1,6 @@
 import type { Ctx } from "../ctx/types.js";
 import type { Graph } from "../graph/graph.js";
 import type { Node } from "../node/node.js";
-import { oneArrayPerRun } from "../node/one-array-per-run.js";
 
 /** A value proposed for a correlated admission handoff (graphrefly-ts:D147). */
 export interface AdmissionHandoffCandidate<T> {
@@ -666,12 +665,14 @@ function projectRuntimeFact<T, R, TOut>(
 ): Node<TOut> {
 	return graph.node<TOut>(
 		[runtime],
-		oneArrayPerRun((ctx) => {
+		(ctx) => {
+			const values: TOut[] = [];
 			for (const raw of ctx.deps[0].waves.flat()) {
 				const value = pick(raw as AdmissionHandoffRuntimeFact<T, R>);
-				if (value !== undefined) ctx.down([["DATA", value]]);
+				if (value !== undefined) values.push(value);
 			}
-		}),
+			ctx.emit(...values);
+		},
 		{ name, factory, complete: "manual", error: "manual" },
 	);
 }

@@ -16,7 +16,6 @@ import type {
 } from "../messaging/index.js";
 import { attachMessageBusDeferredCommandSink } from "../messaging/internal.js";
 import type { Node, StateNode } from "../node/node.js";
-import { oneArrayPerRun } from "../node/one-array-per-run.js";
 import { availablePage, deadLetterPage, workSnapshot } from "./projections.js";
 import type { QueueEvent, RuntimeState, WorkState } from "./runtime-types.js";
 import type {
@@ -140,10 +139,8 @@ export function workQueue<T = unknown>(graph: Graph, opts: WorkQueueOptions<T>):
 	});
 	const admissionPages = graph.node<MessageBusAvailablePage<T>>(
 		[admission.available, admissionKick, opts.bus.messages, opts.bus.status],
-		oneArrayPerRun((ctx) => {
-			for (const page of ctx.deps[0].waves.flat()) {
-				ctx.down([["DATA", page as MessageBusAvailablePage<T>]]);
-			}
+		(ctx) => {
+			const pages = ctx.deps[0].waves.flat() as MessageBusAvailablePage<T>[];
 			let shouldPull =
 				((ctx.deps[1]?.waves.length ? (ctx.deps[1]?.waves.flat() ?? []) : null)?.length ?? 0) > 0;
 			for (const message of ctx.deps[2]?.waves.flat() ?? []) {
@@ -158,7 +155,8 @@ export function workQueue<T = unknown>(graph: Graph, opts: WorkQueueOptions<T>):
 				// A request for one page, after this wave (graphrefly-ts:D172).
 				(admission.availableRequest as StateNode<WorkQueueAvailableParams>).set({ limit: 100 });
 			}
-		}),
+			ctx.emit(...pages);
+		},
 		{
 			name: `${name}/admissionPages`,
 			factory: "workQueueAdmissionPages",
@@ -168,26 +166,28 @@ export function workQueue<T = unknown>(graph: Graph, opts: WorkQueueOptions<T>):
 	);
 	const runtime = graph.node<QueueEvent<T>>(
 		[commands, admissionPages],
-		oneArrayPerRun((ctx) => {
+		(ctx) => {
+			const events: QueueEvent<T>[] = [];
 			for (const page of ctx.deps[1]?.waves.flat() ?? []) {
 				for (const msg of (page as MessageBusAvailablePage<T>).messages) {
-					for (const event of admitMessage(opts, state, msg, now())) ctx.down([["DATA", event]]);
+					events.push(...admitMessage(opts, state, msg, now()));
 				}
 			}
 			for (const command of ctx.deps[0].waves.flat()) {
 				const commandTime = commandNowMs(command as WorkQueueCommand<T>, now());
-				for (const event of reduceQueueCommand(
-					opts,
-					state,
-					command as WorkQueueCommand<T>,
-					commandTime,
-					leaseDurationMs,
-					retry,
-				)) {
-					ctx.down([["DATA", event]]);
-				}
+				events.push(
+					...reduceQueueCommand(
+						opts,
+						state,
+						command as WorkQueueCommand<T>,
+						commandTime,
+						leaseDurationMs,
+						retry,
+					),
+				);
 			}
-		}),
+			ctx.emit(...events);
+		},
 		{
 			name: `${name}/runtime`,
 			factory: "workQueueRuntime",
@@ -197,12 +197,14 @@ export function workQueue<T = unknown>(graph: Graph, opts: WorkQueueOptions<T>):
 	);
 	const records = graph.node<WorkQueueRecord<T>>(
 		[runtime],
-		oneArrayPerRun((ctx) => {
+		(ctx) => {
+			const values: WorkQueueRecord<T>[] = [];
 			for (const event of ctx.deps[0].waves.flat()) {
 				const typed = event as QueueEvent<T>;
-				if (typed.kind === "record") ctx.down([["DATA", typed.record]]);
+				if (typed.kind === "record") values.push(typed.record);
 			}
-		}),
+			ctx.emit(...values);
+		},
 		{
 			name: `${name}/records`,
 			factory: "workQueueRecords",
@@ -212,12 +214,14 @@ export function workQueue<T = unknown>(graph: Graph, opts: WorkQueueOptions<T>):
 	);
 	const status = graph.node<WorkQueueStatus>(
 		[runtime],
-		oneArrayPerRun((ctx) => {
+		(ctx) => {
+			const values: WorkQueueStatus[] = [];
 			for (const event of ctx.deps[0].waves.flat()) {
 				const typed = event as QueueEvent<T>;
-				if (typed.kind === "status") ctx.down([["DATA", typed.status]]);
+				if (typed.kind === "status") values.push(typed.status);
 			}
-		}),
+			ctx.emit(...values);
+		},
 		{
 			name: `${name}/status`,
 			factory: "workQueueStatus",
@@ -227,12 +231,14 @@ export function workQueue<T = unknown>(graph: Graph, opts: WorkQueueOptions<T>):
 	);
 	const issues = graph.node<DataIssue>(
 		[runtime],
-		oneArrayPerRun((ctx) => {
+		(ctx) => {
+			const values: DataIssue[] = [];
 			for (const event of ctx.deps[0].waves.flat()) {
 				const typed = event as QueueEvent<T>;
-				if (typed.kind === "issue") ctx.down([["DATA", typed.issue]]);
+				if (typed.kind === "issue") values.push(typed.issue);
 			}
-		}),
+			ctx.emit(...values);
+		},
 		{
 			name: `${name}/issues`,
 			factory: "workQueueIssues",
@@ -242,12 +248,14 @@ export function workQueue<T = unknown>(graph: Graph, opts: WorkQueueOptions<T>):
 	);
 	const admissionAckCommands = graph.node<MessageBusCommand>(
 		[records],
-		oneArrayPerRun((ctx) => {
+		(ctx) => {
+			const ackCommands: MessageBusCommand[] = [];
 			for (const record of ctx.deps[0].waves.flat()) {
 				const command = admissionAckCommand(record as WorkQueueRecord<T>);
-				if (command !== undefined) ctx.down([["DATA", command]]);
+				if (command !== undefined) ackCommands.push(command);
 			}
-		}),
+			ctx.emit(...ackCommands);
+		},
 		{
 			name: `${name}/admissionAckCommands`,
 			factory: "workQueueAdmissionAckCommands",

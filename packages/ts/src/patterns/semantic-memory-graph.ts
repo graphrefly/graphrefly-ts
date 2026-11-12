@@ -9,7 +9,6 @@
 
 import type { Graph } from "../graph/graph.js";
 import type { Node } from "../node/node.js";
-import { oneArrayPerRun } from "../node/one-array-per-run.js";
 import type { FactId, MemoryAnswer, MemoryFragment } from "./semantic-memory.js";
 import type {
 	KnowledgeGraphCursor,
@@ -409,13 +408,15 @@ function retrievalProjection<TFact, T>(
 ): Node<TFact> {
 	return graph.node<TFact>(
 		[snapshot],
-		oneArrayPerRun((ctx) => {
+		(ctx) => {
+			const values: TFact[] = [];
 			for (const raw of ctx.deps[0].waves.flat()) {
 				const fact = raw as MemoryRetrievalSnapshot<T>;
 				const selected = select(fact);
-				if (selected !== undefined) ctx.down([["DATA", selected]]);
+				if (selected !== undefined) values.push(selected);
 			}
-		}),
+			ctx.emit(...values);
+		},
 		{
 			name,
 			factory,
@@ -434,11 +435,13 @@ function kgProjection<TFact>(
 ): Node<TFact> {
 	return graph.node<TFact>(
 		[snapshot],
-		oneArrayPerRun((ctx) => {
+		(ctx) => {
+			const values: TFact[] = [];
 			for (const raw of ctx.deps[0].waves.flat()) {
-				ctx.down([["DATA", select(raw as KnowledgeGraphSnapshot)]]);
+				values.push(select(raw as KnowledgeGraphSnapshot));
 			}
-		}),
+			ctx.emit(...values);
+		},
 		{
 			name,
 			factory,

@@ -18,7 +18,6 @@ import type {
 	MessageBusMessage,
 } from "../messaging/index.js";
 import type { Node } from "../node/node.js";
-import { oneArrayPerRun } from "../node/one-array-per-run.js";
 
 export interface CqrsMessagingPolicy<TPayload = unknown, TCommand = unknown> {
 	readonly command?: (
@@ -77,20 +76,22 @@ export function cqrsMessagingRecipe<TPayload = unknown, TCommand = unknown, TEve
 	const name = opts.name ?? "cqrsMessaging";
 	const runtime = graph.node<CqrsMessagingFact<TCommand>>(
 		[opts.deliveries],
-		oneArrayPerRun((ctx) => {
+		(ctx) => {
+			const facts: CqrsMessagingFact<TCommand>[] = [];
 			for (const raw of ctx.deps[0].waves.flat()) {
 				const page = raw as MessageBusAvailablePage<TPayload>;
 				for (const message of page.messages) {
 					const delivery = messageDelivery(page, message);
 					const command = cqrsMessageCommand(message, delivery, opts.policy);
 					if (command === undefined) {
-						ctx.down([["DATA", { kind: "issue", issue: messageIssue(message, delivery) }]]);
+						facts.push({ kind: "issue", issue: messageIssue(message, delivery) });
 					} else {
-						ctx.down([["DATA", { kind: "command", command }]]);
+						facts.push({ kind: "command", command });
 					}
 				}
 			}
-		}),
+			ctx.emit(...facts);
+		},
 		{
 			name: `${name}/runtime`,
 			factory: "cqrsMessagingRuntime",
@@ -223,8 +224,9 @@ interface AckCommandsConfig {
 type PendingDeliveries = Array<[commandId: string, deliveries: MessageBusDelivery[]]>;
 
 function ackCommandsFn(config: AckCommandsConfig): NodeFn {
-	return oneArrayPerRun((ctx) => {
+	return (ctx) => {
 		const deliveries = ctx.state.get<PendingDeliveries>() ?? [];
+		const acks: MessageBusCommand[] = [];
 		for (const raw of ctx.deps[0].waves.flat()) {
 			const command = raw as CqrsCommand;
 			const delivery = commandDelivery(command);
@@ -236,19 +238,20 @@ function ackCommandsFn(config: AckCommandsConfig): NodeFn {
 			if (status.commandId === undefined) continue;
 			const delivery = shiftDelivery(deliveries, status.commandId);
 			if (delivery === undefined) continue;
-			ctx.down([["DATA", ackCommand(delivery, ackCommandId("cqrs", delivery, "status"))]]);
+			acks.push(ackCommand(delivery, ackCommandId("cqrs", delivery, "status")));
 		}
 		if (config.issues) {
 			for (const raw of ctx.deps[2]?.waves.flat() ?? []) {
 				const issue = raw as DataIssue;
 				const delivery = issueDelivery(issue);
 				if (delivery !== undefined) {
-					ctx.down([["DATA", ackCommand(delivery, ackCommandId("cqrs", delivery, "issue"))]]);
+					acks.push(ackCommand(delivery, ackCommandId("cqrs", delivery, "issue")));
 				}
 			}
 		}
 		ctx.state.set(deliveries);
-	});
+		ctx.emit(...acks);
+	};
 }
 
 /**
@@ -281,25 +284,22 @@ export function cqrsEventOutboxCommands<TEvent>(
 }
 
 function outboxCommandsFn(topic: string): NodeFn {
-	return oneArrayPerRun((ctx) => {
+	return (ctx) => {
+		const commands: MessageBusCommand[] = [];
 		for (const event of ctx.deps[0].waves.flat()) {
 			const typed = event as CqrsEvent;
-			ctx.down([
-				[
-					"DATA",
-					{
-						kind: "publish",
-						topic,
-						payload: typed,
-						// An event with no aggregate has no key: omitted, not undefined (strict JSON).
-						...(typed.aggregateId === undefined ? {} : { key: typed.aggregateId }),
-						commandId: compoundTupleKey("cqrs-outbox", [typed.id]),
-						idempotencyKey: typed.id,
-					} satisfies MessageBusCommand,
-				],
-			]);
+			commands.push({
+				kind: "publish",
+				topic,
+				payload: typed,
+				// An event with no aggregate has no key: omitted, not undefined (strict JSON).
+				...(typed.aggregateId === undefined ? {} : { key: typed.aggregateId }),
+				commandId: compoundTupleKey("cqrs-outbox", [typed.id]),
+				idempotencyKey: typed.id,
+			});
 		}
-	});
+		ctx.emit(...commands);
+	};
 }
 
 function recipeObject(config: unknown, ref: string): Record<string, unknown> {
@@ -360,12 +360,14 @@ function project<T, TCommand>(
 ): Node<T> {
 	return graph.node<T>(
 		[runtime],
-		oneArrayPerRun((ctx) => {
+		(ctx) => {
+			const values: T[] = [];
 			for (const fact of ctx.deps[0].waves.flat()) {
 				const value = pick(fact as CqrsMessagingFact<TCommand>);
-				if (value !== undefined) ctx.down([["DATA", value]]);
+				if (value !== undefined) values.push(value);
 			}
-		}),
+			ctx.emit(...values);
+		},
 		{ name, factory, complete: "manual", error: "manual" },
 	);
 }

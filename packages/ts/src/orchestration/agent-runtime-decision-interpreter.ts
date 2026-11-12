@@ -1,8 +1,6 @@
-import type { Ctx } from "../ctx/types.js";
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
 import type { Node } from "../node/node.js";
-import { oneArrayPerRun } from "../node/one-array-per-run.js";
 import {
 	dataIssue,
 	forEachDepBatch,
@@ -57,7 +55,8 @@ export function structuredAgentDecisionInterpreter(
 	const requestFacts = opts.requestFacts ?? [];
 	const runtime = graph.node<StructuredAgentDecisionInterpreterFact>(
 		[outcomes, ...requestFacts],
-		oneArrayPerRun((ctx) => {
+		(ctx) => {
+			const facts: StructuredAgentDecisionInterpreterFact[] = [];
 			const state = ctx.state.get<StructuredInterpreterState>() ?? {
 				requests: new Map<string, AgentRequestIssued>(),
 				issueSeq: 0,
@@ -71,7 +70,7 @@ export function structuredAgentDecisionInterpreter(
 				if (outcome.kind !== "result") {
 					state.issueSeq += 1;
 					emitInterpreterIssue(
-						ctx,
+						facts,
 						state.issueSeq,
 						outcome,
 						"non-result-outcome",
@@ -83,7 +82,7 @@ export function structuredAgentDecisionInterpreter(
 				if (!isRecord(value)) {
 					state.issueSeq += 1;
 					emitInterpreterIssue(
-						ctx,
+						facts,
 						state.issueSeq,
 						outcome,
 						"malformed-agent-decision",
@@ -95,7 +94,7 @@ export function structuredAgentDecisionInterpreter(
 				if (envelope.kind !== "agent-decision" || !isRecord(envelope.decision)) {
 					state.issueSeq += 1;
 					emitInterpreterIssue(
-						ctx,
+						facts,
 						state.issueSeq,
 						outcome,
 						"malformed-agent-decision",
@@ -106,7 +105,7 @@ export function structuredAgentDecisionInterpreter(
 				if (typeof envelope.schemaRef !== "string" || envelope.schemaRef.length === 0) {
 					state.issueSeq += 1;
 					emitInterpreterIssue(
-						ctx,
+						facts,
 						state.issueSeq,
 						outcome,
 						"missing-agent-decision-schema",
@@ -117,7 +116,7 @@ export function structuredAgentDecisionInterpreter(
 				if (opts.schemaRef !== undefined && envelope.schemaRef !== opts.schemaRef) {
 					state.issueSeq += 1;
 					emitInterpreterIssue(
-						ctx,
+						facts,
 						state.issueSeq,
 						outcome,
 						"agent-decision-schema-mismatch",
@@ -128,14 +127,20 @@ export function structuredAgentDecisionInterpreter(
 				const decision = validateAgentDecision(envelope.decision, outcome);
 				if (typeof decision === "string") {
 					state.issueSeq += 1;
-					emitInterpreterIssue(ctx, state.issueSeq, outcome, "malformed-agent-decision", decision);
+					emitInterpreterIssue(
+						facts,
+						state.issueSeq,
+						outcome,
+						"malformed-agent-decision",
+						decision,
+					);
 					continue;
 				}
 				const request = state.requests.get(decision.source.requestId);
 				if (request === undefined) {
 					state.issueSeq += 1;
 					emitInterpreterIssue(
-						ctx,
+						facts,
 						state.issueSeq,
 						outcome,
 						"missing-agent-decision-request",
@@ -149,7 +154,7 @@ export function structuredAgentDecisionInterpreter(
 				) {
 					state.issueSeq += 1;
 					emitInterpreterIssue(
-						ctx,
+						facts,
 						state.issueSeq,
 						outcome,
 						"stale-agent-decision-source",
@@ -157,24 +162,22 @@ export function structuredAgentDecisionInterpreter(
 					);
 					continue;
 				}
-				ctx.down([
-					["DATA", { kind: "decision", decision } satisfies StructuredAgentDecisionInterpreterFact],
-					[
-						"DATA",
-						{
-							kind: "audit",
-							audit: {
-								id: `${outcome.outcomeId}:agent-decision-interpreted`,
-								kind: "agent-decision-interpreted",
-								subjectId: decision.effectRunId,
-								sourceRefs: [ref("executor-outcome", outcome.outcomeId)],
-							},
-						} satisfies StructuredAgentDecisionInterpreterFact,
-					],
-				]);
+				facts.push(
+					{ kind: "decision", decision },
+					{
+						kind: "audit",
+						audit: {
+							id: `${outcome.outcomeId}:agent-decision-interpreted`,
+							kind: "agent-decision-interpreted",
+							subjectId: decision.effectRunId,
+							sourceRefs: [ref("executor-outcome", outcome.outcomeId)],
+						},
+					},
+				);
 			}
 			ctx.state.set(state);
-		}),
+			ctx.emit(...facts);
+		},
 		{ name: `${name}/runtime`, factory: "structuredAgentDecisionInterpreter" },
 	);
 	return {
@@ -213,7 +216,7 @@ export interface StructuredInterpreterState {
 }
 
 export function emitInterpreterIssue(
-	ctx: Ctx,
+	facts: StructuredAgentDecisionInterpreterFact[],
 	seq: number,
 	outcome: ExecutorOutcome,
 	code: string,
@@ -223,23 +226,20 @@ export function emitInterpreterIssue(
 		subjectId: outcome.requestId,
 		refs: [ref("executor-outcome", outcome.outcomeId)],
 	});
-	ctx.down([
-		["DATA", { kind: "issue", issue } satisfies StructuredAgentDecisionInterpreterFact],
-		[
-			"DATA",
-			{
-				kind: "audit",
-				audit: {
-					id: `${outcome.outcomeId}:agent-decision-issue:${seq}`,
-					kind: "agent-decision-issue",
-					subjectId: outcome.requestId,
-					issueCode: code,
-					message,
-					sourceRefs: [ref("executor-outcome", outcome.outcomeId)],
-				},
-			} satisfies StructuredAgentDecisionInterpreterFact,
-		],
-	]);
+	facts.push(
+		{ kind: "issue", issue },
+		{
+			kind: "audit",
+			audit: {
+				id: `${outcome.outcomeId}:agent-decision-issue:${seq}`,
+				kind: "agent-decision-issue",
+				subjectId: outcome.requestId,
+				issueCode: code,
+				message,
+				sourceRefs: [ref("executor-outcome", outcome.outcomeId)],
+			},
+		},
+	);
 }
 
 export function validateAgentDecision(

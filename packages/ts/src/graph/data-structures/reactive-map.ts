@@ -25,8 +25,7 @@ import { type Ctx, ctxRewireDiff, depLiveBatch, type NodeFn } from "../../ctx/ty
 import { strictCanonicalJsonBytes } from "../../json/codec.js";
 import { attachableInput } from "../../node/attachable-input.js";
 import { Node } from "../../node/node.js";
-import { oneArrayPerRun } from "../../node/one-array-per-run.js";
-import { errorPayload } from "../../protocol/messages.js";
+import { errorPayload, type Message } from "../../protocol/messages.js";
 import { registerBackendStateContributor } from "../checkpoint.js";
 import type { Graph } from "../graph.js";
 import { initNode, type Operator } from "../operators.js";
@@ -622,14 +621,14 @@ function createReactiveMap<K, V>(
 	);
 	const deltaOp: Operator<unknown, MapChange<K, V>> = {
 		factory: "reactiveMap.delta",
-		body: oneArrayPerRun((ctx: Ctx) => {
-			for (const change of ctx.deps[0].waves.flat()) {
-				ctx.down([["DATA", change as MapChange<K, V>]]);
-			}
+		body: (ctx: Ctx) => {
+			const changes: MapChange<K, V>[] = [];
+			for (const change of ctx.deps[0].waves.flat()) changes.push(change as MapChange<K, V>);
 			for (const prep of ctx.deps[1]?.waves.flat() ?? []) {
-				for (const change of (prep as SnapshotPrep<K, V>).expired) ctx.down([["DATA", change]]);
+				changes.push(...(prep as SnapshotPrep<K, V>).expired);
 			}
-		}),
+			ctx.emit(...changes);
+		},
 		opts: {},
 	};
 	const delta = graph.initNode(deltaOp, [apply as Node<unknown>, snapshotPrep as Node<unknown>], {
@@ -639,11 +638,9 @@ function createReactiveMap<K, V>(
 	});
 	const snapshotOp: Operator<unknown, ReadonlyMap<K, V>> = {
 		factory: "reactiveMap.snapshot",
-		body: oneArrayPerRun((ctx: Ctx) => {
-			for (const prep of ctx.deps[0].waves.flat()) {
-				ctx.down([["DATA", (prep as SnapshotPrep<K, V>).snapshot]]);
-			}
-		}),
+		body: (ctx: Ctx) => {
+			ctx.emit(...ctx.deps[0].waves.flat().map((prep) => (prep as SnapshotPrep<K, V>).snapshot));
+		},
 		opts: {},
 	};
 	const snapshot = graph.initNode(snapshotOp, [snapshotPrep as Node<unknown>], {
@@ -742,15 +739,17 @@ function createReactiveMap<K, V>(
 		setFrom(src: Node<readonly [K, V]>): () => void {
 			const op: Operator<readonly [K, V], MapIntent<K, V>> = {
 				factory: "reactiveMap.bindSource",
-				body: oneArrayPerRun((ctx: Ctx) => {
+				body: (ctx: Ctx) => {
+					const out: Message[] = [];
 					try {
 						for (const [k, v] of ctx.deps[0].waves.flat() as readonly (readonly [K, V])[]) {
-							ctx.down([["DATA", { kind: "set", key: k, value: v }]]);
+							out.push(["DATA", { kind: "set", key: k, value: v }]);
 						}
 					} catch (e) {
-						ctx.down([["ERROR", errorPayload(e, "reactiveMap.bindSource failed")]]);
+						out.push(["ERROR", errorPayload(e, "reactiveMap.bindSource failed")]);
 					}
-				}),
+					if (out.length > 0) ctx.down(out);
+				},
 			};
 			const folder = graph.initNode(op, [src], {
 				name: name ? `${name}.bind#${bindSeq++}` : undefined,

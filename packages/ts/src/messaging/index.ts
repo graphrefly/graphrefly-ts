@@ -11,7 +11,7 @@ import type { Graph } from "../graph/graph.js";
 import { canonicalTupleKey } from "../identity.js";
 import { attachableInput } from "../node/attachable-input.js";
 import type { Node, StateNode } from "../node/node.js";
-import { oneArrayPerRun } from "../node/one-array-per-run.js";
+import type { Message } from "../protocol/messages.js";
 import {
 	attachMessageBusCommandSource,
 	getMessageBusState,
@@ -125,15 +125,17 @@ export function messageBus<TTopic extends string>(
 ): MessageBus<TTopic> {
 	const name = opts.name ?? "messageBus";
 	const initialTopics = uniqueTopics(opts.topics ?? []);
-	const commandBody: NodeFn = oneArrayPerRun((ctx) => {
+	const commandBody: NodeFn = (ctx) => {
+		const out: Message[] = [];
 		for (let i = 0; i < ctx.deps.length; i++) {
-			for (const command of ctx.deps[i].waves.flat()) ctx.down([["DATA", command]]);
+			for (const command of ctx.deps[i].waves.flat()) out.push(["DATA", command]);
 		}
 		// Only the publish input (dep 0) ends the bus; an attached source ending leaves it open.
 		const ended = ctx.deps[0].terminal;
-		if (ended?.kind === "complete") ctx.down([["COMPLETE"]]);
-		else if (ended?.kind === "error") ctx.down([["ERROR", ended.error]]);
-	});
+		if (ended?.kind === "complete") out.push(["COMPLETE"]);
+		else if (ended?.kind === "error") out.push(["ERROR", ended.error]);
+		if (out.length > 0) ctx.down(out);
+	};
 	// The bus's host input: publishes are written here and forwarded by the command node, which also
 	// rewires itself to attached command sources (graphrefly-ts:D175, no host write to a computed node).
 	const publish = graph.node<MessageBusCommand>([], null, {
@@ -171,13 +173,13 @@ export function messageBus<TTopic extends string>(
 	};
 	const runtime = graph.node<RuntimeEvent>(
 		[commands],
-		oneArrayPerRun((ctx) => {
+		(ctx) => {
+			const events: RuntimeEvent[] = [];
 			for (const command of ctx.deps[0].waves.flat()) {
-				for (const event of reduceMessageBusCommand(state, command as MessageBusCommand)) {
-					ctx.down([["DATA", event]]);
-				}
+				events.push(...reduceMessageBusCommand(state, command as MessageBusCommand));
 			}
-		}),
+			ctx.emit(...events);
+		},
 		{
 			name: `${name}/runtime`,
 			factory: "messageBusRuntime",
@@ -188,12 +190,14 @@ export function messageBus<TTopic extends string>(
 	graph.retain(runtime);
 	const messages = graph.node<MessageBusMessage>(
 		[runtime],
-		oneArrayPerRun((ctx) => {
+		(ctx) => {
+			const values: MessageBusMessage[] = [];
 			for (const event of ctx.deps[0].waves.flat()) {
 				const typed = event as RuntimeEvent;
-				if (typed.kind === "message") ctx.down([["DATA", typed.message]]);
+				if (typed.kind === "message") values.push(typed.message);
 			}
-		}),
+			ctx.emit(...values);
+		},
 		{
 			name: `${name}/messages`,
 			factory: "messageBusMessages",
@@ -203,12 +207,14 @@ export function messageBus<TTopic extends string>(
 	);
 	const status = graph.node<MessageBusStatus>(
 		[runtime],
-		oneArrayPerRun((ctx) => {
+		(ctx) => {
+			const values: MessageBusStatus[] = [];
 			for (const event of ctx.deps[0].waves.flat()) {
 				const typed = event as RuntimeEvent;
-				if (typed.kind === "status") ctx.down([["DATA", typed.status]]);
+				if (typed.kind === "status") values.push(typed.status);
 			}
-		}),
+			ctx.emit(...values);
+		},
 		{
 			name: `${name}/status`,
 			factory: "messageBusStatus",
@@ -218,12 +224,14 @@ export function messageBus<TTopic extends string>(
 	);
 	const issues = graph.node<DataIssue>(
 		[runtime],
-		oneArrayPerRun((ctx) => {
+		(ctx) => {
+			const values: DataIssue[] = [];
 			for (const event of ctx.deps[0].waves.flat()) {
 				const typed = event as RuntimeEvent;
-				if (typed.kind === "issue") ctx.down([["DATA", typed.issue]]);
+				if (typed.kind === "issue") values.push(typed.issue);
 			}
-		}),
+			ctx.emit(...values);
+		},
 		{
 			name: `${name}/issues`,
 			factory: "messageBusIssues",
@@ -380,7 +388,8 @@ export function messageBus<TTopic extends string>(
 			);
 			const cursor = graph.node<MessageBusCursor>(
 				[status],
-				oneArrayPerRun((ctx) => {
+				(ctx) => {
+					const cursors: MessageBusCursor[] = [];
 					for (const fact of ctx.deps[0].waves.flat()) {
 						const typed = fact as MessageBusStatus;
 						const subscriptionMoved =
@@ -391,10 +400,11 @@ export function messageBus<TTopic extends string>(
 								typed.kind === "subscription-closed");
 						const retentionMoved = typed.topic === sub.topic && typed.kind === "retention-trimmed";
 						if (subscriptionMoved || retentionMoved) {
-							ctx.down([["DATA", cursorSnapshot(state, sub)]]);
+							cursors.push(cursorSnapshot(state, sub));
 						}
 					}
-				}),
+					ctx.emit(...cursors);
+				},
 				{
 					name: `${projectionName}/cursor`,
 					factory: "messageBusSubscriptionCursor",
@@ -469,24 +479,21 @@ export function toTopic<T, TTopic extends string>(
 	assertTopicKey(topic, "toTopic");
 	const commands = graph.node<MessageBusCommand<T>>(
 		[source],
-		oneArrayPerRun((ctx) => {
+		(ctx) => {
+			const commands: MessageBusCommand<T>[] = [];
 			for (const value of ctx.deps[0].waves.flat()) {
 				const key = opts.keyOf?.(value);
 				const commandId = opts.commandIdOf?.(value);
-				ctx.down([
-					[
-						"DATA",
-						{
-							kind: "publish",
-							topic,
-							payload: value as T,
-							...(key === undefined ? {} : { key }),
-							...(commandId === undefined ? {} : { commandId }),
-						} satisfies MessageBusCommand<T>,
-					],
-				]);
+				commands.push({
+					kind: "publish",
+					topic,
+					payload: value as T,
+					...(key === undefined ? {} : { key }),
+					...(commandId === undefined ? {} : { commandId }),
+				});
 			}
-		}),
+			ctx.emit(...commands);
+		},
 		{
 			name: opts.name ?? `${state.name}/${topic}/toTopic`,
 			factory: "toTopic",

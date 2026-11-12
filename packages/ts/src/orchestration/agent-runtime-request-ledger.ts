@@ -1,7 +1,6 @@
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
 import type { Node } from "../node/node.js";
-import { oneArrayPerRun } from "../node/one-array-per-run.js";
 import {
 	boundPublicText,
 	cloneGraphVisibleMaterial,
@@ -226,39 +225,38 @@ export function agentRequestLedgerViews(
 	);
 	const issues = graph.node<DataIssue>(
 		[facts],
-		oneArrayPerRun((ctx) => {
+		(ctx) => {
+			const values: DataIssue[] = [];
 			for (const raw of ctx.deps[0].waves.flat()) {
 				const fact = raw as AgentRequestFact;
-				if (fact.kind === "rejected") ctx.down([["DATA", sanitizeAdapterInputIssue(fact.issue)]]);
+				if (fact.kind === "rejected") values.push(sanitizeAdapterInputIssue(fact.issue));
 				if (fact.kind === "status") {
 					for (const issue of fact.issues ?? []) {
-						ctx.down([["DATA", sanitizeAdapterInputIssue(issue)]]);
+						values.push(sanitizeAdapterInputIssue(issue));
 					}
 				}
 			}
-		}),
+			ctx.emit(...values);
+		},
 		{ name: `${name}/issues`, factory: "agentRequestLedgerIssues" },
 	);
 	const audit = graph.node<AgentRuntimeAuditRecord>(
 		[facts],
-		oneArrayPerRun((ctx) => {
+		(ctx) => {
+			const records: AgentRuntimeAuditRecord[] = [];
 			let seq = ctx.state.get<number>() ?? 0;
 			for (const raw of ctx.deps[0].waves.flat()) {
 				seq += 1;
 				const fact = raw as AgentRequestFact;
-				ctx.down([
-					[
-						"DATA",
-						{
-							id: `${name}:ledger:${seq}`,
-							kind: `agent-request-${fact.kind}`,
-							subjectId: "requestId" in fact ? fact.requestId : fact.proposalId,
-						} satisfies AgentRuntimeAuditRecord,
-					],
-				]);
+				records.push({
+					id: `${name}:ledger:${seq}`,
+					kind: `agent-request-${fact.kind}`,
+					subjectId: "requestId" in fact ? fact.requestId : fact.proposalId,
+				});
 			}
 			ctx.state.set(seq);
-		}),
+			ctx.emit(...records);
+		},
 		{ name: `${name}/audit`, factory: "agentRequestLedgerAudit" },
 	);
 	return { views, issues, audit };

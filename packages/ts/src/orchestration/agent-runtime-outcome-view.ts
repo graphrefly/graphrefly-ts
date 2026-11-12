@@ -2,7 +2,6 @@ import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
 import { canonicalTupleKey, compoundTupleKey } from "../identity.js";
 import type { Node } from "../node/node.js";
-import { oneArrayPerRun } from "../node/one-array-per-run.js";
 import {
 	dataIssue,
 	projectRuntimeFact,
@@ -49,34 +48,33 @@ export function executorOutcomeViewProjector(
 	} satisfies Required<ExecutorOutcomeViewPolicy>;
 	const runtime = graph.node<ExecutorOutcomeViewFact>(
 		[opts.outcomes],
-		oneArrayPerRun((ctx) => {
+		(ctx) => {
+			const facts: ExecutorOutcomeViewFact[] = [];
 			for (const raw of ctx.deps[0].waves.flat()) {
 				const outcome = raw as ExecutorOutcome;
 				const projection = executorOutcomeViewProjectionFromOutcome(outcome, policy);
-				ctx.down([
-					["DATA", { kind: "view", view: projection.view } satisfies ExecutorOutcomeViewFact],
-					[
-						"DATA",
-						{
-							kind: "audit",
-							audit: {
-								id: compoundTupleKey("executor-outcome-view-audit", [
-									outcome.outcomeId,
-									policy.audience,
-								]),
-								kind: "executor-outcome-view-projected",
-								subjectId: outcome.requestId,
-								sourceRefs: [ref("executor-outcome", outcome.outcomeId)],
-								metadata: { audience: policy.audience, status: outcome.kind },
-							},
-						} satisfies ExecutorOutcomeViewFact,
-					],
-				]);
+				facts.push(
+					{ kind: "view", view: projection.view },
+					{
+						kind: "audit",
+						audit: {
+							id: compoundTupleKey("executor-outcome-view-audit", [
+								outcome.outcomeId,
+								policy.audience,
+							]),
+							kind: "executor-outcome-view-projected",
+							subjectId: outcome.requestId,
+							sourceRefs: [ref("executor-outcome", outcome.outcomeId)],
+							metadata: { audience: policy.audience, status: outcome.kind },
+						},
+					},
+				);
 				for (const issue of projection.issues) {
-					ctx.down([["DATA", { kind: "issue", issue } satisfies ExecutorOutcomeViewFact]]);
+					facts.push({ kind: "issue", issue });
 				}
 			}
-		}),
+			ctx.emit(...facts);
+		},
 		{ name: `${name}/runtime`, factory: "executorOutcomeViewProjector" },
 	);
 	return {

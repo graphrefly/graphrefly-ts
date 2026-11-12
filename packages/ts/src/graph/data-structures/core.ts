@@ -33,7 +33,6 @@
 
 import { type Ctx, depLiveBatch } from "../../ctx/types.js";
 import type { Node } from "../../node/node.js";
-import { oneArrayPerRun } from "../../node/one-array-per-run.js";
 import { errorPayload } from "../../protocol/messages.js";
 import { type GraphCheckpointJson, registerBackendStateContributor } from "../checkpoint.js";
 import type { Graph } from "../graph.js";
@@ -172,11 +171,9 @@ export function lightReactiveView<C, S>(
 	const group = graph.topologyGroup({ name: name ?? factory });
 	const delta = group.node<C>(
 		[parentDelta],
-		oneArrayPerRun((ctx: Ctx): void => {
-			for (const change of ctx.deps[0].waves.flat() as readonly C[]) {
-				ctx.down([["DATA", change]]);
-			}
-		}),
+		(ctx: Ctx): void => {
+			ctx.emit(...ctx.deps[0].waves.flat());
+		},
 		{
 			factory: `${factory}.delta`,
 			name: name ? `${name}.delta` : undefined,

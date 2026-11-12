@@ -1,7 +1,6 @@
 import type { Ctx } from "../../ctx/types.js";
 import type { Graph } from "../../graph/graph.js";
 import type { Node } from "../../node/node.js";
-import { oneArrayPerRun } from "../../node/one-array-per-run.js";
 import type { SourceRef } from "../../orchestration/agent-runtime.js";
 import type { WorkItemDomainActionApplication } from "./actions-types.js";
 import { immutableClone, project } from "./scheduling-shared.js";
@@ -2133,7 +2132,8 @@ export function workspaceProposalFamilyApplicationDiagnosticProjector(
 		| undefined
 	>(
 		deps,
-		oneArrayPerRun((ctx) => {
+		(ctx) => {
+			const facts: unknown[] = [];
 			const state = familyProjectionState(ctx);
 			ingestDiagnosticInputFacts(ctx, state, depKinds);
 			for (const diagnostic of projectWorkspaceProposalFamilyApplicationDiagnostics({
@@ -2146,10 +2146,11 @@ export function workspaceProposalFamilyApplicationDiagnosticProjector(
 				const signature = diagnosticSignature(diagnostic);
 				if (state.emittedDiagnostics.get(diagnostic.diagnosticId) === signature) continue;
 				state.emittedDiagnostics.set(diagnostic.diagnosticId, signature);
-				ctx.down([["DATA", { kind: "diagnostic", value: diagnostic }]]);
+				facts.push({ kind: "diagnostic", value: diagnostic });
 			}
 			ctx.state.set(state);
-		}),
+			ctx.emit(...facts);
+		},
 		runtimeOptions(name, "workspaceProposalFamilyApplicationDiagnosticProjector"),
 	);
 	return {
@@ -2226,7 +2227,8 @@ export function workspaceProposalRepairReviewProjector(
 		| undefined
 	>(
 		deps,
-		oneArrayPerRun((ctx) => {
+		(ctx) => {
+			const facts: unknown[] = [];
 			const state = familyProjectionState(ctx);
 			ingestDiagnosticInputFacts(ctx, state, depKinds);
 			for (const request of projectWorkspaceProposalRepairReviewRequests({
@@ -2237,10 +2239,11 @@ export function workspaceProposalRepairReviewProjector(
 				const signature = repairRequestSignature(request);
 				if (state.emittedRepairRequests.get(request.repairRequestId) === signature) continue;
 				state.emittedRepairRequests.set(request.repairRequestId, signature);
-				ctx.down([["DATA", { kind: "repair-review-request", value: request }]]);
+				facts.push({ kind: "repair-review-request", value: request });
 			}
 			ctx.state.set(state);
-		}),
+			ctx.emit(...facts);
+		},
 		runtimeOptions(name, "workspaceProposalRepairReviewProjector"),
 	);
 	return {
@@ -2489,7 +2492,8 @@ export function workspaceProposalRepairReviewDecisionRecordingProjector(
 		| undefined
 	>(
 		deps,
-		oneArrayPerRun((ctx) => {
+		(ctx) => {
+			const facts: unknown[] = [];
 			const state = familyProjectionState(ctx);
 			ingestDiagnosticInputFacts(ctx, state, depKinds);
 			for (const result of projectWorkspaceProposalRepairReviewDecisionRecordings({
@@ -2501,16 +2505,17 @@ export function workspaceProposalRepairReviewDecisionRecordingProjector(
 				const signature = stableStringify(result);
 				if (state.emittedRepairDecisionRecordings.get(emissionKey) === signature) continue;
 				state.emittedRepairDecisionRecordings.set(emissionKey, signature);
-				ctx.down([["DATA", { kind: "repair-decision-recording-result", value: result }]]);
+				facts.push({ kind: "repair-decision-recording-result", value: result });
 				for (const issue of result.issues) {
-					ctx.down([["DATA", { kind: "issue", value: issue }]]);
+					facts.push({ kind: "issue", value: issue });
 				}
 				if (result.decision !== undefined) {
-					ctx.down([["DATA", { kind: "repair-decision", value: result.decision }]]);
+					facts.push({ kind: "repair-decision", value: result.decision });
 				}
 			}
 			ctx.state.set(state);
-		}),
+			ctx.emit(...facts);
+		},
 		runtimeOptions(name, "workspaceProposalRepairReviewDecisionRecordingProjector"),
 	);
 	return {
@@ -2550,7 +2555,8 @@ export function workspaceProposalRepairReviewStatusProjector(
 		| undefined
 	>(
 		deps,
-		oneArrayPerRun((ctx) => {
+		(ctx) => {
+			const facts: unknown[] = [];
 			const state = familyProjectionState(ctx);
 			ingestDiagnosticInputFacts(ctx, state, depKinds);
 			for (const status of projectWorkspaceProposalRepairReviewStatuses({
@@ -2564,10 +2570,11 @@ export function workspaceProposalRepairReviewStatusProjector(
 				const signature = repairReviewStatusSignature(status);
 				if (state.emittedRepairStatuses.get(status.repairRequestId) === signature) continue;
 				state.emittedRepairStatuses.set(status.repairRequestId, signature);
-				ctx.down([["DATA", { kind: "repair-review-status", value: status }]]);
+				facts.push({ kind: "repair-review-status", value: status });
 			}
 			ctx.state.set(state);
-		}),
+			ctx.emit(...facts);
+		},
 		runtimeOptions(name, "workspaceProposalRepairReviewStatusProjector"),
 	);
 	return {
@@ -2788,14 +2795,16 @@ export function workspaceProposalProjectionReleaseDiagnosticProjector(
 		| undefined
 	>(
 		[opts.releases],
-		oneArrayPerRun((ctx) => {
+		(ctx) => {
+			const facts: unknown[] = [];
 			for (const raw of ctx.deps[0].waves.flat()) {
 				const validation = validateWorkspaceProposalProjectionReleaseMaterial(raw);
 				if (validation.status !== "blocked") continue;
 				const diagnostic = workspaceProposalProjectionReleaseDiagnosticFromValidation(validation);
-				ctx.down([["DATA", { kind: "projection-release-diagnostic", value: diagnostic }]]);
+				facts.push({ kind: "projection-release-diagnostic", value: diagnostic });
 			}
-		}),
+			ctx.emit(...facts);
+		},
 		runtimeOptions(name, "workspaceProposalProjectionReleaseDiagnosticProjector"),
 	);
 	return {
@@ -2889,7 +2898,8 @@ export function workspaceProposalFamilyApplicationReadModelsProjector(
 		| undefined
 	>(
 		deps,
-		oneArrayPerRun((ctx) => {
+		(ctx) => {
+			const facts: unknown[] = [];
 			const state = familyProjectionState(ctx);
 			ingestDiagnosticInputFacts(ctx, state, depKinds);
 			for (const readModel of projectWorkspaceProposalFamilyApplicationReadModels({
@@ -2905,10 +2915,11 @@ export function workspaceProposalFamilyApplicationReadModelsProjector(
 					continue;
 				}
 				state.emittedReadModels.set(readModelCurrentViewKey(readModel), signature);
-				ctx.down([["DATA", { kind: "read-model", value: readModel }]]);
+				facts.push({ kind: "read-model", value: readModel });
 			}
 			ctx.state.set(state);
-		}),
+			ctx.emit(...facts);
+		},
 		runtimeOptions(name, "workspaceProposalFamilyApplicationReadModelsProjector"),
 	);
 	return {
@@ -3147,7 +3158,8 @@ export function workspaceProposalFamilyOutcomeDetailSupplyProjector(
 		| undefined
 	>(
 		deps,
-		oneArrayPerRun((ctx) => {
+		(ctx) => {
+			const facts: unknown[] = [];
 			const state = ctx.state.get<{
 				readonly requests: Map<string, WorkspaceProposalFamilyOutcomeDetailSupplyRequest>;
 				readonly suppliedOutcomes: Map<string, WorkspaceProposalFamilyOutcomeRecord>;
@@ -3179,10 +3191,11 @@ export function workspaceProposalFamilyOutcomeDetailSupplyProjector(
 				const signature = stableStringify(result);
 				if (state.emittedResults.get(result.currentViewId) === signature) continue;
 				state.emittedResults.set(result.currentViewId, signature);
-				ctx.down([["DATA", { kind: "outcome-detail-supply-result", value: result }]]);
+				facts.push({ kind: "outcome-detail-supply-result", value: result });
 			}
 			ctx.state.set(state);
-		}),
+			ctx.emit(...facts);
+		},
 		runtimeOptions(name, "workspaceProposalFamilyOutcomeDetailSupplyProjector"),
 	);
 	return {
@@ -3246,7 +3259,8 @@ export function workspaceProposalRepairActionDescriptorProjector(
 		| undefined
 	>(
 		deps,
-		oneArrayPerRun((ctx) => {
+		(ctx) => {
+			const facts: unknown[] = [];
 			const state = familyProjectionState(ctx);
 			ingestDiagnosticInputFacts(ctx, state, depKinds);
 			for (const descriptor of projectWorkspaceProposalRepairActionDescriptors({
@@ -3258,10 +3272,11 @@ export function workspaceProposalRepairActionDescriptorProjector(
 					continue;
 				}
 				state.emittedRepairActionDescriptors.set(descriptor.descriptorId, signature);
-				ctx.down([["DATA", { kind: "repair-action-descriptor", value: descriptor }]]);
+				facts.push({ kind: "repair-action-descriptor", value: descriptor });
 			}
 			ctx.state.set(state);
-		}),
+			ctx.emit(...facts);
+		},
 		runtimeOptions(name, "workspaceProposalRepairActionDescriptorProjector"),
 	);
 	return {
@@ -3893,7 +3908,8 @@ export function workspaceProposalRepairActionDisplayPolicyAdvisoryProjector(
 		| undefined
 	>(
 		deps,
-		oneArrayPerRun((ctx) => {
+		(ctx) => {
+			const facts: unknown[] = [];
 			const state = ctx.state.get<{
 				readonly descriptors: Map<string, WorkspaceProposalRepairActionDescriptor>;
 				readonly requests: Map<string, WorkspaceProposalRepairReviewRequest>;
@@ -3961,10 +3977,11 @@ export function workspaceProposalRepairActionDisplayPolicyAdvisoryProjector(
 				});
 				if (state.emittedAdvisories.get(key) === signature) continue;
 				state.emittedAdvisories.set(key, signature);
-				ctx.down([["DATA", { kind: "repair-action-display-policy-advisory", value: advisory }]]);
+				facts.push({ kind: "repair-action-display-policy-advisory", value: advisory });
 			}
 			ctx.state.set(state);
-		}),
+			ctx.emit(...facts);
+		},
 		runtimeOptions(name, "workspaceProposalRepairActionDisplayPolicyAdvisoryProjector"),
 	);
 	return {
@@ -4251,7 +4268,8 @@ export function workspaceProposalRepairActionIntentProjector(
 		| undefined
 	>(
 		deps,
-		oneArrayPerRun((ctx) => {
+		(ctx) => {
+			const facts: unknown[] = [];
 			const state = repairActionIntentGraphState(ctx);
 			ingestRepairActionIntentGraphFacts(ctx, state, opts.statuses !== undefined);
 			if (opts.releases !== undefined) {
@@ -4267,7 +4285,7 @@ export function workspaceProposalRepairActionIntentProjector(
 					const signature = stableStringify(result);
 					if (state.emittedResults.get(entry.intent.intentId) === signature) continue;
 					state.emittedResults.set(entry.intent.intentId, signature);
-					ctx.down([["DATA", { kind: "repair-action-intent-validation-result", value: result }]]);
+					facts.push({ kind: "repair-action-intent-validation-result", value: result });
 					continue;
 				}
 				const intent = entry.intent;
@@ -4287,10 +4305,11 @@ export function workspaceProposalRepairActionIntentProjector(
 				const signature = stableStringify(result);
 				if (state.emittedResults.get(intent.intentId) === signature) continue;
 				state.emittedResults.set(intent.intentId, signature);
-				ctx.down([["DATA", { kind: "repair-action-intent-validation-result", value: result }]]);
+				facts.push({ kind: "repair-action-intent-validation-result", value: result });
 			}
 			ctx.state.set(state);
-		}),
+			ctx.emit(...facts);
+		},
 		runtimeOptions(name, "workspaceProposalRepairActionIntentProjector"),
 	);
 	return {
@@ -4326,7 +4345,8 @@ export function workspaceProposalRepairSuccessorProposalIntakePreviewProjector(
 		| undefined
 	>(
 		deps,
-		oneArrayPerRun((ctx) => {
+		(ctx) => {
+			const facts: unknown[] = [];
 			const state = repairActionIntentGraphState(ctx);
 			ingestRepairActionIntentGraphFacts(ctx, state, opts.statuses !== undefined);
 			if (opts.releases !== undefined) {
@@ -4349,7 +4369,7 @@ export function workspaceProposalRepairSuccessorProposalIntakePreviewProjector(
 					const signature = stableStringify(preview);
 					if (state.emittedPreviews.get(preview.previewId) === signature) continue;
 					state.emittedPreviews.set(preview.previewId, signature);
-					ctx.down([["DATA", { kind: "successor-proposal-intake-preview", value: preview }]]);
+					facts.push({ kind: "successor-proposal-intake-preview", value: preview });
 					continue;
 				}
 				const request = state.requests.get(intent.repairRequestId);
@@ -4370,10 +4390,11 @@ export function workspaceProposalRepairSuccessorProposalIntakePreviewProjector(
 				const signature = stableStringify(preview);
 				if (state.emittedPreviews.get(preview.previewId) === signature) continue;
 				state.emittedPreviews.set(preview.previewId, signature);
-				ctx.down([["DATA", { kind: "successor-proposal-intake-preview", value: preview }]]);
+				facts.push({ kind: "successor-proposal-intake-preview", value: preview });
 			}
 			ctx.state.set(state);
-		}),
+			ctx.emit(...facts);
+		},
 		runtimeOptions(name, "workspaceProposalRepairSuccessorProposalIntakePreviewProjector"),
 	);
 	return {
@@ -4422,7 +4443,8 @@ export function workspaceProposalRepairSuccessorProposalReadyRequestPreparationP
 		| undefined
 	>(
 		deps,
-		oneArrayPerRun((ctx) => {
+		(ctx) => {
+			const facts: unknown[] = [];
 			const state = repairSuccessorPreparationGraphState<TDraft>(ctx);
 			for (const raw of ctx.deps[0].waves.flat()) {
 				const preview = raw as WorkspaceProposalRepairSuccessorProposalIntakePreview;
@@ -4473,16 +4495,17 @@ export function workspaceProposalRepairSuccessorProposalReadyRequestPreparationP
 				const signature = stableStringify(result);
 				if (state.emittedResults.get(input.preparationId) === signature) continue;
 				state.emittedResults.set(input.preparationId, signature);
-				ctx.down([["DATA", { kind: "successor-ready-request-preparation-result", value: result }]]);
+				facts.push({ kind: "successor-ready-request-preparation-result", value: result });
 				for (const issue of result.issues) {
-					ctx.down([["DATA", { kind: "issue", value: issue }]]);
+					facts.push({ kind: "issue", value: issue });
 				}
 				if (result.readyRequest !== undefined) {
-					ctx.down([["DATA", { kind: "successor-ready-request", value: result.readyRequest }]]);
+					facts.push({ kind: "successor-ready-request", value: result.readyRequest });
 				}
 			}
 			ctx.state.set(state);
-		}),
+			ctx.emit(...facts);
+		},
 		runtimeOptions(
 			name,
 			"workspaceProposalRepairSuccessorProposalReadyRequestPreparationProjector",

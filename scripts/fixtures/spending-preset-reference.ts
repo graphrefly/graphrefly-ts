@@ -36,7 +36,6 @@ import type {
 } from "../../packages/ts/src/graph/construction-scope.js";
 import type { Graph } from "../../packages/ts/src/graph/graph.js";
 import type { Node } from "../../packages/ts/src/node/node.js";
-import { oneArrayPerRun } from "../../packages/ts/src/node/one-array-per-run.js";
 import type { Message } from "../../packages/ts/src/protocol/messages.js";
 import { SENTINEL } from "../../packages/ts/src/protocol/messages.js";
 import {
@@ -99,32 +98,27 @@ function map<T, U>(
 	input: Node<BusinessFrame<T>>,
 	fn: (x: T, e: Evaluation) => U,
 ) {
-	return make<BusinessFrame<U>>(
-		name,
-		[input],
-		oneArrayPerRun((ctx) => {
-			for (const f of ctx.deps[0].waves.flat()) {
-				if (f === SENTINEL) {
-					ctx.down([["DATA", frame([], [], false)]]);
-					continue;
-				}
-				const data = f as BusinessFrame<T>;
-				ctx.down([
-					[
-						"DATA",
-						frame(
-							data.rows.map((r) => ({
-								evaluation: r.evaluation,
-								value: fn(r.value, r.evaluation),
-							})),
-							data.issues,
-							data.valid,
-						),
-					],
-				]);
+	return make<BusinessFrame<U>>(name, [input], (ctx) => {
+		const values: unknown[] = [];
+		for (const f of ctx.deps[0].waves.flat()) {
+			if (f === SENTINEL) {
+				values.push(frame([], [], false));
+				continue;
 			}
-		}),
-	);
+			const data = f as BusinessFrame<T>;
+			values.push(
+				frame(
+					data.rows.map((r) => ({
+						evaluation: r.evaluation,
+						value: fn(r.value, r.evaluation),
+					})),
+					data.issues,
+					data.valid,
+				),
+			);
+		}
+		ctx.emit(...values);
+	});
 }
 /** Exact occurrence join with bounded retained rows and no external cache reads. */
 function join<T>(
@@ -196,47 +190,45 @@ function checked<T>(
 	lane: ReferenceLane,
 	binding: SpendingBinding,
 ) {
-	return make<Checked<T>>(
-		name,
-		[input],
-		oneArrayPerRun((ctx) => {
-			const state = ctx.state.get<{ receipts: Map<string, string>; conflicts: Set<string> }>() ?? {
-				receipts: new Map(),
-				conflicts: new Set(),
-			};
-			for (const raw of ctx.deps[0].waves.flat()) {
-				let result: Checked<T>;
-				try {
-					if (raw === SENTINEL) throw Error(`invalidated-${lane}`);
-					const value = referenceInput<T>(lane, raw, binding);
-					if (lane === "verification")
-						for (const v of (value as VerificationFrame).receipts) {
-							const id = canonical(v.receiptRef),
-								text = canonical(v),
-								before = state.receipts.get(id);
-							if (before !== undefined && before !== text) state.conflicts.add(id);
-							if (state.conflicts.has(id)) throw Error("receipt-identity-conflict");
-							if (before === undefined && state.receipts.size === 64)
-								throw Error("receipt-lifetime-capacity");
-							state.receipts.set(id, text);
-						}
-					result = { valid: true, value };
-				} catch (error) {
-					result = {
-						valid: false,
-						issue: issue(
-							error instanceof Error &&
-								(error.message.startsWith("receipt-") || error.message.startsWith("invalidated-"))
-								? error.message
-								: `invalid-${lane}`,
-						),
-					};
-				}
-				ctx.state.set(state);
-				ctx.down([["DATA", freeze(result)]]);
+	return make<Checked<T>>(name, [input], (ctx) => {
+		const values: unknown[] = [];
+		const state = ctx.state.get<{ receipts: Map<string, string>; conflicts: Set<string> }>() ?? {
+			receipts: new Map(),
+			conflicts: new Set(),
+		};
+		for (const raw of ctx.deps[0].waves.flat()) {
+			let result: Checked<T>;
+			try {
+				if (raw === SENTINEL) throw Error(`invalidated-${lane}`);
+				const value = referenceInput<T>(lane, raw, binding);
+				if (lane === "verification")
+					for (const v of (value as VerificationFrame).receipts) {
+						const id = canonical(v.receiptRef),
+							text = canonical(v),
+							before = state.receipts.get(id);
+						if (before !== undefined && before !== text) state.conflicts.add(id);
+						if (state.conflicts.has(id)) throw Error("receipt-identity-conflict");
+						if (before === undefined && state.receipts.size === 64)
+							throw Error("receipt-lifetime-capacity");
+						state.receipts.set(id, text);
+					}
+				result = { valid: true, value };
+			} catch (error) {
+				result = {
+					valid: false,
+					issue: issue(
+						error instanceof Error &&
+							(error.message.startsWith("receipt-") || error.message.startsWith("invalidated-"))
+							? error.message
+							: `invalid-${lane}`,
+					),
+				};
 			}
-		}),
-	);
+			ctx.state.set(state);
+			values.push(freeze(result));
+		}
+		ctx.emit(...values);
+	});
 }
 const available = <T>(ctx: Parameters<NodeFn>[0], index: number): T | undefined => {
 	const f = ctx.deps[index].value as Checked<T> | undefined;
@@ -339,7 +331,8 @@ export function buildReferencePreset(
 	const selection = make<BusinessFrame<Evaluation>>(
 		"selection",
 		[inputs.evaluations.pack, inputs.evaluations.arrivals],
-		oneArrayPerRun((ctx) => {
+		(ctx) => {
+			const values: unknown[] = [];
 			const s = ctx.state.get<{
 				pack?: EvaluationPack;
 				bytes?: string;
@@ -374,7 +367,7 @@ export function buildReferencePreset(
 					if (e) rows.push({ evaluation: e, value: e });
 					else errors.push(issue("unknown-evaluation", id));
 				}
-				if (rows.length || errors.length) ctx.down([["DATA", frame(rows, errors.splice(0))]]);
+				if (rows.length || errors.length) values.push(frame(rows, errors.splice(0)));
 			};
 			drain();
 			for (const v of ctx.deps[1]?.waves.flat() ?? []) {
@@ -391,12 +384,13 @@ export function buildReferencePreset(
 				} catch {
 					s.waiting = [];
 					errors.push(issue("invalid-arrivals"));
-					ctx.down([["DATA", frame([], errors.splice(0), false)]]);
+					values.push(frame([], errors.splice(0), false));
 				}
 			}
 			ctx.state.set(s);
-			if (errors.length) ctx.down([["DATA", frame([], errors, false)]]);
-		}),
+			if (errors.length) values.push(frame([], errors, false));
+			ctx.emit(...values);
+		},
 	);
 	const transaction = map(make, "transaction", selection, (e) => e.prefix[e.prefix.length - 1]);
 	const moments = map(make, "moments", selection, (e) =>
@@ -520,58 +514,54 @@ export function buildReferencePreset(
 			}
 		},
 	);
-	const store = make<Stored>(
-		"store",
-		[material],
-		oneArrayPerRun((ctx) => {
-			const s = ctx.state.get<{
-				materials: Map<string, RequestMaterial>;
-				snapshot: MaterialSnapshot;
-			}>() ?? { materials: new Map(), snapshot: oracleSnapshot(materialProfile, []) };
-			for (const raw of ctx.deps[0].waves.flat()) {
-				const f = raw as BusinessFrame<MaterialResult>,
-					rows: Item<MaterialResult>[] = [],
-					errors = [...f.issues];
-				for (const row of f.rows) {
-					let result = row.value;
-					if (result.kind === "retained") {
-						const id = key(row.evaluation),
-							prior = s.materials.get(id);
-						let failure: string | undefined;
-						if (prior) {
-							if (!equal(prior, result.material)) failure = "material-conflict";
-							else result = { kind: "retained", material: prior };
-						} else if (s.materials.size >= 64) failure = "material-count-capacity";
-						else
-							try {
-								const next = oracleSnapshot(materialProfile, [
-									...s.materials.values(),
-									result.material,
-								]);
-								if (Buffer.byteLength(canonical(next)) > 1048576) throw Error();
-								s.materials.set(id, result.material);
-								s.snapshot = next;
-							} catch {
-								failure = "material-byte-capacity";
-							}
-						if (failure)
-							result = { kind: "rejected", issue: issue(failure, row.evaluation.evaluationRef) };
-					}
-					if (result.kind === "rejected") errors.push(result.issue);
-					rows.push({ evaluation: row.evaluation, value: result });
+	const store = make<Stored>("store", [material], (ctx) => {
+		const values: unknown[] = [];
+		const s = ctx.state.get<{
+			materials: Map<string, RequestMaterial>;
+			snapshot: MaterialSnapshot;
+		}>() ?? { materials: new Map(), snapshot: oracleSnapshot(materialProfile, []) };
+		for (const raw of ctx.deps[0].waves.flat()) {
+			const f = raw as BusinessFrame<MaterialResult>,
+				rows: Item<MaterialResult>[] = [],
+				errors = [...f.issues];
+			for (const row of f.rows) {
+				let result = row.value;
+				if (result.kind === "retained") {
+					const id = key(row.evaluation),
+						prior = s.materials.get(id);
+					let failure: string | undefined;
+					if (prior) {
+						if (!equal(prior, result.material)) failure = "material-conflict";
+						else result = { kind: "retained", material: prior };
+					} else if (s.materials.size >= 64) failure = "material-count-capacity";
+					else
+						try {
+							const next = oracleSnapshot(materialProfile, [
+								...s.materials.values(),
+								result.material,
+							]);
+							if (Buffer.byteLength(canonical(next)) > 1048576) throw Error();
+							s.materials.set(id, result.material);
+							s.snapshot = next;
+						} catch {
+							failure = "material-byte-capacity";
+						}
+					if (failure)
+						result = { kind: "rejected", issue: issue(failure, row.evaluation.evaluationRef) };
 				}
-				ctx.state.set(s);
-				ctx.down([["DATA", freeze({ ...frame(rows, errors, f.valid), snapshot: s.snapshot })]]);
+				if (result.kind === "rejected") errors.push(result.issue);
+				rows.push({ evaluation: row.evaluation, value: result });
 			}
-		}),
-	);
-	const snapshot = make<MaterialSnapshot>(
-		"snapshot",
-		[store],
-		oneArrayPerRun((ctx) => {
-			for (const f of ctx.deps[0].waves.flat()) ctx.down([["DATA", (f as Stored).snapshot]]);
-		}),
-	);
+			ctx.state.set(s);
+			values.push(freeze({ ...frame(rows, errors, f.valid), snapshot: s.snapshot }));
+		}
+		ctx.emit(...values);
+	});
+	const snapshot = make<MaterialSnapshot>("snapshot", [store], (ctx) => {
+		const values: unknown[] = [];
+		for (const f of ctx.deps[0].waves.flat()) values.push((f as Stored).snapshot);
+		ctx.emit(...values);
+	});
 	const proposals = make<CausalEffectProposal>("proposals", [store], (ctx) => {
 		const out: Message[] = [];
 		for (const f of ctx.deps[0].waves.flat() as Stored[])
@@ -935,17 +925,19 @@ export function buildReferencePreset(
 			permission,
 			publication.causal.ports.issues,
 		],
-		oneArrayPerRun((ctx) => {
+		(ctx) => {
+			const values: unknown[] = [];
 			for (let i = 0; i < 9; i++)
 				for (const raw of ctx.deps[i].waves.flat()) {
 					const f = raw as any;
-					if (f.kind === "issue") ctx.down([["DATA", f]]);
+					if (f.kind === "issue") values.push(f);
 					else {
-						if (f.issue) ctx.down([["DATA", f.issue]]);
-						for (const x of f.issues ?? []) ctx.down([["DATA", x]]);
+						if (f.issue) values.push(f.issue);
+						for (const x of f.issues ?? []) values.push(x);
 					}
 				}
-		}),
+			ctx.emit(...values);
+		},
 	);
 	const view = Object.freeze({
 		assessment,

@@ -1,7 +1,6 @@
 import type { Graph } from "../graph/graph.js";
 import { compoundTupleKey } from "../identity.js";
 import type { Node } from "../node/node.js";
-import { oneArrayPerRun } from "../node/one-array-per-run.js";
 import { effectRun } from "./agent-runtime.js";
 import {
 	deletePendingWorkItemEffectRequest,
@@ -33,7 +32,8 @@ export function workItemEffectRunProjector(
 	const name = opts.name ?? "workItemEffectRuns";
 	const runtime = graph.node<WorkItemEffectRunFact>(
 		[opts.workItems, opts.effectRequests],
-		oneArrayPerRun((ctx) => {
+		(ctx) => {
+			const facts: WorkItemEffectRunFact[] = [];
 			const state = ctx.state.get<WorkItemEffectRunState>() ?? emptyWorkItemEffectRunState();
 			for (const raw of ctx.deps[0].waves.flat()) {
 				const workItem = raw as WorkItemSeed;
@@ -45,47 +45,41 @@ export function workItemEffectRunProjector(
 				const requestRefs = workItemEffectRequestRefs(request);
 				state.statusSeq += 1;
 				state.auditSeq += 1;
-				ctx.down([
-					[
-						"DATA",
-						{
-							kind: "status",
-							status: {
-								kind: "work-item-status",
-								statusId: compoundTupleKey("work-item-effect-request-pending-status", [
-									request.workItemId,
-									String(state.statusSeq),
-								]),
-								workItemId: request.workItemId,
-								effectRunId: request.effectRunId,
-								requestId: request.requestId,
-								state: "effect-request-pending",
-								sourceRefs: requestRefs,
-								metadata: { effectKind: request.effectKind },
-							},
-						} satisfies WorkItemEffectRunFact,
-					],
-					[
-						"DATA",
-						{
-							kind: "audit",
-							audit: {
-								id: compoundTupleKey("work-item-effect-request-pending-audit", [
-									request.workItemId,
-									String(state.auditSeq),
-								]),
-								kind: "work-item-effect-request-pending",
-								subjectId: request.workItemId,
-								sourceRefs: requestRefs,
-								metadata: { effectRunId: request.effectRunId, effectKind: request.effectKind },
-							},
-						} satisfies WorkItemEffectRunFact,
-					],
-				]);
+				facts.push(
+					{
+						kind: "status",
+						status: {
+							kind: "work-item-status",
+							statusId: compoundTupleKey("work-item-effect-request-pending-status", [
+								request.workItemId,
+								String(state.statusSeq),
+							]),
+							workItemId: request.workItemId,
+							effectRunId: request.effectRunId,
+							requestId: request.requestId,
+							state: "effect-request-pending",
+							sourceRefs: requestRefs,
+							metadata: { effectKind: request.effectKind },
+						},
+					},
+					{
+						kind: "audit",
+						audit: {
+							id: compoundTupleKey("work-item-effect-request-pending-audit", [
+								request.workItemId,
+								String(state.auditSeq),
+							]),
+							kind: "work-item-effect-request-pending",
+							subjectId: request.workItemId,
+							sourceRefs: requestRefs,
+							metadata: { effectRunId: request.effectRunId, effectKind: request.effectKind },
+						},
+					},
+				);
 				const workItem = state.workItems.get(request.workItemId);
 				if (workItem === undefined) {
 					emitWorkItemEffectRunIssue(
-						ctx,
+						facts,
 						state,
 						compoundTupleKey("unknown-work-item", [request.requestId]),
 						"unknown-work-item-effect-request",
@@ -98,7 +92,7 @@ export function workItemEffectRunProjector(
 				const existingEffectRunId = state.effectRunsByRequest.get(request.requestId);
 				if (existingEffectRunId !== undefined) {
 					emitWorkItemEffectRunIssue(
-						ctx,
+						facts,
 						state,
 						compoundTupleKey("duplicate-effect-request", [request.requestId]),
 						"duplicate-work-item-effect-request",
@@ -110,7 +104,7 @@ export function workItemEffectRunProjector(
 				}
 				if (state.seededEffectRunIds.has(request.effectRunId)) {
 					emitWorkItemEffectRunIssue(
-						ctx,
+						facts,
 						state,
 						compoundTupleKey("duplicate-effect-run", [request.effectRunId, request.requestId]),
 						"duplicate-work-item-effect-run",
@@ -145,46 +139,41 @@ export function workItemEffectRunProjector(
 				});
 				state.statusSeq += 1;
 				state.auditSeq += 1;
-				ctx.down([
-					["DATA", { kind: "effect-run", effectRun: run } satisfies WorkItemEffectRunFact],
-					[
-						"DATA",
-						{
-							kind: "status",
-							status: {
-								kind: "work-item-status",
-								statusId: compoundTupleKey("work-item-effect-run-seeded-status", [
-									request.workItemId,
-									String(state.statusSeq),
-								]),
-								workItemId: request.workItemId,
-								effectRunId: request.effectRunId,
-								requestId: request.requestId,
-								state: "effect-run-seeded",
-								sourceRefs: run.sourceRefs,
-							},
-						} satisfies WorkItemEffectRunFact,
-					],
-					[
-						"DATA",
-						{
-							kind: "audit",
-							audit: {
-								id: compoundTupleKey("work-item-effect-run-seeded-audit", [
-									request.workItemId,
-									String(state.auditSeq),
-								]),
-								kind: "work-item-effect-run-seeded",
-								subjectId: request.workItemId,
-								sourceRefs: run.sourceRefs,
-								metadata: { effectRunId: request.effectRunId, effectKind: request.effectKind },
-							},
-						} satisfies WorkItemEffectRunFact,
-					],
-				]);
+				facts.push(
+					{ kind: "effect-run", effectRun: run },
+					{
+						kind: "status",
+						status: {
+							kind: "work-item-status",
+							statusId: compoundTupleKey("work-item-effect-run-seeded-status", [
+								request.workItemId,
+								String(state.statusSeq),
+							]),
+							workItemId: request.workItemId,
+							effectRunId: request.effectRunId,
+							requestId: request.requestId,
+							state: "effect-run-seeded",
+							sourceRefs: run.sourceRefs,
+						},
+					},
+					{
+						kind: "audit",
+						audit: {
+							id: compoundTupleKey("work-item-effect-run-seeded-audit", [
+								request.workItemId,
+								String(state.auditSeq),
+							]),
+							kind: "work-item-effect-run-seeded",
+							subjectId: request.workItemId,
+							sourceRefs: run.sourceRefs,
+							metadata: { effectRunId: request.effectRunId, effectKind: request.effectKind },
+						},
+					},
+				);
 			}
 			ctx.state.set(state);
-		}),
+			ctx.emit(...facts);
+		},
 		{ name: `${name}/runtime`, factory: "workItemEffectRunProjector" },
 	);
 	return {

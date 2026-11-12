@@ -9,7 +9,6 @@ import type { GraphRecipeContext, GraphRecipeFactory } from "../graph/restore.js
 import { compoundTupleKey } from "../identity.js";
 import { type AttachableInput, attachableInput } from "../node/attachable-input.js";
 import type { Node } from "../node/node.js";
-import { oneArrayPerRun } from "../node/one-array-per-run.js";
 import type { NodeOptions } from "../node/types.js";
 import type { Message } from "../protocol/messages.js";
 import type {
@@ -475,23 +474,26 @@ function processFactValue(fact: ProcessRuntimeFact, kind: ProcessFactKind): unkn
 }
 
 function processProjectionFn(kind: ProcessFactKind): NodeFn {
-	return oneArrayPerRun((ctx) => {
+	return (ctx) => {
+		const values: unknown[] = [];
 		for (const raw of ctx.deps[0].waves.flat()) {
 			const selected = processFactValue(raw as ProcessRuntimeFact, kind);
-			if (selected !== undefined) ctx.down([["DATA", selected]]);
+			if (selected !== undefined) values.push(selected);
 		}
-	});
+		ctx.emit(...values);
+	};
 }
 
 function processEffectRunnerRequestsFn(): NodeFn {
-	return oneArrayPerRun((ctx) => {
-		for (const request of ctx.deps[0].waves.flat()) ctx.down([["DATA", request]]);
-	});
+	return (ctx) => {
+		ctx.emit(...ctx.deps[0].waves.flat());
+	};
 }
 
 /** The runner's runtime reads every outcome dependency, in dependency order. */
 function processEffectRunnerRuntimeFn(): NodeFn {
-	return oneArrayPerRun((ctx) => {
+	return (ctx) => {
+		const facts: ProcessEffectRunnerFact[] = [];
 		for (let i = 0; i < ctx.deps.length; i += 1) {
 			for (const raw of ctx.deps[i].waves.flat()) {
 				const parsed = parseProcessEffectOutcome<unknown>(raw);
@@ -501,19 +503,21 @@ function processEffectRunnerRuntimeFn(): NodeFn {
 						message: parsed,
 						outcome: raw,
 					} satisfies ProcessEffectRunnerError;
-					ctx.down([["DATA", { kind: "error", error }]]);
+					facts.push({ kind: "error", error });
 					continue;
 				}
 				const command = processEffectOutcomeCommand(parsed);
-				ctx.down([["DATA", { kind: "outcome", outcome: parsed }]]);
-				ctx.down([["DATA", { kind: "command", command }]]);
+				facts.push({ kind: "outcome", outcome: parsed });
+				facts.push({ kind: "command", command });
 			}
 		}
-	});
+		ctx.emit(...facts);
+	};
 }
 
 function processEffectRunnerProjectionFn(kind: ProcessEffectRunnerFact["kind"]): NodeFn {
-	return oneArrayPerRun((ctx) => {
+	return (ctx) => {
+		const values: unknown[] = [];
 		for (const raw of ctx.deps[0].waves.flat()) {
 			const fact = raw as ProcessEffectRunnerFact;
 			if (fact.kind !== kind) continue;
@@ -523,73 +527,61 @@ function processEffectRunnerProjectionFn(kind: ProcessEffectRunnerFact["kind"]):
 					: fact.kind === "command"
 						? fact.command
 						: fact.error;
-			ctx.down([["DATA", value]]);
+			values.push(value);
 		}
-	});
+		ctx.emit(...values);
+	};
 }
 
 function processEffectRunnerStatusFn(): NodeFn {
-	return oneArrayPerRun((ctx) => {
+	return (ctx) => {
+		const statuses: ProcessEffectRunnerStatus[] = [];
 		let state =
 			ctx.state.get<ProcessEffectRunnerState>() ??
 			({ requested: 0, commanded: 0, rejected: 0 } satisfies ProcessEffectRunnerState);
 		for (const request of ctx.deps[0].waves.flat()) {
 			state = { ...state, requested: state.requested + 1 };
 			const typedRequest = request as ProcessEffectRequest<unknown>;
-			ctx.down([
-				[
-					"DATA",
-					{
-						state: "requested",
-						effectId: typedRequest.id,
-						effectType: typedRequest.type,
-						requested: state.requested,
-						commanded: state.commanded,
-						rejected: state.rejected,
-					} satisfies ProcessEffectRunnerStatus,
-				],
-			]);
+			statuses.push({
+				state: "requested",
+				effectId: typedRequest.id,
+				effectType: typedRequest.type,
+				requested: state.requested,
+				commanded: state.commanded,
+				rejected: state.rejected,
+			});
 		}
 		for (const fact of ctx.deps[1]?.waves.flat() ?? []) {
 			const typedFact = fact as ProcessEffectRunnerFact;
 			if (typedFact.kind === "command") {
 				state = { ...state, commanded: state.commanded + 1 };
-				ctx.down([
-					[
-						"DATA",
-						{
-							state: "commanded",
-							effectId: typedFact.command.payload.effectId,
-							effectType: typedFact.command.payload.effectType,
-							commandId: typedFact.command.id,
-							commandType: typedFact.command.type as ProcessEffectCommandType,
-							requested: state.requested,
-							commanded: state.commanded,
-							rejected: state.rejected,
-						} satisfies ProcessEffectRunnerStatus,
-					],
-				]);
+				statuses.push({
+					state: "commanded",
+					effectId: typedFact.command.payload.effectId,
+					effectType: typedFact.command.payload.effectType,
+					commandId: typedFact.command.id,
+					commandType: typedFact.command.type as ProcessEffectCommandType,
+					requested: state.requested,
+					commanded: state.commanded,
+					rejected: state.rejected,
+				});
 			}
 			if (typedFact.kind === "error") {
 				state = { ...state, rejected: state.rejected + 1 };
 				const { effectId, effectType } = typedFact.error;
-				ctx.down([
-					[
-						"DATA",
-						{
-							state: "rejected",
-							...(effectId === undefined ? {} : { effectId }),
-							...(effectType === undefined ? {} : { effectType }),
-							requested: state.requested,
-							commanded: state.commanded,
-							rejected: state.rejected,
-						} satisfies ProcessEffectRunnerStatus,
-					],
-				]);
+				statuses.push({
+					state: "rejected",
+					...(effectId === undefined ? {} : { effectId }),
+					...(effectType === undefined ? {} : { effectType }),
+					requested: state.requested,
+					commanded: state.commanded,
+					rejected: state.rejected,
+				});
 			}
 		}
 		ctx.state.set(state);
-	});
+		ctx.emit(...statuses);
+	};
 }
 
 /**

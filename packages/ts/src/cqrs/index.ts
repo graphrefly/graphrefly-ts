@@ -14,7 +14,6 @@ import type { Graph } from "../graph/graph.js";
 import type { GraphRecipeContext, GraphRecipeFactory } from "../graph/restore.js";
 import { compoundTupleKey } from "../identity.js";
 import type { Node } from "../node/node.js";
-import { oneArrayPerRun } from "../node/one-array-per-run.js";
 
 /** Command fact accepted by a CQRS bundle. */
 export interface CqrsCommand<T = unknown> {
@@ -741,14 +740,16 @@ function runtimeProjectionValue(fact: CqrsRuntimeFact): unknown {
 }
 
 function runtimeProjectionFn(kind: CqrsRuntimeFact["kind"]): NodeFn {
-	return oneArrayPerRun((ctx) => {
+	return (ctx) => {
+		const values: unknown[] = [];
 		for (const fact of ctx.deps[0].waves.flat()) {
 			const typed = fact as CqrsRuntimeFact;
 			if (typed.kind !== kind) continue;
 			const selected = runtimeProjectionValue(typed);
-			if (selected !== undefined) ctx.down([["DATA", selected]]);
+			if (selected !== undefined) values.push(selected);
 		}
-	});
+		ctx.emit(...values);
+	};
 }
 
 const CQRS_RUNTIME_REF = "cqrs.runtime";
@@ -812,82 +813,66 @@ function cqrsProjectionFramesFn(
 	reducer: (state: unknown, event: CqrsEvent) => unknown,
 	eventFilter: ReadonlySet<string> | undefined,
 ): NodeFn {
-	return oneArrayPerRun((ctx) => {
+	return (ctx) => {
 		const state = ctx.state.get<{ value: unknown }>() ?? { value: initial };
+		const frames: CqrsProjectionFrame<unknown>[] = [];
 		for (const raw of ctx.deps[0].waves.flat()) {
 			const event = raw as CqrsEvent;
 			if (eventFilter !== undefined && !eventFilter.has(event.type)) continue;
 			try {
 				state.value = reducer(state.value, event);
 				ctx.state.set(state);
-				ctx.down([
-					[
-						"DATA",
-						{
-							kind: "value",
-							state: state.value,
-							eventId: event.id,
-							cursor: event.runtimeCursor,
-						} satisfies CqrsProjectionFrame<unknown>,
-					],
-				]);
+				frames.push({
+					kind: "value",
+					state: state.value,
+					eventId: event.id,
+					cursor: event.runtimeCursor,
+				});
 			} catch (error) {
 				rethrowGraphRuntimeInvariant(error);
-				ctx.down([
-					[
-						"DATA",
-						{
-							kind: "error",
-							error: {
-								code: "projection-threw",
-								message: errorMessage(error),
-								eventId: event.id,
-								eventType: event.type,
-								cursor: event.runtimeCursor,
-							},
-						} satisfies CqrsProjectionFrame<unknown>,
-					],
-				]);
-				return;
+				frames.push({
+					kind: "error",
+					error: {
+						code: "projection-threw",
+						message: errorMessage(error),
+						eventId: event.id,
+						eventType: event.type,
+						cursor: event.runtimeCursor,
+					},
+				});
+				break;
 			}
 		}
-	});
+		ctx.emit(...frames);
+	};
 }
 
 function cqrsProjectionViewFn(kind: CqrsProjectionViewKind): NodeFn {
-	return oneArrayPerRun((ctx) => {
+	return (ctx) => {
+		const values: unknown[] = [];
 		for (const frame of ctx.deps[0].waves.flat()) {
 			const typed = frame as CqrsProjectionFrame<unknown>;
 			if (kind === "value") {
-				if (typed.kind === "value") ctx.down([["DATA", typed.state]]);
+				if (typed.kind === "value") values.push(typed.state);
 			} else if (kind === "errors") {
-				if (typed.kind === "error") ctx.down([["DATA", typed.error]]);
+				if (typed.kind === "error") values.push(typed.error);
 			} else if (typed.kind === "value") {
-				ctx.down([
-					[
-						"DATA",
-						{
-							state: "updated",
-							eventId: typed.eventId,
-							cursor: typed.cursor,
-						} satisfies CqrsProjectionStatus,
-					],
-				]);
+				values.push({
+					state: "updated",
+					eventId: typed.eventId,
+					cursor: typed.cursor,
+				} satisfies CqrsProjectionStatus);
 			} else {
-				ctx.down([
-					[
-						"DATA",
-						{
-							state: "errored",
-							eventId: typed.error.eventId,
-							eventType: typed.error.eventType,
-							cursor: typed.error.cursor,
-						} satisfies CqrsProjectionStatus,
-					],
-				]);
+				values.push({
+					state: "errored",
+					eventId: typed.error.eventId,
+					eventType: typed.error.eventType,
+					cursor: typed.error.cursor,
+				} satisfies CqrsProjectionStatus);
 			}
 		}
-	});
+		ctx.emit(...values);
+	};
 }
 
 function recipeObject(config: unknown, ref: string): Record<string, unknown> {

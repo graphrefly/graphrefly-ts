@@ -11,7 +11,6 @@ import {
 import type { GraphRecipeFactory } from "../graph/restore.js";
 import { timeout as timeoutOperator } from "../graph/time.js";
 import type { Node } from "../node/node.js";
-import { oneArrayPerRun } from "../node/one-array-per-run.js";
 
 export type ResilienceEvent =
 	| { readonly kind: "attempt"; readonly attempt: number }
@@ -129,12 +128,14 @@ export function retryStatusBundle(
 	);
 	const errors = graph.node<unknown>(
 		[events],
-		oneArrayPerRun((ctx) => {
+		(ctx) => {
+			const values: unknown[] = [];
 			for (const raw of ctx.deps[0].waves.flat()) {
 				const event = raw as ResilienceEvent;
-				if ("error" in event) ctx.down([["DATA", event.error]]);
+				if ("error" in event) values.push(event.error);
 			}
-		}),
+			ctx.emit(...values);
+		},
 		{ name: `${name}/errors`, factory: "retryErrors" },
 	);
 	return { status, errors };
@@ -230,12 +231,14 @@ function breakerStatusFn(config: BreakerStatusConfig, now: () => number): NodeFn
 }
 
 function breakerAllowedFn(): NodeFn {
-	return oneArrayPerRun((ctx) => {
+	return (ctx) => {
+		const allowed: boolean[] = [];
 		const statusBatch = ctx.deps[0].waves.flat();
 		for (const value of statusBatch) {
-			ctx.down([["DATA", (value as BreakerStatus).state !== "open"]]);
+			allowed.push((value as BreakerStatus).state !== "open");
 		}
-	});
+		ctx.emit(...allowed);
+	};
 }
 
 function breakerConfigNumber(

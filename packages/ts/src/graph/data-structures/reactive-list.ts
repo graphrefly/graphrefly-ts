@@ -15,8 +15,7 @@
 import type { Ctx } from "../../ctx/types.js";
 import { attachableInput } from "../../node/attachable-input.js";
 import { Node } from "../../node/node.js";
-import { oneArrayPerRun } from "../../node/one-array-per-run.js";
-import { errorPayload } from "../../protocol/messages.js";
+import { errorPayload, type Message } from "../../protocol/messages.js";
 import type { Graph } from "../graph.js";
 import type { Operator } from "../operators.js";
 import { trimHeadOverflow } from "../policies/collection.js";
@@ -334,15 +333,17 @@ export function reactiveList<T>(
 		appendFrom(src: Node<T>): () => void {
 			const op: Operator<T, T> = {
 				factory: "reactiveList.bindSource",
-				body: oneArrayPerRun((ctx: Ctx) => {
+				body: (ctx: Ctx) => {
+					const out: Message[] = [];
 					try {
 						for (const value of ctx.deps[0].waves.flat() as readonly T[]) {
-							ctx.down([["DATA", value]]);
+							out.push(["DATA", value]);
 						}
 					} catch (e) {
-						ctx.down([["ERROR", errorPayload(e, "reactiveList.bindSource failed")]]);
+						out.push(["ERROR", errorPayload(e, "reactiveList.bindSource failed")]);
 					}
-				}),
+					if (out.length > 0) ctx.down(out);
+				},
 			};
 			const folder = graph.initNode(op, [src], {
 				name: options.name ? `${options.name}.bind#${bindSeq++}` : undefined,

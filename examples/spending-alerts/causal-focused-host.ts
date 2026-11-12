@@ -9,7 +9,6 @@ import {
 } from "../../packages/ts/src/graph/construction-scope.js";
 import type { Graph } from "../../packages/ts/src/graph/graph.js";
 import type { Node } from "../../packages/ts/src/node/node.js";
-import { oneArrayPerRun } from "../../packages/ts/src/node/one-array-per-run.js";
 import type {
 	CausalEffectOutcome,
 	CausalQuiescence,
@@ -236,54 +235,46 @@ export function buildOfflineSpendingHost(
 	);
 	const packFacts = scope.node<Checked<EvaluationPack>>(
 		[inputs.evaluations.pack],
-		oneArrayPerRun((ctx) => {
+		(ctx) => {
 			if (
 				packFacts.deps.length !== 1 ||
 				packFacts.deps[0] !== inputs.evaluations.pack ||
 				ctx.deps[0].value === undefined
 			) {
-				ctx.down([
-					[
-						"DATA",
-						{
-							valid: false,
-							issue: {
-								kind: "issue",
-								code: "host-pack-unavailable",
-								message: "host pack unavailable",
-							},
-						},
-					],
-				]);
+				ctx.emit({
+					valid: false,
+					issue: {
+						kind: "issue",
+						code: "host-pack-unavailable",
+						message: "host pack unavailable",
+					},
+				});
 				return;
 			}
+			const values: Checked<EvaluationPack>[] = [];
 			let original = ctx.state.get<string>();
 			for (const raw of ctx.deps[0].waves.flat()) {
 				const value = checkInput<EvaluationPack>("pack", raw, binding);
 				if (value.valid) {
 					const digest = hash(value.value);
 					if (original !== undefined && original !== digest) {
-						ctx.down([
-							[
-								"DATA",
-								{
-									valid: false,
-									issue: {
-										kind: "issue",
-										code: "host-pack-conflict",
-										message: "host pack conflict",
-									},
-								},
-							],
-						]);
+						values.push({
+							valid: false,
+							issue: {
+								kind: "issue",
+								code: "host-pack-conflict",
+								message: "host pack conflict",
+							},
+						});
 						continue;
 					}
 					original = digest;
 					ctx.state.set(original);
 				}
-				ctx.down([["DATA", value]]);
+				values.push(value);
 			}
-		}),
+			ctx.emit(...values);
+		},
 		{ name: `${name}/hostPackFacts`, factory: "offlineSpendingHostPackFacts" },
 	);
 

@@ -6,7 +6,6 @@ import type {
 } from "../../packages/ts/src/graph/construction-scope.js";
 import type { Graph } from "../../packages/ts/src/graph/graph.js";
 import type { Node } from "../../packages/ts/src/node/node.js";
-import { oneArrayPerRun } from "../../packages/ts/src/node/one-array-per-run.js";
 import type { CausalBinding } from "../../packages/ts/src/solutions/causal-occurrence/capabilities.js";
 import { buildCausalNodes } from "../../packages/ts/src/solutions/causal-occurrence/construction.js";
 import type { CommittedEffectsView } from "../../packages/ts/src/solutions/causal-occurrence/contracts.js";
@@ -84,13 +83,14 @@ export function buildReferencePublication<T>(
 	);
 	const publication = scope.node<ReturnType<typeof oraclePublication>>(
 		[join],
-		oneArrayPerRun((ctx) => {
-			for (const input of ctx.deps[0].waves.flat()) {
-				const value = input as { view: CommittedEffectsView; index: OracleIndex };
-				const result = oraclePublication(value.view, value.index, profile);
-				ctx.down([["DATA", result]]);
-			}
-		}),
+		(ctx) => {
+			ctx.emit(
+				...ctx.deps[0].waves.flat().map((input) => {
+					const value = input as { view: CommittedEffectsView; index: OracleIndex };
+					return oraclePublication(value.view, value.index, profile);
+				}),
+			);
+		},
 		{ name: "publication", factory: "spendingPublication" },
 	);
 	return Object.freeze({ causal, requestMaterialJoin: join, publication });

@@ -29,7 +29,6 @@
 
 import type { Ctx } from "@graphrefly/ts/core";
 import { Graph } from "@graphrefly/ts/graph";
-import { oneArrayPerRun } from "../../packages/ts/src/node/one-array-per-run.js";
 
 export interface Transaction {
 	readonly id: string;
@@ -167,7 +166,8 @@ export function spendingAlertsGraph(opts: SpendingAlertsOptions = {}): SpendingA
 	// by the node rather than by a factory closure.
 	const vendorStats = graph.node<VendorStats>(
 		[txFeed],
-		oneArrayPerRun((ctx: Ctx) => {
+		(ctx: Ctx) => {
+			const values: unknown[] = [];
 			const batch = ctx.deps[0].waves.length === 0 ? null : ctx.deps[0].waves.flat();
 			if (batch === null) return;
 			const statsByVendor =
@@ -187,10 +187,11 @@ export function spendingAlertsGraph(opts: SpendingAlertsOptions = {}): SpendingA
 				const m2 = prev.m2 + delta * (txn.amount - mean);
 				statsByVendor[txn.vendor] = { count, mean, m2 };
 				const std = count >= 2 ? Math.sqrt(m2 / (count - 1)) : 0;
-				ctx.down([["DATA", { count, mean, std }]]);
+				values.push({ count, mean, std });
 			}
 			ctx.state.set(statsByVendor);
-		}),
+			ctx.emit(...values);
+		},
 		{ name: "vendorStats" },
 	);
 

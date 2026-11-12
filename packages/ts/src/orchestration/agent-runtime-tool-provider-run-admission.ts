@@ -2,7 +2,6 @@ import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
 import { compoundTupleKey } from "../identity.js";
 import type { Node } from "../node/node.js";
-import { oneArrayPerRun } from "../node/one-array-per-run.js";
 import {
 	type AdmissionHandoffCandidate,
 	type AdmissionHandoffDecision,
@@ -183,7 +182,8 @@ export function toolProviderRunAdmissionProjector(
 	});
 	const approvedRunRequests = graph.node<ToolProviderAdapterRunRequested>(
 		[approvedRunHandoff.accepted],
-		oneArrayPerRun((ctx) => {
+		(ctx) => {
+			const requests: ToolProviderAdapterRunRequested[] = [];
 			for (const raw of ctx.deps[0].waves.flat()) {
 				const approvedRequest = (
 					raw as {
@@ -192,9 +192,10 @@ export function toolProviderRunAdmissionProjector(
 				).reason?.approvedRequest;
 				if (approvedRequest === undefined)
 					throw new TypeError("admitted tool provider handoff lacked an approved run request");
-				ctx.down([["DATA", approvedRequest]]);
+				requests.push(approvedRequest);
 			}
-		}),
+			ctx.emit(...requests);
+		},
 		{
 			name: `${name}/approvedRunRequests`,
 			factory: "toolProviderRunAdmissionApprovedRunRequests",

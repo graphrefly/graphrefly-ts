@@ -1,6 +1,5 @@
 import type { Graph } from "../../graph/graph.js";
 import type { Node } from "../../node/node.js";
-import { oneArrayPerRun } from "../../node/one-array-per-run.js";
 import type { MemoryRetrievalSnapshot } from "../../patterns/semantic-memory-graph.js";
 import { agenticStatusState, contextState, validateAndProjectRecords } from "./shared.js";
 import type {
@@ -20,11 +19,13 @@ export function solutionProjection<TFact, TSnapshot>(
 ): Node<TFact> {
 	return graph.node<TFact>(
 		[snapshot],
-		oneArrayPerRun((ctx) => {
+		(ctx) => {
+			const values: TFact[] = [];
 			for (const raw of ctx.deps[0].waves.flat()) {
-				ctx.down([["DATA", select(raw as TSnapshot)]]);
+				values.push(select(raw as TSnapshot));
 			}
-		}),
+			ctx.emit(...values);
+		},
 		{
 			name,
 			factory,
@@ -43,11 +44,13 @@ export function agenticMemoryProjection<TFact, T>(
 ): Node<TFact> {
 	return graph.node<TFact>(
 		[snapshot],
-		oneArrayPerRun((ctx) => {
+		(ctx) => {
+			const values: TFact[] = [];
 			for (const raw of ctx.deps[0].waves.flat()) {
-				ctx.down([["DATA", select(raw as AgenticMemoryProjectionSnapshot<T>)]]);
+				values.push(select(raw as AgenticMemoryProjectionSnapshot<T>));
 			}
-		}),
+			ctx.emit(...values);
+		},
 		{
 			name,
 			factory,
@@ -65,16 +68,16 @@ export function agenticMemoryContextProjection<T>(
 ): Node<AgenticMemoryContext<T>> {
 	return graph.node<AgenticMemoryContext<T>>(
 		[projection, retrieval],
-		oneArrayPerRun((ctx) => {
+		(ctx) => {
 			const projectionFact = ctx.deps[0].value as AgenticMemoryProjectionSnapshot<T> | undefined;
 			const retrievalFacts = ctx.deps[1]?.waves.flat() ?? [];
 			if (projectionFact === undefined || retrievalFacts.length === 0) return;
+			const contexts: AgenticMemoryContext<T>[] = [];
 			for (const raw of retrievalFacts) {
-				ctx.down([
-					["DATA", contextFromSnapshot(projectionFact, raw as MemoryRetrievalSnapshot<T>)],
-				]);
+				contexts.push(contextFromSnapshot(projectionFact, raw as MemoryRetrievalSnapshot<T>));
 			}
-		}),
+			ctx.emit(...contexts);
+		},
 		{
 			name,
 			factory: "agenticMemoryContext",

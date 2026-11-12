@@ -9,7 +9,7 @@
 import type { Ctx } from "../ctx/types.js";
 import { canonicalTupleKey } from "../identity.js";
 import type { Node, NodeOptions } from "../node/node.js";
-import { oneArrayPerRun } from "../node/one-array-per-run.js";
+import type { Message } from "../protocol/messages.js";
 import type { InspectEdge, InspectNode, InspectSnapshot } from "./describe.js";
 import type { Graph, StateNode, SugarOpts } from "./graph.js";
 import { initNodeBeside, type Operator } from "./operators.js";
@@ -269,21 +269,23 @@ function stratifyBranchOperator<T, R>(
 			complete: "manual",
 			error: "manual",
 		},
-		body: oneArrayPerRun((ctx: Ctx) => {
+		body: (ctx: Ctx) => {
 			const sourceBatch = ctx.deps[0].waves.length === 0 ? null : ctx.deps[0].waves.flat();
 			const sourceTerminal = ctx.deps[0].terminal;
 			const rules = ctx.deps[1]?.value as R | undefined;
+			const out: Message[] = [];
 			if (rules !== undefined && sourceBatch !== null) {
 				for (const value of sourceBatch as readonly T[]) {
-					if (classifier(rules, value)) ctx.down([["DATA", value]]);
+					if (classifier(rules, value)) out.push(["DATA", value]);
 				}
 			}
 			if (sourceTerminal?.kind === "complete") {
-				ctx.down([["COMPLETE"]]);
+				out.push(["COMPLETE"]);
 			} else if (sourceTerminal?.kind === "error") {
-				ctx.down([["ERROR", sourceTerminal?.kind === "error" ? sourceTerminal.error : undefined]]);
+				out.push(["ERROR", sourceTerminal.error]);
 			}
-		}),
+			if (out.length > 0) ctx.down(out);
+		},
 	};
 }
 

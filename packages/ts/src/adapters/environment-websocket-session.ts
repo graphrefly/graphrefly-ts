@@ -21,7 +21,6 @@ import {
 	shouldRetry,
 } from "../graph/resilience.js";
 import type { Node, StateNode } from "../node/node.js";
-import { oneArrayPerRun } from "../node/one-array-per-run.js";
 import { errorPayload } from "../protocol/messages.js";
 import { runCancel } from "./environment-outbound.js";
 import type {
@@ -184,11 +183,19 @@ function webSocketSessionEventNode(
 ): Node<WebSocketSessionEvent> {
 	return graph.node<WebSocketSessionEvent>(
 		[command],
-		oneArrayPerRun((ctx) => {
+		(ctx) => {
 			const state = initWebSocketSessionState(ctx);
+			// The events of this run go out as one array when it returns; driver callbacks and retry
+			// timers that fire after the run send theirs as they come.
+			const events: WebSocketSessionEvent[] = [];
+			let running = true;
+			const emitEvent = (event: WebSocketSessionEvent) => {
+				if (running) events.push(event);
+				else ctx.emit(event);
+			};
 
 			const emitOutbound = (fact: WebSocketSessionOutbound) => {
-				ctx.down([["DATA", { kind: "outbound", fact } satisfies WebSocketSessionEvent]]);
+				emitEvent({ kind: "outbound", fact });
 			};
 
 			const emitOutboundCanceled = (
@@ -224,18 +231,13 @@ function webSocketSessionEventNode(
 				if (shouldRetry(policy, attempt)) {
 					const nextAttempt = attempt + 1;
 					const delayMs = nextRetryDelayMs(policy, nextAttempt) ?? 0;
-					ctx.down([
-						[
-							"DATA",
-							{
-								kind: "retry",
-								attempt,
-								nextAttempt,
-								delayMs,
-								error: payload,
-							} satisfies WebSocketSessionEvent,
-						],
-					]);
+					emitEvent({
+						kind: "retry",
+						attempt,
+						nextAttempt,
+						delayMs,
+						error: payload,
+					});
 					const timerId = state.seq++;
 					const timer = setTimeout(() => {
 						state.timers.delete(timerId);
@@ -246,12 +248,7 @@ function webSocketSessionEventNode(
 				} else {
 					emitOutboundRejected(state.pendingOutbound, payload);
 					state.pendingOutbound = [];
-					ctx.down([
-						[
-							"DATA",
-							{ kind: "exhausted", attempt, error: payload } satisfies WebSocketSessionEvent,
-						],
-					]);
+					emitEvent({ kind: "exhausted", attempt, error: payload });
 				}
 			};
 
@@ -266,16 +263,11 @@ function webSocketSessionEventNode(
 				}
 				const driver = ctx.environment().webSocketDriver();
 				state.currentAttempt = attempt;
-				ctx.down([
-					[
-						"DATA",
-						{
-							kind: "attempt",
-							attempt,
-							maxAttempts: policy.maxAttempts,
-						} satisfies WebSocketSessionEvent,
-					],
-				]);
+				emitEvent({
+					kind: "attempt",
+					attempt,
+					maxAttempts: policy.maxAttempts,
+				});
 				const connectSession = driver?.connectSession;
 				if (connectSession === undefined) {
 					retryOrExhaust(attempt, `${name}: missing WebSocket session capability`);
@@ -289,32 +281,22 @@ function webSocketSessionEventNode(
 							const ws = event.event;
 							if (ws.kind === "open") {
 								state.connected = true;
-								ctx.down([["DATA", { kind: "open", attempt } satisfies WebSocketSessionEvent]]);
+								emitEvent({ kind: "open", attempt });
 								flushPending();
 							} else if (ws.kind === "text" || ws.kind === "binary") {
-								ctx.down([
-									[
-										"DATA",
-										{
-											kind: "message",
-											message: ws satisfies WebSocketSessionInbound,
-										} satisfies WebSocketSessionEvent,
-									],
-								]);
+								emitEvent({
+									kind: "message",
+									message: ws satisfies WebSocketSessionInbound,
+								});
 							} else if (ws.kind === "close") {
 								const normalClose = ws.code === 1000;
 								const canceled = cleanupWebSocketConnection(state);
 								emitOutboundCanceled(canceled, `${name}: session closed`);
-								ctx.down([
-									[
-										"DATA",
-										{
-											kind: "closed",
-											code: ws.code,
-											reason: ws.reason,
-										} satisfies WebSocketSessionEvent,
-									],
-								]);
+								emitEvent({
+									kind: "closed",
+									code: ws.code,
+									reason: ws.reason,
+								});
 								if (!normalClose) {
 									retryOrExhaust(attempt, {
 										kind: "close",
@@ -352,15 +334,10 @@ function webSocketSessionEventNode(
 						message: item.message,
 						error: `${name}: session is not open`,
 					});
-					ctx.down([
-						[
-							"DATA",
-							{
-								kind: "error",
-								error: `${name}: session is not open`,
-							} satisfies WebSocketSessionEvent,
-						],
-					]);
+					emitEvent({
+						kind: "error",
+						error: `${name}: session is not open`,
+					});
 					return;
 				}
 				const session = state.currentSession;
@@ -371,15 +348,10 @@ function webSocketSessionEventNode(
 						message: item.message,
 						error: `${name}: missing WebSocket session capability`,
 					});
-					ctx.down([
-						[
-							"DATA",
-							{
-								kind: "error",
-								error: `${name}: missing WebSocket session capability`,
-							} satisfies WebSocketSessionEvent,
-						],
-					]);
+					emitEvent({
+						kind: "error",
+						error: `${name}: missing WebSocket session capability`,
+					});
 					return;
 				}
 				const sendId = state.seq++;
@@ -395,9 +367,7 @@ function webSocketSessionEventNode(
 						state.sendCancels.delete(sendId);
 						if (result.ok) {
 							emitOutbound({ kind: "sent", seq: item.seq, message: item.message });
-							ctx.down([
-								["DATA", { kind: "sent", message: item.message } satisfies WebSocketSessionEvent],
-							]);
+							emitEvent({ kind: "sent", message: item.message });
 						} else {
 							const payload = errorPayload(result.error);
 							emitOutbound({
@@ -406,15 +376,10 @@ function webSocketSessionEventNode(
 								message: item.message,
 								error: payload,
 							});
-							ctx.down([
-								[
-									"DATA",
-									{
-										kind: "error",
-										error: payload,
-									} satisfies WebSocketSessionEvent,
-								],
-							]);
+							emitEvent({
+								kind: "error",
+								error: payload,
+							});
 						}
 					});
 				} catch (error) {
@@ -426,7 +391,7 @@ function webSocketSessionEventNode(
 						message: item.message,
 						error: payload,
 					});
-					ctx.down([["DATA", { kind: "error", error: payload } satisfies WebSocketSessionEvent]]);
+					emitEvent({ kind: "error", error: payload });
 					return;
 				}
 				if (cancel !== undefined && !done && state.active && state.liveSends.has(sendId)) {
@@ -461,15 +426,10 @@ function webSocketSessionEventNode(
 							message,
 							error: `${name}: outbound buffer full`,
 						});
-						ctx.down([
-							[
-								"DATA",
-								{
-									kind: "error",
-									error: `${name}: outbound buffer full`,
-								} satisfies WebSocketSessionEvent,
-							],
-						]);
+						emitEvent({
+							kind: "error",
+							error: `${name}: outbound buffer full`,
+						});
 						return;
 					}
 					state.pendingOutbound.push(item);
@@ -482,49 +442,39 @@ function webSocketSessionEventNode(
 					message,
 					error: `${name}: session is not open`,
 				});
-				ctx.down([
-					[
-						"DATA",
-						{
-							kind: "error",
-							error: `${name}: session is not open`,
-						} satisfies WebSocketSessionEvent,
-					],
-				]);
+				emitEvent({
+					kind: "error",
+					error: `${name}: session is not open`,
+				});
 			};
 
-			for (const raw of ctx.deps[0].waves.flat()) {
-				const commandValue = raw as WebSocketSessionCommand;
-				if (commandValue.kind === "start") start(1);
-				else if (commandValue.kind === "send") send(commandValue.message);
-				else {
-					cancelRetryTimers(state);
-					ctx.down([
-						[
-							"DATA",
-							{
-								kind: "closing",
-								code: commandValue.code,
-								reason: commandValue.reason,
-							} satisfies WebSocketSessionEvent,
-						],
-					]);
-					const { canceled, session } = closeWebSocketSessionState(state, "none");
-					emitOutboundCanceled(canceled, `${name}: session closed`);
-					session?.close(commandValue.code, commandValue.reason);
-					ctx.down([
-						[
-							"DATA",
-							{
-								kind: "closed",
-								code: commandValue.code,
-								reason: commandValue.reason,
-							} satisfies WebSocketSessionEvent,
-						],
-					]);
+			try {
+				for (const raw of ctx.deps[0].waves.flat()) {
+					const commandValue = raw as WebSocketSessionCommand;
+					if (commandValue.kind === "start") start(1);
+					else if (commandValue.kind === "send") send(commandValue.message);
+					else {
+						cancelRetryTimers(state);
+						emitEvent({
+							kind: "closing",
+							code: commandValue.code,
+							reason: commandValue.reason,
+						});
+						const { canceled, session } = closeWebSocketSessionState(state, "none");
+						emitOutboundCanceled(canceled, `${name}: session closed`);
+						session?.close(commandValue.code, commandValue.reason);
+						emitEvent({
+							kind: "closed",
+							code: commandValue.code,
+							reason: commandValue.reason,
+						});
+					}
 				}
+			} finally {
+				running = false;
 			}
-		}),
+			ctx.emit(...events);
+		},
 		{ name: `${name}/events`, factory: "webSocketSessionEvents" },
 	);
 }
@@ -538,64 +488,60 @@ function webSocketSessionNodes(
 ): WebSocketSessionBundle {
 	const inbound = graph.node<WebSocketSessionInbound>(
 		[events],
-		oneArrayPerRun((ctx) => {
+		(ctx) => {
+			const values: WebSocketSessionInbound[] = [];
 			for (const raw of ctx.deps[0].waves.flat()) {
 				const event = raw as WebSocketSessionEvent;
-				if (event.kind === "message") ctx.down([["DATA", event.message]]);
+				if (event.kind === "message") values.push(event.message);
 			}
-		}),
+			ctx.emit(...values);
+		},
 		{ name: `${name}/inbound`, factory: "webSocketSessionInbound" },
 	);
 	const lifecycle = graph.node<WebSocketSessionLifecycle>(
 		[events],
-		oneArrayPerRun((ctx) => {
+		(ctx) => {
+			const values: WebSocketSessionLifecycle[] = [];
 			for (const raw of ctx.deps[0].waves.flat()) {
 				const event = raw as WebSocketSessionEvent;
 				if (event.kind === "attempt") {
-					ctx.down([
-						[
-							"DATA",
-							{
-								kind: "starting",
-								attempt: event.attempt,
-								maxAttempts: event.maxAttempts,
-							} satisfies WebSocketSessionLifecycle,
-						],
-					]);
+					values.push({
+						kind: "starting",
+						attempt: event.attempt,
+						maxAttempts: event.maxAttempts,
+					});
 				} else if (event.kind === "open") {
-					ctx.down([["DATA", { kind: "open", attempt: event.attempt }]]);
+					values.push({ kind: "open", attempt: event.attempt });
 				} else if (event.kind === "sent") {
-					ctx.down([["DATA", { kind: "sent", message: event.message }]]);
+					values.push({ kind: "sent", message: event.message });
 				} else if (event.kind === "closing" || event.kind === "closed") {
-					ctx.down([["DATA", event]]);
+					values.push(event);
 				} else if (event.kind === "retry") {
-					ctx.down([
-						[
-							"DATA",
-							{
-								kind: "retrying",
-								attempt: event.attempt,
-								nextAttempt: event.nextAttempt,
-								delayMs: event.delayMs,
-								error: event.error,
-							} satisfies WebSocketSessionLifecycle,
-						],
-					]);
+					values.push({
+						kind: "retrying",
+						attempt: event.attempt,
+						nextAttempt: event.nextAttempt,
+						delayMs: event.delayMs,
+						error: event.error,
+					});
 				} else if (event.kind === "exhausted") {
-					ctx.down([["DATA", event]]);
+					values.push(event);
 				}
 			}
-		}),
+			ctx.emit(...values);
+		},
 		{ name: `${name}/lifecycle`, factory: "webSocketSessionLifecycle" },
 	);
 	const outbound = graph.node<WebSocketSessionOutbound>(
 		[events],
-		oneArrayPerRun((ctx) => {
+		(ctx) => {
+			const values: WebSocketSessionOutbound[] = [];
 			for (const raw of ctx.deps[0].waves.flat()) {
 				const event = raw as WebSocketSessionEvent;
-				if (event.kind === "outbound") ctx.down([["DATA", event.fact]]);
+				if (event.kind === "outbound") values.push(event.fact);
 			}
-		}),
+			ctx.emit(...values);
+		},
 		{ name: `${name}/outbound`, factory: "webSocketSessionOutbound" },
 	);
 	const status = graph.node<WebSocketSessionStatus>(
@@ -662,22 +608,26 @@ function webSocketSessionNodes(
 	);
 	const errors = graph.node<unknown>(
 		[events],
-		oneArrayPerRun((ctx) => {
+		(ctx) => {
+			const values: unknown[] = [];
 			for (const raw of ctx.deps[0].waves.flat()) {
 				const event = raw as WebSocketSessionEvent;
-				if ("error" in event) ctx.down([["DATA", event.error]]);
+				if ("error" in event) values.push(event.error);
 			}
-		}),
+			ctx.emit(...values);
+		},
 		{ name: `${name}/errors`, factory: "webSocketSessionErrors" },
 	);
 	const attempts = graph.node<number>(
 		[events],
-		oneArrayPerRun((ctx) => {
+		(ctx) => {
+			const values: number[] = [];
 			for (const raw of ctx.deps[0].waves.flat()) {
 				const event = raw as WebSocketSessionEvent;
-				if (event.kind === "attempt") ctx.down([["DATA", event.attempt]]);
+				if (event.kind === "attempt") values.push(event.attempt);
 			}
-		}),
+			ctx.emit(...values);
+		},
 		{ name: `${name}/attempts`, factory: "webSocketSessionAttempts" },
 	);
 	return {

@@ -13,7 +13,6 @@ import { declaredLedger } from "../graph/ledger.js";
 import type { EventMessage, MessageEnvelope } from "../messaging/index.js";
 import { eventMessageIssue } from "../messaging/index.js";
 import type { Node } from "../node/node.js";
-import { oneArrayPerRun } from "../node/one-array-per-run.js";
 import type { Message } from "../protocol/messages.js";
 
 export interface EventFlowSource<T = unknown> {
@@ -130,6 +129,12 @@ type EventFlowRuntimeFact<T = unknown> =
 	| { readonly kind: "status"; readonly status: EventFlowStatus }
 	| { readonly kind: "issue"; readonly issue: DataIssue }
 	| { readonly kind: "audit"; readonly audit: EventFlowAuditRecord }
+	| { readonly kind: "high-water"; readonly highWater: EventFlowHighWater };
+
+type EventFlowProjectionFact<TState> =
+	| { readonly kind: "frame"; readonly frame: EventFlowProjectionFrame<TState> }
+	| { readonly kind: "status"; readonly status: EventFlowProjectionStatus }
+	| { readonly kind: "issue"; readonly issue: DataIssue }
 	| { readonly kind: "high-water"; readonly highWater: EventFlowHighWater };
 
 /** The flow's ledger (strict JSON): sequences and each source's last recorded message. */
@@ -257,14 +262,10 @@ export function eventFlowProjection<TState, TPayload = unknown>(
 		factory: "eventFlowProjectionLedger",
 		initial: () => ({ value: opts.initial, highWater: emptyHighWater(projectionId), sources: [] }),
 	});
-	const runtime = graph.node<
-		| { readonly kind: "frame"; readonly frame: EventFlowProjectionFrame<TState> }
-		| { readonly kind: "status"; readonly status: EventFlowProjectionStatus }
-		| { readonly kind: "issue"; readonly issue: DataIssue }
-		| { readonly kind: "high-water"; readonly highWater: EventFlowHighWater }
-	>(
+	const runtime = graph.node<EventFlowProjectionFact<TState>>(
 		[records, ledger as Node<unknown>],
-		oneArrayPerRun((ctx) => {
+		(ctx) => {
+			const facts: EventFlowProjectionFact<TState>[] = [];
 			const state = ctx.state.get<ProjectionState>() as ProjectionState;
 			for (const raw of ctx.deps[0].waves.flat()) {
 				const record = raw as EventFlowRecord<TPayload>;
@@ -273,48 +274,43 @@ export function eventFlowProjection<TState, TPayload = unknown>(
 				try {
 					state.value = opts.reduce(state.value, record);
 					state.highWater = projectionHighWater(projectionId, record, state.sources);
-					ctx.down([
-						["DATA", { kind: "frame", frame: { state: state.value, highWater: state.highWater } }],
-						[
-							"DATA",
-							{
-								kind: "status",
-								status: {
-									kind: "projected",
-									projectionId,
-									recordSeq: record.recordSeq,
-									timestampMs: now(),
-								},
+					facts.push(
+						{ kind: "frame", frame: { state: state.value, highWater: state.highWater } },
+						{
+							kind: "status",
+							status: {
+								kind: "projected",
+								projectionId,
+								recordSeq: record.recordSeq,
+								timestampMs: now(),
 							},
-						],
-						["DATA", { kind: "high-water", highWater: state.highWater }],
-					]);
+						},
+						{ kind: "high-water", highWater: state.highWater },
+					);
 				} catch (error) {
 					const issue = dataIssue(
 						"event-flow-projection-threw",
 						error instanceof Error ? error.message : "eventFlowProjection reducer threw",
 						{ projectionId, record },
 					);
-					ctx.down([
-						["DATA", { kind: "issue", issue }],
-						[
-							"DATA",
-							{
-								kind: "status",
-								status: {
-									kind: "rejected",
-									projectionId,
-									recordSeq: record.recordSeq,
-									issueCode: issue.code,
-									timestampMs: now(),
-								},
+					facts.push(
+						{ kind: "issue", issue },
+						{
+							kind: "status",
+							status: {
+								kind: "rejected",
+								projectionId,
+								recordSeq: record.recordSeq,
+								issueCode: issue.code,
+								timestampMs: now(),
 							},
-						],
-					]);
+						},
+					);
 				}
 			}
 			ctx.state.set(state);
-		}),
+			ctx.emit(...facts);
+		},
 		{
 			name: `${name}/runtime`,
 			factory: "eventFlowProjectionRuntime",
@@ -521,12 +517,14 @@ function runtimeProjection<TOut, T>(
 ): Node<TOut> {
 	return graph.node<TOut>(
 		[runtime],
-		oneArrayPerRun((ctx) => {
+		(ctx) => {
+			const values: TOut[] = [];
 			for (const fact of ctx.deps[0].waves.flat()) {
 				const typed = fact as EventFlowRuntimeFact<T>;
-				if (typed.kind === kind) ctx.down([["DATA", valueOfRuntimeFact(typed) as TOut]]);
+				if (typed.kind === kind) values.push(valueOfRuntimeFact(typed) as TOut);
 			}
-		}),
+			ctx.emit(...values);
+		},
 		{ name, factory, complete: "manual", error: "manual" },
 	);
 }
@@ -541,12 +539,14 @@ function projectionRuntime<TOut, TFact extends { readonly kind: string }>(
 ): Node<TOut> {
 	return graph.node<TOut>(
 		[runtime],
-		oneArrayPerRun((ctx) => {
+		(ctx) => {
+			const values: TOut[] = [];
 			for (const fact of ctx.deps[0].waves.flat()) {
 				const typed = fact as TFact;
-				if (typed.kind === kind) ctx.down([["DATA", map(typed as never)]]);
+				if (typed.kind === kind) values.push(map(typed as never));
 			}
-		}),
+			ctx.emit(...values);
+		},
 		{ name, factory, complete: "manual", error: "manual" },
 	);
 }

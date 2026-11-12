@@ -10,7 +10,6 @@ import type { Ctx } from "../ctx/types.js";
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
 import type { Node } from "../node/node.js";
-import { oneArrayPerRun } from "../node/one-array-per-run.js";
 import type { ProcessEffectRequest } from "../orchestration/index.js";
 import type { WorkQueueCommand, WorkQueueRecord } from "../work-queue/index.js";
 
@@ -123,13 +122,13 @@ export function orchestrationWorkQueueRecipe<TEffect = unknown>(
 			? undefined
 			: graph.node<WorkQueueCommand<OrchestrationQueuedEffectPayload<TEffect>>>(
 					[opts.effectRequests],
-					oneArrayPerRun((ctx) => {
+					(ctx) => {
+						const commands: WorkQueueCommand<OrchestrationQueuedEffectPayload<TEffect>>[] = [];
 						for (const raw of ctx.deps[0].waves.flat()) {
-							ctx.down([
-								["DATA", processEffectSubmitCommand(raw as ProcessEffectRequest<TEffect>)],
-							]);
+							commands.push(processEffectSubmitCommand(raw as ProcessEffectRequest<TEffect>));
 						}
-					}),
+						ctx.emit(...commands);
+					},
 					{
 						name: `${name}/submitCommands`,
 						factory: "orchestrationWorkQueueSubmitCommands",
@@ -330,12 +329,14 @@ function project<T>(
 ): Node<T> {
 	return graph.node<T>(
 		[runtime],
-		oneArrayPerRun((ctx) => {
+		(ctx) => {
+			const values: T[] = [];
 			for (const fact of ctx.deps[0].waves.flat()) {
 				const value = pick(fact as OrchestrationQueueFact);
-				if (value !== undefined) ctx.down([["DATA", value]]);
+				if (value !== undefined) values.push(value);
 			}
-		}),
+			ctx.emit(...values);
+		},
 		{ name, factory, complete: "manual", error: "manual" },
 	);
 }

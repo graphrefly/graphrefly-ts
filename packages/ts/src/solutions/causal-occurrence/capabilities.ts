@@ -2,7 +2,6 @@ import type { DataIssue } from "../../data/index.js";
 import type { ConstructionScope, StartupFact } from "../../graph/construction-scope.js";
 import type { Graph } from "../../graph/graph.js";
 import type { Node } from "../../node/node.js";
-import { oneArrayPerRun } from "../../node/one-array-per-run.js";
 import type {
 	CausalCurrentness,
 	CausalEffectConservation,
@@ -98,25 +97,24 @@ export function createCausalCapabilities<T>(
 ): FullCausalCapability<T> {
 	const causalQuiescence = scope.node<Omit<CausalQuiescence, "retainedEvidence">>(
 		[ports.quiescence],
-		oneArrayPerRun((ctx) => {
+		(ctx) => {
+			const values: Omit<CausalQuiescence, "retainedEvidence">[] = [];
 			for (const raw of ctx.deps[0].waves.flat()) {
 				const value = raw as CausalQuiescence;
 				// Explicit payload projection, not a type cast over retained evidence.
-				ctx.down([
-					[
-						"DATA",
-						Object.freeze({
-							kind: value.kind,
-							revisionDomain: value.revisionDomain,
-							evaluatedThroughRevision: value.evaluatedThroughRevision,
-							lifecycle: value.lifecycle,
-							pendingOccurrenceRefs: value.pendingOccurrenceRefs,
-							pendingEffectIds: value.pendingEffectIds,
-						}),
-					],
-				]);
+				values.push(
+					Object.freeze({
+						kind: value.kind,
+						revisionDomain: value.revisionDomain,
+						evaluatedThroughRevision: value.evaluatedThroughRevision,
+						lifecycle: value.lifecycle,
+						pendingOccurrenceRefs: value.pendingOccurrenceRefs,
+						pendingEffectIds: value.pendingEffectIds,
+					}),
+				);
 			}
-		}),
+			ctx.emit(...values);
+		},
 		{ name: `${name}/causal-quiescence`, factory: "causalLifecycleQuiescence" },
 	);
 	const identity = Object.freeze({
