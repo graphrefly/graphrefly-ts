@@ -50,8 +50,6 @@ interface Activation {
 	phase: number;
 	/** The subscription's wave boundary is open (enterWave without its exitWave yet). */
 	entered: boolean;
-	/** The snapshot is being handed to a dependent subscriber. */
-	handshake: boolean;
 	unsubscribe: (() => void) | undefined;
 	deps: readonly Node<unknown>[];
 	len: number;
@@ -71,7 +69,6 @@ function newActivation(
 		acquisition,
 		phase: ACT_INIT,
 		entered: false,
-		handshake: false,
 		unsubscribe: undefined,
 		deps: NO_DEPS,
 		len: 0,
@@ -200,12 +197,8 @@ function attachSubscriber(f: Activation, subscriber: Subscriber): void {
 		nodeCallSink(self, subscriber, start);
 		return;
 	}
-	// A new dependent receives the snapshot as one input array, not a live wave. A dependent whose
-	// handshake throws is not subscribed, unless an owned acquisition records the lease for its
-	// owner to release (D161).
-	f.handshake = true;
+	// A new dependent receives the snapshot as one input array, not a live wave.
 	subscriber.fn([start], true);
-	f.handshake = false;
 }
 
 /** A frame is done: close its wave boundary; its parent goes on with its next dependency. */
@@ -223,14 +216,6 @@ function unwindActivations(base: number, thrown: unknown): never {
 	let error = thrown;
 	while (activations.length > base) {
 		const f = activations.pop() as Activation;
-		if (f.handshake) {
-			f.handshake = false;
-			try {
-				if (f.acquisition === undefined) f.unsubscribe?.();
-			} catch (e) {
-				error = e;
-			}
-		}
 		if (f.phase === ACT_DEPS) f.self[WAVE].activating = false;
 		f.phase = ACT_DONE;
 		if (f.entered) {
