@@ -34,9 +34,9 @@ const expectedSubpaths = {
 		present: [
 			"CanonicalProtobufError",
 			"decodeCanonicalWireBridgeEnvelope",
-			"decodeCanonicalWireEdgeFrame",
+			"decodeCanonicalWireEdgeCause",
 			"encodeCanonicalWireBridgeEnvelope",
-			"encodeCanonicalWireEdgeFrame",
+			"encodeCanonicalWireEdgeCause",
 			"wireBridgeProtobuf",
 			"subscribeNodeValues",
 			"readableStore",
@@ -66,6 +66,8 @@ const expectedSubpaths = {
 			"evaluateFixedWindowRateLimitTransition",
 			"evaluateSlidingWindowRateLimitTransition",
 			"evaluateTokenBucketRateLimitTransition",
+			"decodeCanonicalWireEdgeFrame",
+			"encodeCanonicalWireEdgeFrame",
 		],
 	},
 	"./committed-facts": {
@@ -734,7 +736,8 @@ ${runtimeAssertions.replaceAll("await load", "load")}
 		}),
 	});
 	const messages = [];
-	const unsubscribe = measured.subscribe((message) => messages.push(message));
+	// A sink receives whole arrays; keep their messages in order.
+	const unsubscribe = measured.subscribe((msgs) => messages.push(...msgs));
 	assert.match(JSON.stringify(messages), /"code":"measurement.failed"/);
 	assert.equal(
 		messages[1]?.[1]?.[0]?.details?.message,

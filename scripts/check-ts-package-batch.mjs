@@ -12,122 +12,108 @@ const pkg = process.argv[2] ? resolve(process.argv[2]) : join(root, "packages/ts
 const temp = mkdtempSync(join(tmpdir(), "graphrefly-package-batch-"));
 const installed = join(temp, "node_modules/@graphrefly/ts");
 const body = `
-function fixture(Graph) {
- const graph = new Graph();
- const left = graph.node([], null, { name: "left" });
- const right = graph.node([], null, { name: "right" });
- const total = graph.derived([left, right], (a, b) => a + b, { name: "total" });
+function fixture(graphFactory) {
+ const g = graphFactory();
+ const left = g.state(1, { name: "left" });
+ const right = g.state(2, { name: "right" });
+ const total = g.derived([left, right], (a, b) => a + b, { name: "total" });
  const values = [];
- const stop = total.subscribe(m => { if (m[0] === "DATA") values.push(m[1]); });
- left.down([["DATA", 1]]); right.down([["DATA", 2]]); values.length = 0;
- return { graph, left, right, values, stop };
+ const stop = total.subscribe(msgs => { for (const m of msgs) if (m[0] === "DATA") values.push(m[1]); });
+ values.length = 0;
+ return { g, left, right, values, stop };
 }
 const results = [];
-function check(name, Graph, exercise) {
- const f = fixture(Graph);
+function check(name, graphFactory, exercise) {
+ const f = fixture(graphFactory);
  try { exercise(f); results.push({ name, passed: true }); }
  catch (error) { results.push({ name, passed: false, error: String(error), actual: error.actual, expected: error.expected }); }
  finally { f.stop(); }
 }
-function update(f, a, b) { f.left.down([["DATA", a]]); f.right.down([["DATA", b]]); }
+function update(f, a, b) { f.left.set(a); f.right.set(b); }
 function assertRolledBack(f) {
  assert.equal(f.left.cache, 1); assert.equal(f.right.cache, 2);
- // RESOLVED may recompute the unchanged derived value; rollback must not publish proposed data.
- assert.ok(f.values.every(value => value === 3), "rollback published changed value: " + JSON.stringify(f.values));
- f.values.length = 0;
+ assert.deepEqual(f.values, [], "rollback published a value: " + JSON.stringify(f.values));
 }
-for (const [name, Graph, batch] of [
- ["root-control", root.Graph, root.batch],
- ["graph-core", graph.Graph, core.batch],
- ["root-core", root.Graph, core.batch]
-]) {
- check(name + "/commit", Graph, f => {
-  const result = batch(() => { update(f, 10, 20); assert.deepEqual(f.values, []); return "committed"; });
+for (const [origin, graphFactory] of [["root", root.graph], ["graph", graphLayer.graph]]) {
+ check(origin + "/commit", graphFactory, f => {
+  const result = f.g.batch(() => { update(f, 10, 20); assert.deepEqual(f.values, []); return "committed"; });
   assert.equal(result, "committed"); assert.deepEqual(f.values, [30]);
  });
- check(name + "/explicit-rollback-recovery", Graph, f => {
-  batch(ctx => { update(f, 10, 20); ctx.rollback(); });
+ check(origin + "/explicit-rollback-recovery", graphFactory, f => {
+  f.g.batch(bctx => { update(f, 10, 20); bctx.rollback(); });
   assertRolledBack(f);
-  batch(() => update(f, 100, 200)); assert.deepEqual(f.values, [300]);
+  f.g.batch(() => update(f, 100, 200)); assert.deepEqual(f.values, [300]);
  });
- check(name + "/throw-recovery", Graph, f => {
+ check(origin + "/throw-recovery", graphFactory, f => {
   const failure = new Error("abort batch");
-  assert.throws(() => batch(() => { update(f, 10, 20); throw failure; }), error => error === failure);
+  assert.throws(() => f.g.batch(() => { update(f, 10, 20); throw failure; }), error => error === failure);
   assertRolledBack(f);
-  batch(() => update(f, 100, 200)); assert.deepEqual(f.values, [300]);
+  f.g.batch(() => update(f, 100, 200)); assert.deepEqual(f.values, [300]);
  });
- check(name + "/invalidate-commit-recovery", Graph, f => {
-  const events = []; const unsubscribe = f.left.subscribe(message => events.push(message[0])); events.length = 0;
+ check(origin + "/invalidate-commit-recovery", graphFactory, f => {
+  const types = []; const unsubscribe = f.left.subscribe(msgs => { for (const m of msgs) types.push(m[0]); }); types.length = 0;
   try {
-   batch(() => { f.left.down([["INVALIDATE"]]); assert.equal(f.left.cache, 1); assert.ok(!events.includes("INVALIDATE")); });
-   assert.equal(f.left.cache, undefined); assert.ok(events.includes("INVALIDATE"));
-   f.values.length = 0; batch(() => update(f, 100, 200)); assert.deepEqual(f.values, [300]);
+   f.g.batch(() => { f.left.invalidate(); assert.equal(f.left.cache, 1); assert.ok(!types.includes("INVALIDATE")); });
+   assert.equal(f.left.cache, undefined); assert.ok(types.includes("INVALIDATE"));
+   f.values.length = 0; f.g.batch(() => update(f, 100, 200)); assert.deepEqual(f.values, [300]);
   } finally { unsubscribe(); }
  });
- check(name + "/invalidate-rollback-recovery", Graph, f => {
-  batch(ctx => { f.left.down([["INVALIDATE"]]); ctx.rollback(); });
-  assertRolledBack(f); batch(() => update(f, 100, 200)); assert.deepEqual(f.values, [300]);
+ check(origin + "/invalidate-rollback-recovery", graphFactory, f => {
+  f.g.batch(bctx => { f.left.invalidate(); bctx.rollback(); });
+  assertRolledBack(f); f.g.batch(() => update(f, 100, 200)); assert.deepEqual(f.values, [300]);
  });
  for (const mode of ["commit", "rollback", "throw"]) {
-  check(name + "/deferred-rewire-" + mode, Graph, f => {
-   const request = f.graph.node([], null, { name: "rewire-request" });
-   const added = f.graph.node([], null, { name: "added", initial: 42 });
-   let requests = 0; let insideCallback = false; const values = [];
-   const op = f.graph.node([request], function opFn(ctx) {
-    if (core.depBatch(ctx, 0) && requests === 0) {
-     assert.equal(insideCallback, false, "reactive function ran before batch commit");
-     requests++; ctx.rewireNext.subscribeDep(added, opFn);
-     assert.equal(op.deps.length, 1, "rewire applied inside requesting function");
+  check(origin + "/deferred-rewire-" + mode, graphFactory, f => {
+   const request = f.g.state(0, { name: "rewire-request" });
+   const added = f.g.state(42, { name: "added" });
+   let requests = 0; let insideBody = false; const values = [];
+   const op = f.g.node([request], ctx => {
+    if (ctx.deps[0].waves.length > 0 && ctx.deps[0].value === 1 && requests === 0) {
+     assert.equal(insideBody, false, "the function ran before the batch committed");
+     requests++; ctx.rewire([request, added]);
+     assert.equal(op.deps.length, 1, "rewire applied inside the requesting function");
     }
-    for (const value of core.depBatch(ctx, 1) ?? []) ctx.down([["DATA", value]]);
+    for (const value of ctx.deps[1]?.waves.flat() ?? []) ctx.down([["DATA", value]]);
    }, { name: "rewire-op" });
-   const stop = op.subscribe(message => { if (message[0] === "DATA") values.push(message[1]); });
+   const stop = op.subscribe(msgs => { for (const m of msgs) if (m[0] === "DATA") values.push(m[1]); });
    const failure = new Error("rewire abort");
    try {
-    const action = () => batch(ctx => {
-     insideCallback = true;
+    const action = () => f.g.batch(bctx => {
+     insideBody = true;
      try {
-      request.down([["DATA", 1]]); assert.deepEqual(op.deps, [request]); assert.equal(requests, 0);
-      if (mode === "rollback") ctx.rollback();
+      request.set(1); assert.deepEqual(op.deps, [request]); assert.equal(requests, 0);
+      if (mode === "rollback") bctx.rollback();
       if (mode === "throw") throw failure;
-     } finally { insideCallback = false; }
+     } finally { insideBody = false; }
     });
     if (mode === "throw") assert.throws(action, error => error === failure); else action();
     if (mode !== "commit") {
      assert.deepEqual(op.deps, [request]); assert.equal(requests, 0); assert.deepEqual(values, []);
-     added.down([["DATA", 43]]); assert.deepEqual(values, []);
-     batch(() => request.down([["DATA", 2]]));
-     assert.deepEqual(values, [43]);
-    } else assert.deepEqual(values, [42]);
+     f.g.batch(() => request.set(1));
+    }
+    assert.deepEqual(values, [42]);
     assert.deepEqual(op.deps, [request, added]); assert.equal(requests, 1);
-    values.length = 0; added.down([["DATA", 44]]); assert.deepEqual(values, [44]);
+    values.length = 0; added.set(44); assert.deepEqual(values, [44]);
    } finally { stop(); }
   });
  }
-
-}
-for (const [name, outer, inner] of [
- ["core-outer-root-inner", core.batch, root.batch],
- ["root-outer-core-inner", root.batch, core.batch]
-]) {
- for (const [origin, Graph] of [["root", root.Graph], ["graph", graph.Graph]]) {
-  check(name + "/" + origin + "/nested-commit", Graph, f => {
-   outer(() => {
-    f.left.down([["DATA", 10]]);
-    const nested = inner(() => { f.right.down([["DATA", 20]]); return "inner"; });
-    assert.equal(nested, "inner"); assert.deepEqual(f.values, []);
-   });
-   assert.deepEqual(f.values, [30]);
+ check(origin + "/nested-commit", graphFactory, f => {
+  f.g.batch(() => {
+   f.left.set(10);
+   const nested = f.g.batch(() => { f.right.set(20); return "inner"; });
+   assert.equal(nested, "inner"); assert.deepEqual(f.values, []);
   });
-  check(name + "/" + origin + "/nested-rollback-recovery", Graph, f => {
-   outer(() => {
-    f.left.down([["DATA", 10]]);
-    inner(ctx => { f.right.down([["DATA", 20]]); ctx.rollback(); });
-   });
-   assertRolledBack(f);
-   outer(() => update(f, 100, 200)); assert.deepEqual(f.values, [300]);
+  assert.deepEqual(f.values, [30]);
+ });
+ check(origin + "/nested-rollback-recovery", graphFactory, f => {
+  f.g.batch(bctx => {
+   f.left.set(10);
+   f.g.batch(() => f.right.set(20));
+   bctx.rollback();
   });
- }
+  assertRolledBack(f);
+  f.g.batch(() => update(f, 100, 200)); assert.deepEqual(f.values, [300]);
+ });
 }
 console.log(JSON.stringify({ results }));
 if (results.some(result => !result.passed)) process.exitCode = 1;
@@ -140,8 +126,8 @@ try {
 	for (const format of ["esm", "cjs"]) {
 		const imports =
 			format === "esm"
-				? "import assert from 'node:assert/strict';\nimport * as root from '@graphrefly/ts';\nimport * as graph from '@graphrefly/ts/graph';\nimport * as core from '@graphrefly/ts/core';\n"
-				: "const assert=require('node:assert/strict');\nconst root=require('@graphrefly/ts'), graph=require('@graphrefly/ts/graph'), core=require('@graphrefly/ts/core');\n";
+				? "import assert from 'node:assert/strict';\nimport * as root from '@graphrefly/ts';\nimport * as graphLayer from '@graphrefly/ts/graph';\n"
+				: "const assert=require('node:assert/strict');\nconst root=require('@graphrefly/ts'), graphLayer=require('@graphrefly/ts/graph');\n";
 		const file = join(temp, format === "esm" ? "consumer.mjs" : "consumer.cjs");
 		writeFileSync(file, imports + body);
 		const worker = spawnSync(process.execPath, [file], {
@@ -156,7 +142,7 @@ try {
 			);
 		}
 		const report = JSON.parse(worker.stdout);
-		assert.equal(report.results.length, 32, `${format}: incomplete behavioral matrix`);
+		assert.equal(report.results.length, 20, `${format}: incomplete behavioral matrix`);
 		const failures = report.results.filter((result) => !result.passed);
 		assert.equal(worker.status, failures.length ? 1 : 0, `${format}: inconsistent worker exit`);
 		if (failures.length) failed = true;
@@ -172,7 +158,7 @@ try {
 	if (failed) process.exitCode = 1;
 	else
 		console.log(
-			"check-ts-package-batch: installed ESM/CJS commit, nesting, rollback and recovery passed (64 cases)",
+			"check-ts-package-batch: installed ESM/CJS commit, nesting, rollback and recovery passed (40 cases)",
 		);
 } finally {
 	rmSync(temp, { recursive: true, force: true });
