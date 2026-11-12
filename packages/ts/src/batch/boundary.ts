@@ -8,9 +8,9 @@
  * {@link exitWave} on that graph's domain; nested calls only count, and the outermost exit runs
  * what was queued, in request order, each as a wave of its own.
  *
- * Queued work is tagged with the batch frame that caused it (when any): only a committed frame's
- * tasks run, and a rollback drops them (C-25 / D110). With nothing queued, the drain is one check
- * per outermost wave.
+ * Every request goes on the one queue. Work queued while a batch's commit is delivered is tagged
+ * with that batch, and a commit that fails drops it (C-25 / D110). With nothing queued, the drain
+ * is one check per outermost wave.
  */
 
 import type { NodeCore } from "../node/core.js";
@@ -25,8 +25,6 @@ export interface WaveDomain {
 	depth: number;
 	queue: BoundaryTask[];
 	head: number;
-	/** Requests that run before everything queued (a committing batch's body requests). */
-	priority: Array<() => void>;
 	/** The open batch body, if any (batch.ts). */
 	batch: unknown;
 	/** The batch whose commit is being delivered, if any (batch.ts). */
@@ -78,7 +76,6 @@ export function makeWaveDomain(): WaveDomain {
 		depth: 0,
 		queue: [],
 		head: 0,
-		priority: [],
 		batch: null,
 		boundaryOwner: null,
 		failureObservers: [],
@@ -99,12 +96,15 @@ export function enterWave(core: NodeCore): void {
 export function exitWave(core: NodeCore): void {
 	const d = core.domain;
 	d.depth--;
-	if (d.depth === 0 && (d.priority.length > 0 || d.head < d.queue.length)) drain(core);
+	if (d.depth === 0 && d.head < d.queue.length) drain(core);
 }
 
 /** R-request-order: a committing batch's requests run before anything its commit wave asks for. */
 export function deferFirst(core: NodeCore, ops: ReadonlyArray<() => void>): void {
-	core.domain.priority = [...ops, ...core.domain.priority];
+	const d = core.domain;
+	const rest = d.queue.splice(d.head);
+	for (const apply of ops) d.queue.push({ apply });
+	for (const task of rest) d.queue.push(task);
 }
 
 export interface DeferredBoundaryOptions {
@@ -143,22 +143,7 @@ function drain(core: NodeCore): void {
 			d.depth--;
 		}
 	};
-	while (d.priority.length > 0 || d.head < d.queue.length) {
-		const first = d.priority.shift();
-		if (first !== undefined) {
-			run(first);
-			continue;
-		}
-		const task = d.queue[d.head++] as BoundaryTask;
-		if (task.batchToken !== undefined) {
-			// A stale token means the batch never reached the committed boundary (D110). Rollback
-			// normally removes these before drain; this guard covers commit failures before the
-			// batch frame marks itself committed.
-			const committed = (task.batchToken as { committed?: boolean }).committed === true;
-			if (!committed) continue;
-		}
-		run(task.apply);
-	}
+	while (d.head < d.queue.length) run((d.queue[d.head++] as BoundaryTask).apply);
 	d.queue = [];
 	d.head = 0;
 }
