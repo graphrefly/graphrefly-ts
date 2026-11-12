@@ -277,7 +277,7 @@ export function reactiveCascadingCache<K extends string, V>(
 				}
 			}
 			ctx.state.set(st);
-			ctx.emit(...statuses);
+			if (statuses.length > 0) ctx.down(statuses.map((v) => ["DATA", v] as const));
 		},
 		{
 			name: `${baseName}.status`,
@@ -298,7 +298,7 @@ export function reactiveCascadingCache<K extends string, V>(
 			// goes out as its own array.
 			let values: V[] = [];
 			const invalidate = () => {
-				ctx.emit(...values);
+				if (values.length > 0) ctx.down(values.map((v) => ["DATA", v] as const));
 				values = [];
 				ctx.down([["INVALIDATE"]]);
 			};
@@ -320,7 +320,7 @@ export function reactiveCascadingCache<K extends string, V>(
 				}
 			}
 			ctx.state.set(st);
-			ctx.emit(...values);
+			if (values.length > 0) ctx.down(values.map((v) => ["DATA", v] as const));
 		},
 		{
 			name: `${baseName}.value`,

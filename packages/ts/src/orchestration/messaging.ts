@@ -90,7 +90,7 @@ export function orchestrationMessagingRecipe<
 					}
 				}
 			}
-			ctx.emit(...facts);
+			if (facts.length > 0) ctx.down(facts.map((v) => ["DATA", v] as const));
 		},
 		{
 			name: `${name}/runtime`,
@@ -226,7 +226,7 @@ export function orchestrationMessageAckCommands(
 				}
 			}
 			ctx.state.set(deliveries);
-			ctx.emit(...commands);
+			if (commands.length > 0) ctx.down(commands.map((v) => ["DATA", v] as const));
 		},
 		{
 			name: opts.name ?? "orchestrationMessaging/ackCommands",
@@ -272,7 +272,7 @@ export function processEventOutboxCommands<TEvent>(
 					idempotencyKey: typed.id,
 				});
 			}
-			ctx.emit(...commands);
+			if (commands.length > 0) ctx.down(commands.map((v) => ["DATA", v] as const));
 		},
 		{
 			name: opts.name ?? "orchestrationMessaging/outboxCommands",
@@ -298,7 +298,7 @@ function project<T, TCommand>(
 				const value = pick(fact as OrchestrationMessagingFact<TCommand>);
 				if (value !== undefined) values.push(value);
 			}
-			ctx.emit(...values);
+			if (values.length > 0) ctx.down(values.map((v) => ["DATA", v] as const));
 		},
 		{ name, factory, complete: "manual", error: "manual" },
 	);

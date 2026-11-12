@@ -126,7 +126,7 @@ export function workItemWorkQueueRecipe(
 				const request = raw as WorkItemEffectRequested;
 				commands.push(workItemSubmitCommand(request, opts.policy));
 			}
-			ctx.emit(...commands);
+			if (commands.length > 0) ctx.down(commands.map((v) => ["DATA", v] as const));
 		},
 		{ name: `${name}/submitCommands`, factory: "workItemWorkQueueSubmitCommands" },
 	);
@@ -381,7 +381,7 @@ function project<T>(
 				const selected = select(raw as WorkItemQueueFact);
 				if (selected !== undefined) values.push(selected);
 			}
-			ctx.emit(...values);
+			if (values.length > 0) ctx.down(values.map((v) => ["DATA", v] as const));
 		},
 		{ name, factory, complete: "manual", error: "manual" },
 	);

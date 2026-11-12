@@ -627,7 +627,7 @@ function createReactiveMap<K, V>(
 			for (const prep of ctx.deps[1]?.waves.flat() ?? []) {
 				changes.push(...(prep as SnapshotPrep<K, V>).expired);
 			}
-			ctx.emit(...changes);
+			if (changes.length > 0) ctx.down(changes.map((v) => ["DATA", v] as const));
 		},
 		opts: {},
 	};
@@ -639,7 +639,8 @@ function createReactiveMap<K, V>(
 	const snapshotOp: Operator<unknown, ReadonlyMap<K, V>> = {
 		factory: "reactiveMap.snapshot",
 		body: (ctx: Ctx) => {
-			ctx.emit(...ctx.deps[0].waves.flat().map((prep) => (prep as SnapshotPrep<K, V>).snapshot));
+			const preps = ctx.deps[0].waves.flat() as SnapshotPrep<K, V>[];
+			if (preps.length > 0) ctx.down(preps.map((prep) => ["DATA", prep.snapshot] as const));
 		},
 		opts: {},
 	};

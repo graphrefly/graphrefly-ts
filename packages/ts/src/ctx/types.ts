@@ -115,7 +115,9 @@ export interface Ctx {
 	/**
 	 * The user's Q4: send `values` as DATA, in order, as exactly one array, the same as
 	 * `ctx.down(values.map((v) => ["DATA", v]))`; with no values it sends nothing. Each call is its
-	 * own array: consecutive calls are never merged.
+	 * own array: consecutive calls are never merged. It is sugar for a few values the code fixes:
+	 * the values are spread as arguments, and an engine refuses a call with too many (on Node 24,
+	 * past about 120,000). When the count follows the input, build the array and use `ctx.down`.
 	 */
 	emit(...values: readonly unknown[]): void;
 	/** The dependencies, one view each, in dependency order (R-invocation@2). */

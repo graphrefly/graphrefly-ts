@@ -52,7 +52,7 @@ export function project<TFact, TSelected>(
 				const selected = select(raw as TFact);
 				if (selected !== undefined) values.push(selected);
 			}
-			ctx.emit(...values);
+			if (values.length > 0) ctx.down(values.map((v) => ["DATA", v] as const));
 		},
 		{ name, factory, complete: "manual", error: "manual" },
 	);

@@ -178,7 +178,7 @@ export function messageBus<TTopic extends string>(
 			for (const command of ctx.deps[0].waves.flat()) {
 				events.push(...reduceMessageBusCommand(state, command as MessageBusCommand));
 			}
-			ctx.emit(...events);
+			if (events.length > 0) ctx.down(events.map((v) => ["DATA", v] as const));
 		},
 		{
 			name: `${name}/runtime`,
@@ -196,7 +196,7 @@ export function messageBus<TTopic extends string>(
 				const typed = event as RuntimeEvent;
 				if (typed.kind === "message") values.push(typed.message);
 			}
-			ctx.emit(...values);
+			if (values.length > 0) ctx.down(values.map((v) => ["DATA", v] as const));
 		},
 		{
 			name: `${name}/messages`,
@@ -213,7 +213,7 @@ export function messageBus<TTopic extends string>(
 				const typed = event as RuntimeEvent;
 				if (typed.kind === "status") values.push(typed.status);
 			}
-			ctx.emit(...values);
+			if (values.length > 0) ctx.down(values.map((v) => ["DATA", v] as const));
 		},
 		{
 			name: `${name}/status`,
@@ -230,7 +230,7 @@ export function messageBus<TTopic extends string>(
 				const typed = event as RuntimeEvent;
 				if (typed.kind === "issue") values.push(typed.issue);
 			}
-			ctx.emit(...values);
+			if (values.length > 0) ctx.down(values.map((v) => ["DATA", v] as const));
 		},
 		{
 			name: `${name}/issues`,
@@ -403,7 +403,7 @@ export function messageBus<TTopic extends string>(
 							cursors.push(cursorSnapshot(state, sub));
 						}
 					}
-					ctx.emit(...cursors);
+					if (cursors.length > 0) ctx.down(cursors.map((v) => ["DATA", v] as const));
 				},
 				{
 					name: `${projectionName}/cursor`,
@@ -492,7 +492,7 @@ export function toTopic<T, TTopic extends string>(
 					...(commandId === undefined ? {} : { commandId }),
 				});
 			}
-			ctx.emit(...commands);
+			if (commands.length > 0) ctx.down(commands.map((v) => ["DATA", v] as const));
 		},
 		{
 			name: opts.name ?? `${state.name}/${topic}/toTopic`,

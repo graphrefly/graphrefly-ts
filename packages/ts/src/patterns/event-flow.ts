@@ -309,7 +309,7 @@ export function eventFlowProjection<TState, TPayload = unknown>(
 				}
 			}
 			ctx.state.set(state);
-			ctx.emit(...facts);
+			if (facts.length > 0) ctx.down(facts.map((v) => ["DATA", v] as const));
 		},
 		{
 			name: `${name}/runtime`,
@@ -523,7 +523,7 @@ function runtimeProjection<TOut, T>(
 				const typed = fact as EventFlowRuntimeFact<T>;
 				if (typed.kind === kind) values.push(valueOfRuntimeFact(typed) as TOut);
 			}
-			ctx.emit(...values);
+			if (values.length > 0) ctx.down(values.map((v) => ["DATA", v] as const));
 		},
 		{ name, factory, complete: "manual", error: "manual" },
 	);
@@ -545,7 +545,7 @@ function projectionRuntime<TOut, TFact extends { readonly kind: string }>(
 				const typed = fact as TFact;
 				if (typed.kind === kind) values.push(map(typed as never));
 			}
-			ctx.emit(...values);
+			if (values.length > 0) ctx.down(values.map((v) => ["DATA", v] as const));
 		},
 		{ name, factory, complete: "manual", error: "manual" },
 	);

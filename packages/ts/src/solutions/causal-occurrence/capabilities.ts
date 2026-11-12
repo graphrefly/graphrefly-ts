@@ -113,7 +113,7 @@ export function createCausalCapabilities<T>(
 					}),
 				);
 			}
-			ctx.emit(...values);
+			if (values.length > 0) ctx.down(values.map((v) => ["DATA", v] as const));
 		},
 		{ name: `${name}/causal-quiescence`, factory: "causalLifecycleQuiescence" },
 	);

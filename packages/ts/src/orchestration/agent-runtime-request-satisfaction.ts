@@ -145,7 +145,7 @@ export function requestSatisfactionProjector(
 				const typed = fact as AgentRequestSatisfactionFact;
 				if (typed.kind === "status") values.push(typed.status);
 			}
-			ctx.emit(...values);
+			if (values.length > 0) ctx.down(values.map((v) => ["DATA", v] as const));
 		},
 		{ name: `${name}/status`, factory: "requestSatisfactionStatus" },
 	);
@@ -157,7 +157,7 @@ export function requestSatisfactionProjector(
 				const typed = fact as AgentRequestSatisfactionFact;
 				if (typed.kind === "issue") values.push(typed.issue);
 			}
-			ctx.emit(...values);
+			if (values.length > 0) ctx.down(values.map((v) => ["DATA", v] as const));
 		},
 		{ name: `${name}/issues`, factory: "requestSatisfactionIssues" },
 	);
@@ -169,7 +169,7 @@ export function requestSatisfactionProjector(
 				const typed = fact as AgentRequestSatisfactionFact;
 				if (typed.kind === "audit") values.push(typed.audit);
 			}
-			ctx.emit(...values);
+			if (values.length > 0) ctx.down(values.map((v) => ["DATA", v] as const));
 		},
 		{ name: `${name}/audit`, factory: "requestSatisfactionAudit" },
 	);

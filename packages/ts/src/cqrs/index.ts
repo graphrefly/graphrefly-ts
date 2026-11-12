@@ -748,7 +748,7 @@ function runtimeProjectionFn(kind: CqrsRuntimeFact["kind"]): NodeFn {
 			const selected = runtimeProjectionValue(typed);
 			if (selected !== undefined) values.push(selected);
 		}
-		ctx.emit(...values);
+		if (values.length > 0) ctx.down(values.map((v) => ["DATA", v] as const));
 	};
 }
 
@@ -843,7 +843,7 @@ function cqrsProjectionFramesFn(
 				break;
 			}
 		}
-		ctx.emit(...frames);
+		if (frames.length > 0) ctx.down(frames.map((v) => ["DATA", v] as const));
 	};
 }
 
@@ -871,7 +871,7 @@ function cqrsProjectionViewFn(kind: CqrsProjectionViewKind): NodeFn {
 				} satisfies CqrsProjectionStatus);
 			}
 		}
-		ctx.emit(...values);
+		if (values.length > 0) ctx.down(values.map((v) => ["DATA", v] as const));
 	};
 }
 

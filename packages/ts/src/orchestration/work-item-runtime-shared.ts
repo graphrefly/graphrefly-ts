@@ -551,7 +551,7 @@ export function projectRuntimeFact<T, TOut>(
 				const value = pick(typed);
 				if (value !== undefined) values.push(value);
 			}
-			ctx.emit(...values);
+			if (values.length > 0) ctx.down(values.map((v) => ["DATA", v] as const));
 		},
 		{ name, factory },
 	);

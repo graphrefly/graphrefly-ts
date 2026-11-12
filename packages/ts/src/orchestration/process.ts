@@ -480,13 +480,14 @@ function processProjectionFn(kind: ProcessFactKind): NodeFn {
 			const selected = processFactValue(raw as ProcessRuntimeFact, kind);
 			if (selected !== undefined) values.push(selected);
 		}
-		ctx.emit(...values);
+		if (values.length > 0) ctx.down(values.map((v) => ["DATA", v] as const));
 	};
 }
 
 function processEffectRunnerRequestsFn(): NodeFn {
 	return (ctx) => {
-		ctx.emit(...ctx.deps[0].waves.flat());
+		const values = ctx.deps[0].waves.flat();
+		if (values.length > 0) ctx.down(values.map((v) => ["DATA", v] as const));
 	};
 }
 
@@ -511,7 +512,7 @@ function processEffectRunnerRuntimeFn(): NodeFn {
 				facts.push({ kind: "command", command });
 			}
 		}
-		ctx.emit(...facts);
+		if (facts.length > 0) ctx.down(facts.map((v) => ["DATA", v] as const));
 	};
 }
 
@@ -529,7 +530,7 @@ function processEffectRunnerProjectionFn(kind: ProcessEffectRunnerFact["kind"]):
 						: fact.error;
 			values.push(value);
 		}
-		ctx.emit(...values);
+		if (values.length > 0) ctx.down(values.map((v) => ["DATA", v] as const));
 	};
 }
 
@@ -580,7 +581,7 @@ function processEffectRunnerStatusFn(): NodeFn {
 			}
 		}
 		ctx.state.set(state);
-		ctx.emit(...statuses);
+		if (statuses.length > 0) ctx.down(statuses.map((v) => ["DATA", v] as const));
 	};
 }
 

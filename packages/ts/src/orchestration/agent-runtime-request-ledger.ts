@@ -236,7 +236,7 @@ export function agentRequestLedgerViews(
 					}
 				}
 			}
-			ctx.emit(...values);
+			if (values.length > 0) ctx.down(values.map((v) => ["DATA", v] as const));
 		},
 		{ name: `${name}/issues`, factory: "agentRequestLedgerIssues" },
 	);
@@ -255,7 +255,7 @@ export function agentRequestLedgerViews(
 				});
 			}
 			ctx.state.set(seq);
-			ctx.emit(...records);
+			if (records.length > 0) ctx.down(records.map((v) => ["DATA", v] as const));
 		},
 		{ name: `${name}/audit`, factory: "agentRequestLedgerAudit" },
 	);

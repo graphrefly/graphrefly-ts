@@ -117,7 +117,7 @@ function map<T, U>(
 				),
 			);
 		}
-		ctx.emit(...values);
+		if (values.length > 0) ctx.down(values.map((v) => ["DATA", v] as const));
 	});
 }
 /** Exact occurrence join with bounded retained rows and no external cache reads. */
@@ -227,7 +227,7 @@ function checked<T>(
 			ctx.state.set(state);
 			values.push(freeze(result));
 		}
-		ctx.emit(...values);
+		if (values.length > 0) ctx.down(values.map((v) => ["DATA", v] as const));
 	});
 }
 const available = <T>(ctx: Parameters<NodeFn>[0], index: number): T | undefined => {
@@ -389,7 +389,7 @@ export function buildReferencePreset(
 			}
 			ctx.state.set(s);
 			if (errors.length) values.push(frame([], errors, false));
-			ctx.emit(...values);
+			if (values.length > 0) ctx.down(values.map((v) => ["DATA", v] as const));
 		},
 	);
 	const transaction = map(make, "transaction", selection, (e) => e.prefix[e.prefix.length - 1]);
@@ -555,12 +555,12 @@ export function buildReferencePreset(
 			ctx.state.set(s);
 			values.push(freeze({ ...frame(rows, errors, f.valid), snapshot: s.snapshot }));
 		}
-		ctx.emit(...values);
+		if (values.length > 0) ctx.down(values.map((v) => ["DATA", v] as const));
 	});
 	const snapshot = make<MaterialSnapshot>("snapshot", [store], (ctx) => {
 		const values: unknown[] = [];
 		for (const f of ctx.deps[0].waves.flat()) values.push((f as Stored).snapshot);
-		ctx.emit(...values);
+		if (values.length > 0) ctx.down(values.map((v) => ["DATA", v] as const));
 	});
 	const proposals = make<CausalEffectProposal>("proposals", [store], (ctx) => {
 		const out: Message[] = [];
@@ -936,7 +936,7 @@ export function buildReferencePreset(
 						for (const x of f.issues ?? []) values.push(x);
 					}
 				}
-			ctx.emit(...values);
+			if (values.length > 0) ctx.down(values.map((v) => ["DATA", v] as const));
 		},
 	);
 	const view = Object.freeze({

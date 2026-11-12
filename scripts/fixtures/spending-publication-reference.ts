@@ -84,10 +84,12 @@ export function buildReferencePublication<T>(
 	const publication = scope.node<ReturnType<typeof oraclePublication>>(
 		[join],
 		(ctx) => {
-			ctx.emit(
-				...ctx.deps[0].waves.flat().map((input) => {
+			const inputs = ctx.deps[0].waves.flat();
+			if (inputs.length === 0) return;
+			ctx.down(
+				inputs.map((input) => {
 					const value = input as { view: CommittedEffectsView; index: OracleIndex };
-					return oraclePublication(value.view, value.index, profile);
+					return ["DATA", oraclePublication(value.view, value.index, profile)] as const;
 				}),
 			);
 		},

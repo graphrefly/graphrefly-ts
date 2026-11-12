@@ -73,7 +73,7 @@ export function executorOutcomeViewProjector(
 					facts.push({ kind: "issue", issue });
 				}
 			}
-			ctx.emit(...facts);
+			if (facts.length > 0) ctx.down(facts.map((v) => ["DATA", v] as const));
 		},
 		{ name: `${name}/runtime`, factory: "executorOutcomeViewProjector" },
 	);
