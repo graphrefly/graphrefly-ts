@@ -224,3 +224,47 @@ describe("QA2 restored JSON ownership", () => {
 		sb();
 	});
 });
+
+describe("QA2 recipe result adapter", () => {
+	it.each([
+		null,
+		{},
+		{ fn: 42 },
+		{ fn: () => {}, setup: 42 },
+	])("refuses malformed ordinary and nested results at restore: %j", (result) => {
+		for (const nested of [false, true]) {
+			const cp = capture();
+			const bad = { ref: "bad", build: () => result as never };
+			const registry = {
+				r: {
+					ref: "r",
+					build: (_config: unknown, ctx: import("../index.js").GraphRecipeContext) => {
+						if (nested) {
+							ctx.make({ ref: "bad" });
+							return { fn: () => {} };
+						}
+						return result as never;
+					},
+				},
+				bad,
+			};
+			expect(() => restoreGraph(cp, { registry })).toThrow(
+				/not restorable: first: its recipe '(r|bad)' gives/,
+			);
+		}
+	});
+	it("accepts valid nested fn/setup and activates setup only on retain", () => {
+		const setup = vi.fn();
+		const cp = capture();
+		const restored = restoreGraph(cp, {
+			registry: {
+				r: { ref: "r", build: (_config, ctx) => ctx.make({ ref: "inner" }) },
+				inner: { ref: "inner", build: () => ({ fn: () => {}, setup }) },
+			},
+		});
+		expect(setup).not.toHaveBeenCalled();
+		const stop = restored.retain("n");
+		expect(setup).toHaveBeenCalledOnce();
+		stop();
+	});
+});

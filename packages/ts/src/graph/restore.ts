@@ -888,6 +888,20 @@ function restoringNode<T>(id: string, run: () => T): T {
 	}
 }
 
+/** One runtime adapter for ordinary, sugar and nested recipe factory results. */
+function buildRecipe(
+	entry: GraphRecipeFactory,
+	config: unknown,
+	ctx: GraphRecipeContext,
+): GraphRecipeBuild {
+	const result = entry.build(config as GraphCheckpointJson | undefined, ctx);
+	if (result === null || typeof result !== "object" || typeof result.fn !== "function")
+		throw notRestorable(ctx.id, `its recipe '${entry.ref}' gives no callback function`);
+	if (result.setup !== undefined && typeof result.setup !== "function")
+		throw notRestorable(ctx.id, `its recipe '${entry.ref}' gives an invalid setup`);
+	return result;
+}
+
 function recipeContext(registry: GraphRestoreRegistry, out: Graph, id: string): GraphRecipeContext {
 	const ctx: GraphRecipeContext = {
 		graph: out,
@@ -896,7 +910,7 @@ function recipeContext(registry: GraphRestoreRegistry, out: Graph, id: string): 
 			const entry = registryGet(registry, recipe.ref);
 			if (!isFactory(entry)) throw notRestorable(id, CHECKPOINT_REFUSAL.missingRecipe);
 			const config = entry.validateConfig ? entry.validateConfig(recipe.config) : recipe.config;
-			return entry.build(config, ctx);
+			return buildRecipe(entry, config, ctx);
 		},
 		definition<S, T>(ref: string) {
 			const entry = registryGet(registry, ref);
@@ -964,7 +978,7 @@ function constructPrepared(
 				} else if (item.sugar !== undefined) {
 					// R-checkpoint: a sugar node gets only its value-level callback from the registry and
 					// is built with the same sugar and gate; a setup from the registry is refused.
-					const build = item.entry.build(config, recipeContext(registry, out, id)) as
+					const build = buildRecipe(item.entry, config, recipeContext(registry, out, id)) as
 						| GraphRecipeBuild
 						| GraphSugarRecipeBuild;
 					if (build.setup !== undefined)
@@ -972,11 +986,7 @@ function constructPrepared(
 							id,
 							`its ${item.sugar} recipe '${item.entry.ref}' gives a setup; a ${item.sugar} takes none`,
 						);
-					if (typeof build.fn !== "function")
-						throw notRestorable(
-							id,
-							`its ${item.sugar} recipe '${item.entry.ref}' gives no callback function`,
-						);
+
 					const parts = sugarNodeParts(item.sugar, build.fn);
 					made = restoreNodeInGraph(out, id, node.factory, deps, parts.fn, {
 						...common,
@@ -984,7 +994,7 @@ function constructPrepared(
 						...(parts.setup === undefined ? {} : { setup: parts.setup }),
 					});
 				} else {
-					const build = item.entry.build(config, recipeContext(registry, out, id));
+					const build = buildRecipe(item.entry, config, recipeContext(registry, out, id));
 					made = restoreNodeInGraph(out, id, node.factory, deps, build.fn, {
 						...common,
 						...policyOptions(node.policies as GraphCheckpointPolicies),
