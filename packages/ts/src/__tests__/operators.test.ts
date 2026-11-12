@@ -790,3 +790,11 @@ describe("Slice 3 — error-handling control (CSP-2.7)", () => {
 		expect(ctrl.signal.aborted).toBe(true);
 	});
 });
+
+describe("valve built with another number of inputs is refused at construction", () => {
+	it("needs its source and its control", () => {
+		const g = graph();
+		const src = g.state(1, { name: "src" });
+		expect(() => g.initNode(valve<number>(), [src])).toThrow("valve needs 2 inputs, got 1");
+	});
+});

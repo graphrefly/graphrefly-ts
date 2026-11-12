@@ -265,6 +265,7 @@ function stratifyBranchOperator<T, R>(
 ): Operator<unknown, T> {
 	return {
 		factory: "stratifyBranch",
+		inputs: 2,
 		opts: {
 			complete: "manual",
 			error: "manual",

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { Operator } from "../graph/operators.js";
 import {
 	buffer,
 	bufferCount,
@@ -401,5 +402,23 @@ describe("Slice 2 — notifier-driven (D46 first-cut)", () => {
 		const byId = Object.fromEntries(g.inspect().nodes.map((n) => [n.id, n]));
 		expect(byId.c.factory).toBe("combine");
 		expect(byId.z.factory).toBe("zip");
+	});
+});
+
+describe("a two-input combinator built with another number of inputs is refused at construction", () => {
+	it.each([
+		["withLatestFrom", () => withLatestFrom<number, number>()],
+		["concat", () => concat<number>()],
+		["buffer", () => buffer<number>()],
+		["sample", () => sample<number>()],
+		["takeUntil", () => takeUntil<number>()],
+	] as ReadonlyArray<readonly [string, () => Operator<unknown, unknown>]>)("%s", (name, make) => {
+		const g = graph();
+		const a = g.state(1, { name: "a" });
+		const b = g.state(2, { name: "b" });
+		const c = g.state(3, { name: "c" });
+		expect(() => g.initNode(make(), [a])).toThrow(`${name} needs 2 inputs, got 1`);
+		expect(() => g.initNode(make(), [a, b, c])).toThrow(`${name} needs 2 inputs, got 3`);
+		expect(() => g.initNode(make(), [a, b])).not.toThrow();
 	});
 });

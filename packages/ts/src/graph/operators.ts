@@ -46,6 +46,8 @@ export interface Operator<TIn = unknown, TOut = unknown> {
 	readonly body: (ctx: Ctx) => void;
 	/** Behavioral node options the operator needs. */
 	readonly opts?: Partial<NodeOptions<TOut>>;
+	/** The number of inputs the operator reads, when it is fixed; initNode refuses any other. */
+	readonly inputs?: number;
 	/**
 	 * R-node / R-checkpoint: the recipe the operator's node instance carries, a registered factory
 	 * reference and its JSON configuration. Without one the node is local-only in a checkpoint.
@@ -220,6 +222,9 @@ function makeInitNode<TIn, TOut>(
 	opts: NodeOptions<TOut>,
 	acquired?: NodeAcquisition,
 ): Node<TOut> {
+	// A wrong input count is a programmer error: refuse it here rather than run and end in ERROR.
+	if (op.inputs !== undefined && deps.length !== op.inputs)
+		throw new Error(`${op.factory} needs ${op.inputs} inputs, got ${deps.length}`);
 	const body = operatorNodeFn(op);
 	// D43-reserved / D51: stamp the operator's real factory onto the bare node so a runtime *Map
 	// inner (created here via fromAny, NOT registered in any graph) is named in describe's
@@ -961,6 +966,7 @@ export function valve<S>(opts?: ValveOpts): Operator<unknown, S> {
 	const abortInFlight = opts?.abortInFlight;
 	return {
 		factory: "valve",
+		inputs: 2,
 		opts: { complete: "manual" },
 		body: (ctx) => {
 			const sourceArrived = ctx.deps[0].waves.flat().length > 0;

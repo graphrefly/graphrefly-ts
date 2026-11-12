@@ -71,6 +71,7 @@ export function combine<T extends readonly unknown[]>(): Operator<unknown, T> {
 export function withLatestFrom<A, B>(): Operator<unknown, readonly [A, B]> {
 	return {
 		factory: "withLatestFrom",
+		inputs: 2,
 		recipe: { ref: "withLatestFrom" },
 		opts: { complete: "manual" },
 		body: (ctx) => {
@@ -170,6 +171,7 @@ interface ConcatState<S> {
 export function concat<S>(): Operator<S, S> {
 	return {
 		factory: "concat",
+		inputs: 2,
 		recipe: { ref: "concat" },
 		opts: { complete: "manual" },
 		body: (ctx) => {
@@ -287,6 +289,7 @@ export function race<S>(): Operator<S, S> {
 export function buffer<S>(): Operator<unknown, S[]> {
 	return {
 		factory: "buffer",
+		inputs: 2,
 		recipe: { ref: "buffer" },
 		opts: { complete: "manual" },
 		body: (ctx) => {
@@ -371,6 +374,7 @@ interface SampleState<S> {
 export function sample<S>(): Operator<unknown, S> {
 	return {
 		factory: "sample",
+		inputs: 2,
 		opts: {
 			complete: "manual",
 			error: "manual",
@@ -427,6 +431,7 @@ export function sample<S>(): Operator<unknown, S> {
 export function takeUntil<S>(): Operator<unknown, S> {
 	return {
 		factory: "takeUntil",
+		inputs: 2,
 		recipe: { ref: "takeUntil" },
 		opts: { complete: "manual" },
 		body: (ctx: Ctx) => {
