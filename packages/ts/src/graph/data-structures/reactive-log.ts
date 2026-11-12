@@ -18,7 +18,7 @@
  * Per-language (D6/D24, never in parity, no conformance).
  */
 
-import { type Ctx, depBatch, depCount } from "../../ctx/types.js";
+import type { Ctx } from "../../ctx/types.js";
 import { makeNodeBeside, type Node } from "../../node/node.js";
 import { oneArrayPerRun } from "../../node/one-array-per-run.js";
 import type { GraphCheckpointJson } from "../checkpoint.js";
@@ -376,8 +376,8 @@ export function mergeReactiveLogs<T>(logs: readonly ReactiveLog<T>[]): Node<LogC
 	return makeNodeBeside<LogChange<T>>(
 		deps,
 		oneArrayPerRun((ctx: Ctx) => {
-			for (let i = 0; i < depCount(ctx); i++) {
-				const b = depBatch(ctx, i);
+			for (let i = 0; i < ctx.deps.length; i++) {
+				const b = ctx.deps[i].waves.length === 0 ? null : ctx.deps[i].waves.flat();
 				if (b) for (const c of b) ctx.down([["DATA", c as LogChange<T>]]);
 			}
 		}),

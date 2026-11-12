@@ -31,7 +31,7 @@
  * Per-language (D6/D24, never in parity, no conformance).
  */
 
-import { type Ctx, depBatch, depLiveBatch } from "../../ctx/types.js";
+import { type Ctx, depLiveBatch } from "../../ctx/types.js";
 import type { Node } from "../../node/node.js";
 import { oneArrayPerRun } from "../../node/one-array-per-run.js";
 import { errorPayload } from "../../protocol/messages.js";
@@ -173,7 +173,7 @@ export function lightReactiveView<C, S>(
 	const delta = group.node<C>(
 		[parentDelta],
 		oneArrayPerRun((ctx: Ctx): void => {
-			for (const change of (depBatch(ctx, 0) ?? []) as readonly C[]) {
+			for (const change of ctx.deps[0].waves.flat() as readonly C[]) {
 				ctx.down([["DATA", change]]);
 			}
 		}),
@@ -289,7 +289,7 @@ export function collectionCore<S, C>(
 		const op: Operator<V, void> = {
 			factory: `${factory}.bindSource`,
 			body: (ctx: Ctx) => {
-				const b = depBatch(ctx, 0);
+				const b = ctx.deps[0].waves.length === 0 ? null : ctx.deps[0].waves.flat();
 				try {
 					if (b) for (const v of b) apply(v as V);
 				} catch (e) {

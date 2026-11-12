@@ -7,7 +7,7 @@
  */
 
 import type { CqrsCommand, CqrsError, CqrsErrorCode, CqrsStatus } from "../cqrs/index.js";
-import { type Ctx, depBatch } from "../ctx/types.js";
+import type { Ctx } from "../ctx/types.js";
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
 import type { Node } from "../node/node.js";
@@ -124,16 +124,16 @@ export function cqrsWorkQueueRecipe<TCommand = unknown>(
 		deps,
 		(ctx) => {
 			const state = ctx.state.get<CqrsQueueState<TCommand>>() ?? emptyState<TCommand>();
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				reduceRecord(ctx, state, raw as WorkQueueRecord<CqrsQueuedCommandPayload<TCommand>>, opts);
 			}
 			if (opts.errors !== undefined) {
-				for (const raw of depBatch(ctx, 2) ?? []) {
+				for (const raw of ctx.deps[2]?.waves.flat() ?? []) {
 					const error = raw as CqrsError;
 					if (error.commandId !== undefined) state.errors.set(error.commandId, error);
 				}
 			}
-			for (const raw of depBatch(ctx, 1) ?? []) {
+			for (const raw of ctx.deps[1]?.waves.flat() ?? []) {
 				reduceStatus(ctx, state, raw as CqrsStatus, opts);
 			}
 			ctx.state.set(state);
@@ -431,7 +431,7 @@ function project<T, TCommand>(
 	return graph.node<T>(
 		[runtime],
 		oneArrayPerRun((ctx) => {
-			for (const fact of depBatch(ctx, 0) ?? []) {
+			for (const fact of ctx.deps[0].waves.flat()) {
 				const value = pick(fact as CqrsQueueFact<TCommand>);
 				if (value !== undefined) ctx.down([["DATA", value]]);
 			}

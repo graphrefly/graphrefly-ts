@@ -1,4 +1,4 @@
-import { type Ctx, depBatch } from "../ctx/types.js";
+import type { Ctx } from "../ctx/types.js";
 import type { Graph } from "../graph/graph.js";
 import { compoundTupleKey } from "../identity.js";
 import type { Node } from "../node/node.js";
@@ -59,7 +59,7 @@ export function workItemDomainActionAdmissionProjector(
 			const state =
 				ctx.state.get<WorkItemDomainActionAdmissionStateInternal>() ??
 				emptyWorkItemDomainActionAdmissionState();
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const proposal = raw as WorkItemDomainActionProposal;
 				if (state.proposals.has(proposal.proposalId)) {
 					emitWorkItemAdmissionIssue(
@@ -79,7 +79,7 @@ export function workItemDomainActionAdmissionProjector(
 				const policy = raw as WorkItemDomainActionAdmissionPolicy;
 				state.policies.set(policy.policyId, policy);
 			});
-			for (const raw of depBatch(ctx, 1) ?? []) {
+			for (const raw of ctx.deps[1]?.waves.flat() ?? []) {
 				const decision = raw as WorkItemDomainActionAdmissionDecision;
 				if (state.decisions.has(decision.decisionId)) {
 					emitWorkItemAdmissionIssue(
@@ -138,7 +138,7 @@ export function workItemDomainActionAdmissionProjector(
 					issues: [],
 					audit: [],
 				};
-				for (const raw of depBatch(ctx, 0) ?? []) {
+				for (const raw of ctx.deps[0].waves.flat()) {
 					const fact = raw as WorkItemDomainActionAdmissionFact;
 					if (fact.kind === "admission") {
 						const admission = fact.admission;

@@ -1,4 +1,3 @@
-import { depBatch } from "../../ctx/types.js";
 import type { DataIssue } from "../../data/index.js";
 import type { Graph } from "../../graph/graph.js";
 import type { Node } from "../../node/node.js";
@@ -258,7 +257,7 @@ export function agenticMemoryMaterializedFactLogBootstrapBundle<
 	const projection = graph.node<AgenticMemoryMaterializedFactLogBootstrapProjection<TJson>>(
 		[opts.materialization],
 		(ctx) => {
-			const materializations = depBatch(ctx, 0) ?? [];
+			const materializations = ctx.deps[0].waves.flat();
 			if (materializations.length === 0) return;
 			const state =
 				ctx.state.get<{ evaluation: number }>() ??

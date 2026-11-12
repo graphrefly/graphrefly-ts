@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { depBatch } from "../ctx/types.js";
+
 import { graph } from "../graph/graph.js";
 import { canonicalTupleKey } from "../identity.js";
 import type { BoundaryCapabilityKind } from "../inspection/boundary.js";
@@ -53,8 +53,8 @@ function setupActions() {
 	const admissionUnion = g.node<WorkItemDomainActionAdmission>(
 		[admissions.admissions, directAdmissions],
 		(ctx) => {
-			for (const raw of depBatch(ctx, 0) ?? []) ctx.down([["DATA", raw]]);
-			for (const raw of depBatch(ctx, 1) ?? []) ctx.down([["DATA", raw]]);
+			for (const raw of ctx.deps[0].waves.flat()) ctx.down([["DATA", raw]]);
+			for (const raw of ctx.deps[1].waves.flat()) ctx.down([["DATA", raw]]);
 		},
 		{ name: "admissionUnion" },
 	);

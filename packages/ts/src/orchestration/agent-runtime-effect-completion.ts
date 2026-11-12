@@ -1,4 +1,4 @@
-import { type Ctx, depBatch } from "../ctx/types.js";
+import type { Ctx } from "../ctx/types.js";
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
 import type { Node } from "../node/node.js";
@@ -66,7 +66,7 @@ export function effectRunCompletionProjector(
 		(ctx) => {
 			const state = ctx.state.get<EffectRunCompletionState>() ?? emptyEffectRunCompletionState();
 			const touchedEffectRunIds = new Set<string>();
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const run = raw as EffectRun;
 				state.runs.set(run.effectRunId, run);
 				touchedEffectRunIds.add(run.effectRunId);

@@ -1,6 +1,5 @@
 /** D164: retain bytes before proposing; no active/admitted/settled shadow authority. */
 
-import { depBatch } from "../../packages/ts/src/ctx/types.js";
 import type { DataIssue } from "../../packages/ts/src/data/index.js";
 import type { Node } from "../../packages/ts/src/node/node.js";
 import { oneArrayPerRun } from "../../packages/ts/src/node/one-array-per-run.js";
@@ -97,7 +96,7 @@ export function buildMaterials(
 				s = { materials: new Map(), snapshot: makeMaterialSnapshot(profile, []) };
 				ctx.state.set(s);
 			}
-			for (const f of (depBatch(ctx, 0) ?? []) as BusinessFrame<MaterialResult>[]) {
+			for (const f of ctx.deps[0].waves.flat() as BusinessFrame<MaterialResult>[]) {
 				const rows: Item<MaterialResult>[] = [],
 					problems: DataIssue[] = [...f.issues];
 				for (const row of f.rows) {
@@ -150,12 +149,12 @@ export function buildMaterials(
 		"materialSnapshot",
 		[materialStore],
 		oneArrayPerRun((ctx) => {
-			for (const f of (depBatch(ctx, 0) ?? []) as StoredFrame[]) ctx.down([["DATA", f.snapshot]]);
+			for (const f of ctx.deps[0].waves.flat() as StoredFrame[]) ctx.down([["DATA", f.snapshot]]);
 		}),
 	);
 	const effectProposals = make<CausalEffectProposal>("effectProposals", [materialStore], (ctx) => {
 		const outputs: Message[] = [];
-		for (const f of (depBatch(ctx, 0) ?? []) as StoredFrame[])
+		for (const f of ctx.deps[0].waves.flat() as StoredFrame[])
 			if (f.valid)
 				for (const row of f.rows)
 					if (row.value.kind === "retained")

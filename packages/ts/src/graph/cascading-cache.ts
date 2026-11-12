@@ -1,4 +1,4 @@
-import { type Ctx, depBatch, depLatest } from "../ctx/types.js";
+import type { Ctx } from "../ctx/types.js";
 import type { Node } from "../node/node.js";
 import { oneArrayPerRun } from "../node/one-array-per-run.js";
 import { errorPayload } from "../protocol/messages.js";
@@ -167,17 +167,27 @@ export function reactiveCascadingCache<K extends string, V>(
 				dropBeforeSeq: 0,
 			};
 			st.active = true;
-			const requestBatch = depBatch(ctx, 0) as readonly K[] | null;
+			const requestBatch = (ctx.deps[0].waves.length === 0 ? null : ctx.deps[0].waves.flat()) as
+				| readonly K[]
+				| null;
 			const invalidateBatch =
-				invalidateIndex === -1 ? null : (depBatch(ctx, invalidateIndex) as readonly K[] | null);
+				invalidateIndex === -1
+					? null
+					: (((ctx.deps[invalidateIndex]?.waves ?? []).length === 0
+							? null
+							: (ctx.deps[invalidateIndex]?.waves.flat() ?? [])) as readonly K[] | null);
 			const policyBatch =
 				policyIndex === -1
 					? null
-					: (depBatch(ctx, policyIndex) as readonly CascadingCachePolicy[] | null);
+					: (((ctx.deps[policyIndex]?.waves ?? []).length === 0
+							? null
+							: (ctx.deps[policyIndex]?.waves.flat() ?? [])) as
+							| readonly CascadingCachePolicy[]
+							| null);
 			const currentPolicy =
 				policyIndex === -1
 					? undefined
-					: (depLatest(ctx, policyIndex) as CascadingCachePolicy | undefined);
+					: (ctx.deps[policyIndex]?.value as CascadingCachePolicy | undefined);
 
 			if (requestBatch !== null) {
 				for (const key of requestBatch) {
@@ -228,7 +238,9 @@ export function reactiveCascadingCache<K extends string, V>(
 		[events],
 		oneArrayPerRun((ctx) => {
 			const st = ctx.state.get<SeqState>() ?? { seq: 0 };
-			const batch = depBatch(ctx, 0) as readonly CascadingCacheEvent<K, V>[] | null;
+			const batch = (ctx.deps[0].waves.length === 0 ? null : ctx.deps[0].waves.flat()) as
+				| readonly CascadingCacheEvent<K, V>[]
+				| null;
 			if (batch === null) return;
 			for (const event of batch) {
 				if (event.kind === "request" || event.kind === "invalidate") {
@@ -292,7 +304,9 @@ export function reactiveCascadingCache<K extends string, V>(
 		[events],
 		oneArrayPerRun((ctx) => {
 			const st = ctx.state.get<SeqState>() ?? { seq: 0 };
-			const batch = depBatch(ctx, 0) as readonly CascadingCacheEvent<K, V>[] | null;
+			const batch = (ctx.deps[0].waves.length === 0 ? null : ctx.deps[0].waves.flat()) as
+				| readonly CascadingCacheEvent<K, V>[]
+				| null;
 			if (batch === null) return;
 			for (const event of batch) {
 				if (event.kind === "request") {

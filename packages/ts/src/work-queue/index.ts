@@ -5,7 +5,6 @@
  * independent from orchestration/WorkItem/executor registries.
  */
 
-import { depBatch } from "../ctx/types.js";
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
 import { canonicalTupleKey, compoundTupleKey } from "../identity.js";
@@ -142,14 +141,15 @@ export function workQueue<T = unknown>(graph: Graph, opts: WorkQueueOptions<T>):
 	const admissionPages = graph.node<MessageBusAvailablePage<T>>(
 		[admission.available, admissionKick, opts.bus.messages, opts.bus.status],
 		oneArrayPerRun((ctx) => {
-			for (const page of depBatch(ctx, 0) ?? []) {
+			for (const page of ctx.deps[0].waves.flat()) {
 				ctx.down([["DATA", page as MessageBusAvailablePage<T>]]);
 			}
-			let shouldPull = (depBatch(ctx, 1)?.length ?? 0) > 0;
-			for (const message of depBatch(ctx, 2) ?? []) {
+			let shouldPull =
+				((ctx.deps[1]?.waves.length ? (ctx.deps[1]?.waves.flat() ?? []) : null)?.length ?? 0) > 0;
+			for (const message of ctx.deps[2]?.waves.flat() ?? []) {
 				if ((message as MessageBusMessage<T>).topic === opts.topic) shouldPull = true;
 			}
-			for (const status of depBatch(ctx, 3) ?? []) {
+			for (const status of ctx.deps[3]?.waves.flat() ?? []) {
 				if (shouldPollAdmission(status as MessageBusStatus, opts.topic, opts.subscriptionId)) {
 					shouldPull = true;
 				}
@@ -169,12 +169,12 @@ export function workQueue<T = unknown>(graph: Graph, opts: WorkQueueOptions<T>):
 	const runtime = graph.node<QueueEvent<T>>(
 		[commands, admissionPages],
 		oneArrayPerRun((ctx) => {
-			for (const page of depBatch(ctx, 1) ?? []) {
+			for (const page of ctx.deps[1]?.waves.flat() ?? []) {
 				for (const msg of (page as MessageBusAvailablePage<T>).messages) {
 					for (const event of admitMessage(opts, state, msg, now())) ctx.down([["DATA", event]]);
 				}
 			}
-			for (const command of depBatch(ctx, 0) ?? []) {
+			for (const command of ctx.deps[0].waves.flat()) {
 				const commandTime = commandNowMs(command as WorkQueueCommand<T>, now());
 				for (const event of reduceQueueCommand(
 					opts,
@@ -198,7 +198,7 @@ export function workQueue<T = unknown>(graph: Graph, opts: WorkQueueOptions<T>):
 	const records = graph.node<WorkQueueRecord<T>>(
 		[runtime],
 		oneArrayPerRun((ctx) => {
-			for (const event of depBatch(ctx, 0) ?? []) {
+			for (const event of ctx.deps[0].waves.flat()) {
 				const typed = event as QueueEvent<T>;
 				if (typed.kind === "record") ctx.down([["DATA", typed.record]]);
 			}
@@ -213,7 +213,7 @@ export function workQueue<T = unknown>(graph: Graph, opts: WorkQueueOptions<T>):
 	const status = graph.node<WorkQueueStatus>(
 		[runtime],
 		oneArrayPerRun((ctx) => {
-			for (const event of depBatch(ctx, 0) ?? []) {
+			for (const event of ctx.deps[0].waves.flat()) {
 				const typed = event as QueueEvent<T>;
 				if (typed.kind === "status") ctx.down([["DATA", typed.status]]);
 			}
@@ -228,7 +228,7 @@ export function workQueue<T = unknown>(graph: Graph, opts: WorkQueueOptions<T>):
 	const issues = graph.node<DataIssue>(
 		[runtime],
 		oneArrayPerRun((ctx) => {
-			for (const event of depBatch(ctx, 0) ?? []) {
+			for (const event of ctx.deps[0].waves.flat()) {
 				const typed = event as QueueEvent<T>;
 				if (typed.kind === "issue") ctx.down([["DATA", typed.issue]]);
 			}
@@ -243,7 +243,7 @@ export function workQueue<T = unknown>(graph: Graph, opts: WorkQueueOptions<T>):
 	const admissionAckCommands = graph.node<MessageBusCommand>(
 		[records],
 		oneArrayPerRun((ctx) => {
-			for (const record of depBatch(ctx, 0) ?? []) {
+			for (const record of ctx.deps[0].waves.flat()) {
 				const command = admissionAckCommand(record as WorkQueueRecord<T>);
 				if (command !== undefined) ctx.down([["DATA", command]]);
 			}

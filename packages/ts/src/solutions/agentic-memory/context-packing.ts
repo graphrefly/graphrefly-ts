@@ -1,4 +1,3 @@
-import { depLatest } from "../../ctx/types.js";
 import type { Graph } from "../../graph/graph.js";
 import type { FactId } from "../../patterns/semantic-memory.js";
 import { solutionProjection } from "./projection.js";
@@ -54,9 +53,9 @@ export function agenticMemoryContextPackingBundle<T = unknown>(
 				({ evaluation: 0 } satisfies { evaluation: number });
 			state.evaluation += 1;
 			const packed = packContext(
-				depLatest(ctx, 0),
-				depLatest(ctx, 1),
-				depLatest(ctx, 2),
+				ctx.deps[0].value,
+				ctx.deps[1]?.value,
+				ctx.deps[2]?.value,
 				state.evaluation,
 			);
 			ctx.state.set(state);

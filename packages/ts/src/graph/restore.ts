@@ -780,7 +780,6 @@ function policyOptions(p: GraphCheckpointPolicies): Partial<NodeOptions<unknown>
 		error: p.error,
 		invalidate: p.invalidate,
 		quiet: p.quiet,
-		dynamic: p.dynamic,
 		pool: p.pool,
 	};
 }

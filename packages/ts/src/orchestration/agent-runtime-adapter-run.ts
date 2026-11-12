@@ -1,4 +1,4 @@
-import { type Ctx, depBatch } from "../ctx/types.js";
+import type { Ctx } from "../ctx/types.js";
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
 import { canonicalTupleKey, compoundTupleKey } from "../identity.js";
@@ -167,7 +167,7 @@ export function toolProviderAdapterRunProjectorInternal(
 				issueKeys: new Set<string>(),
 				auditSeq: 0,
 			};
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const input = raw as ToolProviderAdapterInput;
 				state.inputs.set(input.adapterInputId, input);
 				opts.privateRetentionHooks?.onAdapterInputKey?.({

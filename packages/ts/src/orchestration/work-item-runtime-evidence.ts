@@ -1,4 +1,4 @@
-import { type Ctx, depBatch } from "../ctx/types.js";
+import type { Ctx } from "../ctx/types.js";
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
 import { compoundTupleKey } from "../identity.js";
@@ -78,11 +78,11 @@ export function workItemEffectResultMapper(
 		deps,
 		(ctx) => {
 			const state = ctx.state.get<WorkItemEvidenceState>() ?? emptyWorkItemEvidenceState();
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const workItem = raw as WorkItemSeed;
 				state.workItems.set(workItem.workItemId, workItem);
 			}
-			for (const raw of depBatch(ctx, 1) ?? []) {
+			for (const raw of ctx.deps[1]?.waves.flat() ?? []) {
 				const run = raw as EffectRun;
 				state.effectRuns.set(run.effectRunId, run);
 				const workItemRef = singleWorkItemRef([
@@ -93,7 +93,7 @@ export function workItemEffectResultMapper(
 					state.effectRunWorkItems.set(run.effectRunId, workItemRef.id);
 			}
 			if (opts.effectRequests !== undefined) {
-				for (const raw of depBatch(ctx, effectRequestIndex) ?? []) {
+				for (const raw of ctx.deps[effectRequestIndex]?.waves.flat() ?? []) {
 					const request = raw as WorkItemEffectRequested;
 					state.pendingEffectRequests.set(request.requestId, request);
 					const existing = state.requestsByEffectRun.get(request.effectRunId);
@@ -125,7 +125,7 @@ export function workItemEffectResultMapper(
 				const policy = raw as WorkItemEffectMappingPolicy;
 				state.policies.set(policy.policyId, policy);
 			});
-			for (const raw of depBatch(ctx, 2) ?? []) {
+			for (const raw of ctx.deps[2]?.waves.flat() ?? []) {
 				const result = raw as EffectRunResult;
 				mapEffectRunResultToWorkItemEvidence(ctx, state, result, now());
 			}
@@ -171,7 +171,7 @@ export function workItemEffectResultMapper(
 					audit: [],
 				};
 				if (opts.effectRequests !== undefined) {
-					for (const raw of depBatch(ctx, 0) ?? []) {
+					for (const raw of ctx.deps[0].waves.flat()) {
 						const request = raw as WorkItemEffectRequested;
 						if (
 							!state.settledRequestIds.has(request.requestId) &&
@@ -181,7 +181,7 @@ export function workItemEffectResultMapper(
 					}
 				}
 				const runtimeIndex = opts.effectRequests === undefined ? 0 : 1;
-				for (const raw of depBatch(ctx, runtimeIndex) ?? []) {
+				for (const raw of ctx.deps[runtimeIndex]?.waves.flat() ?? []) {
 					const fact = raw as WorkItemEvidenceMapperFact;
 					if (fact.kind === "evidence") {
 						const evidence = fact.evidence;

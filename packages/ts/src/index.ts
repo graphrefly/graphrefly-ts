@@ -28,22 +28,11 @@ export {
 export type { BatchCtx } from "./batch/batch.js";
 export type {
 	Ctx,
+	CtxDep,
 	CtxState,
+	DepTerminal,
 	NodeFn,
 	Sink,
-	TerminalData,
-	WaveData,
-} from "./ctx/types.js";
-export {
-	depBatch,
-	depCount,
-	depLatest,
-	depTerminal,
-	depWaves,
-	isTerminalComplete,
-	isTerminalError,
-	isTerminalNone,
-	terminalErrorValue,
 } from "./ctx/types.js";
 export type { DataError, DataIssue, DataOk, DataResult } from "./data/index.js";
 export {

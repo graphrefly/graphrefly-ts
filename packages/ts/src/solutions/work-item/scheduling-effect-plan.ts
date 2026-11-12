@@ -1,4 +1,4 @@
-import { type Ctx, depBatch } from "../../ctx/types.js";
+import type { Ctx } from "../../ctx/types.js";
 import type { DataIssue } from "../../data/index.js";
 import type { Graph } from "../../graph/graph.js";
 import type { Node } from "../../node/node.js";
@@ -68,7 +68,7 @@ export function workItemEffectPlanProjector<TInput = unknown>(
 		deps,
 		(ctx) => {
 			const state = ctx.state.get<PlanState<TInput>>() ?? emptyPlanState<TInput>();
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const workItem = raw as WorkItemProjection<TInput>;
 				state.workItems.set(workItem.workItemId, workItem);
 				for (const proposal of state.proposals.values()) {
@@ -76,7 +76,7 @@ export function workItemEffectPlanProjector<TInput = unknown>(
 						admitPlan(ctx, state, proposal, opts.policy, now);
 				}
 			}
-			for (const raw of depBatch(ctx, 1) ?? []) {
+			for (const raw of ctx.deps[1]?.waves.flat() ?? []) {
 				const proposal = raw as WorkItemEffectPlanProposed<TInput>;
 				if (
 					isRecord(proposal) &&
@@ -93,11 +93,11 @@ export function workItemEffectPlanProjector<TInput = unknown>(
 				admitPlan(ctx, state, proposal, opts.policy, now);
 			}
 			if (evidenceIndex >= 0) {
-				for (const raw of depBatch(ctx, evidenceIndex) ?? [])
+				for (const raw of ctx.deps[evidenceIndex]?.waves.flat() ?? [])
 					recordPlanEvidence(ctx, state, raw as WorkItemEvidenceRecorded);
 			}
 			if (resultIndex >= 0) {
-				for (const raw of depBatch(ctx, resultIndex) ?? [])
+				for (const raw of ctx.deps[resultIndex]?.waves.flat() ?? [])
 					recordPlanResult(ctx, state, raw as EffectRunResult);
 			}
 			drainPlanWork(ctx, state, opts.policy);

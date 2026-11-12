@@ -9,15 +9,7 @@
  */
 
 import { performance } from "node:perf_hooks";
-import {
-	type Ctx,
-	depLatest,
-	graph,
-	type Message,
-	type Node,
-	type NodeFn,
-	type StateNode,
-} from "../index.js";
+import { type Ctx, graph, type Message, type Node, type NodeFn, type StateNode } from "../index.js";
 import { nodeDeferBoundary } from "../node/node-output-runtime.js";
 import { nodeRuntimeHost } from "../node/node-runtime-host.js";
 
@@ -175,7 +167,7 @@ function rewireChurnProbe(turns = 10_000): string {
 	const a = g.state(1);
 	const b = g.state(2);
 	const body: NodeFn = (ctx) => {
-		ctx.down([["DATA", (depLatest(ctx, 0) as number) + 1]]);
+		ctx.down([["DATA", (ctx.deps[0].value as number) + 1]]);
 	};
 	let kept: Ctx | undefined;
 	const d = g.node<number>([a], body, {
@@ -215,7 +207,7 @@ function retainedLifecycleProbe(nodes = 2_500, payloadBytes = 4_096): string {
 				},
 				{ once: true },
 			);
-			ctx.down([["DATA", depLatest(ctx, 0)]]);
+			ctx.down([["DATA", ctx.deps[0].value]]);
 		});
 		const unsubscribe = d.subscribe(() => {});
 		unsubscribe();

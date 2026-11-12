@@ -10,7 +10,7 @@
 
 import { describe, expect, it } from "vitest";
 import type { NodeFn } from "../index.js";
-import { depBatch, depCount, graph } from "../index.js";
+import { graph } from "../index.js";
 import { collect } from "./helpers/collect.js";
 
 const _flush = () => new Promise((r) => setTimeout(r, 0));
@@ -34,8 +34,8 @@ const _flush = () => new Promise((r) => setTimeout(r, 0));
 // (rescue/race/sample use completeWhenDepsComplete:false) — a pure latent-wedge fix.
 describe("C-17 — absorbed-error dep counts as terminal for auto-COMPLETE (B42 / R-deps-terminal)", () => {
 	const fwd: NodeFn = (ctx) => {
-		for (let i = 0; i < depCount(ctx); i++) {
-			const b = depBatch(ctx, i);
+		for (let i = 0; i < ctx.deps.length; i++) {
+			const b = ctx.deps[i].waves.length === 0 ? null : ctx.deps[i].waves.flat();
 			if (b) for (const v of b) ctx.down([["DATA", v]]);
 		}
 	};

@@ -6,7 +6,7 @@
  * state is surfaced through graph-visible attempts/status/errors nodes.
  */
 
-import { type Ctx, depBatch } from "../ctx/types.js";
+import type { Ctx } from "../ctx/types.js";
 import type { Graph } from "../graph/graph.js";
 import {
 	nextRetryDelayMs,
@@ -458,7 +458,7 @@ function wireBridgeAckDriverEventsNode<TOutbound, TInbound>(
 				ctx.state.set(state);
 			}
 			let touched = false;
-			for (const rawClock of depBatch(ctx, 0) ?? []) {
+			for (const rawClock of ctx.deps[0].waves.flat()) {
 				if (!Number.isFinite(rawClock) || (rawClock as number) < 0) {
 					ctx.down([
 						[
@@ -501,7 +501,7 @@ function wireBridgeAckDriverEventsNode<TOutbound, TInbound>(
 				state.nowMs = nowMs;
 				touched = true;
 			}
-			for (const rawAttempt of depBatch(ctx, 1) ?? []) {
+			for (const rawAttempt of ctx.deps[1]?.waves.flat() ?? []) {
 				const attempt = rawAttempt as { readonly seq: number; readonly attempt: number };
 				state.pending.set(attempt.seq, {
 					seq: attempt.seq,
@@ -510,15 +510,15 @@ function wireBridgeAckDriverEventsNode<TOutbound, TInbound>(
 				});
 				touched = true;
 			}
-			for (const rawAck of depBatch(ctx, 2) ?? []) {
+			for (const rawAck of ctx.deps[2]?.waves.flat() ?? []) {
 				state.pending.delete((rawAck as { readonly ackForSeq: number }).ackForSeq);
 				touched = true;
 			}
-			for (const rawNack of depBatch(ctx, 3) ?? []) {
+			for (const rawNack of ctx.deps[3]?.waves.flat() ?? []) {
 				state.pending.delete((rawNack as { readonly ackForSeq: number }).ackForSeq);
 				touched = true;
 			}
-			for (const rawStatus of depBatch(ctx, 4) ?? []) {
+			for (const rawStatus of ctx.deps[4]?.waves.flat() ?? []) {
 				const status = rawStatus as {
 					readonly state?: string;
 					readonly pending?: number;
@@ -600,7 +600,7 @@ function wireBridgeAckDriverEventsNode<TOutbound, TInbound>(
 
 function wireBridgeAckDriverCommandsFn(): (ctx: Ctx) => void {
 	return (ctx) => {
-		for (const raw of depBatch(ctx, 0) ?? []) {
+		for (const raw of ctx.deps[0].waves.flat()) {
 			const event = raw as WireBridgeAckDriverEvent;
 			if (event.kind === "command") ctx.down([["DATA", event.command]]);
 		}
@@ -615,7 +615,7 @@ function wireBridgeAckDriverIssuesNode(
 	return graph.node<WireBridgeAckDriverIssue>(
 		[events],
 		(ctx) => {
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const event = raw as WireBridgeAckDriverEvent;
 				if (event.kind === "issue") ctx.down([["DATA", event.issue]]);
 			}
@@ -640,7 +640,7 @@ function wireBridgeAckDriverStatusNode(
 					commands: 0,
 					issues: 0,
 				} satisfies WireBridgeAckDriverStatus);
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const event = raw as WireBridgeAckDriverEvent;
 				if (event.kind === "command") {
 					next = {
@@ -736,7 +736,7 @@ export function wireBridgeProtobuf(
 	const inboundResults = topology.node<WireBridgeProtobufInboundResult>(
 		[inboundBytes],
 		(ctx) => {
-			for (const bytes of depBatch(ctx, 0) ?? []) {
+			for (const bytes of ctx.deps[0].waves.flat()) {
 				const result = wireBridgeProtobufInboundResult(bytes as Uint8Array, bridge.sessionId);
 				ctx.down([["DATA", result]]);
 			}
@@ -751,7 +751,7 @@ export function wireBridgeProtobuf(
 	const outboundResults = topology.node<WireBridgeProtobufOutboundResult>(
 		[bridge.outbound],
 		(ctx) => {
-			for (const envelope of depBatch(ctx, 0) ?? []) {
+			for (const envelope of ctx.deps[0].waves.flat()) {
 				let result: WireBridgeProtobufOutboundResult;
 				try {
 					const canonical = canonicalEnvelopeFromSemantic(
@@ -775,7 +775,7 @@ export function wireBridgeProtobuf(
 	const inboundEvents = topology.node<WireBridgeProtobufInboundEvent>(
 		[inboundResults],
 		(ctx) => {
-			for (const result of depBatch(ctx, 0) ?? []) {
+			for (const result of ctx.deps[0].waves.flat()) {
 				ctx.down([
 					["DATA", { kind: "inbound", result: result as WireBridgeProtobufInboundResult }],
 				]);
@@ -791,7 +791,7 @@ export function wireBridgeProtobuf(
 	const outboundEvents = topology.node<WireBridgeProtobufOutboundEvent>(
 		[outboundResults],
 		(ctx) => {
-			for (const result of depBatch(ctx, 0) ?? []) {
+			for (const result of ctx.deps[0].waves.flat()) {
 				ctx.down([
 					["DATA", { kind: "outbound", result: result as WireBridgeProtobufOutboundResult }],
 				]);
@@ -809,7 +809,7 @@ export function wireBridgeProtobuf(
 	>(
 		[inboundEvents],
 		(ctx) => {
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const event = raw as WireBridgeProtobufInboundEvent;
 				const result = event.result;
 				ctx.down([["DATA", result.kind === "decoded" ? result.envelope : result.invalid]]);
@@ -825,7 +825,7 @@ export function wireBridgeProtobuf(
 	const outboundBytes = topology.node<Uint8Array>(
 		[outboundEvents],
 		(ctx) => {
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const event = raw as WireBridgeProtobufOutboundEvent;
 				if (event.result.kind === "encoded") {
 					ctx.down([["DATA", event.result.bytes]]);
@@ -842,12 +842,12 @@ export function wireBridgeProtobuf(
 	const issues = topology.node<WireBridgeProtobufIssue>(
 		[inboundEvents, outboundEvents],
 		(ctx) => {
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const event = raw as WireBridgeProtobufInboundEvent;
 				const result = event.result;
 				if (result.kind === "issue") ctx.down([["DATA", result.issue]]);
 			}
-			for (const raw of depBatch(ctx, 1) ?? []) {
+			for (const raw of ctx.deps[1]?.waves.flat() ?? []) {
 				const event = raw as WireBridgeProtobufOutboundEvent;
 				const result = event.result;
 				if (result.kind === "issue") ctx.down([["DATA", result.issue]]);
@@ -871,7 +871,7 @@ export function wireBridgeProtobuf(
 				ctx.state.set(status);
 				ctx.down([["DATA", status]]);
 			};
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const event = raw as WireBridgeProtobufInboundEvent;
 				const result = event.result;
 				if (result.kind === "decoded") {
@@ -889,7 +889,7 @@ export function wireBridgeProtobuf(
 					});
 				}
 			}
-			for (const raw of depBatch(ctx, 1) ?? []) {
+			for (const raw of ctx.deps[1]?.waves.flat() ?? []) {
 				const event = raw as WireBridgeProtobufOutboundEvent;
 				const result = event.result;
 				if (result.kind === "encoded") {
@@ -1101,21 +1101,21 @@ function wireBridgeEventsNode<TOutbound, TInbound>(
 				if (shouldTrackAck(type)) state.pending.set(envelope.metadata.seq, { envelope });
 			};
 
-			for (const raw of depBatch(ctx, 1) ?? []) {
+			for (const raw of ctx.deps[1]?.waves.flat() ?? []) {
 				processInbound(ctx, state, raw, opts.sessionId);
 			}
-			const inboundTerminal = ctx.terminal[1];
-			if (inboundTerminal !== false && inboundTerminal !== undefined && !state.terminalReported) {
+			const inboundTerminal = ctx.deps[1]?.terminal;
+			if (inboundTerminal !== undefined && !state.terminalReported) {
 				state.terminalReported = true;
 				const error =
-					inboundTerminal === true
+					inboundTerminal.kind === "complete"
 						? `${opts.sessionId}: inbound protocol COMPLETE is local misuse; remote completion must arrive as a DATA envelope fact`
 						: `${opts.sessionId}: inbound protocol ERROR ${String(
-								errorPayload(inboundTerminal),
+								errorPayload(inboundTerminal.error),
 							)} is local misuse; remote errors must arrive as DATA envelope facts`;
 				ctx.down([["DATA", { kind: "invalid", error }]]);
 			}
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const invalid = validateCommand(raw);
 				if (invalid !== undefined) {
 					ctx.down([["DATA", { kind: "invalid", error: invalid }]]);

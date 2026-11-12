@@ -1,4 +1,3 @@
-import { depLatest } from "../../ctx/types.js";
 import type { DataIssue } from "../../data/index.js";
 import type { Graph } from "../../graph/graph.js";
 import { canonicalTupleKey, compoundTupleKey } from "../../identity.js";
@@ -341,8 +340,8 @@ export function agenticMemoryRecordMaterializerBundle<T = unknown>(
 			ctx.down([
 				[
 					"DATA",
-					materializeAgenticMemoryRecordChanges<T>(depLatest(ctx, 1), {
-						records: depLatest(ctx, 0) as readonly AgenticMemoryRecord<T>[] | undefined,
+					materializeAgenticMemoryRecordChanges<T>(ctx.deps[1]?.value, {
+						records: ctx.deps[0].value as readonly AgenticMemoryRecord<T>[] | undefined,
 						materializerId: opts.materializerId,
 						evaluation: state.evaluation,
 					}),

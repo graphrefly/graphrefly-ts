@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Ctx, Message } from "../index.js";
-import { depLatest, graph } from "../index.js";
+import { graph } from "../index.js";
 import type { Wave } from "../protocol/messages.js";
 
 function collect(n: { subscribe(s: (m: Wave) => void): () => void }) {
@@ -22,7 +22,7 @@ describe("async pool (R-sync-core async label, R8 late-emit pairing)", () => {
 		const dbl = g.node<number>(
 			[a],
 			(ctx: Ctx) => {
-				const v = depLatest(ctx, 0) as number;
+				const v = ctx.deps[0].value as number;
 				resolve = () => ctx.down([["DATA", v * 2]]);
 			},
 			{ pool: "async" },

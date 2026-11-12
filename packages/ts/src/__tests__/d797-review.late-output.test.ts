@@ -7,7 +7,7 @@
 
 import { describe, expect, it } from "vitest";
 import type { Ctx } from "../ctx/types.js";
-import { depBatch } from "../ctx/types.js";
+
 import { graph, type Message } from "../index.js";
 
 const values = (msgs: readonly Message[]) => msgs.filter((m) => m[0] === "DATA").map((m) => m[1]);
@@ -73,7 +73,7 @@ describe("late output and closed lifetimes (D797 review)", () => {
 		const q = g.node<number>(
 			[up],
 			(ctx) => {
-				for (const v of depBatch(ctx, 0) ?? []) ctx.down([["DATA", (v as number) * 10]]);
+				for (const v of ctx.deps[0].waves.flat()) ctx.down([["DATA", (v as number) * 10]]);
 			},
 			{ name: "q", quiet: true },
 		);
@@ -99,7 +99,7 @@ describe("late output and closed lifetimes (D797 review)", () => {
 		const q = g.node<number>(
 			[up],
 			(ctx) => {
-				for (const v of depBatch(ctx, 0) ?? []) if (v === 1) ctx.down([["DATA", 100]]);
+				for (const v of ctx.deps[0].waves.flat()) if (v === 1) ctx.down([["DATA", 100]]);
 			},
 			{ name: "q", quiet: true },
 		);
@@ -108,7 +108,8 @@ describe("late output and closed lifetimes (D797 review)", () => {
 		up.subscribe((msgs) => {
 			if (values(msgs).includes(1))
 				g.replace(q, [up], (ctx) => {
-					if (depBatch(ctx, 0) !== null) ctx.down([["DATA", 999]]);
+					if ((ctx.deps[0].waves.length === 0 ? null : ctx.deps[0].waves.flat()) !== null)
+						ctx.down([["DATA", 999]]);
 				});
 		});
 		const seen: unknown[] = [];
@@ -125,7 +126,7 @@ describe("late output and closed lifetimes (D797 review)", () => {
 		const q = g.node<string>(
 			[up],
 			(ctx) => {
-				if (depBatch(ctx, 0) === null) return;
+				if ((ctx.deps[0].waves.length === 0 ? null : ctx.deps[0].waves.flat()) === null) return;
 				ctx.down([["DATA", "a"]]);
 				ctx.down([["DATA", "b"]]);
 			},
@@ -135,7 +136,7 @@ describe("late output and closed lifetimes (D797 review)", () => {
 		const d = g.node<number>(
 			[q],
 			(ctx) => {
-				runs.push(ctx.waveData[0]!.map((w) => [...w]));
+				runs.push(ctx.deps[0].waves.map((w) => [...w]));
 			},
 			{ name: "d" },
 		);
@@ -157,7 +158,7 @@ describe("late output and closed lifetimes (D797 review)", () => {
 		const q = g.node<number>(
 			[up],
 			(ctx) => {
-				if (depBatch(ctx, 0) === null) return;
+				if ((ctx.deps[0].waves.length === 0 ? null : ctx.deps[0].waves.flat()) === null) return;
 				try {
 					ctx.down([["COMPLETE"], ["DATA", 1]]);
 				} catch (e) {

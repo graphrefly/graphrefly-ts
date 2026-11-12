@@ -7,15 +7,14 @@ import {
 } from "../batch/batch.js";
 import { deferRequest } from "../batch/boundary.js";
 import {
-	CTX_DEP_CACHE,
 	CTX_NODE_BINDING,
 	type Ctx,
+	type CtxDep,
 	type CtxState,
+	type DepTerminal,
 	setCtxDepWaveOrigin,
-	type TerminalData,
-	type WaveData,
 } from "../ctx/types.js";
-import type { Message, Wave } from "../protocol/messages.js";
+import { type Message, SENTINEL, type Wave } from "../protocol/messages.js";
 import type { Node } from "./node.js";
 import { prepareArrays } from "./node-output-runtime.js";
 import {
@@ -24,8 +23,8 @@ import {
 	nodeRequestRewireDiff,
 } from "./node-rewire-runtime.js";
 import type { NodeRuntimeHost } from "./node-runtime-host.js";
-import { terminalView, validateNodeOutput } from "./protocol-guards.js";
-import { withEnvironmentDrivers, withNodeCore } from "./runtime-accessors.js";
+import { validateNodeOutput } from "./protocol-guards.js";
+import { graphNodeIdOf, withEnvironmentDrivers, withNodeCore } from "./runtime-accessors.js";
 
 export function nodeBuildCtx<T>(self: NodeRuntimeHost<T>): Ctx {
 	const kind = self._slot.handle
@@ -40,10 +39,70 @@ export function nodeBuildCtx<T>(self: NodeRuntimeHost<T>): Ctx {
 	return self._makeCtx({
 		waveData: self._dep.waveData.map((waves) => waves.map((w) => [...w])),
 		waveLive: self._dep.waveLive.map((waves) => [...waves]),
-		terminal: self._dep.terminalInput.map(terminalView),
+		terminal: [...self._dep.terminalInput],
 		invalidated: nodeInvalidatedView(self),
 		latest: [...self._dep.prev],
+		has: [...self._dep.hasData],
 	});
+}
+
+/** What a ctx's dependency views read: the node's live inputs, or an async run's snapshot. */
+interface DepInputs {
+	readonly waveData: readonly (readonly unknown[])[][];
+	readonly terminal: readonly (true | unknown | undefined)[];
+	readonly invalidated: readonly boolean[];
+	readonly latest: readonly unknown[];
+	readonly has: readonly boolean[];
+}
+
+const COMPLETE: DepTerminal = Object.freeze({ kind: "complete" });
+const NO_WAVES: readonly (readonly unknown[])[] = Object.freeze([]);
+
+function depTerminalOf(t: unknown): DepTerminal | undefined {
+	if (t === undefined) return undefined;
+	return t === true ? COMPLETE : { kind: "error", error: t };
+}
+
+/**
+ * One dependency's view (R-invocation@2): an array keeps its boundary; markers are not values.
+ * Without `snapshot` it reads the node's live inputs, so a reused sync ctx needs no refresh.
+ */
+function makeDepView<T>(self: NodeRuntimeHost<T>, index: number, snapshot?: DepInputs): CtxDep {
+	let idNode: Node<unknown> | undefined;
+	let id = "";
+	return {
+		get id() {
+			const dep = self._slot.deps[index] as Node<unknown>;
+			if (dep !== idNode) {
+				idNode = dep;
+				id = graphNodeIdOf(dep);
+			}
+			return id;
+		},
+		get waves() {
+			const arrays = (snapshot ?? self._dep).waveData[index];
+			if (arrays === undefined || arrays.length === 0) return NO_WAVES;
+			return arrays.map((a) => (a.includes(SENTINEL) ? a.filter((v) => v !== SENTINEL) : a));
+		},
+		get terminal() {
+			return depTerminalOf(snapshot ? snapshot.terminal[index] : self._dep.terminalInput[index]);
+		},
+		get value() {
+			return snapshot ? snapshot.latest[index] : self._dep.prev[index];
+		},
+		get has() {
+			return (snapshot ? snapshot.has[index] : self._dep.hasData[index]) === true;
+		},
+		get invalidated() {
+			if (snapshot) return snapshot.invalidated[index] === true;
+			return self._slot.invalidatePolicy === "manual" && self._dep.invalidated[index] === true;
+		},
+	};
+}
+
+/** The dependency views of a ctx, one per current dependency. */
+function makeDepViews<T>(self: NodeRuntimeHost<T>, snapshot?: DepInputs): CtxDep[] {
+	return self._slot.deps.map((_, i) => makeDepView(self, i, snapshot));
 }
 
 export function nodeMakeCtx<T>(
@@ -54,8 +113,19 @@ export function nodeMakeCtx<T>(
 		terminal: unknown[];
 		invalidated?: boolean[];
 		latest: unknown[];
+		has: boolean[];
 	},
 ): Ctx {
+	const inputs: DepInputs | undefined =
+		snapshot === undefined
+			? undefined
+			: {
+					waveData: snapshot.waveData,
+					terminal: snapshot.terminal,
+					invalidated: snapshot.invalidated ?? [],
+					latest: snapshot.latest,
+					has: snapshot.has,
+				};
 	// R-lifetime: every ctx belongs to exactly one lifetime; output through a ctx whose lifetime has
 	// closed is dropped.
 	const signal = nodeLifetimeSignal(self);
@@ -87,14 +157,11 @@ export function nodeMakeCtx<T>(
 		emit: (...values) => {
 			if (values.length > 0) ctx.down(values.map((v) => ["DATA", v] as const));
 		},
-		waveData: snapshot?.waveData ?? self._dep.waveData,
-		terminal: snapshot?.terminal ?? self._dep.terminalInput.map(terminalView),
-		invalidated: snapshot?.invalidated ?? nodeInvalidatedView(self),
+		deps: makeDepViews(self, inputs),
 		state: self._makeState(signal),
 		signal,
 		environment: () => self._slot.environment,
 		rewire: (deps) => nodeRequestRewire(self, signal, [...deps]),
-		[CTX_DEP_CACHE]: { latest: snapshot?.latest ?? self._dep.prev },
 		[CTX_NODE_BINDING]: {
 			dispatcher: self._slot.dispatcher,
 			create: <U>(factory: () => Node<U>) =>
@@ -106,12 +173,6 @@ export function nodeMakeCtx<T>(
 		},
 	};
 	setCtxDepWaveOrigin(ctx, { live: snapshot?.waveLive ?? self._dep.waveLive });
-	if (self._slot.dynamic) {
-		// R-dynamic-node: read a dep's latest by index. Untracked deps still drive waves and
-		// re-run the fn; under D49 (no equals-substitution) the fn re-emits its current value
-		// as DATA — to suppress redundant downstream propagation, pair with distinctUntilChanged.
-		ctx.track = (i: number) => ctx[CTX_DEP_CACHE]?.latest[i];
-	}
 	return ctx;
 }
 
@@ -122,10 +183,9 @@ export function nodeLifetimeSignal<T>(self: NodeRuntimeHost<T>): AbortSignal {
 }
 
 export function nodeRefreshCtx<T>(self: NodeRuntimeHost<T>, ctx: Ctx): void {
-	(ctx as { waveData: WaveData }).waveData = self._dep.waveData;
-	(ctx as { terminal: TerminalData }).terminal = self._dep.terminalInput.map(terminalView);
-	(ctx as { invalidated: readonly boolean[] }).invalidated = nodeInvalidatedView(self);
-	ctx[CTX_DEP_CACHE] = { latest: self._dep.prev };
+	// The views read the node's live inputs; only a rewire changes how many there are.
+	if (ctx.deps.length !== self._slot.deps.length)
+		(ctx as { deps: readonly CtxDep[] }).deps = makeDepViews(self);
 	setCtxDepWaveOrigin(ctx, { live: self._dep.waveLive });
 }
 

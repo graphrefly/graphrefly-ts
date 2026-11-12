@@ -1,4 +1,3 @@
-import { depBatch } from "../ctx/types.js";
 import type { Graph } from "../graph/graph.js";
 import type { Node } from "../node/node.js";
 import { oneArrayPerRun } from "../node/one-array-per-run.js";
@@ -78,7 +77,7 @@ export function localFixedWindowRateLimitBundle<T>(
 			if (current >= state.resetAtMs) {
 				state = { ...state, count: 0, resetAtMs: current + opts.windowMs };
 			}
-			for (const value of depBatch(ctx, 0) ?? []) {
+			for (const value of ctx.deps[0].waves.flat()) {
 				const allowed = state.count < opts.max;
 				state = allowed
 					? { ...state, count: state.count + 1, allowed: state.allowed + 1 }
@@ -113,7 +112,7 @@ export function localFixedWindowRateLimitBundle<T>(
 	const allowed = graph.node<T>(
 		[events],
 		oneArrayPerRun((ctx) => {
-			for (const event of depBatch(ctx, 0) ?? []) {
+			for (const event of ctx.deps[0].waves.flat()) {
 				const typed = event as LocalFixedWindowRateLimitEvent<T>;
 				if (typed.kind === "allowed") ctx.down([["DATA", typed.value]]);
 			}
@@ -123,7 +122,7 @@ export function localFixedWindowRateLimitBundle<T>(
 	const dropped = graph.node<T>(
 		[events],
 		oneArrayPerRun((ctx) => {
-			for (const event of depBatch(ctx, 0) ?? []) {
+			for (const event of ctx.deps[0].waves.flat()) {
 				const typed = event as LocalFixedWindowRateLimitEvent<T>;
 				if (typed.kind === "dropped") ctx.down([["DATA", typed.value]]);
 			}
@@ -133,7 +132,7 @@ export function localFixedWindowRateLimitBundle<T>(
 	const status = graph.node<LocalFixedWindowRateLimitStatus>(
 		[events],
 		oneArrayPerRun((ctx) => {
-			for (const event of depBatch(ctx, 0) ?? []) {
+			for (const event of ctx.deps[0].waves.flat()) {
 				ctx.down([["DATA", (event as LocalFixedWindowRateLimitEvent<T>).status]]);
 			}
 		}),

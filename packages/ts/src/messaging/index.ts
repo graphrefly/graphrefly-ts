@@ -5,7 +5,7 @@
  * subscription-cursor substrate. DynamicHub is intentionally retired; do not add aliases.
  */
 
-import { depBatch, depCount, type NodeFn } from "../ctx/types.js";
+import type { NodeFn } from "../ctx/types.js";
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
 import { canonicalTupleKey } from "../identity.js";
@@ -126,13 +126,13 @@ export function messageBus<TTopic extends string>(
 	const name = opts.name ?? "messageBus";
 	const initialTopics = uniqueTopics(opts.topics ?? []);
 	const commandBody: NodeFn = oneArrayPerRun((ctx) => {
-		for (let i = 0; i < depCount(ctx); i++) {
-			for (const command of depBatch(ctx, i) ?? []) ctx.down([["DATA", command]]);
+		for (let i = 0; i < ctx.deps.length; i++) {
+			for (const command of ctx.deps[i].waves.flat()) ctx.down([["DATA", command]]);
 		}
 		// Only the publish input (dep 0) ends the bus; an attached source ending leaves it open.
-		const ended = ctx.terminal[0];
-		if (ended === true) ctx.down([["COMPLETE"]]);
-		else if (ended !== false && ended !== undefined) ctx.down([["ERROR", ended]]);
+		const ended = ctx.deps[0].terminal;
+		if (ended?.kind === "complete") ctx.down([["COMPLETE"]]);
+		else if (ended?.kind === "error") ctx.down([["ERROR", ended.error]]);
 	});
 	// The bus's host input: publishes are written here and forwarded by the command node, which also
 	// rewires itself to attached command sources (graphrefly-ts:D175, no host write to a computed node).
@@ -172,7 +172,7 @@ export function messageBus<TTopic extends string>(
 	const runtime = graph.node<RuntimeEvent>(
 		[commands],
 		oneArrayPerRun((ctx) => {
-			for (const command of depBatch(ctx, 0) ?? []) {
+			for (const command of ctx.deps[0].waves.flat()) {
 				for (const event of reduceMessageBusCommand(state, command as MessageBusCommand)) {
 					ctx.down([["DATA", event]]);
 				}
@@ -189,7 +189,7 @@ export function messageBus<TTopic extends string>(
 	const messages = graph.node<MessageBusMessage>(
 		[runtime],
 		oneArrayPerRun((ctx) => {
-			for (const event of depBatch(ctx, 0) ?? []) {
+			for (const event of ctx.deps[0].waves.flat()) {
 				const typed = event as RuntimeEvent;
 				if (typed.kind === "message") ctx.down([["DATA", typed.message]]);
 			}
@@ -204,7 +204,7 @@ export function messageBus<TTopic extends string>(
 	const status = graph.node<MessageBusStatus>(
 		[runtime],
 		oneArrayPerRun((ctx) => {
-			for (const event of depBatch(ctx, 0) ?? []) {
+			for (const event of ctx.deps[0].waves.flat()) {
 				const typed = event as RuntimeEvent;
 				if (typed.kind === "status") ctx.down([["DATA", typed.status]]);
 			}
@@ -219,7 +219,7 @@ export function messageBus<TTopic extends string>(
 	const issues = graph.node<DataIssue>(
 		[runtime],
 		oneArrayPerRun((ctx) => {
-			for (const event of depBatch(ctx, 0) ?? []) {
+			for (const event of ctx.deps[0].waves.flat()) {
 				const typed = event as RuntimeEvent;
 				if (typed.kind === "issue") ctx.down([["DATA", typed.issue]]);
 			}
@@ -381,7 +381,7 @@ export function messageBus<TTopic extends string>(
 			const cursor = graph.node<MessageBusCursor>(
 				[status],
 				oneArrayPerRun((ctx) => {
-					for (const fact of depBatch(ctx, 0) ?? []) {
+					for (const fact of ctx.deps[0].waves.flat()) {
 						const typed = fact as MessageBusStatus;
 						const subscriptionMoved =
 							typed.topic === sub.topic &&
@@ -470,7 +470,7 @@ export function toTopic<T, TTopic extends string>(
 	const commands = graph.node<MessageBusCommand<T>>(
 		[source],
 		oneArrayPerRun((ctx) => {
-			for (const value of depBatch(ctx, 0) ?? []) {
+			for (const value of ctx.deps[0].waves.flat()) {
 				const key = opts.keyOf?.(value);
 				const commandId = opts.commandIdOf?.(value);
 				ctx.down([

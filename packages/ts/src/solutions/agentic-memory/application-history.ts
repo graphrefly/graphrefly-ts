@@ -1,4 +1,3 @@
-import { depLatest } from "../../ctx/types.js";
 import type { DataIssue } from "../../data/index.js";
 import type { Graph } from "../../graph/graph.js";
 import { canonicalTupleKey } from "../../identity.js";
@@ -212,7 +211,7 @@ export function agenticMemoryRecordApplicationPriorEvidenceBundle(
 			ctx.down([
 				[
 					"DATA",
-					projectAgenticMemoryRecordApplicationPriorEvidence(depLatest(ctx, 0), {
+					projectAgenticMemoryRecordApplicationPriorEvidence(ctx.deps[0].value, {
 						evaluation: state.evaluation,
 					}),
 				],
@@ -294,7 +293,7 @@ export function agenticMemoryRecordApplicationEvidenceFactsBundle<T = unknown>(
 			ctx.down([
 				[
 					"DATA",
-					projectAgenticMemoryRecordApplicationEvidenceFacts<T>(depLatest(ctx, 0), {
+					projectAgenticMemoryRecordApplicationEvidenceFacts<T>(ctx.deps[0].value, {
 						evaluation: state.evaluation,
 					}),
 				],

@@ -1,4 +1,3 @@
-import { depLatest } from "../../ctx/types.js";
 import type { Graph } from "../../graph/graph.js";
 import type {
 	FactId,
@@ -55,9 +54,9 @@ export function agenticMemoryKgProjectionBundle(
 				ctx.state.get<{ evaluation: number }>() ??
 				({ evaluation: 0 } satisfies { evaluation: number });
 			state.evaluation += 1;
-			const recordProjection = validateAndProjectRecords(depLatest(ctx, 0));
+			const recordProjection = validateAndProjectRecords(ctx.deps[0].value);
 			const draftProjection = validateAndProjectKgDrafts(
-				depLatest(ctx, 1),
+				ctx.deps[1]?.value,
 				recordProjection.records,
 			);
 			const cursor: AgenticMemoryKgProjectionCursor = Object.freeze({

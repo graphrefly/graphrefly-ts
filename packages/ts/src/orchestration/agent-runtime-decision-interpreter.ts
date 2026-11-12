@@ -1,4 +1,4 @@
-import { type Ctx, depBatch } from "../ctx/types.js";
+import type { Ctx } from "../ctx/types.js";
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
 import type { Node } from "../node/node.js";
@@ -66,7 +66,7 @@ export function structuredAgentDecisionInterpreter(
 				const fact = raw as AgentRequestFact;
 				if (fact.kind === "issued") state.requests.set(fact.requestId, fact);
 			});
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const outcome = raw as ExecutorOutcome;
 				if (outcome.kind !== "result") {
 					state.issueSeq += 1;

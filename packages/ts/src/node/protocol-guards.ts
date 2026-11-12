@@ -1,9 +1,5 @@
 import { isInvalidErrorPayload, isMessageType, type Wave } from "../protocol/messages.js";
 
-export function terminalView(t: unknown): unknown {
-	return t === undefined ? false : t;
-}
-
 export function validateDownPayloads(msgs: Wave): void {
 	for (const m of msgs) {
 		if (!isMessageType(m[0])) {

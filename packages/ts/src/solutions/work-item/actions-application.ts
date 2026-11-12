@@ -1,4 +1,4 @@
-import { type Ctx, depBatch } from "../../ctx/types.js";
+import type { Ctx } from "../../ctx/types.js";
 import type { Graph } from "../../graph/graph.js";
 import type { SourceRef } from "../../orchestration/agent-runtime.js";
 import type {
@@ -74,7 +74,7 @@ export function workItemDomainActionApplicationProjector<TInput = unknown>(
 				statusSeq: 0,
 				auditSeq: 0,
 			};
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const proposal = raw as WorkItemDomainActionProposal;
 				if (state.proposals.has(proposal.proposalId)) {
 					emitApplicationIssue(
@@ -90,17 +90,17 @@ export function workItemDomainActionApplicationProjector<TInput = unknown>(
 				}
 				state.proposals.set(proposal.proposalId, proposal);
 			}
-			for (const raw of depBatch(ctx, 2) ?? []) {
+			for (const raw of ctx.deps[2]?.waves.flat() ?? []) {
 				const workItem = raw as WorkItemProjection<TInput>;
 				state.workItems.set(workItem.workItemId, workItem);
 			}
 			if (opts.applyPolicies !== undefined) {
-				for (const raw of depBatch(ctx, 3) ?? []) {
+				for (const raw of ctx.deps[3]?.waves.flat() ?? []) {
 					const policy = raw as WorkItemDomainActionApplyPolicy;
 					state.policies.set(policy.policyId, policy);
 				}
 			}
-			for (const raw of depBatch(ctx, 1) ?? []) {
+			for (const raw of ctx.deps[1]?.waves.flat() ?? []) {
 				const admission = raw as WorkItemDomainActionAdmission;
 				if (state.admissions.has(admission.admissionId)) {
 					emitApplicationIssue(

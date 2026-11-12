@@ -6,7 +6,7 @@
  * hidden sink side channel.
  */
 
-import { type Ctx, depBatch } from "../ctx/types.js";
+import type { Ctx } from "../ctx/types.js";
 import type {
 	DriverCancel,
 	WebSocketRequest,
@@ -493,7 +493,7 @@ function webSocketSessionEventNode(
 				]);
 			};
 
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const commandValue = raw as WebSocketSessionCommand;
 				if (commandValue.kind === "start") start(1);
 				else if (commandValue.kind === "send") send(commandValue.message);
@@ -539,7 +539,7 @@ function webSocketSessionNodes(
 	const inbound = graph.node<WebSocketSessionInbound>(
 		[events],
 		oneArrayPerRun((ctx) => {
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const event = raw as WebSocketSessionEvent;
 				if (event.kind === "message") ctx.down([["DATA", event.message]]);
 			}
@@ -549,7 +549,7 @@ function webSocketSessionNodes(
 	const lifecycle = graph.node<WebSocketSessionLifecycle>(
 		[events],
 		oneArrayPerRun((ctx) => {
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const event = raw as WebSocketSessionEvent;
 				if (event.kind === "attempt") {
 					ctx.down([
@@ -591,7 +591,7 @@ function webSocketSessionNodes(
 	const outbound = graph.node<WebSocketSessionOutbound>(
 		[events],
 		oneArrayPerRun((ctx) => {
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const event = raw as WebSocketSessionEvent;
 				if (event.kind === "outbound") ctx.down([["DATA", event.fact]]);
 			}
@@ -611,7 +611,7 @@ function webSocketSessionNodes(
 					received: 0,
 					errors: 0,
 				} satisfies WebSocketSessionStatus);
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const event = raw as WebSocketSessionEvent;
 				if (event.kind === "attempt") {
 					next = {
@@ -663,7 +663,7 @@ function webSocketSessionNodes(
 	const errors = graph.node<unknown>(
 		[events],
 		oneArrayPerRun((ctx) => {
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const event = raw as WebSocketSessionEvent;
 				if ("error" in event) ctx.down([["DATA", event.error]]);
 			}
@@ -673,7 +673,7 @@ function webSocketSessionNodes(
 	const attempts = graph.node<number>(
 		[events],
 		oneArrayPerRun((ctx) => {
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const event = raw as WebSocketSessionEvent;
 				if (event.kind === "attempt") ctx.down([["DATA", event.attempt]]);
 			}

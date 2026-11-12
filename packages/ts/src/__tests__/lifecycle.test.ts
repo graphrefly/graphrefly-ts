@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Ctx, Message } from "../index.js";
-import { depLatest, graph } from "../index.js";
+import { graph } from "../index.js";
 import type { Wave } from "../protocol/messages.js";
 
 function collect(n: { subscribe(s: (m: Wave) => void): () => void }) {
@@ -19,7 +19,7 @@ describe("terminal (R-terminal, R-deps-terminal)", () => {
 		const g = graph();
 		const a = g.node<number>([], null, { initial: 1 });
 		const d = g.node<number>([a], (ctx: Ctx) =>
-			ctx.down([["DATA", (depLatest(ctx, 0) as number) + 1]]),
+			ctx.down([["DATA", (ctx.deps[0].value as number) + 1]]),
 		);
 		const { msgs } = collect(d);
 		msgs.length = 0;
@@ -36,7 +36,7 @@ describe("terminal (R-terminal, R-deps-terminal)", () => {
 		const a = g.node<number>([], null, { initial: 1 });
 		const b = g.node<number>([], null, { initial: 2 });
 		const d = g.node<number>([a, b], (ctx: Ctx) =>
-			ctx.down([["DATA", (depLatest(ctx, 0) as number) + (depLatest(ctx, 1) as number)]]),
+			ctx.down([["DATA", (ctx.deps[0].value as number) + (ctx.deps[1].value as number)]]),
 		);
 		const { msgs } = collect(d);
 		msgs.length = 0;
@@ -112,12 +112,12 @@ describe("INVALIDATE (R-invalidation)", () => {
 		const d = g.node<number>(
 			[a],
 			(ctx: Ctx) => {
-				if (ctx.invalidated[0]) {
+				if (ctx.deps[0].invalidated) {
 					flushed++;
 					ctx.down([["INVALIDATE"]]);
 					return;
 				}
-				ctx.down([["DATA", (depLatest(ctx, 0) as number) * 2]]);
+				ctx.down([["DATA", (ctx.deps[0].value as number) * 2]]);
 			},
 			{ invalidate: "manual" },
 		);

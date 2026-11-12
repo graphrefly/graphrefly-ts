@@ -8,7 +8,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { type Ctx, depBatch, depLatest } from "../ctx/types.js";
+import type { Ctx } from "../ctx/types.js";
 import { graph } from "../graph/graph.js";
 import type { Message, Wave } from "../protocol/messages.js";
 
@@ -18,7 +18,7 @@ function arrays(): { log: Wave[]; sink: (msgs: Wave) => void } {
 	return { log, sink: (msgs) => log.push(msgs) };
 }
 
-const cloneWaves = (ctx: Ctx) => ctx.waveData.map((waves) => waves.map((wave) => [...wave]));
+const cloneWaves = (ctx: Ctx) => ctx.deps.map((d) => d.waves.map((wave) => [...wave]));
 
 describe("C-12: occurrences stay DATA; RESOLVED only settles a node that sent nothing", () => {
 	it("(a) equal values are distinct occurrences", () => {
@@ -68,14 +68,14 @@ describe("C-16: a quiet node absorbs its input waves without leaving dependents 
 			(ctx) => {
 				kept = ctx;
 				const held = ctx.state.get<number[]>() ?? [];
-				ctx.state.set([...held, ...((depBatch(ctx, 0) ?? []) as number[])]);
+				ctx.state.set([...held, ...(ctx.deps[0].waves.flat() as number[])]);
 			},
 			{ quiet: true },
 		);
 		let eRuns = 0;
 		const e = g.node<number>([q], (ctx) => {
 			eRuns++;
-			ctx.down([["DATA", (depBatch(ctx, 0) ?? []).length]]);
+			ctx.down([["DATA", ctx.deps[0].waves.flat().length]]);
 		});
 		const s = arrays();
 		q.subscribe(s.sink);
@@ -122,7 +122,7 @@ describe("R-subscription: subscribing activates first; the first array is START 
 	});
 });
 
-describe("C-23: ctx.waveData, ctx.terminal and the latest value are the function's only input", () => {
+describe("C-23: each ctx.deps entry (waves, terminal, latest value) is the function's only input", () => {
 	it("gives each dependency its arrays, terminal and latest value", () => {
 		const g = graph();
 		const captures: { waves: unknown[][][]; terminal: unknown[]; latest: unknown[] }[] = [];
@@ -131,7 +131,7 @@ describe("C-23: ctx.waveData, ctx.terminal and the latest value are the function
 		// sends the plan's output instead.
 		let plan: ((ctx: Ctx) => void) | undefined;
 		const a = g.node<unknown>([trigger], (ctx) => {
-			const v = depLatest(ctx, 0) as number;
+			const v = ctx.deps[0].value as number;
 			if (plan !== undefined) {
 				const run = plan;
 				plan = undefined;
@@ -148,8 +148,8 @@ describe("C-23: ctx.waveData, ctx.terminal and the latest value are the function
 			(ctx) => {
 				captures.push({
 					waves: cloneWaves(ctx),
-					terminal: [...ctx.terminal],
-					latest: [depLatest(ctx, 0), depLatest(ctx, 1)],
+					terminal: ctx.deps.map((d) => d.terminal),
+					latest: [ctx.deps[0].value, ctx.deps[1].value],
 				});
 			},
 			{ complete: "manual", error: "manual" },
@@ -177,7 +177,7 @@ describe("C-23: ctx.waveData, ctx.terminal and the latest value are the function
 			sendFromA(5, (ctx) => ctx.down([["COMPLETE"]]));
 			b.error(e);
 		});
-		expect(captures.at(-1)?.terminal).toEqual([true, e]);
+		expect(captures.at(-1)?.terminal).toEqual([{ kind: "complete" }, { kind: "error", error: e }]);
 		expect(captures.at(-1)?.waves.flat(2)).toEqual([]);
 		// (f) DATA SENTINEL is rejected
 		const c = g.node<unknown>([], null);
@@ -193,7 +193,7 @@ describe("C-28: intact output arrays, kernel-only PENDING prefixes and written o
 		const a = g.node<number>([t], (ctx) => send(ctx), { name: "a" });
 		// graphrefly-ts:D184: a kernel node runs on activation even before its input has a value.
 		const relay = (ctx: Ctx) => {
-			const v = depLatest(ctx, 0) as number | undefined;
+			const v = ctx.deps[0].value as number | undefined;
 			if (v !== undefined) ctx.down([["DATA", v]]);
 		};
 		const b = g.node<number>([a], relay, { name: "b" });
@@ -202,7 +202,7 @@ describe("C-28: intact output arrays, kernel-only PENDING prefixes and written o
 		const d = g.node<number>(
 			[b, c],
 			(ctx) => {
-				seen.push([depLatest(ctx, 0), depLatest(ctx, 1)]);
+				seen.push([ctx.deps[0].value, ctx.deps[1].value]);
 				ctx.down([["DATA", 0]]);
 			},
 			{ name: "d" },
@@ -309,7 +309,7 @@ describe("C-41: the snapshot is the node's last array that carried DATA", () => 
 			4: [["INVALIDATE"]],
 		};
 		const n = g.node<number>([a], (ctx) => {
-			const out = plan[depLatest(ctx, 0) as number];
+			const out = plan[ctx.deps[0].value as number];
 			if (out) ctx.down(out);
 		});
 		n.subscribe(() => {});
@@ -334,7 +334,7 @@ describe("C-41: the snapshot is the node's last array that carried DATA", () => 
 	it("a batch is one array, so a state's snapshot carries both values; deactivation keeps a state's", () => {
 		const g = graph();
 		const q = g.state(0, { name: "q" });
-		const n = g.node<number>([q], (ctx) => ctx.down([["DATA", depLatest(ctx, 0) as number]]), {
+		const n = g.node<number>([q], (ctx) => ctx.down([["DATA", ctx.deps[0].value as number]]), {
 			name: "n",
 		});
 		const stop = n.subscribe(() => {});
@@ -358,7 +358,7 @@ describe("C-44 (value and quiet-node clauses): the kernel adds only the settling
 		const g = graph();
 		const a = g.node<number>([], null, { initial: 0 });
 		const f = g.node<number>([a], (ctx) => {
-			const v = depLatest(ctx, 0) as number;
+			const v = ctx.deps[0].value as number;
 			if (v % 2 === 0) ctx.down([["DATA", v]]);
 		});
 		let kept: Ctx | undefined;
@@ -366,7 +366,7 @@ describe("C-44 (value and quiet-node clauses): the kernel adds only the settling
 			[a],
 			(ctx) => {
 				kept = ctx;
-				const v = depLatest(ctx, 0) as number;
+				const v = ctx.deps[0].value as number;
 				if (v === 2) ctx.down([["DATA", 20]]);
 			},
 			{ quiet: true },
@@ -375,7 +375,7 @@ describe("C-44 (value and quiet-node clauses): the kernel adds only the settling
 		const d = g.node<number>(
 			[a, q],
 			(ctx) => {
-				dSaw.push([depLatest(ctx, 0), depLatest(ctx, 1)]);
+				dSaw.push([ctx.deps[0].value, ctx.deps[1].value]);
 				ctx.down([["DATA", 0]]);
 			},
 			{},

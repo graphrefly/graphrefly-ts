@@ -1,4 +1,3 @@
-import { depBatch } from "../ctx/types.js";
 import { eachInputArray } from "../graph/each-input-array.js";
 import type { Graph } from "../graph/graph.js";
 import { compoundTupleKey } from "../identity.js";
@@ -176,7 +175,7 @@ export function attachKeyedRateLimitAuthority(
 				if (inRun) pending.push(...msgs);
 				else ctx.down(msgs);
 			};
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				if (!state.active) break;
 				let request: KeyedRateLimitRequest;
 				try {

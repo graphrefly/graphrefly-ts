@@ -1,4 +1,3 @@
-import { depLatest } from "../../ctx/types.js";
 import type { DataIssue } from "../../data/index.js";
 import type { Graph } from "../../graph/graph.js";
 import { canonicalTupleKey, compoundTupleKey } from "../../identity.js";
@@ -135,7 +134,7 @@ export function agenticMemoryRecordAdmissionPolicySourceBundle(
 			ctx.down([
 				[
 					"DATA",
-					projectAgenticMemoryRecordAdmissionPolicySource(depLatest(ctx, 0), {
+					projectAgenticMemoryRecordAdmissionPolicySource(ctx.deps[0].value, {
 						evaluation: state.evaluation,
 					}),
 				],

@@ -1,4 +1,4 @@
-import { type Ctx, depBatch } from "../ctx/types.js";
+import type { Ctx } from "../ctx/types.js";
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
 import type { Node } from "../node/node.js";
@@ -104,7 +104,7 @@ export function requestSatisfactionProjector(
 				issueSeq: 0,
 				auditSeq: 0,
 			};
-			for (const fact of depBatch(ctx, 0) ?? []) {
+			for (const fact of ctx.deps[0].waves.flat()) {
 				if ((fact as AgentRequestFact).kind === "issued") {
 					const request = fact as AgentRequestIssued;
 					state.requests.set(request.requestId, request);
@@ -141,7 +141,7 @@ export function requestSatisfactionProjector(
 	const status = graph.node<AgentRequestStatusChanged>(
 		[runtime],
 		oneArrayPerRun((ctx) => {
-			for (const fact of depBatch(ctx, 0) ?? []) {
+			for (const fact of ctx.deps[0].waves.flat()) {
 				const typed = fact as AgentRequestSatisfactionFact;
 				if (typed.kind === "status") ctx.down([["DATA", typed.status]]);
 			}
@@ -151,7 +151,7 @@ export function requestSatisfactionProjector(
 	const issues = graph.node<DataIssue>(
 		[runtime],
 		oneArrayPerRun((ctx) => {
-			for (const fact of depBatch(ctx, 0) ?? []) {
+			for (const fact of ctx.deps[0].waves.flat()) {
 				const typed = fact as AgentRequestSatisfactionFact;
 				if (typed.kind === "issue") ctx.down([["DATA", typed.issue]]);
 			}
@@ -161,7 +161,7 @@ export function requestSatisfactionProjector(
 	const audit = graph.node<AgentRuntimeAuditRecord>(
 		[runtime],
 		oneArrayPerRun((ctx) => {
-			for (const fact of depBatch(ctx, 0) ?? []) {
+			for (const fact of ctx.deps[0].waves.flat()) {
 				const typed = fact as AgentRequestSatisfactionFact;
 				if (typed.kind === "audit") ctx.down([["DATA", typed.audit]]);
 			}

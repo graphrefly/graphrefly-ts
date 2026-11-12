@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { Ctx } from "../index.js";
-import { depLatest, graph } from "../index.js";
+import { graph } from "../index.js";
 
-const plus1 = (ctx: Ctx) => ctx.down([["DATA", (depLatest(ctx, 0) as number) + 1]]);
+const plus1 = (ctx: Ctx) => ctx.down([["DATA", (ctx.deps[0].value as number) + 1]]);
 
 describe("C-6: a function's write to its own upstream is a later request, never a reentry", () => {
 	it("runs as a request after the wave; the loop ends when the composition stops writing", () => {
@@ -12,7 +12,7 @@ describe("C-6: a function's write to its own upstream is a later request, never 
 		const d = g.node<number>([s], plus1);
 		const runs: number[] = [];
 		const e = g.node<number>([d], (ctx: Ctx) => {
-			const v = depLatest(ctx, 0) as number;
+			const v = ctx.deps[0].value as number;
 			runs.push(v);
 			if (v < 3) s.set(v);
 		});
@@ -26,7 +26,7 @@ describe("C-6: a function's write to its own upstream is a later request, never 
 		const g = graph();
 		const s = g.node<number>([], null, { initial: 1 });
 		const d = g.node<number>([s], plus1);
-		const e = g.node<number>([d], (ctx: Ctx) => ctx.down([["DATA", depLatest(ctx, 0) as number]]));
+		const e = g.node<number>([d], (ctx: Ctx) => ctx.down([["DATA", ctx.deps[0].value as number]]));
 		expect(() => e.subscribe(() => {})).not.toThrow();
 		expect(e.cache).toBe(2);
 	});

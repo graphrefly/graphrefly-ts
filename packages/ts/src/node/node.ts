@@ -102,6 +102,7 @@ export {
 	isNodeRuntimeReleased,
 	releaseRuntimeOfNode,
 	restoreStateOfNode,
+	setGraphNodeIdResolver,
 	setNodeOwner,
 	setNodeTopologyDepsChangedObserver,
 	subscriberCountOfNode,
@@ -243,7 +244,6 @@ export class Node<T = unknown> {
 					declaredDeps: deps,
 					fn: typeof handleOrFn === "function" ? handleOrFn : null,
 					recipe: opts.recipe,
-					dynamic: opts.dynamic ?? false,
 					name: opts.name,
 					factory: opts.factory,
 				},
@@ -593,6 +593,7 @@ export class Node<T = unknown> {
 		terminal: unknown[];
 		invalidated?: boolean[];
 		latest: unknown[];
+		has: boolean[];
 	}): Ctx {
 		return nodeMakeCtx(nodeRuntimeHost(this), snapshot);
 	}

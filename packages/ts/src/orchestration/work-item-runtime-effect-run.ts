@@ -1,4 +1,3 @@
-import { depBatch } from "../ctx/types.js";
 import type { Graph } from "../graph/graph.js";
 import { compoundTupleKey } from "../identity.js";
 import type { Node } from "../node/node.js";
@@ -36,11 +35,11 @@ export function workItemEffectRunProjector(
 		[opts.workItems, opts.effectRequests],
 		oneArrayPerRun((ctx) => {
 			const state = ctx.state.get<WorkItemEffectRunState>() ?? emptyWorkItemEffectRunState();
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const workItem = raw as WorkItemSeed;
 				state.workItems.set(workItem.workItemId, workItem);
 			}
-			for (const raw of depBatch(ctx, 1) ?? []) {
+			for (const raw of ctx.deps[1]?.waves.flat() ?? []) {
 				const request = raw as WorkItemEffectRequested;
 				state.requests.set(request.requestId, request);
 				const requestRefs = workItemEffectRequestRefs(request);
@@ -222,12 +221,12 @@ export function workItemEffectRunProjector(
 					issues: [],
 					audit: [],
 				};
-				for (const raw of depBatch(ctx, 0) ?? []) {
+				for (const raw of ctx.deps[0].waves.flat()) {
 					const request = raw as WorkItemEffectRequested;
 					if (!state.settledRequestIds.has(request.requestId))
 						state.pendingEffectRequests.set(request.requestId, request);
 				}
-				for (const raw of depBatch(ctx, 1) ?? []) {
+				for (const raw of ctx.deps[1]?.waves.flat() ?? []) {
 					const fact = raw as WorkItemEffectRunFact;
 					if (fact.kind === "effect-run") {
 						for (const request of state.pendingEffectRequests.values()) {

@@ -1,5 +1,5 @@
 /** D170 consumer-private offline execution boundary; no public export or real inbox I/O. */
-import { depBatch, depLatest } from "../../packages/ts/src/ctx/types.js";
+
 import {
 	type ConstructionScope,
 	type OwnedConstruction,
@@ -240,7 +240,7 @@ export function buildOfflineSpendingHost(
 			if (
 				packFacts.deps.length !== 1 ||
 				packFacts.deps[0] !== inputs.evaluations.pack ||
-				depLatest(ctx, 0) === undefined
+				ctx.deps[0].value === undefined
 			) {
 				ctx.down([
 					[
@@ -258,7 +258,7 @@ export function buildOfflineSpendingHost(
 				return;
 			}
 			let original = ctx.state.get<string>();
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const value = checkInput<EvaluationPack>("pack", raw, binding);
 				if (value.valid) {
 					const digest = hash(value.value);
@@ -303,8 +303,8 @@ export function buildOfflineSpendingHost(
 				fault = "guard-dependency-mismatch";
 				return;
 			}
-			const view = depLatest(ctx, 0) as CommittedEffectsView | undefined;
-			const material = depLatest(ctx, 1) as MaterialSnapshot | undefined;
+			const view = ctx.deps[0].value as CommittedEffectsView | undefined;
+			const material = ctx.deps[1]?.value as MaterialSnapshot | undefined;
 			if (!view || !material) return;
 			if (
 				view.authorityId !== `${name}/causal/authority` ||
@@ -315,10 +315,10 @@ export function buildOfflineSpendingHost(
 				return;
 			}
 			const checked = <T>(index: number): T | undefined => {
-				const value = depLatest(ctx, index) as Checked<T> | undefined;
+				const value = ctx.deps[index].value as Checked<T> | undefined;
 				return value?.valid ? value.value : undefined;
 			};
-			const pack = depLatest(ctx, 6) as Checked<EvaluationPack> | undefined;
+			const pack = ctx.deps[6]?.value as Checked<EvaluationPack> | undefined;
 			const current = checked<CurrentFrame>(2),
 				verification = checked<VerificationFrame>(3),
 				local = checked<LocalAuthorityFrame>(4),
@@ -500,14 +500,14 @@ export function buildOfflineSpendingHost(
 			}
 			let domains = ctx.state.get<Map<string, CausalQuiescence>>();
 			if (!domains) domains = new Map();
-			if (depLatest(ctx, 0) === undefined) domains.clear();
-			for (const q of (depBatch(ctx, 0) ?? []) as CausalQuiescence[]) {
+			if (ctx.deps[0].value === undefined) domains.clear();
+			for (const q of ctx.deps[0].waves.flat() as CausalQuiescence[]) {
 				if (domains.has(q.revisionDomain) || domains.size < 64) domains.set(q.revisionDomain, q);
 			}
 			ctx.state.set(domains);
-			const view = depLatest(ctx, 1) as CommittedEffectsView | undefined;
-			const local = depLatest(ctx, 2) as Checked<LocalAuthorityFrame> | undefined;
-			const pack = depLatest(ctx, 3) as Checked<EvaluationPack> | undefined;
+			const view = ctx.deps[1]?.value as CommittedEffectsView | undefined;
+			const local = ctx.deps[2]?.value as Checked<LocalAuthorityFrame> | undefined;
+			const pack = ctx.deps[3]?.value as Checked<EvaluationPack> | undefined;
 			const frontierCovered =
 				!!pack?.valid &&
 				pack.value.evaluations.every((e) => {

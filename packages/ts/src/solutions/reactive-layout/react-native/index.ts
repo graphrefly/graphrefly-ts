@@ -1,4 +1,4 @@
-import { type Ctx, depLatest } from "../../../ctx/types.js";
+import type { Ctx } from "../../../ctx/types.js";
 import type { Graph } from "../../../graph/graph.js";
 import type { Node } from "../../../node/node.js";
 import {
@@ -122,7 +122,7 @@ export function reactNativeLayoutMeasurements(
 	return opts.graph.node<Measurements>(
 		[opts.probes],
 		(ctx: Ctx) => {
-			const probes = depLatest(ctx, 0) as readonly ReactNativeLayoutProbe[];
+			const probes = ctx.deps[0].value as readonly ReactNativeLayoutProbe[];
 			const facts: MeasurementFact<Size>[] = [];
 			for (let i = 0; i < probes.length; i += 1) {
 				const probe = (probes as readonly (ReactNativeLayoutProbe | undefined)[])[i];

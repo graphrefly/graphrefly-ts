@@ -29,7 +29,7 @@ import {
 	PlainPublication,
 	verifyPublicationMaterial,
 } from "../../../../scripts/fixtures/spending-publication-oracle.js";
-import { depBatch } from "../ctx/types.js";
+
 import {
 	constructionOf,
 	prepareConstruction,
@@ -147,7 +147,7 @@ function viewInput(f: ReturnType<typeof fixture>): StateNode<CommittedEffectsVie
 	const view = f.built.causal.committedEffects;
 	const input = f.graph.state(collect(view).last(), { name: "test/view" });
 	rewireOwnedNode(view as Node<unknown>, [input as Node<unknown>], (ctx) => {
-		for (const value of depBatch(ctx, 0) ?? []) ctx.down([["DATA", value]]);
+		for (const value of ctx.deps[0].waves.flat()) ctx.down([["DATA", value]]);
 	});
 	return input;
 }

@@ -1,5 +1,5 @@
 /** D164 consumer facts. Admission candidates never replace the sole causal authority. */
-import { type Ctx, depBatch, depLatest, depWaves } from "../../packages/ts/src/ctx/types.js";
+import type { Ctx } from "../../packages/ts/src/ctx/types.js";
 import type { Node } from "../../packages/ts/src/node/node.js";
 import { type Message, SENTINEL } from "../../packages/ts/src/protocol/messages.js";
 import type {
@@ -56,11 +56,11 @@ function collect(ctx: Ctx, count: number): RowsState {
 		ctx.state.set(s);
 	}
 	for (let i = 0; i < count; i++) {
-		if (depLatest(ctx, i) === undefined) {
+		if (ctx.deps[i].value === undefined) {
 			s.maps[i].clear();
 			s.valid[i] = false;
 		}
-		for (const raw of depWaves(ctx, i).flat()) {
+		for (const raw of ctx.deps[i].waves.flat()) {
 			if (raw === SENTINEL) {
 				s.maps[i].clear();
 				s.valid[i] = false;
@@ -81,7 +81,7 @@ function collect(ctx: Ctx, count: number): RowsState {
 	return s;
 }
 function latest<T>(ctx: Ctx, i: number): T | undefined {
-	const c = depLatest(ctx, i) as Checked<T> | undefined;
+	const c = ctx.deps[i].value as Checked<T> | undefined;
 	return c?.valid ? c.value : undefined;
 }
 export interface PolicyDecision {
@@ -320,7 +320,7 @@ export function buildAdmission(
 			// One policy pass per verification frame of this run, in arrival order: a delivery brings
 			// all of a wave's arrays to one run (R-wave), and each frame was the current verification
 			// when it arrived.
-			const frames = depWaves(ctx, 4)
+			const frames = (ctx.deps[4]?.waves ?? [])
 				.flat()
 				.filter((f) => (f as Checked<VerificationFrame>)?.valid)
 				.map((f) => (f as Checked<VerificationFrame> & { valid: true }).value);
@@ -334,7 +334,7 @@ export function buildAdmission(
 		(ctx) => {
 			const outputs: Message[] = [];
 			const emit = (messages: Message[]) => outputs.push(...messages);
-			for (const f of (depBatch(ctx, 0) ?? []) as BusinessFrame<Evaluation>[])
+			for (const f of ctx.deps[0].waves.flat() as BusinessFrame<Evaluation>[])
 				if (f.valid)
 					for (const { evaluation: e } of f.rows) {
 						const { occurrence, ...value } = e;
@@ -351,10 +351,9 @@ export function buildAdmission(
 			const emit = (messages: Message[]) => outputs.push(...messages);
 			const s = collect(ctx, 1);
 			if (!s.valid[0]) return;
-			const frames = (depBatch(ctx, 1) ?? [depLatest(ctx, 1)]) as (
-				| Checked<CurrentFrame>
-				| undefined
-			)[];
+			const frames = ((ctx.deps[1]?.waves.length ? (ctx.deps[1]?.waves.flat() ?? []) : null) ?? [
+				ctx.deps[1]?.value,
+			]) as (Checked<CurrentFrame> | undefined)[];
 			for (const checked of frames) {
 				if (!checked?.valid) continue;
 				const current = checked.value;
@@ -389,7 +388,7 @@ export function buildAdmission(
 			const outputs: Message[] = [];
 			const emit = (messages: Message[]) => outputs.push(...messages);
 			for (let i = 0; i < 3; i++)
-				for (const f of (depBatch(ctx, i) ?? []) as BusinessFrame<unknown>[])
+				for (const f of ctx.deps[i].waves.flat() as BusinessFrame<unknown>[])
 					if (f.valid)
 						for (const row of f.rows) {
 							const value =
@@ -412,7 +411,7 @@ export function buildAdmission(
 		(ctx) => {
 			const outputs: Message[] = [];
 			const emit = (messages: Message[]) => outputs.push(...messages);
-			for (const f of (depBatch(ctx, 0) ?? []) as BusinessFrame<PolicyDecision>[])
+			for (const f of ctx.deps[0].waves.flat() as BusinessFrame<PolicyDecision>[])
 				if (f.valid)
 					for (const row of f.rows) if (row.value.admission) emit([["DATA", row.value.admission]]);
 			if (outputs.length) ctx.down(outputs);
@@ -421,7 +420,7 @@ export function buildAdmission(
 	const effectOutcomes = make<CausalEffectOutcome>("effectOutcomes", [inboxFacts], (ctx) => {
 		const outputs: Message[] = [];
 		const emit = (messages: Message[]) => outputs.push(...messages);
-		for (const f of (depBatch(ctx, 0) ?? []) as Checked<InboxObservationFrame>[])
+		for (const f of ctx.deps[0].waves.flat() as Checked<InboxObservationFrame>[])
 			if (f.valid) for (const outcome of f.value.outcomes) emit([["DATA", outcome]]);
 		if (outputs.length) ctx.down(outputs);
 	});
@@ -434,7 +433,9 @@ export function buildAdmission(
 			const emit = (messages: Message[]) => outputs.push(...messages);
 			const s = collect(ctx, 2) as RowsState & { receipts?: Map<string, VerificationReceipt> };
 			s.receipts ??= new Map();
-			const verificationFrames = (depBatch(ctx, 2) ?? [depLatest(ctx, 2)]) as (
+			const verificationFrames = (((ctx.deps[2]?.waves ?? []).length === 0
+				? null
+				: (ctx.deps[2]?.waves.flat() ?? [])) ?? [ctx.deps[2]?.value]) as (
 				| Checked<VerificationFrame>
 				| undefined
 			)[];
@@ -517,7 +518,7 @@ export function buildAdmission(
 	const watermarks = make<CausalWatermark>("watermarks", [currentFacts], (ctx) => {
 		const outputs: Message[] = [];
 		const emit = (messages: Message[]) => outputs.push(...messages);
-		for (const f of (depBatch(ctx, 0) ?? []) as Checked<CurrentFrame>[])
+		for (const f of ctx.deps[0].waves.flat() as Checked<CurrentFrame>[])
 			if (f.valid)
 				for (const c of f.value.current)
 					emit([["DATA", { revisionDomain: c.revisionDomain, revision: c.watermark }]]);

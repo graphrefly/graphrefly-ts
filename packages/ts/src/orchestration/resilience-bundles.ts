@@ -1,4 +1,3 @@
-import { depBatch } from "../ctx/types.js";
 import type { Graph } from "../graph/graph.js";
 import {
 	type BackoffPolicy,
@@ -79,7 +78,7 @@ export function retryStatusBundle(
 			let next =
 				ctx.state.get<RetryStatus>() ??
 				({ state: "idle", attempt: 0, maxAttempts: policy.maxAttempts } satisfies RetryStatus);
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const event = raw as ResilienceEvent;
 				if (event.kind === "attempt") {
 					next = { state: "running", attempt: event.attempt, maxAttempts: policy.maxAttempts };
@@ -122,7 +121,7 @@ export function retryStatusBundle(
 	const errors = graph.node<unknown>(
 		[events],
 		oneArrayPerRun((ctx) => {
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const event = raw as ResilienceEvent;
 				if ("error" in event) ctx.down([["DATA", event.error]]);
 			}
@@ -169,7 +168,7 @@ export function breakerBundle(
 			) {
 				next = { ...next, state: "half-open" };
 			}
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const event = raw as ResilienceEvent;
 				if (event.kind === "success") {
 					next = { state: "closed", failures: 0 };
@@ -189,7 +188,7 @@ export function breakerBundle(
 	const allowed = graph.node<boolean>(
 		[status],
 		oneArrayPerRun((ctx) => {
-			const statusBatch = depBatch(ctx, 0) ?? [];
+			const statusBatch = ctx.deps[0].waves.flat();
 			for (const value of statusBatch) {
 				ctx.down([["DATA", (value as BreakerStatus).state !== "open"]]);
 			}
@@ -224,19 +223,19 @@ export function timeoutBundle<T>(
 	const status = graph.node<"running" | "completed" | "errored">(
 		[node],
 		(ctx) => {
-			const terminal = ctx.terminal[0];
-			if (terminal === true) ctx.down([["DATA", "completed"]]);
-			else if (terminal !== false && terminal !== undefined) ctx.down([["DATA", "errored"]]);
-			else if ((depBatch(ctx, 0) ?? []).length > 0) ctx.down([["DATA", "running"]]);
+			const terminal = ctx.deps[0].terminal;
+			if (terminal?.kind === "complete") ctx.down([["DATA", "completed"]]);
+			else if (terminal?.kind === "error") ctx.down([["DATA", "errored"]]);
+			else if (ctx.deps[0].waves.flat().length > 0) ctx.down([["DATA", "running"]]);
 		},
 		{ name: `${name}/status`, factory: "timeoutStatus" },
 	);
 	const errors = graph.node<unknown>(
 		[node],
 		(ctx) => {
-			const terminal = ctx.terminal[0];
-			if (terminal !== true && terminal !== false && terminal !== undefined) {
-				ctx.down([["DATA", terminal]]);
+			const terminal = ctx.deps[0].terminal;
+			if (terminal?.kind === "error") {
+				ctx.down([["DATA", terminal.error]]);
 			}
 		},
 		{ name: `${name}/errors`, factory: "timeoutErrors" },

@@ -1,4 +1,4 @@
-import { type Ctx, depBatch } from "../../ctx/types.js";
+import type { Ctx } from "../../ctx/types.js";
 import type { DataIssue } from "../../data/index.js";
 import type { Graph } from "../../graph/graph.js";
 import { canonicalTupleKey, compoundTupleKey } from "../../identity.js";
@@ -71,7 +71,7 @@ export function workItemDomainActionCapabilityGuardProjector(
 				statusSeq: 0,
 				auditSeq: 0,
 			};
-			for (const raw of depBatch(ctx, 2) ?? []) {
+			for (const raw of ctx.deps[2]?.waves.flat() ?? []) {
 				const policyIssue = capabilityGuardPolicyIssue(raw);
 				if (policyIssue !== undefined) {
 					emitCapabilityGuardIssue(
@@ -85,7 +85,7 @@ export function workItemDomainActionCapabilityGuardProjector(
 				const policy = raw as WorkItemDomainActionCapabilityGuardPolicy;
 				state.policies.set(policy.policyId, policy);
 			}
-			for (const raw of depBatch(ctx, 1) ?? []) {
+			for (const raw of ctx.deps[1]?.waves.flat() ?? []) {
 				const admissionIssue = capabilityAdmissionIssue(raw);
 				if (admissionIssue !== undefined) {
 					emitCapabilityGuardIssue(
@@ -105,7 +105,7 @@ export function workItemDomainActionCapabilityGuardProjector(
 				}
 			}
 			if (statusIndex >= 0) {
-				for (const raw of depBatch(ctx, statusIndex) ?? []) {
+				for (const raw of ctx.deps[statusIndex]?.waves.flat() ?? []) {
 					const statusIssue = capabilityAdmissionStatusIssue(raw);
 					if (statusIssue !== undefined) {
 						emitCapabilityGuardIssue(
@@ -139,7 +139,7 @@ export function workItemDomainActionCapabilityGuardProjector(
 						emitCapabilityStatusIssueForProposal(ctx, state, proposal, status);
 				}
 			}
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const proposalIssue = capabilityGuardProposalIssue(raw);
 				if (proposalIssue !== undefined) {
 					emitCapabilityGuardIssue(

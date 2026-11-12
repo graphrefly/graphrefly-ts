@@ -34,7 +34,6 @@ export interface GraphCheckpointPolicies {
 	error: "auto" | "manual";
 	invalidate: "auto" | "manual";
 	quiet: boolean;
-	dynamic: boolean;
 	pool: "sync" | "async";
 }
 

@@ -8,7 +8,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { type Ctx, depBatch, depLatest } from "../ctx/types.js";
+import type { Ctx } from "../ctx/types.js";
 import { graph } from "../graph/graph.js";
 import type { Wave } from "../protocol/messages.js";
 
@@ -78,7 +78,7 @@ describe("C-29: a batch delivers nothing before commit; its requests follow the 
 	it("commits the sets as one wave, then runs the subscribe against the committed value", () => {
 		const g = graph();
 		const a = g.state(0, { name: "a" });
-		const b = g.node<number>([a], (ctx) => ctx.down([["DATA", depLatest(ctx, 0) as number]]), {
+		const b = g.node<number>([a], (ctx) => ctx.down([["DATA", ctx.deps[0].value as number]]), {
 			name: "b",
 		});
 		const s = arrays();
@@ -210,7 +210,7 @@ describe("C-34: a subscribe made during a fanout runs after it", () => {
 		const s = g.node<number>(
 			[t],
 			(ctx) => {
-				if (depLatest(ctx, 0) === 1) ctx.down([["DATA", 1], ["COMPLETE"]]);
+				if (ctx.deps[0].value === 1) ctx.down([["DATA", 1], ["COMPLETE"]]);
 			},
 			{ name: "s" },
 		);
@@ -249,9 +249,9 @@ describe("C-35: rewire keeps the instance and runs between waves", () => {
 			[b],
 			(ctx) => {
 				kept = ctx;
-				runs.push(ctx.waveData.map((w) => w.flat()));
+				runs.push(ctx.deps.map((d) => d.waves.flat()));
 				ctx.state.set(((ctx.state.get<number>() ?? 0) as number) + 1);
-				ctx.down([["DATA", (depLatest(ctx, 0) as number) * 1]]);
+				ctx.down([["DATA", (ctx.deps[0].value as number) * 1]]);
 			},
 			{ name: "d" },
 		);
@@ -310,8 +310,8 @@ describe("C-35: rewire keeps the instance and runs between waves", () => {
 		const extra = g.state(7, { name: "extra" });
 		const seen: number[] = [];
 		const d = g.node<number>([a], (ctx) => {
-			seen.push(ctx.waveData.length);
-			if (depLatest(ctx, 0) === 1 && ctx.waveData.length === 1) ctx.rewire([a, extra]);
+			seen.push(ctx.deps.length);
+			if (ctx.deps[0].value === 1 && ctx.deps.length === 1) ctx.rewire([a, extra]);
 		});
 		d.subscribe(() => {});
 		a.set(1);
@@ -353,9 +353,9 @@ describe("C-11: a node rewires itself from its function, for its lifetime", () =
 			[s],
 			(ctx) => {
 				ctx.state.set("kept");
-				for (const v of depBatch(ctx, 0) ?? []) ctx.rewire([s, innerOf(v as string)]);
-				for (let i = 1; i < ctx.waveData.length; i++)
-					for (const x of depBatch(ctx, i) ?? []) ctx.down([["DATA", x as number]]);
+				for (const v of ctx.deps[0].waves.flat()) ctx.rewire([s, innerOf(v as string)]);
+				for (let i = 1; i < ctx.deps.length; i++)
+					for (const x of ctx.deps[i].waves.flat()) ctx.down([["DATA", x as number]]);
 			},
 			{ name: "op", complete: "manual" },
 		);
@@ -409,13 +409,13 @@ describe("C-40: replace gives an ended node a new instance", () => {
 		const s = g.state(1, { name: "s" });
 		s.complete();
 		const t = g.state(5, { name: "t" });
-		const d = g.node<number>([s], (ctx) => ctx.down([["DATA", depLatest(ctx, 0) as number]]), {
+		const d = g.node<number>([s], (ctx) => ctx.down([["DATA", ctx.deps[0].value as number]]), {
 			name: "d",
 		});
 		const log: Wave[] = [];
 		d.subscribe((msgs) => log.push(msgs));
 		expect(d.status.output).toBe("completed");
-		g.replace(d, [t], (ctx) => ctx.down([["DATA", (depLatest(ctx, 0) as number) * 2]]), {
+		g.replace(d, [t], (ctx) => ctx.down([["DATA", (ctx.deps[0].value as number) * 2]]), {
 			recipe: { ref: "double" },
 		});
 		expect(log.at(-1)).toEqual([["START"], ["DATA", 10]]);

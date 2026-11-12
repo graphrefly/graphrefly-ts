@@ -1,4 +1,4 @@
-import { type Ctx, depBatch } from "../ctx/types.js";
+import type { Ctx } from "../ctx/types.js";
 import type { Graph } from "../graph/graph.js";
 import type { Node } from "../node/node.js";
 import { oneArrayPerRun } from "../node/one-array-per-run.js";
@@ -181,11 +181,11 @@ export function admissionHandoff<T, R = unknown>(
 			const state =
 				ctx.state.get<AdmissionHandoffRuntimeState<T, R>>() ?? admissionHandoffState<T, R>();
 			let observed = false;
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				observed = true;
 				ingestCandidate(ctx as DownCtx<T, R>, state, raw, name, opts.maxPending, opts.maxRecent);
 			}
-			for (const raw of depBatch(ctx, 1) ?? []) {
+			for (const raw of ctx.deps[1]?.waves.flat() ?? []) {
 				observed = true;
 				ingestDecision(ctx as DownCtx<T, R>, state, raw, name, opts.maxPending, opts.maxRecent);
 			}
@@ -225,7 +225,7 @@ export function admissionHandoff<T, R = unknown>(
 				order: [],
 			};
 			const fresh: AdmissionHandoffAccepted<T, R>[] = [];
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const admittedValue = raw as AdmissionHandoffAccepted<T, R>;
 				const key = JSON.stringify([
 					admittedValue.candidateFingerprint,
@@ -667,7 +667,7 @@ function projectRuntimeFact<T, R, TOut>(
 	return graph.node<TOut>(
 		[runtime],
 		oneArrayPerRun((ctx) => {
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const value = pick(raw as AdmissionHandoffRuntimeFact<T, R>);
 				if (value !== undefined) ctx.down([["DATA", value]]);
 			}

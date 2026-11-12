@@ -1,4 +1,4 @@
-import { type Ctx, depLatest } from "../../../ctx/types.js";
+import type { Ctx } from "../../../ctx/types.js";
 import type { Graph } from "../../../graph/graph.js";
 import type { Node } from "../../../node/node.js";
 import {
@@ -45,7 +45,7 @@ export function nodeCanvasTextMeasurements(
 	const capability = opts.graph.node<TextMeasureCapability>(
 		[opts.context],
 		(ctx: Ctx) => {
-			const context = depLatest(ctx, 0) as NodeCanvasTextContextLike;
+			const context = ctx.deps[0].value as NodeCanvasTextContextLike;
 			const value: TextMeasureCapability = {
 				measureText(text: string, font: string): { readonly width: number } {
 					const previousFont = context.font;

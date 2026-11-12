@@ -6,7 +6,6 @@
  * EffectRunResult facts on the caller's behalf.
  */
 
-import { depBatch } from "../../ctx/types.js";
 import type { Graph } from "../../graph/graph.js";
 import { compoundTupleKey } from "../../identity.js";
 import type { Node } from "../../node/node.js";
@@ -78,7 +77,7 @@ export function workItemSeedProjector<TInput = unknown>(
 	return graph.node<WorkItemSeed>(
 		[opts.workItems],
 		(ctx) => {
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const workItem = raw as WorkItemProjection<TInput>;
 				ctx.down([
 					[
@@ -147,7 +146,7 @@ export function workItemExecutionRecipe<TInput = unknown>(
 		[effectRuns.effectRuns],
 		(ctx) => {
 			const issuedEffectRunIds = ctx.state.get<Set<string>>() ?? new Set<string>();
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const run = raw as EffectRun<TInput>;
 				if (issuedEffectRunIds.has(run.effectRunId)) continue;
 				issuedEffectRunIds.add(run.effectRunId);
@@ -200,7 +199,7 @@ export function workItemExecutionRecipe<TInput = unknown>(
 	const requests = graph.node<AgentRequestIssued<TInput>>(
 		[requestFacts],
 		(ctx) => {
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const fact = raw as AgentRequestFact<TInput>;
 				if (fact.kind === "issued") ctx.down([["DATA", fact]]);
 			}

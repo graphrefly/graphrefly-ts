@@ -1,4 +1,3 @@
-import { depBatch } from "../../ctx/types.js";
 import type { DataIssue } from "../../data/index.js";
 import type { ConstructionScope, StartupFact } from "../../graph/construction-scope.js";
 import type { Graph } from "../../graph/graph.js";
@@ -100,7 +99,7 @@ export function createCausalCapabilities<T>(
 	const causalQuiescence = scope.node<Omit<CausalQuiescence, "retainedEvidence">>(
 		[ports.quiescence],
 		oneArrayPerRun((ctx) => {
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const value = raw as CausalQuiescence;
 				// Explicit payload projection, not a type cast over retained evidence.
 				ctx.down([

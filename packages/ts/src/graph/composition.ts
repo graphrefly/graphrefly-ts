@@ -6,15 +6,7 @@
  * `[source, rules]` that `describe()` can show. Dynamic rule add/remove is deferred by D56.
  */
 
-import {
-	type Ctx,
-	depBatch,
-	depLatest,
-	depTerminal,
-	isTerminalComplete,
-	isTerminalError,
-	terminalErrorValue,
-} from "../ctx/types.js";
+import type { Ctx } from "../ctx/types.js";
 import { canonicalTupleKey } from "../identity.js";
 import type { Node, NodeOptions } from "../node/node.js";
 import { oneArrayPerRun } from "../node/one-array-per-run.js";
@@ -278,18 +270,18 @@ function stratifyBranchOperator<T, R>(
 			error: "manual",
 		},
 		body: oneArrayPerRun((ctx: Ctx) => {
-			const sourceBatch = depBatch(ctx, 0);
-			const sourceTerminal = depTerminal(ctx, 0);
-			const rules = depLatest(ctx, 1) as R | undefined;
+			const sourceBatch = ctx.deps[0].waves.length === 0 ? null : ctx.deps[0].waves.flat();
+			const sourceTerminal = ctx.deps[0].terminal;
+			const rules = ctx.deps[1]?.value as R | undefined;
 			if (rules !== undefined && sourceBatch !== null) {
 				for (const value of sourceBatch as readonly T[]) {
 					if (classifier(rules, value)) ctx.down([["DATA", value]]);
 				}
 			}
-			if (isTerminalComplete(sourceTerminal)) {
+			if (sourceTerminal?.kind === "complete") {
 				ctx.down([["COMPLETE"]]);
-			} else if (isTerminalError(sourceTerminal)) {
-				ctx.down([["ERROR", terminalErrorValue(sourceTerminal)]]);
+			} else if (sourceTerminal?.kind === "error") {
+				ctx.down([["ERROR", sourceTerminal?.kind === "error" ? sourceTerminal.error : undefined]]);
 			}
 		}),
 	};

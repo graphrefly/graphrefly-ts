@@ -1,4 +1,3 @@
-import { depBatch } from "../../ctx/types.js";
 import type { Graph } from "../../graph/graph.js";
 import { canonicalTupleKey } from "../../identity.js";
 import { strictCanonicalJsonBytes, strictJsonCodec } from "../../json/codec.js";
@@ -717,7 +716,7 @@ export function agenticMemoryRecordUseGateBundle<TJson extends StrictJsonValue =
 		graph.node<SolutionOccurrence<T>>(
 			[snapshot],
 			(ctx) => {
-				const outputs = (depBatch(ctx, 0) ?? []).map((raw) => {
+				const outputs = ctx.deps[0].waves.flat().map((raw) => {
 					const occurrence = raw as SolutionOccurrence<AgenticMemoryRecordUseSnapshot<TJson>>;
 					return [
 						"DATA",

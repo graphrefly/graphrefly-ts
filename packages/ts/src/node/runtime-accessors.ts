@@ -251,3 +251,24 @@ export function isNodeRuntimeReleased(n: Node<unknown>): boolean {
 	const record = registrations.get(n);
 	return record?.kind === "retired" || (record?.kind === "live" && record.host._released);
 }
+
+/** The graph layer's id for a node, registered by the graph module (R-invocation@2 ctx.deps[i].id). */
+let graphNodeIdResolver: ((owner: unknown, node: Node<unknown>) => string | undefined) | undefined;
+
+/** @internal The graph module registers how a node's id is read from its owning graph. */
+export function setGraphNodeIdResolver(
+	resolver: (owner: unknown, node: Node<unknown>) => string | undefined,
+): void {
+	graphNodeIdResolver = resolver;
+}
+
+/** @internal A node's id in its graph: its registered id, or the synthetic id describe() gives. */
+export function graphNodeIdOf(node: Node<unknown>): string {
+	const owner = liveRegistration(node)?.graphAttachment?.owner;
+	return (
+		(owner === undefined ? undefined : graphNodeIdResolver?.(owner, node)) ??
+		node.name ??
+		node.factory ??
+		"node"
+	);
+}

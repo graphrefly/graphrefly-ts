@@ -1,4 +1,3 @@
-import { depBatch, depWaves } from "../../ctx/types.js";
 import type { ConstructionScope, StartupFact } from "../../graph/construction-scope.js";
 import type { Graph } from "../../graph/graph.js";
 import type { Node } from "../../node/node.js";
@@ -99,7 +98,7 @@ function lane<T, K extends Arrival<T>["lane"]>(
 	return graph.node<Arrival<T>>(
 		[input],
 		(ctx) => {
-			const values = depBatch(ctx, 0) ?? [];
+			const values = ctx.deps[0].waves.flat();
 			if (values.length > 0) ctx.down([["DATA", { lane: laneName, values } as Arrival<T>]]);
 		},
 		{ name, factory: "causalOccurrenceInputLane" },
@@ -117,7 +116,7 @@ function projectFact<T, K extends AuthorityFact<T>["kind"]>(
 		(ctx) => {
 			// Each fact keeps its own array (R-wave): the authority publishes facts one array each,
 			// and one delivery brings them all to this run.
-			for (const wave of depWaves(ctx, 0)) {
+			for (const wave of ctx.deps[0].waves) {
 				const values = (wave as AuthorityEmission<T>[])
 					.filter((raw) => raw.kind === "fact" && raw.fact.kind === kind)
 					.map(
@@ -179,7 +178,7 @@ export function buildCausalNodes<T>(
 			const firstRun = state === undefined;
 			const outputs: AuthorityFact<T>[] = [];
 			let committedViewChanged = false;
-			const waves = depWaves(ctx, 0);
+			const waves = ctx.deps[0].waves;
 			for (const wave of waves.length > 0 ? waves : [[]]) {
 				const step = transitionCausalAuthority(state, wave as Arrival<T>[], opts);
 				state = step.state;
@@ -237,7 +236,7 @@ export function buildCausalNodes<T>(
 	const released = graph.node<CausalOccurrence<T>>(
 		[rawRelease],
 		(ctx) => {
-			for (const wave of depWaves(ctx, 0))
+			for (const wave of ctx.deps[0].waves)
 				if (wave.length > 0) ctx.down(wave.map((value) => ["DATA", value]));
 		},
 		{
@@ -268,11 +267,11 @@ export function buildCausalNodes<T>(
 			}
 			// R-invalidation, manual policy: an INVALIDATE clears the dedup slot and invalidates this
 			// view, so the next committed view is sent again.
-			if (ctx.invalidated[0]) {
+			if (ctx.deps[0].invalidated) {
 				seen.view = undefined;
 				ctx.down([["INVALIDATE"]]);
 			}
-			for (const emission of (depBatch(ctx, 0) ?? []) as AuthorityEmission<T>[]) {
+			for (const emission of ctx.deps[0].waves.flat() as AuthorityEmission<T>[]) {
 				if (seen.view === emission.committedEffects) continue;
 				seen.view = emission.committedEffects;
 				ctx.down([["DATA", seen.view]]);

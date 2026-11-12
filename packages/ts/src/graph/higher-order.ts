@@ -22,18 +22,7 @@
  * removed dep is silent — no settle — and applies before any added dep's push-on-subscribe wave).
  */
 
-import {
-	CTX_NODE_BINDING,
-	type Ctx,
-	ctxRewireDiff,
-	depBatch,
-	depCount,
-	depTerminal,
-	isTerminalComplete,
-	isTerminalError,
-	type NodeFn,
-	terminalErrorValue,
-} from "../ctx/types.js";
+import { CTX_NODE_BINDING, type Ctx, ctxRewireDiff, type NodeFn } from "../ctx/types.js";
 import type { Node } from "../node/node.js";
 import { errorPayload } from "../protocol/messages.js";
 import { eachInputArray } from "./each-input-array.js";
@@ -81,9 +70,9 @@ function cleanupAllInners<TIn>(ctx: Ctx, st: MapState<TIn>, body: NodeFn): void 
 }
 
 function firstErrorTerminal(ctx: Ctx): unknown {
-	for (let i = 0; i < depCount(ctx); i++) {
-		const terminal = depTerminal(ctx, i);
-		if (isTerminalError(terminal)) return terminalErrorValue(terminal);
+	for (let i = 0; i < ctx.deps.length; i++) {
+		const terminal = ctx.deps[i].terminal;
+		if (terminal?.kind === "error") return terminal?.kind === "error" ? terminal.error : undefined;
 	}
 	return undefined;
 }
@@ -162,7 +151,7 @@ function mapOperator<TIn, TOut>(
 			const queue = st.queue;
 
 			// 1. forward any inner DATA this wave (index-independent — flatten whichever inner fired).
-			for (let i = 1; i < depCount(ctx); i++)
+			for (let i = 1; i < ctx.deps.length; i++)
 				eachInputArray(ctx, i, (v, out) => {
 					out.push(["DATA", v]);
 				});
@@ -177,13 +166,13 @@ function mapOperator<TIn, TOut>(
 				return;
 			}
 
-			if (isTerminalComplete(depTerminal(ctx, 0))) st.sourceDone = true;
+			if (ctx.deps[0].terminal?.kind === "complete") st.sourceDone = true;
 
 			// 2. drop inners that terminated this/any wave (bounding); `inners` aligns with deps[1..].
 			const toRemove: Node<unknown>[] = [];
 			const survivors: Node<unknown>[] = [];
 			for (let i = 0; i < inners.length; i++) {
-				if (isTerminalComplete(depTerminal(ctx, i + 1))) toRemove.push(inners[i]);
+				if (ctx.deps[i + 1].terminal?.kind === "complete") toRemove.push(inners[i]);
 				else survivors.push(inners[i]);
 			}
 			inners = survivors;
@@ -215,7 +204,9 @@ function mapOperator<TIn, TOut>(
 					toAdd.push(inner);
 				}
 			};
-			const sb = depBatch(ctx, 0) as readonly TIn[] | null;
+			const sb = (ctx.deps[0].waves.length === 0 ? null : ctx.deps[0].waves.flat()) as
+				| readonly TIn[]
+				| null;
 			if (sb && sb.length > 0) {
 				if (mode === "switch") {
 					// switch to the latest value: cancel every current inner EXCEPT a (re-projected)
@@ -418,7 +409,7 @@ export function repeat<S>(factory: () => NodeInput<S>, count: number): Operator<
 				inner: null,
 			}) as RepeatState;
 			// 1. forward the current inner's DATA this wave (the inner is the sole dep once wired).
-			for (let i = 0; i < depCount(ctx); i++)
+			for (let i = 0; i < ctx.deps.length; i++)
 				eachInputArray(ctx, i, (v, out) => {
 					out.push(["DATA", v]);
 				});
@@ -433,7 +424,7 @@ export function repeat<S>(factory: () => NodeInput<S>, count: number): Operator<
 				return;
 			}
 			// 3. inner COMPLETE → next round or terminal COMPLETE.
-			if (st.inner !== null && isTerminalComplete(depTerminal(ctx, 0))) {
+			if (st.inner !== null && ctx.deps[0].terminal?.kind === "complete") {
 				const old = st.inner;
 				ctxRewireDiff(ctx, [], [old]); // bound the finished round's inner
 				if (st.round + 1 < count) {

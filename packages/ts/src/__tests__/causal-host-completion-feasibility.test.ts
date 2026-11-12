@@ -1,6 +1,6 @@
 /** Private no-I/O probe of the approved host notification contract. Not a host adapter. */
 import { expect, it } from "vitest";
-import { depBatch } from "../ctx/types.js";
+
 import { Graph } from "../graph/graph.js";
 
 type Receipt = Readonly<{ id: number; result: "cancelled" | "succeeded" }>;
@@ -62,7 +62,7 @@ function fixture(capacity = 64, enqueue: (callback: () => void) => void = queueM
 	const guard = graph.node(
 		[input],
 		(ctx) => {
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const id = raw as number;
 				if (reserve(id)) complete({ id, result: "cancelled" });
 			}

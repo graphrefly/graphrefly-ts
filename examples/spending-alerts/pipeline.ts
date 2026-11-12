@@ -27,7 +27,7 @@
  * @module
  */
 
-import { type Ctx, depBatch } from "@graphrefly/ts/core";
+import type { Ctx } from "@graphrefly/ts/core";
 import { Graph } from "@graphrefly/ts/graph";
 import { oneArrayPerRun } from "../../packages/ts/src/node/one-array-per-run.js";
 
@@ -168,7 +168,7 @@ export function spendingAlertsGraph(opts: SpendingAlertsOptions = {}): SpendingA
 	const vendorStats = graph.node<VendorStats>(
 		[txFeed],
 		oneArrayPerRun((ctx: Ctx) => {
-			const batch = depBatch(ctx, 0);
+			const batch = ctx.deps[0].waves.length === 0 ? null : ctx.deps[0].waves.flat();
 			if (batch === null) return;
 			const statsByVendor =
 				ctx.state.get<VendorAccumulatorByVendor>() ??

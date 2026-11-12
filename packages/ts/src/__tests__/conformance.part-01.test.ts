@@ -10,15 +10,7 @@
 
 import { describe, expect, it } from "vitest";
 import type { Ctx, Message } from "../index.js";
-import {
-	depBatch,
-	depLatest,
-	distinctUntilChanged,
-	filter,
-	fromIter,
-	graph,
-	take,
-} from "../index.js";
+import { distinctUntilChanged, filter, fromIter, graph, take } from "../index.js";
 import type { Subscribable } from "./helpers/collect.js";
 import { addOwnedNodeDep, removeOwnedNodeDep, rewireOwnedNode } from "./helpers/owned-rewire.js";
 
@@ -45,14 +37,14 @@ describe("C-3 INVALIDATE × ctx.state, manual INVALIDATE policy (R-invalidation)
 		const d = g.node<number>(
 			[s],
 			(ctx: Ctx) => {
-				if (ctx.invalidated[0]) {
+				if (ctx.deps[0].invalidated) {
 					onInv++;
 					ctx.down([["INVALIDATE"]]);
 					return;
 				}
 				statesAtRun.push(ctx.state.get()); // prior state visible at run time
 				ctx.state.set("kept");
-				ctx.down([["DATA", (depLatest(ctx, 0) as number) * 2]]);
+				ctx.down([["DATA", (ctx.deps[0].value as number) * 2]]);
 			},
 			{ invalidate: "manual" },
 		);
@@ -87,7 +79,7 @@ describe("C-4 a sync leg and an async leg: the async result is a later wave, not
 		let cctx = null as Ctx | null;
 		const a = g.node<number>([], null, { initial: 1 });
 		const b = g.node<number>([a], (ctx: Ctx) =>
-			ctx.down([["DATA", (depLatest(ctx, 0) as number) + 10]]),
+			ctx.down([["DATA", (ctx.deps[0].value as number) + 10]]),
 		); // sync leg
 		const cOut: Message[] = [];
 		const c = g.node<number>(
@@ -156,9 +148,9 @@ describe("C-8 intra-graph runtime rewire (R-rewire / D42)", () => {
 		const g = graph();
 		const a = g.node<number>([], null, { initial: 1 });
 		const b = g.node<number>([], null, { initial: 100 }); // B carries cached DATA
-		const aOnly = (ctx: Ctx) => ctx.down([["DATA", depLatest(ctx, 0) as number]]);
+		const aOnly = (ctx: Ctx) => ctx.down([["DATA", ctx.deps[0].value as number]]);
 		const sum = (ctx: Ctx) =>
-			ctx.down([["DATA", (depLatest(ctx, 0) as number) + (depLatest(ctx, 1) as number)]]);
+			ctx.down([["DATA", (ctx.deps[0].value as number) + (ctx.deps[1].value as number)]]);
 		const d = g.node<number>([a], aOnly);
 		collect(d);
 		expect(d.cache).toBe(1); // (1) A settled → D ran
@@ -181,7 +173,7 @@ describe("C-8 intra-graph runtime rewire (R-rewire / D42)", () => {
 		let runs = 0;
 		const f = (ctx: Ctx) => {
 			runs++;
-			ctx.down([["DATA", depLatest(ctx, 0) as number]]);
+			ctx.down([["DATA", ctx.deps[0].value as number]]);
 		};
 		rewireOwnedNode(d, [b], f); // (6) replaceDeps to the current set → idempotent
 		expect(runs).toBe(0); // no spurious recompute
@@ -193,7 +185,7 @@ describe("C-8 intra-graph runtime rewire (R-rewire / D42)", () => {
 		const a = g.node<number>([], null, { initial: 1 });
 		// D forwards A's value and completes on the value 2.
 		const id = (ctx: Ctx) => {
-			const v = depLatest(ctx, 0) as number;
+			const v = ctx.deps[0].value as number;
 			ctx.down(v === 2 ? [["COMPLETE"]] : [["DATA", v]]);
 		};
 		const d = g.node<number>([a], id, { complete: "manual" });
@@ -309,7 +301,8 @@ describe("C-12 occurrences stay DATA; RESOLVED is undirty-only (R-resolved-undir
 		const t = g.node<number>([], null, { initial: 0 });
 		let rejected: unknown;
 		const s = g.node<number>([t], (ctx) => {
-			if (depBatch(ctx, 0)?.[0] !== 1) return ctx.down([["DATA", 1]]);
+			if ((ctx.deps[0].waves.length === 0 ? null : ctx.deps[0].waves.flat())?.[0] !== 1)
+				return ctx.down([["DATA", 1]]);
 			try {
 				ctx.down([["DATA", 2], ["RESOLVED"]]);
 			} catch (error) {

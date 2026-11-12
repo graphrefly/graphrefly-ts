@@ -4,7 +4,7 @@
  * activation, recipes on the instance, lifetime dependencies, ended nodes and refusals.
  */
 import { afterEach, describe, expect, expectTypeOf, it, vi } from "vitest";
-import { type Ctx, depBatch, depLatest, type NodeFn } from "../ctx/types.js";
+import type { Ctx, NodeFn } from "../ctx/types.js";
 import type {
 	GraphRecipeFactory,
 	GraphRestoreRegistry,
@@ -66,20 +66,20 @@ function c38() {
 	const pFn: NodeFn = (ctx) => {
 		counts.p++;
 		pInputs.push({
-			waves: depBatch(ctx, 0),
-			terminal: ctx.terminal[0],
-			invalidated: ctx.invalidated[0] === true,
+			waves: ctx.deps[0].waves.length === 0 ? null : ctx.deps[0].waves.flat(),
+			terminal: ctx.deps[0].terminal,
+			invalidated: ctx.deps[0].invalidated,
 		});
 		const runs = (ctx.state.get<{ runs: number }>()?.runs ?? 0) + 1;
 		ctx.state.set({ runs });
-		const v = depBatch(ctx, 0)?.at(-1);
+		const v = (ctx.deps[0].waves.length === 0 ? null : ctx.deps[0].waves.flat())?.at(-1);
 		if (typeof v === "number" && v !== 0) ctx.down([["DATA", v * 10]]);
 	};
 	// ended over a: sends a value and completes on its first run, after setting private state.
 	const endedFn: NodeFn = (ctx) => {
 		counts.ended++;
 		ctx.state.set({ seen: true });
-		ctx.down([["DATA", (depLatest(ctx, 0) as number) + 100], ["COMPLETE"]]);
+		ctx.down([["DATA", (ctx.deps[0].value as number) + 100], ["COMPLETE"]]);
 	};
 	// rew declares a and rewires itself onto a and b for its lifetime.
 	let b: Node<unknown> | undefined;
@@ -88,7 +88,7 @@ function c38() {
 		const deps = rewDeps();
 		if (deps.length === 1 && b !== undefined) ctx.rewire([deps[0], b]);
 		let sum = 0;
-		for (let i = 0; i < ctx.waveData.length; i++) sum += (depLatest(ctx, i) as number) ?? 0;
+		for (let i = 0; i < ctx.deps.length; i++) sum += (ctx.deps[i].value as number) ?? 0;
 		ctx.down([["DATA", sum]]);
 	};
 	let rewDepsRef: () => Node<unknown>[] = () => [];
@@ -184,7 +184,7 @@ describe("C-38 restore keeps the saved state, refreshes once on a changed input,
 		asState<number>(r.find("a")).set(2);
 		const p = collect(r.find("p"));
 		expect(f.counts.p).toBe(before.p + 1);
-		expect(f.pInputs.at(-1)).toEqual({ waves: [2], terminal: false, invalidated: false });
+		expect(f.pInputs.at(-1)).toEqual({ waves: [2], terminal: undefined, invalidated: false });
 		expect(p).toEqual([["START"], ["DATA", 20]]);
 		expect(privateStateOf(r.find("p"))).toEqual({ runs: 2 });
 	});
@@ -206,7 +206,7 @@ describe("C-38 restore keeps the saved state, refreshes once on a changed input,
 		a.set(3);
 		collect(r.find("p"));
 		expect(f.counts.p).toBe(before.p + 1);
-		expect(f.pInputs.at(-1)).toEqual({ waves: [3], terminal: false, invalidated: false });
+		expect(f.pInputs.at(-1)).toEqual({ waves: [3], terminal: undefined, invalidated: false });
 		expect(r.find("p")?.cache).toBe(30);
 	});
 
@@ -217,7 +217,11 @@ describe("C-38 restore keeps the saved state, refreshes once on a changed input,
 		const p = collect(r.find("p"));
 		expect(f.counts.p).toBe(before.p + 1);
 		// No values: the terminal alone is the input.
-		expect(f.pInputs.at(-1)).toEqual({ waves: null, terminal: true, invalidated: false });
+		expect(f.pInputs.at(-1)).toEqual({
+			waves: null,
+			terminal: { kind: "complete" },
+			invalidated: false,
+		});
 		expect(p).toEqual([["START"], ["DATA", 10], ["COMPLETE"]]);
 	});
 
@@ -362,7 +366,7 @@ describe("C-38 restore keeps the saved state, refreshes once on a changed input,
 	});
 
 	it("replace: without a recipe local-only, with a recipe and setup that recipe, onto a later dependency", () => {
-		const fn: NodeFn = (ctx) => ctx.down([["DATA", depLatest(ctx, 0)]]);
+		const fn: NodeFn = (ctx) => ctx.down([["DATA", ctx.deps[0].value]]);
 		const setups = { count: 0 };
 		const registry: GraphRestoreRegistry = {
 			...defaultRestoreRegistry,
@@ -453,7 +457,7 @@ describe("checkpoint and restore: ported cases (TS layout, graphrefly-ts:D178)",
 		let runs = 0;
 		const fn: NodeFn = (ctx) => {
 			runs++;
-			ctx.down([["DATA", depLatest(ctx, 0) as number]]);
+			ctx.down([["DATA", ctx.deps[0].value as number]]);
 		};
 		const original = graph();
 		const src = original.state(1, { name: "src" });
@@ -478,7 +482,7 @@ describe("checkpoint and restore: ported cases (TS layout, graphrefly-ts:D178)",
 		});
 		original.node(
 			[original.find("src") as Node<unknown>],
-			(ctx) => ctx.down([["DATA", (depLatest(ctx, 0) as number) + 1]]),
+			(ctx) => ctx.down([["DATA", (ctx.deps[0].value as number) + 1]]),
 			{ name: "mapped", recipe: { ref: "mapped" } },
 		);
 		const checkpoint = original.checkpoint();
@@ -494,7 +498,7 @@ describe("checkpoint and restore: ported cases (TS layout, graphrefly-ts:D178)",
 				mapped: {
 					ref: "mapped",
 					build: () => ({
-						fn: (ctx) => ctx.down([["DATA", (depLatest(ctx, 0) as number) + 1]]),
+						fn: (ctx) => ctx.down([["DATA", (ctx.deps[0].value as number) + 1]]),
 					}),
 				} satisfies GraphRecipeFactory,
 			},

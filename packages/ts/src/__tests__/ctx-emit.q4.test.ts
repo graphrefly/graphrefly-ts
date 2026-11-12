@@ -1,7 +1,7 @@
 /** The user's Q4: ctx.emit(...values) sends exactly one array per call. */
 
 import { describe, expect, it } from "vitest";
-import { depBatch } from "../ctx/types.js";
+
 import { graph, type Message } from "../index.js";
 
 describe("ctx.emit (Q4)", () => {
@@ -11,7 +11,7 @@ describe("ctx.emit (Q4)", () => {
 		const n = g.node<number>(
 			[s],
 			(ctx) => {
-				if (depBatch(ctx, 0) === null) return;
+				if ((ctx.deps[0].waves.length === 0 ? null : ctx.deps[0].waves.flat()) === null) return;
 				ctx.emit(1, 2);
 				ctx.emit(3);
 				ctx.emit();

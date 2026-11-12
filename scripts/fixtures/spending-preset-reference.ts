@@ -29,7 +29,7 @@ import type {
 	Transaction,
 	UserProfile,
 } from "../../examples/spending-alerts/pipeline.js";
-import { depBatch, depLatest, depWaves, type NodeFn } from "../../packages/ts/src/ctx/types.js";
+import type { NodeFn } from "../../packages/ts/src/ctx/types.js";
 import type {
 	ConstructionScope,
 	StartupFact,
@@ -103,7 +103,7 @@ function map<T, U>(
 		name,
 		[input],
 		oneArrayPerRun((ctx) => {
-			for (const f of depWaves(ctx, 0).flat()) {
+			for (const f of ctx.deps[0].waves.flat()) {
 				if (f === SENTINEL) {
 					ctx.down([["DATA", frame([], [], false)]]);
 					continue;
@@ -135,7 +135,7 @@ function join<T>(
 ) {
 	return make<BusinessFrame<T>>(name, deps, (ctx) => {
 		// As the production join: the activation run with no input yet sends nothing (R-lifetime).
-		if (deps.every((_, i) => depWaves(ctx, i).length === 0)) return;
+		if (deps.every((_, i) => ctx.deps[i].waves.length === 0)) return;
 		const state = ctx.state.get<{ maps: Map<string, Item<any>>[]; valid: boolean[] }>() ?? {
 			maps: deps.map(() => new Map()),
 			valid: deps.map(() => false),
@@ -143,11 +143,11 @@ function join<T>(
 		const touched = new Set<string>(),
 			problems: ReturnType<typeof issue>[] = [];
 		for (let i = 0; i < deps.length; i++) {
-			if (depLatest(ctx, i) === undefined) {
+			if (ctx.deps[i].value === undefined) {
 				state.maps[i].clear();
 				state.valid[i] = false;
 			}
-			for (const raw of depWaves(ctx, i).flat()) {
+			for (const raw of ctx.deps[i].waves.flat()) {
 				if (raw === SENTINEL) {
 					state.maps[i].clear();
 					state.valid[i] = false;
@@ -204,7 +204,7 @@ function checked<T>(
 				receipts: new Map(),
 				conflicts: new Set(),
 			};
-			for (const raw of depWaves(ctx, 0).flat()) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				let result: Checked<T>;
 				try {
 					if (raw === SENTINEL) throw Error(`invalidated-${lane}`);
@@ -239,7 +239,7 @@ function checked<T>(
 	);
 }
 const available = <T>(ctx: Parameters<NodeFn>[0], index: number): T | undefined => {
-	const f = depLatest(ctx, index) as Checked<T> | undefined;
+	const f = ctx.deps[index].value as Checked<T> | undefined;
 	return f?.valid ? f.value : undefined;
 };
 const proposal = (material: RequestMaterial): CausalEffectProposal => ({
@@ -347,8 +347,8 @@ export function buildReferencePreset(
 				waiting: string[];
 			}>() ?? { available: false, waiting: [] };
 			const errors: ReturnType<typeof issue>[] = [];
-			if (depLatest(ctx, 0) === undefined) s.available = false;
-			for (const v of depWaves(ctx, 0).flat())
+			if (ctx.deps[0].value === undefined) s.available = false;
+			for (const v of ctx.deps[0].waves.flat())
 				try {
 					const pack = referenceInput<EvaluationPack>("pack", v, binding),
 						bytes = canonical(pack, 4 * 1048576);
@@ -377,7 +377,7 @@ export function buildReferencePreset(
 				if (rows.length || errors.length) ctx.down([["DATA", frame(rows, errors.splice(0))]]);
 			};
 			drain();
-			for (const v of depWaves(ctx, 1).flat()) {
+			for (const v of ctx.deps[1]?.waves.flat() ?? []) {
 				try {
 					const arrivals = referenceInput<ArrivalFrame>("arrivals", v, binding);
 					for (const id of arrivals.evaluationRefs) {
@@ -528,7 +528,7 @@ export function buildReferencePreset(
 				materials: Map<string, RequestMaterial>;
 				snapshot: MaterialSnapshot;
 			}>() ?? { materials: new Map(), snapshot: oracleSnapshot(materialProfile, []) };
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const f = raw as BusinessFrame<MaterialResult>,
 					rows: Item<MaterialResult>[] = [],
 					errors = [...f.issues];
@@ -569,12 +569,12 @@ export function buildReferencePreset(
 		"snapshot",
 		[store],
 		oneArrayPerRun((ctx) => {
-			for (const f of depBatch(ctx, 0) ?? []) ctx.down([["DATA", (f as Stored).snapshot]]);
+			for (const f of ctx.deps[0].waves.flat()) ctx.down([["DATA", (f as Stored).snapshot]]);
 		}),
 	);
 	const proposals = make<CausalEffectProposal>("proposals", [store], (ctx) => {
 		const out: Message[] = [];
-		for (const f of (depBatch(ctx, 0) ?? []) as Stored[])
+		for (const f of ctx.deps[0].waves.flat() as Stored[])
 			if (f.valid)
 				for (const r of f.rows)
 					if (r.value.kind === "retained") out.push(["DATA", proposal(r.value.material)]);
@@ -723,7 +723,7 @@ export function buildReferencePreset(
 		[selection, gate, store, current, verification, local, inbox],
 		(ctx) => {
 			// As the production policy: one pass per verification frame of this run, in order.
-			const frames = depWaves(ctx, 4)
+			const frames = (ctx.deps[4]?.waves ?? [])
 				.flat()
 				.filter((f) => (f as Checked<VerificationFrame>)?.valid)
 				.map((f) => (f as Checked<VerificationFrame> & { valid: true }).value);
@@ -733,7 +733,7 @@ export function buildReferencePreset(
 	);
 	const occurrences = make<CausalOccurrence<any>>("occurrences", [selection], (ctx) => {
 		const out: Message[] = [];
-		for (const f of (depBatch(ctx, 0) ?? []) as BusinessFrame<Evaluation>[])
+		for (const f of ctx.deps[0].waves.flat() as BusinessFrame<Evaluation>[])
 			if (f.valid)
 				for (const row of f.rows) {
 					const { occurrence, ...value } = row.evaluation;
@@ -748,10 +748,9 @@ export function buildReferencePreset(
 			const s = collect(ctx, 1),
 				out: Message[] = [];
 			if (!s.valid[0]) return;
-			for (const checked of (depBatch(ctx, 1) ?? [depLatest(ctx, 1)]) as (
-				| Checked<CurrentFrame>
-				| undefined
-			)[])
+			for (const checked of ((ctx.deps[1]?.waves.length
+				? (ctx.deps[1]?.waves.flat() ?? [])
+				: null) ?? [ctx.deps[1]?.value]) as (Checked<CurrentFrame> | undefined)[])
 				if (checked?.valid)
 					for (const row of s.maps[0].values()) {
 						const e = row.evaluation;
@@ -782,7 +781,7 @@ export function buildReferencePreset(
 		(ctx) => {
 			const out: Message[] = [];
 			for (let branch = 0; branch < 3; branch++)
-				for (const f of (depBatch(ctx, branch) ?? []) as BusinessFrame<any>[])
+				for (const f of (ctx.deps[branch]?.waves.flat() ?? []) as BusinessFrame<any>[])
 					if (f.valid)
 						for (const row of f.rows)
 							out.push([
@@ -801,24 +800,23 @@ export function buildReferencePreset(
 	);
 	const effectAdmissions = make<CausalEffectAdmission>("effectAdmissions", [permission], (ctx) => {
 		const out: Message[] = [];
-		for (const f of (depBatch(ctx, 0) ?? []) as BusinessFrame<Decision>[])
+		for (const f of ctx.deps[0].waves.flat() as BusinessFrame<Decision>[])
 			if (f.valid)
 				for (const r of f.rows) if (r.value.admission) out.push(["DATA", r.value.admission]);
 		if (out.length) ctx.down(out);
 	});
 	const outcomes = make<CausalEffectOutcome>("outcomes", [inbox], (ctx) => {
 		const out: Message[] = [];
-		for (const f of (depBatch(ctx, 0) ?? []) as Checked<InboxObservationFrame>[])
+		for (const f of ctx.deps[0].waves.flat() as Checked<InboxObservationFrame>[])
 			if (f.valid) for (const o of f.value.outcomes) out.push(["DATA", o]);
 		if (out.length) ctx.down(out);
 	});
 	const evidence = make<CausalEvidence>("evidence", [selection, store, verification], (ctx) => {
 		const s = collect(ctx, 2);
 		s.receipts ??= new Map<string, VerificationReceipt>();
-		for (const f of (depBatch(ctx, 2) ?? [depLatest(ctx, 2)]) as (
-			| Checked<VerificationFrame>
-			| undefined
-		)[])
+		for (const f of ((ctx.deps[2]?.waves.length ? (ctx.deps[2]?.waves.flat() ?? []) : null) ?? [
+			ctx.deps[2]?.value,
+		]) as (Checked<VerificationFrame> | undefined)[])
 			if (f?.valid)
 				for (const r of f.value.receipts) {
 					const id = digest(r.receiptRef);
@@ -888,7 +886,7 @@ export function buildReferencePreset(
 	});
 	const watermarks = make<CausalWatermark>("watermarks", [current], (ctx) => {
 		const out: Message[] = [];
-		for (const f of (depBatch(ctx, 0) ?? []) as Checked<CurrentFrame>[])
+		for (const f of ctx.deps[0].waves.flat() as Checked<CurrentFrame>[])
 			if (f.valid)
 				for (const c of f.value.current)
 					out.push(["DATA", { revisionDomain: c.revisionDomain, revision: c.watermark }]);
@@ -939,7 +937,7 @@ export function buildReferencePreset(
 		],
 		oneArrayPerRun((ctx) => {
 			for (let i = 0; i < 9; i++)
-				for (const raw of depBatch(ctx, i) ?? []) {
+				for (const raw of ctx.deps[i].waves.flat()) {
 					const f = raw as any;
 					if (f.kind === "issue") ctx.down([["DATA", f]]);
 					else {
@@ -964,7 +962,7 @@ export function buildReferencePreset(
 							"DATA",
 							freeze({
 								kind: "spending-diagnostic-summary",
-								arrivals: ctx.waveData.map((_, i) => depBatch(ctx, i)?.length ?? 0),
+								arrivals: ctx.deps.map((d) => d.waves.flat().length),
 							}),
 						],
 					]),
@@ -997,11 +995,11 @@ function collect(ctx: Parameters<NodeFn>[0], count: number): Rows {
 		valid: Array(count).fill(false),
 	};
 	for (let i = 0; i < count; i++) {
-		if (depLatest(ctx, i) === undefined) {
+		if (ctx.deps[i].value === undefined) {
 			s.maps[i].clear();
 			s.valid[i] = false;
 		}
-		for (const raw of depWaves(ctx, i).flat()) {
+		for (const raw of ctx.deps[i].waves.flat()) {
 			if (raw === SENTINEL) {
 				s.maps[i].clear();
 				s.valid[i] = false;

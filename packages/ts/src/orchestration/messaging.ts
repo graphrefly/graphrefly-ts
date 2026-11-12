@@ -5,7 +5,6 @@
  * material; retained delivery receipt is never an ack.
  */
 
-import { depBatch } from "../ctx/types.js";
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
 import { canonicalTupleKey, compoundTupleKey } from "../identity.js";
@@ -79,7 +78,7 @@ export function orchestrationMessagingRecipe<
 	const runtime = graph.node<OrchestrationMessagingFact<TCommand>>(
 		[opts.deliveries],
 		oneArrayPerRun((ctx) => {
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const page = raw as MessageBusAvailablePage<TPayload>;
 				for (const message of page.messages) {
 					const delivery = messageDelivery(page, message);
@@ -203,12 +202,12 @@ export function orchestrationMessageAckCommands(
 			const deliveries =
 				ctx.state.get<Map<string, MessageBusDelivery[]>>() ??
 				new Map<string, MessageBusDelivery[]>();
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const command = raw as ProcessCommand;
 				const delivery = commandDelivery(command);
 				if (delivery !== undefined) pushDelivery(deliveries, command.id, delivery);
 			}
-			for (const raw of depBatch(ctx, 1) ?? []) {
+			for (const raw of ctx.deps[1]?.waves.flat() ?? []) {
 				const status = raw as ProcessStatus;
 				if (status.state === "rejected" && opts.ackRejected === false) continue;
 				if (status.commandId === undefined) continue;
@@ -219,7 +218,7 @@ export function orchestrationMessageAckCommands(
 				]);
 			}
 			if (opts.issues !== undefined) {
-				for (const raw of depBatch(ctx, 2) ?? []) {
+				for (const raw of ctx.deps[2]?.waves.flat() ?? []) {
 					const delivery = issueDelivery(raw as DataIssue);
 					if (delivery !== undefined) {
 						ctx.down([
@@ -262,7 +261,7 @@ export function processEventOutboxCommands<TEvent>(
 	return graph.node<MessageBusCommand>(
 		[events],
 		oneArrayPerRun((ctx) => {
-			for (const event of depBatch(ctx, 0) ?? []) {
+			for (const event of ctx.deps[0].waves.flat()) {
 				const typed = event as ProcessEvent<TEvent>;
 				ctx.down([
 					[
@@ -298,7 +297,7 @@ function project<T, TCommand>(
 	return graph.node<T>(
 		[runtime],
 		oneArrayPerRun((ctx) => {
-			for (const fact of depBatch(ctx, 0) ?? []) {
+			for (const fact of ctx.deps[0].waves.flat()) {
 				const value = pick(fact as OrchestrationMessagingFact<TCommand>);
 				if (value !== undefined) ctx.down([["DATA", value]]);
 			}

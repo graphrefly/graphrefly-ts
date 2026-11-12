@@ -1,14 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ctxRewireDiff } from "../ctx/types.js";
 import type { Ctx, Message } from "../index.js";
-import {
-	Dispatcher,
-	depBatch,
-	depLatest,
-	graph,
-	strictCanonicalJsonBytes,
-	strictJsonCodec,
-} from "../index.js";
+import { Dispatcher, graph, strictCanonicalJsonBytes, strictJsonCodec } from "../index.js";
 import type { Subscribable } from "./helpers/collect.js";
 import { addOwnedNodeDep } from "./helpers/owned-rewire.js";
 
@@ -105,7 +98,7 @@ describe("compute node (derived)", () => {
 		const g = graph();
 		const count = g.node<number>([], null, { initial: 2 });
 		const doubled = g.node<number>([count], (ctx: Ctx) => {
-			ctx.down([["DATA", (depLatest(ctx, 0) as number) * 2]]);
+			ctx.down([["DATA", (ctx.deps[0].value as number) * 2]]);
 		});
 		const { msgs } = collect(doubled);
 		expect(doubled.cache).toBe(4);
@@ -125,14 +118,14 @@ describe("diamond (R-diamond, glitch-free join)", () => {
 		let fireCount = 0;
 		const a = g.node<number>([], null, { initial: 1 });
 		const b = g.node<number>([a], (ctx: Ctx) =>
-			ctx.down([["DATA", (depLatest(ctx, 0) as number) + 10]]),
+			ctx.down([["DATA", (ctx.deps[0].value as number) + 10]]),
 		);
 		const c = g.node<number>([a], (ctx: Ctx) =>
-			ctx.down([["DATA", (depLatest(ctx, 0) as number) + 20]]),
+			ctx.down([["DATA", (ctx.deps[0].value as number) + 20]]),
 		);
 		const d = g.node<number>([b, c], (ctx: Ctx) => {
 			fireCount++;
-			ctx.down([["DATA", (depLatest(ctx, 0) as number) + (depLatest(ctx, 1) as number)]]);
+			ctx.down([["DATA", (ctx.deps[0].value as number) + (ctx.deps[1].value as number)]]);
 		});
 
 		collect(d);
@@ -152,7 +145,7 @@ describe("no first-run gate in the kernel; derived and effect gate on values (gr
 		const a = g.node<number>([], null, { initial: 1 });
 		const b = g.node<number>([], null); // no value yet
 		const d = g.node<number>([a, b], (ctx: Ctx) => {
-			const bv = depLatest(ctx, 1);
+			const bv = ctx.deps[1].value;
 			ctx.down([["DATA", bv === undefined ? -1 : (bv as number)]]);
 		});
 		d.subscribe(() => {});
@@ -366,7 +359,7 @@ describe("B49 core-slot migration", () => {
 		const foreign = graph().state(2);
 
 		expect(() =>
-			addOwnedNodeDep(d, foreign, (ctx: Ctx) => ctx.down([["DATA", depLatest(ctx, 0)]])),
+			addOwnedNodeDep(d, foreign, (ctx: Ctx) => ctx.down([["DATA", ctx.deps[0].value]])),
 		).toThrow(/different graph/);
 		expect(d.deps).toEqual([a]);
 	});
@@ -379,7 +372,7 @@ describe("B49 core-slot migration", () => {
 		const op = g.node<number>(
 			[trigger],
 			function opFn(ctx) {
-				if (depLatest(ctx, 0) === 1) {
+				if (ctx.deps[0].value === 1) {
 					ctxRewireDiff(ctx, [inner]);
 					queuedInsideRun = boundaryTaskCount(coreOf(op));
 				}
@@ -416,13 +409,14 @@ describe("B49 core-slot migration", () => {
 		const opA = gA.node<number>(
 			[sourceA],
 			function opAFn(ctx) {
-				if (depBatch(ctx, 0)) ctxRewireDiff(ctx, [innerA1]);
-				if (depBatch(ctx, 1)) ctxRewireDiff(ctx, [innerA2]);
+				if (ctx.deps[0].waves.length > 0) ctxRewireDiff(ctx, [innerA1]);
+				// innerA1 is the second dependency once the first rewire ran.
+				if ((ctx.deps[1]?.waves.length ?? 0) > 0) ctxRewireDiff(ctx, [innerA2]);
 			},
 			{ complete: "manual" },
 		);
 		const opB = gB.node<number>([sourceB], function opBFn(ctx) {
-			if (depBatch(ctx, 0)) ctxRewireDiff(ctx, [innerB1]);
+			if (ctx.deps[0].waves.length > 0) ctxRewireDiff(ctx, [innerB1]);
 		});
 		opA.subscribe(() => {});
 		opB.subscribe(() => {});

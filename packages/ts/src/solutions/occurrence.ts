@@ -1,4 +1,3 @@
-import { depBatch } from "../ctx/types.js";
 import type { Graph } from "../graph/graph.js";
 import { canonicalTupleKey } from "../identity.js";
 import { stableJsonString } from "../json/codec.js";
@@ -29,7 +28,7 @@ export function solutionOccurrenceSelect<T, R>(
 	return graph.node<SolutionOccurrence<R>>(
 		[input],
 		(ctx) => {
-			const outputs = (depBatch(ctx, 0) ?? []).map((raw) => {
+			const outputs = ctx.deps[0].waves.flat().map((raw) => {
 				const occurrence = raw as SolutionOccurrence<T>;
 				return ["DATA", Object.freeze({ ...occurrence, value: select(occurrence.value) })] as const;
 			});
@@ -68,7 +67,7 @@ export function solutionOccurrenceJoin<L, R, O>(
 			graph.node<Arrival>(
 				[left],
 				(ctx) => {
-					const batch = depBatch(ctx, 0) ?? [];
+					const batch = ctx.deps[0].waves.flat();
 					if (batch.length > 0)
 						ctx.down([["DATA", { lane: 0, values: batch as readonly SolutionOccurrence<L>[] }]]);
 				},
@@ -77,7 +76,7 @@ export function solutionOccurrenceJoin<L, R, O>(
 			graph.node<Arrival>(
 				[right],
 				(ctx) => {
-					const batch = depBatch(ctx, 0) ?? [];
+					const batch = ctx.deps[0].waves.flat();
 					if (batch.length > 0)
 						ctx.down([["DATA", { lane: 1, values: batch as readonly SolutionOccurrence<R>[] }]]);
 				},
@@ -97,7 +96,7 @@ export function solutionOccurrenceJoin<L, R, O>(
 		[arrivals],
 		(ctx) => {
 			const pairs = new Map(ctx.state.get<Map<string, Pair>>());
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const { lane, values } = raw as Arrival;
 				for (const value of values) {
 					const id = canonicalTupleKey([value.occurrenceId, String(value.occurrenceRevision)]);
@@ -144,7 +143,7 @@ export function solutionOccurrenceJoin<L, R, O>(
 		(ctx) => {
 			const seen = ctx.state.get<Set<string>>() ?? new Set<string>();
 			const fresh: SolutionOccurrence<O>[] = [];
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const value = raw as SolutionOccurrence<O>;
 				const key = canonicalTupleKey([value.occurrenceId, String(value.occurrenceRevision)]);
 				if (seen.has(key)) continue;
@@ -306,7 +305,7 @@ export function solutionOccurrenceProjection<TInput, TOutput>(
 			// Stage the whole batch. A failed projection must not commit replay authority.
 			const ledger = new Map(ctx.state.get<Map<string, SolutionOccurrenceLedgerEntry>>());
 			const outputs: SolutionOccurrence<TOutput>[] = [];
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				if (raw === null || typeof raw !== "object")
 					throw new TypeError("solution occurrence DATA must be an object");
 				let occurrence: SolutionOccurrence<TInput>;

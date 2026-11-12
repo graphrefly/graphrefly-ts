@@ -6,7 +6,6 @@
  * state is surfaced through graph-visible attempts/status/errors nodes.
  */
 
-import { depBatch } from "../ctx/types.js";
 import type { Graph } from "../graph/graph.js";
 import type { Node } from "../node/node.js";
 import type {
@@ -115,7 +114,7 @@ export function remoteResponderEventsNode<TRequest, TResponse>(
 		[inbound],
 		(ctx) => {
 			const cursor = ctx.state.get<RemoteResponderCursor>() ?? { cursor: 0, remoteCursor: 0 };
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const envelope = raw as WireBridgeEnvelope<RemoteCallRequest<TRequest>>;
 				const received = reduceRemoteResponderInbound(cursor, envelope, expectedSessionId);
 				if (received.kind === "consumed") continue;
@@ -215,7 +214,7 @@ export function remoteResponderResponseCommandsNode<TRequest, TResponse>(
 	return graph.node<WireBridgeCommand<RemoteCallResponse<TResponse>>>(
 		[events],
 		(ctx) => {
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const event = raw as RemoteResponderEvent<TRequest, TResponse>;
 				if (
 					(event.kind === "response" || event.kind === "rejected") &&
@@ -242,7 +241,7 @@ export function remoteResponderRequestsNode<TRequest, TResponse>(
 	return graph.node<RemoteCallRequest<TRequest>>(
 		[events],
 		(ctx) => {
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const event = raw as RemoteResponderEvent<TRequest, TResponse>;
 				if (event.kind === "request") ctx.down([["DATA", event.request]]);
 			}
@@ -266,7 +265,7 @@ export function remoteResponderStatusNode<TRequest, TResponse>(
 			let status =
 				ctx.state.get<RemoteResponderStatus>() ??
 				({ state: "idle", handled: 0, rejected: 0, errors: 0 } satisfies RemoteResponderStatus);
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const event = raw as RemoteResponderEvent<TRequest, TResponse>;
 				if (event.kind === "response") {
 					status = {
@@ -309,7 +308,7 @@ export function remoteResponderErrorsNode<TRequest, TResponse>(
 	return graph.node<RemoteCallError>(
 		[events],
 		(ctx) => {
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const event = raw as RemoteResponderEvent<TRequest, TResponse>;
 				if (event.kind === "rejected") {
 					ctx.down([

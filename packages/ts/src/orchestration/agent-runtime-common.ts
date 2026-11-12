@@ -1,4 +1,4 @@
-import { type Ctx, depBatch } from "../ctx/types.js";
+import type { Ctx } from "../ctx/types.js";
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
 import { canonicalTupleKey } from "../identity.js";
@@ -82,7 +82,7 @@ export function projectRuntimeFact<T, TOut>(
 	return graph.node<TOut>(
 		[runtime],
 		oneArrayPerRun((ctx) => {
-			for (const fact of depBatch(ctx, 0) ?? []) {
+			for (const fact of ctx.deps[0].waves.flat()) {
 				const typed = fact as T;
 				const value = pick(typed);
 				if (value !== undefined) ctx.down([["DATA", value]]);
@@ -99,7 +99,7 @@ export function forEachDepBatch(
 	fn: (value: unknown) => void,
 ): void {
 	for (let i = 0; i < count; i += 1) {
-		for (const value of depBatch(ctx, start + i) ?? []) fn(value);
+		for (const value of ctx.deps[start + i]?.waves.flat() ?? []) fn(value);
 	}
 }
 

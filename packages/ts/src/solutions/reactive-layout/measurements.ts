@@ -1,4 +1,4 @@
-import { type Ctx, depLatest } from "../../ctx/types.js";
+import type { Ctx } from "../../ctx/types.js";
 import type { DataIssue } from "../../data/index.js";
 import type { Graph, StateNode } from "../../graph/graph.js";
 import { Node } from "../../node/node.js";
@@ -346,14 +346,14 @@ export function textMeasurementProvider(opts: TextMeasurementProviderOptions): N
 			const flush = flushFor(ctx);
 			// R-invalidation, manual policy: an input's INVALIDATE flushes the measurement cache and
 			// invalidates this node; the run goes on only if a value came after it in the wave.
-			if (ctx.invalidated.some(Boolean)) {
+			if (ctx.deps.some((dep) => dep.invalidated)) {
 				flush();
 				ctx.down([["INVALIDATE"]]);
-				if (ctx.waveData.every((waves) => waves.length === 0)) return;
+				if (ctx.deps.every((dep) => dep.waves.every((wave) => wave.length === 0))) return;
 			}
-			const text = depLatest(ctx, 0) as string;
-			const font = depLatest(ctx, 1) as string;
-			const adapter = depLatest(ctx, 2) as MeasurementAdapter;
+			const text = ctx.deps[0].value as string;
+			const font = ctx.deps[1]?.value as string;
+			const adapter = ctx.deps[2]?.value as MeasurementAdapter;
 			if (adapter !== activeAdapter) {
 				cache.clear();
 				activeAdapter = adapter;
@@ -361,7 +361,7 @@ export function textMeasurementProvider(opts: TextMeasurementProviderOptions): N
 			const segmentAdapter =
 				opts.segmentAdapter === undefined
 					? getDefaultSegmentAdapter()
-					: (depLatest(ctx, 3) as SegmentAdapter);
+					: (ctx.deps[3]?.value as SegmentAdapter);
 			ctx.down([
 				[
 					"DATA",
@@ -466,7 +466,7 @@ export function capabilityTextMeasurements(
 		[opts.capability],
 		(ctx: Ctx) => {
 			ctx.down([
-				["DATA", new CapabilityMeasureAdapter(depLatest(ctx, 0) as TextMeasureCapability)],
+				["DATA", new CapabilityMeasureAdapter(ctx.deps[0].value as TextMeasureCapability)],
 			]);
 		},
 		{
@@ -506,7 +506,7 @@ export function readinessTextMeasurements(
 	// R-lifetime: the cache is flushed when a lifetime closes (the setup's cleanup) and on INVALIDATE.
 	const flushFor = (ctx: Ctx) => () => {
 		cache.clear();
-		(depLatest(ctx, 2) as MeasurementAdapter | undefined)?.clearCache?.();
+		(ctx.deps[2]?.value as MeasurementAdapter | undefined)?.clearCache?.();
 	};
 	return opts.graph.node<Measurements>(
 		deps,
@@ -514,19 +514,19 @@ export function readinessTextMeasurements(
 			const flush = flushFor(ctx);
 			// R-invalidation, manual policy: an input's INVALIDATE flushes the measurement cache and
 			// invalidates this node; the run goes on only if a value came after it in the wave.
-			if (ctx.invalidated.some(Boolean)) {
+			if (ctx.deps.some((dep) => dep.invalidated)) {
 				flush();
 				ctx.down([["INVALIDATE"]]);
-				if (ctx.waveData.every((waves) => waves.length === 0)) return;
+				if (ctx.deps.every((dep) => dep.waves.every((wave) => wave.length === 0))) return;
 			}
-			const text = depLatest(ctx, 0) as string;
-			const font = depLatest(ctx, 1) as string;
-			const adapter = depLatest(ctx, 2) as MeasurementAdapter;
+			const text = ctx.deps[0].value as string;
+			const font = ctx.deps[1]?.value as string;
+			const adapter = ctx.deps[2]?.value as MeasurementAdapter;
 			if (adapter !== activeAdapter) {
 				cache.clear();
 				activeAdapter = adapter;
 			}
-			const readiness = depLatest(ctx, 3) as MeasurementReadiness;
+			const readiness = ctx.deps[3]?.value as MeasurementReadiness;
 			if (readiness !== activeReadiness) {
 				cache.clear();
 				activeReadiness = readiness;
@@ -556,7 +556,7 @@ export function readinessTextMeasurements(
 			const segmentAdapter =
 				opts.segmentAdapter === undefined
 					? getDefaultSegmentAdapter()
-					: (depLatest(ctx, 4) as SegmentAdapter);
+					: (ctx.deps[4]?.value as SegmentAdapter);
 			ctx.down([
 				[
 					"DATA",
@@ -585,7 +585,7 @@ export function readinessMeasurements(opts: ReadinessMeasurementsOptions): Node<
 	return opts.graph.node<Measurements>(
 		[opts.readiness],
 		(ctx: Ctx) => {
-			const readiness = depLatest(ctx, 0) as MeasurementReadiness;
+			const readiness = ctx.deps[0].value as MeasurementReadiness;
 			if (!readiness.ready) {
 				ctx.down([
 					[
@@ -640,8 +640,8 @@ export function imageSizeMeasurements(opts: ImageSizeMeasurementsOptions): Node<
 	return opts.graph.node<Measurements>(
 		[opts.images, opts.measurer],
 		(ctx: Ctx) => {
-			const images = depLatest(ctx, 0) as readonly ImageSizeMeasurementTarget[];
-			const measurer = depLatest(ctx, 1) as ImageMeasurer;
+			const images = ctx.deps[0].value as readonly ImageSizeMeasurementTarget[];
+			const measurer = ctx.deps[1]?.value as ImageMeasurer;
 			const facts: MeasurementFact<Size>[] = [];
 			for (let i = 0; i < images.length; i += 1) {
 				const image = (images as readonly (ImageSizeMeasurementTarget | undefined)[])[i];
@@ -698,8 +698,8 @@ export function svgBoundsMeasurements(opts: SvgBoundsMeasurementsOptions): Node<
 	return opts.graph.node<Measurements>(
 		[opts.svgs, opts.measurer],
 		(ctx: Ctx) => {
-			const svgs = depLatest(ctx, 0) as readonly SvgBoundsMeasurementTarget[];
-			const measurer = depLatest(ctx, 1) as SvgMeasurer;
+			const svgs = ctx.deps[0].value as readonly SvgBoundsMeasurementTarget[];
+			const measurer = ctx.deps[1]?.value as SvgMeasurer;
 			const facts: MeasurementFact<Size>[] = [];
 			for (let i = 0; i < svgs.length; i += 1) {
 				const svg = (svgs as readonly (SvgBoundsMeasurementTarget | undefined)[])[i];
@@ -756,7 +756,7 @@ export function mergeMeasurements(opts: MergeMeasurementsOptions): Node<Measurem
 		(ctx: Ctx) => {
 			const facts: MeasurementFact[] = [];
 			for (let i = 0; i < sources.length; i += 1) {
-				facts.push(...(depLatest(ctx, i) as Measurements));
+				facts.push(...(ctx.deps[i].value as Measurements));
 			}
 			ctx.down([["DATA", facts]]);
 		},
@@ -795,13 +795,13 @@ export function blockAdaptersProvider(opts: BlockAdaptersProviderOptions): Node<
 				text:
 					positions.text === undefined
 						? undefined
-						: (depLatest(ctx, positions.text) as MeasurementAdapter),
+						: (ctx.deps[positions.text]?.value as MeasurementAdapter),
 				svg:
-					positions.svg === undefined ? undefined : (depLatest(ctx, positions.svg) as SvgMeasurer),
+					positions.svg === undefined ? undefined : (ctx.deps[positions.svg]?.value as SvgMeasurer),
 				image:
 					positions.image === undefined
 						? undefined
-						: (depLatest(ctx, positions.image) as ImageMeasurer),
+						: (ctx.deps[positions.image]?.value as ImageMeasurer),
 			};
 			ctx.down([["DATA", adapters]]);
 		},
@@ -833,7 +833,7 @@ export function blockMeasurementProvider(
 	// R-lifetime: the cache is flushed when a lifetime closes (the setup's cleanup) and on INVALIDATE.
 	const flushFor = (ctx: Ctx) => () => {
 		cache.clear();
-		(depLatest(ctx, 2) as BlockAdapters | undefined)?.text?.clearCache?.();
+		(ctx.deps[2]?.value as BlockAdapters | undefined)?.text?.clearCache?.();
 	};
 	return opts.graph.node<Measurements>(
 		deps,
@@ -841,26 +841,26 @@ export function blockMeasurementProvider(
 			const flush = flushFor(ctx);
 			// R-invalidation, manual policy: an input's INVALIDATE flushes the measurement cache and
 			// invalidates this node; the run goes on only if a value came after it in the wave.
-			if (ctx.invalidated.some(Boolean)) {
+			if (ctx.deps.some((dep) => dep.invalidated)) {
 				flush();
 				ctx.down([["INVALIDATE"]]);
-				if (ctx.waveData.every((waves) => waves.length === 0)) return;
+				if (ctx.deps.every((dep) => dep.waves.every((wave) => wave.length === 0))) return;
 			}
 			try {
-				const blocks = depLatest(ctx, 0) as readonly ContentBlock[];
-				const maxWidth = nonNegativeFinite(depLatest(ctx, 1) as number, 0);
-				const adapters = depLatest(ctx, 2) as BlockAdapters;
+				const blocks = ctx.deps[0].value as readonly ContentBlock[];
+				const maxWidth = nonNegativeFinite(ctx.deps[1]?.value as number, 0);
+				const adapters = ctx.deps[2]?.value as BlockAdapters;
 				if (adapters.text !== activeTextAdapter) {
 					cache.clear();
 					activeTextAdapter = adapters.text;
 				}
 				let depIndex = 3;
-				const font = opts.font ? (depLatest(ctx, depIndex++) as string) : undefined;
+				const font = opts.font ? (ctx.deps[depIndex++]?.value as string) : undefined;
 				const lineHeight = opts.lineHeight
-					? nonNegativeFinite(depLatest(ctx, depIndex++) as number, 0)
+					? nonNegativeFinite(ctx.deps[depIndex++]?.value as number, 0)
 					: undefined;
 				const segmentAdapter = opts.segmentAdapter
-					? (depLatest(ctx, depIndex) as SegmentAdapter)
+					? (ctx.deps[depIndex]?.value as SegmentAdapter)
 					: getDefaultSegmentAdapter();
 				const measured: MeasuredBlock[] = [];
 				const issues: MeasurementIssue[] = [];

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { deferRequest } from "../batch/boundary.js";
-import { ctxRewireDiff, depBatch, depLatest } from "../ctx/types.js";
+import { ctxRewireDiff } from "../ctx/types.js";
 import { Dispatcher, type Handle } from "../dispatcher/index.js";
 import {
 	ColdConstructionError,
@@ -78,17 +78,17 @@ function simple(name = "view", report?: GraphOptions["report"]) {
 		names: [`${name}/startup`, `${name}/left`, `${name}/right`, `${name}/join`],
 	});
 	const startup = scope.startupSource();
-	const left = scope.node([a], (ctx) => ctx.down([["DATA", Number(depLatest(ctx, 0)) * 2]]), {
+	const left = scope.node([a], (ctx) => ctx.down([["DATA", Number(ctx.deps[0].value) * 2]]), {
 		name: `${name}/left`,
 	});
 	const right = scope.node(
 		[a, b],
-		(ctx) => ctx.down([["DATA", Number(depLatest(ctx, 0)) + Number(depLatest(ctx, 1))]]),
+		(ctx) => ctx.down([["DATA", Number(ctx.deps[0].value) + Number(ctx.deps[1].value)]]),
 		{ name: `${name}/right` },
 	);
 	const join = scope.node<number>(
 		[left, right],
-		(ctx) => ctx.down([["DATA", Number(depLatest(ctx, 0)) + Number(depLatest(ctx, 1))]]),
+		(ctx) => ctx.down([["DATA", Number(ctx.deps[0].value) + Number(ctx.deps[1].value)]]),
 		{ name: `${name}/join` },
 	);
 	return { graph, dispatcher, a, b, scope, startup, left, right, join };
@@ -149,7 +149,7 @@ function causal(graph = new Graph(), fault = false) {
 		watermarks: graph.node(
 			[watermark],
 			(ctx) => {
-				for (const value of depBatch(ctx, 0) ?? []) ctx.down([["DATA", value]]);
+				for (const value of ctx.deps[0].waves.flat()) ctx.down([["DATA", value]]);
 				if (fault) throw new Error("after admission");
 			},
 			{ name: "input/watermark" },

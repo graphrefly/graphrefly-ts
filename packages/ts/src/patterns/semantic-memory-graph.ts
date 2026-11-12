@@ -7,7 +7,6 @@
  * retention loop, consolidation loop, Graph subclass, or protocol behavior.
  */
 
-import { depBatch, depLatest } from "../ctx/types.js";
 import type { Graph } from "../graph/graph.js";
 import type { Node } from "../node/node.js";
 import { oneArrayPerRun } from "../node/one-array-per-run.js";
@@ -97,8 +96,8 @@ export function memoryRetrievalBundle<T = unknown>(
 				ctx.state.get<MemoryRetrievalRuntimeState>() ??
 				({ evaluation: 0 } satisfies MemoryRetrievalRuntimeState);
 			state.evaluation += 1;
-			const rawFragments = depLatest(ctx, 0);
-			const rawQuery = depLatest(ctx, 1);
+			const rawFragments = ctx.deps[0].value;
+			const rawQuery = ctx.deps[1]?.value;
 			const queryValidation = validateMemoryRetrievalQuery(rawQuery);
 			const currentQuery = queryValidation.query;
 			const valid: MemoryFragment<T>[] = [];
@@ -278,9 +277,9 @@ export function knowledgeGraphReducerBundle(
 				({ evaluation: 0 } satisfies { evaluation: number });
 			state.evaluation += 1;
 			const policy = validateKnowledgeGraphPolicy(
-				opts.policy === undefined ? undefined : depLatest(ctx, 1),
+				opts.policy === undefined ? undefined : ctx.deps[1]?.value,
 			);
-			const reduced = reduceKnowledgeAssertions(depLatest(ctx, 0), policy.policy);
+			const reduced = reduceKnowledgeAssertions(ctx.deps[0].value, policy.policy);
 			const pendingErrors = [...policy.errors, ...reduced.errors];
 			const cursor: KnowledgeGraphCursor = Object.freeze({
 				evaluation: state.evaluation,
@@ -411,7 +410,7 @@ function retrievalProjection<TFact, T>(
 	return graph.node<TFact>(
 		[snapshot],
 		oneArrayPerRun((ctx) => {
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const fact = raw as MemoryRetrievalSnapshot<T>;
 				const selected = select(fact);
 				if (selected !== undefined) ctx.down([["DATA", selected]]);
@@ -436,7 +435,7 @@ function kgProjection<TFact>(
 	return graph.node<TFact>(
 		[snapshot],
 		oneArrayPerRun((ctx) => {
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				ctx.down([["DATA", select(raw as KnowledgeGraphSnapshot)]]);
 			}
 		}),

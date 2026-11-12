@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { depLatest, type NodeFn } from "../ctx/types.js";
+import type { NodeFn } from "../ctx/types.js";
 import { Dispatcher, type Handle } from "../dispatcher/index.js";
 import {
 	checkpointBackendStateOfNode,
@@ -463,7 +463,7 @@ describe("D167 exact command binding and existing D110 batch fate", () => {
 	it("ordinary data flow still uses dispatcher/dependencies after composition", () => {
 		const g = new Graph();
 		const a = g.state(2);
-		const b = g.node([a], (ctx) => ctx.down([["DATA", depLatest(ctx, 0)]]));
+		const b = g.node([a], (ctx) => ctx.down([["DATA", ctx.deps[0].value]]));
 		const stop = b.subscribe(() => {});
 		a.set(9);
 		expect(b.cache).toBe(9);

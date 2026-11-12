@@ -1,5 +1,5 @@
 /** D164 internal cold seam. Not the final qualified-inbox creating factory; no effect methods. */
-import { depBatch } from "../../packages/ts/src/ctx/types.js";
+
 import type { DataIssue } from "../../packages/ts/src/data/index.js";
 import type {
 	ConstructionScope,
@@ -159,7 +159,7 @@ export function buildSpendingPresetNodes(
 		],
 		oneArrayPerRun((ctx) => {
 			for (let i = 0; i < 9; i++)
-				for (const raw of depBatch(ctx, i) ?? []) {
+				for (const raw of ctx.deps[i].waves.flat()) {
 					const value = raw as { kind?: string; issue?: DataIssue; issues?: readonly DataIssue[] };
 					if (value.kind === "issue") ctx.down([["DATA", raw]]);
 					else {
@@ -184,7 +184,7 @@ export function buildSpendingPresetNodes(
 					"diagnosticSummary",
 					[view.assessment, view.publication, view.coverage, view.issues],
 					(ctx) => {
-						const arrivals = ctx.waveData.map((_, i) => depBatch(ctx, i)?.length ?? 0);
+						const arrivals = ctx.deps.map((d) => d.waves.flat().length);
 						ctx.down([["DATA", frozen({ kind: "spending-diagnostic-summary", arrivals })]]);
 					},
 				)

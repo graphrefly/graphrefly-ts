@@ -1,4 +1,4 @@
-import { depBatch } from "../../src/core/index.js";
+import type { Ctx } from "../../src/core/index.js";
 import type {
 	AgentRequestFact,
 	AgentRequestIssued,
@@ -38,8 +38,8 @@ function publicManualTupleKey(prefix: string, parts: readonly string[]): string 
 export const composeD687ManualArm: D687ArmComposer = (graph, sources): D687ArmBundle => {
 	const workItemSeeds = graph.node<D687WorkItemSeed>(
 		[sources.workItems],
-		(ctx) => {
-			for (const raw of depBatch(ctx, 0) ?? []) {
+		(ctx: Ctx) => {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const workItem = raw as {
 					readonly workItemId: string;
 					readonly summary: string;
@@ -82,10 +82,10 @@ export const composeD687ManualArm: D687ArmComposer = (graph, sources): D687ArmBu
 				readonly workItemIds: Set<string>;
 				readonly effectRunIds: Set<string>;
 			}>() ?? { workItemIds: new Set<string>(), effectRunIds: new Set<string>() };
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				state.workItemIds.add((raw as D687WorkItemSeed).workItemId);
 			}
-			for (const raw of depBatch(ctx, 1) ?? []) {
+			for (const raw of ctx.deps[1]?.waves.flat() ?? []) {
 				const request = raw as D687PublicEffectRequest;
 				if (
 					!state.workItemIds.has(request.workItemId) ||
@@ -129,7 +129,7 @@ export const composeD687ManualArm: D687ArmComposer = (graph, sources): D687ArmBu
 		[effectRuns.effectRuns],
 		(ctx) => {
 			const issuedEffectRunIds = ctx.state.get<Set<string>>() ?? new Set<string>();
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const run = raw as EffectRun<D687Input>;
 				if (issuedEffectRunIds.has(run.effectRunId)) continue;
 				issuedEffectRunIds.add(run.effectRunId);
@@ -178,7 +178,7 @@ export const composeD687ManualArm: D687ArmComposer = (graph, sources): D687ArmBu
 	const requests = graph.node<AgentRequestIssued<D687Input>>(
 		[requestFacts],
 		(ctx) => {
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const fact = raw as AgentRequestFact<D687Input>;
 				if (fact.kind === "issued") ctx.down([["DATA", fact]]);
 			}

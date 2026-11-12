@@ -1,4 +1,3 @@
-import { depLatest } from "../../ctx/types.js";
 import type { DataIssue } from "../../data/index.js";
 import type { Graph } from "../../graph/graph.js";
 import { type Codec, cloneStrictJsonObject, strictJsonCodec } from "../../json/codec.js";
@@ -384,7 +383,7 @@ export function agenticMemoryRecordStoreFrameBundle<
 				({ evaluation: 0 } satisfies { evaluation: number });
 			state.evaluation += 1;
 			ctx.state.set(state);
-			ctx.down([["DATA", projectRecordStoreFrame<TJson>(depLatest(ctx, 0), state.evaluation)]]);
+			ctx.down([["DATA", projectRecordStoreFrame<TJson>(ctx.deps[0].value, state.evaluation)]]);
 		},
 		{
 			name: `${name}/projection`,
@@ -453,7 +452,7 @@ export function agenticMemoryApplicationEvidenceStoreFrameBundle(
 				({ evaluation: 0 } satisfies { evaluation: number });
 			state.evaluation += 1;
 			ctx.state.set(state);
-			ctx.down([["DATA", projectEvidenceStoreFrame(depLatest(ctx, 0), state.evaluation)]]);
+			ctx.down([["DATA", projectEvidenceStoreFrame(ctx.deps[0].value, state.evaluation)]]);
 		},
 		{
 			name: `${name}/projection`,

@@ -15,7 +15,7 @@ import {
 	wireEdgeGroupIn,
 	wireEdgeGroupOut,
 } from "../adapters/index.js";
-import { type Ctx, depLatest, depWaves } from "../ctx/types.js";
+import type { Ctx } from "../ctx/types.js";
 import { graph } from "../graph/graph.js";
 import type { Message, Wave } from "../protocol/messages.js";
 
@@ -53,8 +53,8 @@ function counted(fn: (ctx: Ctx) => void) {
 	const runs: unknown[][] = [];
 	const wrapped = (ctx: Ctx) => {
 		runs.push(
-			ctx.waveData.map((_, i) => {
-				const v = depLatest(ctx, i);
+			ctx.deps.map((d) => {
+				const v = d.value;
 				return v === undefined ? undefined : dec(v);
 			}),
 		);
@@ -64,8 +64,8 @@ function counted(fn: (ctx: Ctx) => void) {
 }
 
 const mapNode = (f: (v: number) => number) => (ctx: Ctx) => {
-	if (depWaves(ctx, 0).some((w) => w.length > 0))
-		ctx.down([["DATA", enc(f(dec(depLatest(ctx, 0))))]]);
+	if (ctx.deps[0].waves.some((w) => w.length > 0))
+		ctx.down([["DATA", enc(f(dec(ctx.deps[0].value)))]]);
 };
 const dataOf = (msgs: Wave) => msgs.filter((m) => m[0] === "DATA").map((m) => m[1]);
 const body = (msgs: Wave | undefined) =>
@@ -93,8 +93,8 @@ function crossGraphDiamond() {
 	const gbcFrames = frameSource(g1, c2.open, { name: "gbc.frames" });
 	const gbcIn = wireEdgeGroupIn(g1, { group: "gbc", frames: gbcFrames, edges: ["b", "c"] });
 	const dFn = counted((ctx) => {
-		const b = depLatest(ctx, 0);
-		const c = depLatest(ctx, 1);
+		const b = ctx.deps[0].value;
+		const c = ctx.deps[1].value;
 		if (b !== undefined && c !== undefined) ctx.down([["DATA", enc(`${dec(b)}:${dec(c)}`)]]);
 	});
 	const D = g1.node<Uint8Array>([gbcIn.inbound.get("b")!, gbcIn.inbound.get("c")!], dFn.fn, {
@@ -167,8 +167,8 @@ function oneHop(opts: { twoArrays?: boolean } = {}) {
 	const x2 = s.node<Uint8Array>(
 		[x],
 		(ctx) => {
-			if (!depWaves(ctx, 0).some((w) => w.length > 0)) return;
-			const v = dec(depLatest(ctx, 0));
+			if (!ctx.deps[0].waves.some((w) => w.length > 0)) return;
+			const v = dec(ctx.deps[0].value);
 			ctx.down([["DATA", enc(`${v}a`)]]);
 			ctx.down([
 				["DATA", enc(`${v}b`)],

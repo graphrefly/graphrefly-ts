@@ -1,4 +1,3 @@
-import { depBatch } from "../ctx/types.js";
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
 import { canonicalTupleKey, compoundTupleKey } from "../identity.js";
@@ -51,7 +50,7 @@ export function executorOutcomeViewProjector(
 	const runtime = graph.node<ExecutorOutcomeViewFact>(
 		[opts.outcomes],
 		oneArrayPerRun((ctx) => {
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const outcome = raw as ExecutorOutcome;
 				const projection = executorOutcomeViewProjectionFromOutcome(outcome, policy);
 				ctx.down([

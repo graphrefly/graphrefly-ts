@@ -1,4 +1,3 @@
-import { depBatch } from "../ctx/types.js";
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
 import type { Node } from "../node/node.js";
@@ -216,7 +215,7 @@ export function agentRequestLedgerViews(
 		(ctx) => {
 			const prev = ctx.state.get<AgentRequestViewsState>() ?? emptyAgentRequestViewsState();
 			const next = cloneAgentRequestViewsState(prev);
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const fact = raw as AgentRequestFact;
 				reduceAgentRequestViews(next, fact);
 			}
@@ -228,7 +227,7 @@ export function agentRequestLedgerViews(
 	const issues = graph.node<DataIssue>(
 		[facts],
 		oneArrayPerRun((ctx) => {
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const fact = raw as AgentRequestFact;
 				if (fact.kind === "rejected") ctx.down([["DATA", sanitizeAdapterInputIssue(fact.issue)]]);
 				if (fact.kind === "status") {
@@ -244,7 +243,7 @@ export function agentRequestLedgerViews(
 		[facts],
 		oneArrayPerRun((ctx) => {
 			let seq = ctx.state.get<number>() ?? 0;
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				seq += 1;
 				const fact = raw as AgentRequestFact;
 				ctx.down([

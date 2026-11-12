@@ -17,7 +17,7 @@
  */
 
 import type { Ctx, Sink } from "../ctx/types.js";
-import { depWaves } from "../ctx/types.js";
+
 import type { Graph } from "../graph/graph.js";
 import type { Node } from "../node/node.js";
 import { type Message, SENTINEL, type Wave } from "../protocol/messages.js";
@@ -111,13 +111,11 @@ const MANUAL = { complete: "manual", error: "manual" } as const;
  */
 function brought(ctx: Ctx, i: number): Wave[] {
 	const arrays: Wave[] = [];
-	if (ctx.invalidated[i] === true) arrays.push([["INVALIDATE"]]);
-	for (const w of depWaves(ctx, i)) {
-		const data = w.filter((v) => v !== SENTINEL);
-		if (data.length > 0) arrays.push(data.map((v) => ["DATA", v] as Message));
-	}
-	const t = ctx.terminal[i];
-	if (t !== undefined && t !== false) arrays.push([t === true ? ["COMPLETE"] : ["ERROR", t]]);
+	const dep = ctx.deps[i];
+	if (dep.invalidated) arrays.push([["INVALIDATE"]]);
+	for (const w of dep.waves) if (w.length > 0) arrays.push(w.map((v) => ["DATA", v] as Message));
+	const t = dep.terminal;
+	if (t !== undefined) arrays.push([t.kind === "complete" ? ["COMPLETE"] : ["ERROR", t.error]]);
 	return arrays;
 }
 
@@ -323,7 +321,7 @@ function gateFn(group: string, declared: readonly string[]): (ctx: Ctx) => void 
 		let st = ctx.state.get<GateState>() ?? { session: null, last: 0, view: {} };
 		const released: WireEdgeCause[] = [];
 		const issues: WireEdgeGroupIssue[] = [];
-		for (const raw of depWaves(ctx, 0).flat()) {
+		for (const raw of ctx.deps[0].waves.flat()) {
 			if (raw === SENTINEL) continue;
 			const frame = raw as Partial<WireEdgeCause> | null;
 			if (frame?.group !== group) continue; // another group's frame on the same channel
@@ -480,9 +478,7 @@ function viewAfter(
  */
 function inboundFn(edgeId: string): (ctx: Ctx) => void {
 	return (ctx) => {
-		const gates = depWaves(ctx, 0)
-			.flat()
-			.filter((v) => v !== SENTINEL) as WireEdgeGateOutput[];
+		const gates = ctx.deps[0].waves.flat().filter((v) => v !== SENTINEL) as WireEdgeGateOutput[];
 		if (ctx.state.get<boolean>() !== true) {
 			ctx.state.set(true);
 			const last = gates.at(-1)?.view[edgeId];
@@ -504,9 +500,7 @@ function inboundFn(edgeId: string): (ctx: Ctx) => void {
  * repeat the issues of the gate's last value.
  */
 function issuesFn(ctx: Ctx): void {
-	const gates = depWaves(ctx, 0)
-		.flat()
-		.filter((v) => v !== SENTINEL) as WireEdgeGateOutput[];
+	const gates = ctx.deps[0].waves.flat().filter((v) => v !== SENTINEL) as WireEdgeGateOutput[];
 	if (ctx.state.get<boolean>() !== true) {
 		ctx.state.set(true);
 		return;

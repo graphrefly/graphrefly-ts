@@ -6,7 +6,7 @@
  * hidden sink side channel.
  */
 
-import { type Ctx, depBatch, isTerminalError, terminalErrorValue } from "../ctx/types.js";
+import type { Ctx } from "../ctx/types.js";
 import type {
 	DriverCancel,
 	HttpResponse,
@@ -92,7 +92,7 @@ function outboundNodes<TValue, TResult>(
 				ctx.state.get<OutboundStatus>() ??
 				({ state: "idle", inFlight: 0, attempt: 0, sent: 0, failed: 0 } satisfies OutboundStatus);
 			let next = current;
-			for (const event of depBatch(ctx, 0) ?? []) {
+			for (const event of ctx.deps[0].waves.flat()) {
 				next = reduceStatus(next, event as OutboundEvent<TValue, TResult>);
 			}
 			ctx.state.set(next);
@@ -104,7 +104,7 @@ function outboundNodes<TValue, TResult>(
 	const attempts = graph.node<number>(
 		[events],
 		oneArrayPerRun((ctx) => {
-			for (const event of depBatch(ctx, 0) ?? []) {
+			for (const event of ctx.deps[0].waves.flat()) {
 				const typed = event as OutboundEvent<TValue, TResult>;
 				if ("attempt" in typed) ctx.down([["DATA", typed.attempt]]);
 			}
@@ -115,7 +115,7 @@ function outboundNodes<TValue, TResult>(
 	const errors = graph.node<unknown>(
 		[events],
 		oneArrayPerRun((ctx) => {
-			for (const event of depBatch(ctx, 0) ?? []) {
+			for (const event of ctx.deps[0].waves.flat()) {
 				const typed = event as OutboundEvent<TValue, TResult>;
 				if ("error" in typed) ctx.down([["DATA", typed.error]]);
 			}
@@ -132,8 +132,8 @@ function outboundNodes<TValue, TResult>(
  * (R-terminals), dropping the final "exhausted" event.
  */
 function forwardError(ctx: Ctx): void {
-	const t = ctx.terminal[0];
-	if (isTerminalError(t)) ctx.down([["ERROR", terminalErrorValue(t)]]);
+	const t = ctx.deps[0].terminal;
+	if (t?.kind === "error") ctx.down([["ERROR", t.error]]);
 }
 
 function reduceStatus<TValue, TResult>(
@@ -298,17 +298,20 @@ function outboundNode<TValue, TResult>(
 					runCancel(cancel);
 				}
 			};
-			for (const value of depBatch(ctx, 0) ?? []) start(value as TValue, 1);
-			const terminal = ctx.terminal[0];
-			if (terminal === true) {
+			for (const value of ctx.deps[0].waves.flat()) start(value as TValue, 1);
+			const terminal = ctx.deps[0].terminal;
+			if (terminal?.kind === "complete") {
 				ctx.down([
 					["DATA", { kind: "upstream-complete" } satisfies OutboundEvent<TValue, TResult>],
 				]);
-			} else if (terminal !== false && terminal !== undefined) {
+			} else if (terminal?.kind === "error") {
 				ctx.down([
 					[
 						"DATA",
-						{ kind: "upstream-error", error: terminal } satisfies OutboundEvent<TValue, TResult>,
+						{ kind: "upstream-error", error: terminal.error } satisfies OutboundEvent<
+							TValue,
+							TResult
+						>,
 					],
 				]);
 			}

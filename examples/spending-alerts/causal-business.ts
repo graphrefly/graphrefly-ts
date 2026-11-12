@@ -1,5 +1,5 @@
 /** D164: bounded business nodes. Each named computation executes through its own dispatcher. */
-import { depLatest, depWaves, type NodeFn } from "../../packages/ts/src/ctx/types.js";
+import type { NodeFn } from "../../packages/ts/src/ctx/types.js";
 import type { DataIssue } from "../../packages/ts/src/data/index.js";
 import type { ConstructionScope } from "../../packages/ts/src/graph/construction-scope.js";
 import type { Node } from "../../packages/ts/src/node/node.js";
@@ -75,7 +75,7 @@ export function project<T, U>(
 		name,
 		[input],
 		oneArrayPerRun((ctx) => {
-			for (const raw of depWaves(ctx, 0).flat()) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				if (raw === SENTINEL) {
 					ctx.down([["DATA", frame([], [], false)]]);
 					continue;
@@ -105,7 +105,7 @@ export function join<T>(
 	return make(name, deps, (ctx) => {
 		// The kernel runs a node once when it activates (R-lifetime); a join with no input yet has
 		// nothing to say, so it waits for its first frame.
-		if (deps.every((_, i) => depWaves(ctx, i).length === 0)) return;
+		if (deps.every((_, i) => ctx.deps[i].waves.length === 0)) return;
 		let state = ctx.state.get<{ maps: Map<string, Item<unknown>>[]; valid: boolean[] }>();
 		if (!state) {
 			state = { maps: deps.map(() => new Map()), valid: deps.map(() => false) };
@@ -114,11 +114,11 @@ export function join<T>(
 		const touched = new Set<string>(),
 			issues: DataIssue[] = [];
 		for (let i = 0; i < deps.length; i++) {
-			if (depLatest(ctx, i) === undefined) {
+			if (ctx.deps[i].value === undefined) {
 				state.maps[i].clear();
 				state.valid[i] = false;
 			}
-			for (const raw of depWaves(ctx, i).flat()) {
+			for (const raw of ctx.deps[i].waves.flat()) {
 				if (raw === SENTINEL) {
 					state.maps[i].clear();
 					state.valid[i] = false;
@@ -187,7 +187,7 @@ export function checked<T>(
 				state = { seen: new Map(), conflicts: new Set() };
 				ctx.state.set(state);
 			}
-			for (const raw of depWaves(ctx, 0).flat()) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				let result: Checked<T> =
 					raw === SENTINEL
 						? { valid: false, issue: issue(`invalidated-${kind}`) }
@@ -250,8 +250,8 @@ export function buildBusiness(make: MakeNode, inputs: SpendingInputs, binding: S
 				ctx.state.set(state);
 			}
 			const problems: DataIssue[] = [];
-			if (depLatest(ctx, 0) === undefined) state.available = false;
-			for (const raw of depWaves(ctx, 0).flat()) {
+			if (ctx.deps[0].value === undefined) state.available = false;
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const result: Checked<EvaluationPack> =
 					raw === SENTINEL
 						? { valid: false, issue: issue("invalidated-pack") }
@@ -284,7 +284,7 @@ export function buildBusiness(make: MakeNode, inputs: SpendingInputs, binding: S
 				if (rows.length || problems.length) ctx.down([["DATA", frame(rows, problems.splice(0))]]);
 			};
 			emitPending();
-			for (const raw of depWaves(ctx, 1).flat()) {
+			for (const raw of ctx.deps[1]?.waves.flat() ?? []) {
 				const result: Checked<ArrivalFrame> =
 					raw === SENTINEL
 						? { valid: false, issue: issue("invalidated-arrivals") }

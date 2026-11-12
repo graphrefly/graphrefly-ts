@@ -43,7 +43,7 @@ import {
 	GraphWsReply,
 	provideGraphWsProviders,
 } from "@graphrefly/nestjs/websockets";
-import { depLatest } from "@graphrefly/ts";
+
 import { type Graph, graph } from "@graphrefly/ts/graph";
 import {
 	BadRequestException,
@@ -156,7 +156,7 @@ const echoIn = fromNestReq<HttpHost<{ readonly message?: string }>, { readonly m
 const echoOut = g.node<NestReplyEnvelope<HttpResult>>(
 	[echoIn.node],
 	(ctx) => {
-		const envelope = depLatest(ctx, 0) as NestBoundaryEnvelope<{ readonly message?: string }>;
+		const envelope = ctx.deps[0].value as NestBoundaryEnvelope<{ readonly message?: string }>;
 		if (envelope.requestId === undefined) return;
 		ctx.down([
 			[
@@ -187,7 +187,7 @@ const ordersGuardIn = fromNestGuard<
 const ordersGuardOut = g.node<NestReplyEnvelope<GraphGuardDecisionPayload>>(
 	[ordersGuardIn.node],
 	(ctx) => {
-		const envelope = depLatest(ctx, 0) as NestBoundaryEnvelope<{
+		const envelope = ctx.deps[0].value as NestBoundaryEnvelope<{
 			readonly apiKey?: string;
 			readonly orderId?: string;
 		}>;
@@ -219,9 +219,9 @@ const ordersGuardOut = g.node<NestReplyEnvelope<GraphGuardDecisionPayload>>(
 const ordersAudit = g.node<AuditEntry>(
 	[ordersIn.node, policy],
 	(ctx) => {
-		const envelope = depLatest(ctx, 0) as NestBoundaryEnvelope<OrderRequest>;
+		const envelope = ctx.deps[0].value as NestBoundaryEnvelope<OrderRequest>;
 		if (envelope.requestId === undefined) return;
-		const currentPolicy = depLatest(ctx, 1) as PolicyState;
+		const currentPolicy = ctx.deps[1]?.value as PolicyState;
 		const accepted = currentPolicy.acceptOrders && envelope.payload.quantity > 0;
 		ctx.down([
 			[
@@ -241,7 +241,7 @@ const ordersAudit = g.node<AuditEntry>(
 const ordersOut = g.node<NestReplyEnvelope<HttpResult>>(
 	[ordersAudit],
 	(ctx) => {
-		const audit = depLatest(ctx, 0) as AuditEntry;
+		const audit = ctx.deps[0].value as AuditEntry;
 		const issue: HttpDataIssue = {
 			kind: "issue",
 			code: "orders.not_admitted",
@@ -274,7 +274,7 @@ const errorIn = fromNestError<
 const errorOut = g.node<NestReplyEnvelope<HttpResult>>(
 	[errorIn.node],
 	(ctx) => {
-		const envelope = depLatest(ctx, 0) as NestBoundaryEnvelope<{ readonly message: string }>;
+		const envelope = ctx.deps[0].value as NestBoundaryEnvelope<{ readonly message: string }>;
 		if (envelope.requestId === undefined) return;
 		ctx.down([
 			[
@@ -300,7 +300,7 @@ const wsOrdersAck = g.node<
 >(
 	[wsOrdersIn.node],
 	(ctx) => {
-		const envelope = depLatest(ctx, 0) as NestBoundaryEnvelope<OrderRequest>;
+		const envelope = ctx.deps[0].value as NestBoundaryEnvelope<OrderRequest>;
 		if (envelope.requestId === undefined) return;
 		ctx.down([
 			[
@@ -320,7 +320,7 @@ const wsOrdersAck = g.node<
 const wsOrdersReply = g.node<NestReplyEnvelope<HttpResult>>(
 	[wsOrdersIn.node],
 	(ctx) => {
-		const envelope = depLatest(ctx, 0) as NestBoundaryEnvelope<OrderRequest>;
+		const envelope = ctx.deps[0].value as NestBoundaryEnvelope<OrderRequest>;
 		if (envelope.requestId === undefined) return;
 		ctx.down([
 			[
@@ -348,7 +348,7 @@ const messageOrdersIn = fromNestMessage<MessageOrderHost, OrderRequest>(g, {
 const messageOrdersReply = g.node<NestReplyEnvelope<HttpResult>>(
 	[messageOrdersIn.node],
 	(ctx) => {
-		const envelope = depLatest(ctx, 0) as NestBoundaryEnvelope<OrderRequest>;
+		const envelope = ctx.deps[0].value as NestBoundaryEnvelope<OrderRequest>;
 		if (envelope.requestId === undefined) return;
 		ctx.down([
 			[

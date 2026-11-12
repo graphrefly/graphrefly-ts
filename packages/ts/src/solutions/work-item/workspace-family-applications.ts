@@ -1,4 +1,4 @@
-import { type Ctx, depBatch } from "../../ctx/types.js";
+import type { Ctx } from "../../ctx/types.js";
 import type { Graph } from "../../graph/graph.js";
 import type { Node } from "../../node/node.js";
 import { oneArrayPerRun } from "../../node/one-array-per-run.js";
@@ -1532,13 +1532,13 @@ export function workspaceProposalRequiredInputResponseApplicationProjector<TValu
 			ingestRecords(ctx, state, 0);
 			ingestDecisions(ctx, state, 1);
 			ingestContexts(ctx, state, 2);
-			for (const raw of depBatch(ctx, 3) ?? []) {
+			for (const raw of ctx.deps[3]?.waves.flat() ?? []) {
 				const gate = raw as RequiredInputGate;
 				state.gates.set(gate.gateId, gate);
 				state.gates.set(`${gate.requestId}:${gate.workItemId}`, gate);
 			}
 			if (opts.requests !== undefined) {
-				for (const raw of depBatch(ctx, 4) ?? []) {
+				for (const raw of ctx.deps[4]?.waves.flat() ?? []) {
 					const request = raw as RequiredInputRequest;
 					state.requests.set(request.requestId, request);
 					state.requests.set(`${request.requestId}:${request.workItemId}`, request);
@@ -1723,7 +1723,7 @@ export function workspaceProposalWorkItemLinkApplicationProjector<TInput = unkno
 			ingestContexts(ctx, state, 2);
 			if (workItemsDep !== undefined) ingestWorkItems(ctx, state, workItemsDep);
 			if (linksDep !== undefined) {
-				for (const raw of depBatch(ctx, linksDep) ?? []) {
+				for (const raw of ctx.deps[linksDep]?.waves.flat() ?? []) {
 					const link = raw as WorkItemLinkProjection;
 					state.links.set(link.linkId, link);
 				}
@@ -1790,12 +1790,12 @@ export function workspaceProposalDomainActionApplicationProjector(
 			ingestRecords(ctx, state, 0);
 			ingestDecisions(ctx, state, 1);
 			ingestContexts(ctx, state, 2);
-			for (const raw of depBatch(ctx, 3) ?? []) {
+			for (const raw of ctx.deps[3]?.waves.flat() ?? []) {
 				const fact = raw as WorkItemAuthoringFact;
 				state.emittedDomainFacts.set(fact.eventId, fact);
 			}
 			if (opts.domainApplications !== undefined) {
-				for (const raw of depBatch(ctx, 4) ?? []) {
+				for (const raw of ctx.deps[4]?.waves.flat() ?? []) {
 					const application = raw as WorkItemDomainActionApplication;
 					state.domainApplications.set(application.applicationId, application);
 				}
@@ -2789,7 +2789,7 @@ export function workspaceProposalProjectionReleaseDiagnosticProjector(
 	>(
 		[opts.releases],
 		oneArrayPerRun((ctx) => {
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const validation = validateWorkspaceProposalProjectionReleaseMaterial(raw);
 				if (validation.status !== "blocked") continue;
 				const diagnostic = workspaceProposalProjectionReleaseDiagnosticFromValidation(validation);
@@ -3157,18 +3157,18 @@ export function workspaceProposalFamilyOutcomeDetailSupplyProjector(
 				suppliedOutcomes: new Map(),
 				emittedResults: new Map(),
 			};
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const request = raw as WorkspaceProposalFamilyOutcomeDetailSupplyRequest;
 				state.requests.set(outcomeDetailSupplyRequestProjectionKey(request), request);
 			}
-			for (const raw of depBatch(ctx, 1) ?? []) {
+			for (const raw of ctx.deps[1]?.waves.flat() ?? []) {
 				const outcome = raw as WorkspaceProposalFamilyOutcomeRecord;
 				if (isOutcomeDetailSupplyOutcomeRecordShape(outcome)) {
 					state.suppliedOutcomes.set(outcomeProjectionKey(outcome), outcome);
 				}
 			}
 			if (opts.releases !== undefined) {
-				for (const raw of depBatch(ctx, 2) ?? []) {
+				for (const raw of ctx.deps[2]?.waves.flat() ?? []) {
 					pruneOutcomeDetailSupplyRelease(state, raw);
 				}
 			}
@@ -3903,16 +3903,16 @@ export function workspaceProposalRepairActionDisplayPolicyAdvisoryProjector(
 				requests: new Map(),
 				emittedAdvisories: new Map(),
 			};
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const descriptor = raw as WorkspaceProposalRepairActionDescriptor;
 				state.descriptors.set(descriptor.descriptorId, descriptor);
 			}
-			for (const raw of depBatch(ctx, 1) ?? []) {
+			for (const raw of ctx.deps[1]?.waves.flat() ?? []) {
 				const request = raw as WorkspaceProposalRepairReviewRequest;
 				state.requests.set(request.repairRequestId, request);
 			}
 			if (opts.releases !== undefined) {
-				for (const raw of depBatch(ctx, 2) ?? []) {
+				for (const raw of ctx.deps[2]?.waves.flat() ?? []) {
 					pruneRepairActionAdvisoryRelease(state, raw);
 				}
 			}
@@ -4255,8 +4255,9 @@ export function workspaceProposalRepairActionIntentProjector(
 			const state = repairActionIntentGraphState(ctx);
 			ingestRepairActionIntentGraphFacts(ctx, state, opts.statuses !== undefined);
 			if (opts.releases !== undefined) {
-				for (const raw of depBatch(ctx, repairActionReleaseDepIndex(opts.statuses !== undefined)) ??
-					[]) {
+				for (const raw of ctx.deps[
+					repairActionReleaseDepIndex(opts.statuses !== undefined)
+				]?.waves.flat() ?? []) {
 					pruneRepairActionIntentRelease(state, raw);
 				}
 			}
@@ -4329,8 +4330,9 @@ export function workspaceProposalRepairSuccessorProposalIntakePreviewProjector(
 			const state = repairActionIntentGraphState(ctx);
 			ingestRepairActionIntentGraphFacts(ctx, state, opts.statuses !== undefined);
 			if (opts.releases !== undefined) {
-				for (const raw of depBatch(ctx, repairActionReleaseDepIndex(opts.statuses !== undefined)) ??
-					[]) {
+				for (const raw of ctx.deps[
+					repairActionReleaseDepIndex(opts.statuses !== undefined)
+				]?.waves.flat() ?? []) {
 					pruneRepairSuccessorPreviewRelease(state, raw);
 				}
 			}
@@ -4422,17 +4424,17 @@ export function workspaceProposalRepairSuccessorProposalReadyRequestPreparationP
 		deps,
 		oneArrayPerRun((ctx) => {
 			const state = repairSuccessorPreparationGraphState<TDraft>(ctx);
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const preview = raw as WorkspaceProposalRepairSuccessorProposalIntakePreview;
 				state.previews.set(preview.previewId, preview);
 			}
-			for (const raw of depBatch(ctx, 1) ?? []) {
+			for (const raw of ctx.deps[1]?.waves.flat() ?? []) {
 				const input =
 					raw as WorkspaceProposalRepairSuccessorProposalReadyRequestPreparationInput<TDraft>;
 				state.inputs.set(input.preparationId, input);
 			}
 			if (opts.releases !== undefined) {
-				for (const raw of depBatch(ctx, 2) ?? []) {
+				for (const raw of ctx.deps[2]?.waves.flat() ?? []) {
 					pruneRepairSuccessorPreparationRelease(state, raw);
 				}
 			}
@@ -7915,7 +7917,7 @@ function ingestDiagnosticInputFacts(
 	depKinds: readonly WorkspaceProposalFamilyApplicationDiagnosticInputFact["kind"][],
 ): void {
 	for (let index = 0; index < depKinds.length; index += 1) {
-		for (const raw of depBatch(ctx, index) ?? []) {
+		for (const raw of ctx.deps[index].waves.flat()) {
 			ingestDiagnosticInputFact(state, depKinds[index], raw);
 		}
 	}
@@ -8913,7 +8915,7 @@ function ingestRepairActionIntentGraphFacts(
 	state: WorkspaceProposalRepairActionIntentGraphState,
 	hasStatuses: boolean,
 ): void {
-	for (const raw of depBatch(ctx, 0) ?? []) {
+	for (const raw of ctx.deps[0].waves.flat()) {
 		const intent = raw as WorkspaceProposalRepairActionIntent;
 		const signature = repairActionIntentSignature(intent);
 		state.releasedPreviews.delete(repairSuccessorPreviewIdFromIntent(intent));
@@ -8924,16 +8926,16 @@ function ingestRepairActionIntentGraphFacts(
 			state.intents.set(intent.intentId, { ...existing, conflict: true });
 		}
 	}
-	for (const raw of depBatch(ctx, 1) ?? []) {
+	for (const raw of ctx.deps[1]?.waves.flat() ?? []) {
 		const descriptor = raw as WorkspaceProposalRepairActionDescriptor;
 		state.descriptors.set(descriptor.descriptorId, descriptor);
 	}
-	for (const raw of depBatch(ctx, 2) ?? []) {
+	for (const raw of ctx.deps[2]?.waves.flat() ?? []) {
 		const request = raw as WorkspaceProposalRepairReviewRequest;
 		state.requests.set(request.repairRequestId, request);
 	}
 	if (!hasStatuses) return;
-	for (const raw of depBatch(ctx, 3) ?? []) {
+	for (const raw of ctx.deps[3]?.waves.flat() ?? []) {
 		const status = raw as WorkspaceProposalRepairReviewStatus;
 		state.statuses.set(repairReviewStatusProjectionKey(status), status);
 	}
@@ -10112,7 +10114,7 @@ function ingestRecords<TInput, TDraft>(
 	state: WorkspaceProposalFamilyProjectorState<TInput, TDraft>,
 	depIndex: number,
 ): void {
-	for (const raw of depBatch(ctx, depIndex) ?? []) {
+	for (const raw of ctx.deps[depIndex]?.waves.flat() ?? []) {
 		const record = raw as WorkspaceProposalRecorded<TDraft>;
 		state.records.set(record.proposalId, record);
 	}
@@ -10123,7 +10125,7 @@ function ingestDecisions<TInput, TDraft>(
 	state: WorkspaceProposalFamilyProjectorState<TInput, TDraft>,
 	depIndex: number,
 ): void {
-	for (const raw of depBatch(ctx, depIndex) ?? []) {
+	for (const raw of ctx.deps[depIndex]?.waves.flat() ?? []) {
 		const decision = raw as WorkspaceProposalAdmissionDecision;
 		state.decisionsByProposal.set(decision.proposalId, decision);
 		state.decisionsById.set(decision.decisionId, decision);
@@ -10135,7 +10137,7 @@ function ingestContexts<TInput, TDraft>(
 	state: WorkspaceProposalFamilyProjectorState<TInput, TDraft>,
 	depIndex: number,
 ): void {
-	for (const raw of depBatch(ctx, depIndex) ?? []) {
+	for (const raw of ctx.deps[depIndex]?.waves.flat() ?? []) {
 		const context = raw as WorkspaceProposalFamilyProjectorState<
 			TInput,
 			TDraft
@@ -10151,7 +10153,7 @@ function ingestWorkItems<TInput, TDraft>(
 	state: WorkspaceProposalFamilyProjectorState<TInput, TDraft>,
 	depIndex: number,
 ): void {
-	for (const raw of depBatch(ctx, depIndex) ?? []) {
+	for (const raw of ctx.deps[depIndex]?.waves.flat() ?? []) {
 		const workItem = raw as WorkItemProjection<TInput>;
 		state.workItems.set(workItem.workItemId, workItem);
 	}

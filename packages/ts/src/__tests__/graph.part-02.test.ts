@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { depLatest } from "../ctx/types.js";
+
 import { releaseGraphNodes } from "../graph/graph.js";
 import type { Message, TopologyEvent, Wave } from "../index.js";
 import {
@@ -63,11 +63,11 @@ describe("Graph.observeTopology — read-only topology egress (D145)", () => {
 		const g = graph();
 		const a = g.state(1, { name: "a" });
 		const b = g.state(2, { name: "b" });
-		const d = g.node([a], (ctx) => ctx.down([["DATA", depLatest(ctx, 0)]]), { name: "d" });
+		const d = g.node([a], (ctx) => ctx.down([["DATA", ctx.deps[0].value]]), { name: "d" });
 		const events: TopologyEvent[] = [];
 		const unsub = g.observeTopology("d").subscribe((event) => events.push(event));
 
-		rewireOwnedNode(d, [b], (ctx) => ctx.down([["DATA", depLatest(ctx, 0)]]));
+		rewireOwnedNode(d, [b], (ctx) => ctx.down([["DATA", ctx.deps[0].value]]));
 
 		unsub();
 		expect(events).toEqual([
@@ -104,10 +104,10 @@ describe("Graph.observeTopology — read-only topology egress (D145)", () => {
 
 		const a = child.state(1, { name: "a" });
 		const b = child.state(2, { name: "b" });
-		const d = child.node([a], (ctx) => ctx.down([["DATA", depLatest(ctx, 0)]]), {
+		const d = child.node([a], (ctx) => ctx.down([["DATA", ctx.deps[0].value]]), {
 			name: "d",
 		});
-		rewireOwnedNode(d, [b], (ctx) => ctx.down([["DATA", depLatest(ctx, 0)]]));
+		rewireOwnedNode(d, [b], (ctx) => ctx.down([["DATA", ctx.deps[0].value]]));
 
 		unsub();
 		expect(events).toEqual([
@@ -479,7 +479,7 @@ describe("Graph.checkpoint — data shape (R-checkpoint / D802, TS layout D178)"
 		const memo = g.node(
 			[src],
 			(ctx) => {
-				ctx.state.set({ latest: depLatest(ctx, 0), runs: 1 });
+				ctx.state.set({ latest: ctx.deps[0].value, runs: 1 });
 				ctx.down([["DATA", "ok"]]);
 			},
 			{ name: "memo" },
@@ -553,7 +553,7 @@ describe("Graph.checkpoint — data shape (R-checkpoint / D802, TS layout D178)"
 		const left = g.node<number>(
 			[source],
 			(ctx) => {
-				const v = depLatest(ctx, 0) as number;
+				const v = ctx.deps[0].value as number;
 				if (v === 2 && midWave === undefined) {
 					try {
 						g.checkpoint();
@@ -568,14 +568,14 @@ describe("Graph.checkpoint — data shape (R-checkpoint / D802, TS layout D178)"
 		);
 		const right = g.node<number>(
 			[source],
-			(ctx) => ctx.down([["DATA", depLatest(ctx, 0) as number]]),
+			(ctx) => ctx.down([["DATA", ctx.deps[0].value as number]]),
 			{
 				name: "right",
 			},
 		);
 		const join = g.node<number>(
 			[left, right],
-			(ctx) => ctx.down([["DATA", (depLatest(ctx, 0) as number) + (depLatest(ctx, 1) as number)]]),
+			(ctx) => ctx.down([["DATA", (ctx.deps[0].value as number) + (ctx.deps[1].value as number)]]),
 			{ name: "join" },
 		);
 		join.subscribe(() => {});
@@ -692,7 +692,7 @@ describe("Graph release-local subscriber accounting — D122/D124", () => {
 		expect(group.released).toBe(false);
 		expect(events).toEqual([]);
 		// Live topology changes after rejection must be read again on the next attempt.
-		rewireOwnedNode(join, [a], (ctx) => ctx.down([["DATA", depLatest(ctx, 0)]]));
+		rewireOwnedNode(join, [a], (ctx) => ctx.down([["DATA", ctx.deps[0].value]]));
 		expect(join.deps).toEqual([a]);
 		expect(() => group.release()).toThrow(/'join' still has live subscribers/);
 		disconnect();

@@ -1,4 +1,4 @@
-import { type Ctx, depLatest } from "../../ctx/types.js";
+import type { Ctx } from "../../ctx/types.js";
 import { Node } from "../../node/node.js";
 import { computeBlockFlow, computeTotalHeight } from "./block.js";
 import {
@@ -84,7 +84,7 @@ export function reactiveLayout(opts: ReactiveLayoutOptions): ReactiveLayoutBundl
 		(ctx: Ctx) => {
 			try {
 				const measured = latestMeasurementValue<TextSegmentsMeasurement>(
-					depLatest(ctx, 0) as Measurements,
+					ctx.deps[0].value as Measurements,
 					targetId,
 					TEXT_SEGMENTS_MEASUREMENT_KIND,
 				);
@@ -100,13 +100,13 @@ export function reactiveLayout(opts: ReactiveLayoutOptions): ReactiveLayoutBundl
 		(ctx: Ctx) => {
 			try {
 				const measured = latestMeasurementValue<TextSegmentsMeasurement>(
-					depLatest(ctx, 2) as Measurements,
+					ctx.deps[2]?.value as Measurements,
 					targetId,
 					TEXT_SEGMENTS_MEASUREMENT_KIND,
 				);
 				const computed = computeLineBreaks(
-					depLatest(ctx, 0) as readonly PreparedSegment[],
-					nonNegativeFinite(depLatest(ctx, 1) as number, 0),
+					ctx.deps[0].value as readonly PreparedSegment[],
+					nonNegativeFinite(ctx.deps[1]?.value as number, 0),
 					{ hyphenWidth: measured?.hyphenWidth, segmentAdapter: segAdapter },
 				);
 				ctx.down([["DATA", computed]]);
@@ -120,8 +120,8 @@ export function reactiveLayout(opts: ReactiveLayoutOptions): ReactiveLayoutBundl
 		[lineBreaks, lineHeightInput.node],
 		(ctx: Ctx) => {
 			try {
-				const lines = depLatest(ctx, 0) as LineBreaksResult;
-				const lineHeight = nonNegativeFinite(depLatest(ctx, 1) as number, 0);
+				const lines = ctx.deps[0].value as LineBreaksResult;
+				const lineHeight = nonNegativeFinite(ctx.deps[1]?.value as number, 0);
 				ctx.down([["DATA", lines.lineCount * lineHeight]]);
 			} catch (error) {
 				emitLayoutError(ctx, error, "reactiveLayout height failed");
@@ -134,9 +134,9 @@ export function reactiveLayout(opts: ReactiveLayoutOptions): ReactiveLayoutBundl
 		(ctx: Ctx) => {
 			try {
 				const positions = computeCharPositions(
-					depLatest(ctx, 0) as LineBreaksResult,
-					depLatest(ctx, 1) as readonly PreparedSegment[],
-					nonNegativeFinite(depLatest(ctx, 2) as number, 0),
+					ctx.deps[0].value as LineBreaksResult,
+					ctx.deps[1]?.value as readonly PreparedSegment[],
+					nonNegativeFinite(ctx.deps[2]?.value as number, 0),
 					segAdapter,
 				);
 				ctx.down([["DATA", positions]]);
@@ -218,7 +218,7 @@ export function reactiveBlockLayout(opts: ReactiveBlockLayoutOptions): ReactiveB
 		(ctx: Ctx) => {
 			try {
 				const measured = latestMeasurementValue<BlocksMeasurement>(
-					depLatest(ctx, 0) as Measurements,
+					ctx.deps[0].value as Measurements,
 					targetId,
 					BLOCKS_MEASUREMENT_KIND,
 				);
@@ -234,8 +234,8 @@ export function reactiveBlockLayout(opts: ReactiveBlockLayoutOptions): ReactiveB
 		(ctx: Ctx) => {
 			try {
 				const positioned = computeBlockFlow(
-					depLatest(ctx, 0) as readonly MeasuredBlock[],
-					nonNegativeFinite(depLatest(ctx, 1) as number, 0),
+					ctx.deps[0].value as readonly MeasuredBlock[],
+					nonNegativeFinite(ctx.deps[1]?.value as number, 0),
 				);
 				ctx.down([["DATA", positioned]]);
 			} catch (error) {
@@ -248,7 +248,7 @@ export function reactiveBlockLayout(opts: ReactiveBlockLayoutOptions): ReactiveB
 		[blockFlow],
 		(ctx: Ctx) => {
 			try {
-				ctx.down([["DATA", computeTotalHeight(depLatest(ctx, 0) as readonly PositionedBlock[])]]);
+				ctx.down([["DATA", computeTotalHeight(ctx.deps[0].value as readonly PositionedBlock[])]]);
 			} catch (error) {
 				emitLayoutError(ctx, error, "reactiveBlockLayout total height failed");
 			}
@@ -310,7 +310,7 @@ export function reactiveFlowLayout(opts: ReactiveFlowLayoutOptions): ReactiveFlo
 		(ctx: Ctx) => {
 			try {
 				const measured = latestMeasurementValue<TextSegmentsMeasurement>(
-					depLatest(ctx, 0) as Measurements,
+					ctx.deps[0].value as Measurements,
 					targetId,
 					TEXT_SEGMENTS_MEASUREMENT_KIND,
 				);
@@ -333,15 +333,15 @@ export function reactiveFlowLayout(opts: ReactiveFlowLayoutOptions): ReactiveFlo
 		(ctx: Ctx) => {
 			try {
 				const measured = latestMeasurementValue<TextSegmentsMeasurement>(
-					depLatest(ctx, 5) as Measurements,
+					ctx.deps[5]?.value as Measurements,
 					targetId,
 					TEXT_SEGMENTS_MEASUREMENT_KIND,
 				);
-				const computed = computeFlowLines(depLatest(ctx, 0) as readonly PreparedSegment[], {
-					lineHeight: nonNegativeFinite(depLatest(ctx, 1) as number, 0),
-					container: sanitizeFlowContainer(depLatest(ctx, 2) as FlowContainer),
-					columns: sanitizeFlowColumns(depLatest(ctx, 3) as FlowColumns),
-					obstacles: sanitizeObstacles(depLatest(ctx, 4) as readonly Obstacle[]),
+				const computed = computeFlowLines(ctx.deps[0].value as readonly PreparedSegment[], {
+					lineHeight: nonNegativeFinite(ctx.deps[1]?.value as number, 0),
+					container: sanitizeFlowContainer(ctx.deps[2]?.value as FlowContainer),
+					columns: sanitizeFlowColumns(ctx.deps[3]?.value as FlowColumns),
+					obstacles: sanitizeObstacles(ctx.deps[4]?.value as readonly Obstacle[]),
 					minSlotWidth: nonNegativeFinite(opts.minSlotWidth ?? 0, 0),
 					hyphenWidth: measured?.hyphenWidth,
 					segmentAdapter: segAdapter,

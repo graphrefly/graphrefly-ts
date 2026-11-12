@@ -1,4 +1,3 @@
-import { depLatest } from "../../ctx/types.js";
 import type { Graph } from "../../graph/graph.js";
 import type { FactId } from "../../patterns/semantic-memory.js";
 import { solutionProjection } from "./projection.js";
@@ -51,8 +50,8 @@ export function agenticMemoryRetentionBundle<T = unknown>(
 				ctx.state.get<{ evaluation: number }>() ??
 				({ evaluation: 0 } satisfies { evaluation: number });
 			state.evaluation += 1;
-			const recordProjection = validateAndProjectRecords<T>(depLatest(ctx, 0));
-			const retention = projectRetention<T>(depLatest(ctx, 1), recordProjection.records);
+			const recordProjection = validateAndProjectRecords<T>(ctx.deps[0].value);
+			const retention = projectRetention<T>(ctx.deps[1]?.value, recordProjection.records);
 			const cursor: AgenticMemoryRetentionCursor = Object.freeze({
 				evaluation: state.evaluation,
 				validRecords: recordProjection.records.length,

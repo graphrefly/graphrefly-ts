@@ -2,7 +2,7 @@
  * Graph-visible ProcessBundle orchestration helpers (D136/D156).
  */
 
-import { depBatch, depCount, type NodeFn } from "../ctx/types.js";
+import type { NodeFn } from "../ctx/types.js";
 import type { Graph, TopologyGroup } from "../graph/graph.js";
 import { compoundTupleKey } from "../identity.js";
 import { type AttachableInput, attachableInput } from "../node/attachable-input.js";
@@ -133,8 +133,8 @@ export function processBundle<
 		[dispatchInput],
 		(ctx) => {
 			const out: Message[] = [];
-			for (let i = 0; i < depCount(ctx); i += 1)
-				for (const next of depBatch(ctx, i) ?? []) out.push(["DATA", next]);
+			for (let i = 0; i < ctx.deps.length; i += 1)
+				for (const next of ctx.deps[i].waves.flat()) out.push(["DATA", next]);
 			if (out.length > 0) ctx.down(out);
 		},
 		{
@@ -161,7 +161,7 @@ export function processBundle<
 					seenEffectIds: [],
 					state: opts.initialState,
 				} satisfies ProcessRuntimeState<TState>);
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				state = reduceProcessCommandFact(
 					raw,
 					state,
@@ -308,7 +308,7 @@ export function processEffectRunner<TEffect = unknown, TResult = unknown>(
 	const requests = topology.node<ProcessEffectRequest<TEffect>>(
 		[process.effectRequests],
 		oneArrayPerRun((ctx) => {
-			for (const request of depBatch(ctx, 0) ?? []) {
+			for (const request of ctx.deps[0].waves.flat()) {
 				ctx.down([["DATA", request as ProcessEffectRequest<TEffect>]]);
 			}
 		}),
@@ -323,7 +323,7 @@ export function processEffectRunner<TEffect = unknown, TResult = unknown>(
 		[...opts.outcomes],
 		oneArrayPerRun((ctx) => {
 			for (let i = 0; i < opts.outcomes.length; i += 1) {
-				for (const raw of depBatch(ctx, i) ?? []) {
+				for (const raw of ctx.deps[i].waves.flat()) {
 					const parsed = parseProcessEffectOutcome<TResult>(raw);
 					if (typeof parsed === "string") {
 						const error = {
@@ -375,7 +375,7 @@ export function processEffectRunner<TEffect = unknown, TResult = unknown>(
 			let state =
 				ctx.state.get<ProcessEffectRunnerState>() ??
 				({ requested: 0, commanded: 0, rejected: 0 } satisfies ProcessEffectRunnerState);
-			for (const request of depBatch(ctx, 0) ?? []) {
+			for (const request of ctx.deps[0].waves.flat()) {
 				state = { ...state, requested: state.requested + 1 };
 				const typedRequest = request as ProcessEffectRequest<TEffect>;
 				ctx.down([
@@ -392,7 +392,7 @@ export function processEffectRunner<TEffect = unknown, TResult = unknown>(
 					],
 				]);
 			}
-			for (const fact of depBatch(ctx, 1) ?? []) {
+			for (const fact of ctx.deps[1]?.waves.flat() ?? []) {
 				const typedFact = fact as ProcessEffectRunnerFact<TResult>;
 				if (typedFact.kind === "command") {
 					state = { ...state, commanded: state.commanded + 1 };
@@ -506,7 +506,7 @@ function processEffectRunnerProjection<T, TResult>(
 	return topology.node<T>(
 		[runtime],
 		oneArrayPerRun((ctx) => {
-			for (const fact of depBatch(ctx, 0) ?? []) {
+			for (const fact of ctx.deps[0].waves.flat()) {
 				const value = pick(fact as ProcessEffectRunnerFact<TResult>);
 				if (value !== undefined) ctx.down([["DATA", value]]);
 			}
@@ -801,7 +801,7 @@ function processProjection<TOut, TState, TEvent, TEffect>(
 	return graph.node<TOut>(
 		[runtime],
 		oneArrayPerRun((ctx) => {
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const selected = select(raw as ProcessRuntimeFact<TState, TEvent, TEffect>);
 				if (selected !== undefined) ctx.down([["DATA", selected]]);
 			}

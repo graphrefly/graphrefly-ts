@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from "vitest";
 import type { Ctx, ObserveEvent, Wave } from "../index.js";
-import { depLatest, graph } from "../index.js";
+import { graph } from "../index.js";
 
 function c48() {
 	const g = graph({ name: "c48" });
@@ -17,7 +17,7 @@ function c48() {
 		[a],
 		(ctx) => {
 			kept = ctx;
-			ctx.down([["DATA", depLatest(ctx, 0) as number]]);
+			ctx.down([["DATA", ctx.deps[0].value as number]]);
 		},
 		{ name: "d" },
 	);
@@ -92,7 +92,7 @@ function twoArrays() {
 	const n = g.node<number>(
 		[a],
 		(ctx) => {
-			const v = depLatest(ctx, 0) as number;
+			const v = ctx.deps[0].value as number;
 			ctx.down([["DATA", v]]);
 			ctx.down([["DATA", v + 100]]);
 		},

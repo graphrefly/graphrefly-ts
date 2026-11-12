@@ -7,7 +7,6 @@
  * ack/seek/close, queues, workers, or dead-letter policy.
  */
 
-import { depBatch } from "../ctx/types.js";
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
 import { declaredLedger } from "../graph/ledger.js";
@@ -192,7 +191,7 @@ export function eventFlow<T = unknown>(
 			const out: Message[] = [];
 			for (let i = 0; i < sources.length; i++) {
 				const source = sources[i];
-				for (const raw of depBatch(ctx, i) ?? []) {
+				for (const raw of ctx.deps[i].waves.flat()) {
 					reduceEventSource(raw, source.source, flowId, now(), state, (fact) =>
 						out.push(["DATA", fact as EventFlowRuntimeFact<T>]),
 					);
@@ -267,7 +266,7 @@ export function eventFlowProjection<TState, TPayload = unknown>(
 		[records, ledger as Node<unknown>],
 		oneArrayPerRun((ctx) => {
 			const state = ctx.state.get<ProjectionState>() as ProjectionState;
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const record = raw as EventFlowRecord<TPayload>;
 				// A new lifetime receives the records' snapshot again; a folded record is not folded twice.
 				if (record.recordSeq <= state.highWater.recordSeq) continue;
@@ -523,7 +522,7 @@ function runtimeProjection<TOut, T>(
 	return graph.node<TOut>(
 		[runtime],
 		oneArrayPerRun((ctx) => {
-			for (const fact of depBatch(ctx, 0) ?? []) {
+			for (const fact of ctx.deps[0].waves.flat()) {
 				const typed = fact as EventFlowRuntimeFact<T>;
 				if (typed.kind === kind) ctx.down([["DATA", valueOfRuntimeFact(typed) as TOut]]);
 			}
@@ -543,7 +542,7 @@ function projectionRuntime<TOut, TFact extends { readonly kind: string }>(
 	return graph.node<TOut>(
 		[runtime],
 		oneArrayPerRun((ctx) => {
-			for (const fact of depBatch(ctx, 0) ?? []) {
+			for (const fact of ctx.deps[0].waves.flat()) {
 				const typed = fact as TFact;
 				if (typed.kind === kind) ctx.down([["DATA", map(typed as never)]]);
 			}

@@ -10,7 +10,7 @@
 
 import { describe, expect, it } from "vitest";
 import type { Ctx, Message, Wave } from "../index.js";
-import { depLatest, fromPromise, graph } from "../index.js";
+import { fromPromise, graph } from "../index.js";
 
 const types = (msgs: Message[]) => msgs.map((m) => m[0]);
 const _data = (msgs: Message[]) =>
@@ -36,10 +36,10 @@ function collect(n: { subscribe(s: (msgs: Wave) => void): () => void }) {
 // C-27 (R-pull / R-fn-contract / R-ctx-up): no-change PULL reaches the holder; downstream DATA is
 // the helper's ordinary output decision, so params may drive retained output while plain helpers may stay silent.
 
-describe("C-23 raw ctx waveData is the only dep-value input (R-fn-contract / R-ctx-wave-data / R-data-payload / D77/D78)", () => {
-	const cloneWaveData = (ctx: Ctx) => ctx.waveData.map((waves) => waves.map((w) => [...w]));
+describe("C-23 raw ctx.deps waves are the only dep-value input (R-fn-contract / R-ctx-wave-data / R-data-payload / D77/D78)", () => {
+	const cloneWaveData = (ctx: Ctx) => ctx.deps.map((d) => d.waves.map((w) => [...w]));
 
-	it("exposes waveData/terminal, not depRecords/latest/prevData aliases", () => {
+	it("exposes waves/terminal per dependency, not depRecords/latest/prevData aliases", () => {
 		let seen: { waveData: unknown[][][]; terminal: unknown[]; hasDepRecords: boolean } | null =
 			null;
 		const g = graph();
@@ -49,7 +49,7 @@ describe("C-23 raw ctx waveData is the only dep-value input (R-fn-contract / R-c
 			(ctx) => {
 				seen = {
 					waveData: cloneWaveData(ctx),
-					terminal: [...ctx.terminal],
+					terminal: ctx.deps.map((d) => d.terminal),
 					hasDepRecords: "depRecords" in ctx,
 				};
 			},
@@ -61,7 +61,7 @@ describe("C-23 raw ctx waveData is the only dep-value input (R-fn-contract / R-c
 
 		expect(seen).toEqual({
 			waveData: [[[1]]],
-			terminal: [false],
+			terminal: [undefined],
 			hasDepRecords: false,
 		});
 	});
@@ -105,7 +105,7 @@ describe("C-23 raw ctx waveData is the only dep-value input (R-fn-contract / R-c
 		const src = g.node<number>([], null, { initial: 0 });
 		// a sends nothing for odd values, so the kernel settles it with RESOLVED.
 		const a = g.node<number>([src], (ctx) => {
-			const v = depLatest(ctx, 0) as number;
+			const v = ctx.deps[0].value as number;
 			if (v % 2 === 0) ctx.down([["DATA", v]]);
 		});
 		const n = g.node<unknown>(
@@ -120,7 +120,7 @@ describe("C-23 raw ctx waveData is the only dep-value input (R-fn-contract / R-c
 		expect(captures.at(-1)).toEqual([[[]]]);
 	});
 
-	it("keeps COMPLETE/ERROR out of waveData and in ctx.terminal", () => {
+	it("keeps COMPLETE/ERROR out of waves and in the dependency's terminal", () => {
 		const terminals: unknown[][] = [];
 		const waves: unknown[][][][] = [];
 		const g = graph();
@@ -129,7 +129,7 @@ describe("C-23 raw ctx waveData is the only dep-value input (R-fn-contract / R-c
 			[a],
 			(ctx) => {
 				waves.push(cloneWaveData(ctx));
-				terminals.push([...ctx.terminal]);
+				terminals.push(ctx.deps.map((d) => d.terminal));
 			},
 			{
 				complete: "manual",
@@ -140,7 +140,7 @@ describe("C-23 raw ctx waveData is the only dep-value input (R-fn-contract / R-c
 
 		a.complete();
 		expect(waves.at(-1)).toEqual([[]]);
-		expect(terminals.at(-1)).toEqual([true]);
+		expect(terminals.at(-1)).toEqual([{ kind: "complete" }]);
 
 		const e = new Error("boom");
 		const b = g.node<number>([], null);
@@ -148,7 +148,7 @@ describe("C-23 raw ctx waveData is the only dep-value input (R-fn-contract / R-c
 			[b],
 			(ctx) => {
 				waves.push(cloneWaveData(ctx));
-				terminals.push([...ctx.terminal]);
+				terminals.push(ctx.deps.map((d) => d.terminal));
 			},
 			{
 				complete: "manual",
@@ -158,14 +158,14 @@ describe("C-23 raw ctx waveData is the only dep-value input (R-fn-contract / R-c
 		collect(m);
 		b.error(e);
 		expect(waves.at(-1)).toEqual([[]]);
-		expect(terminals.at(-1)).toEqual([e]);
+		expect(terminals.at(-1)).toEqual([{ kind: "error", error: e }]);
 
 		const c = g.node<number>([], null);
 		const p = g.node<number>(
 			[c],
 			(ctx) => {
 				waves.push(cloneWaveData(ctx));
-				terminals.push([...ctx.terminal]);
+				terminals.push(ctx.deps.map((d) => d.terminal));
 			},
 			{
 				complete: "manual",
@@ -175,7 +175,7 @@ describe("C-23 raw ctx waveData is the only dep-value input (R-fn-contract / R-c
 		collect(p);
 		c.error(null);
 		expect(waves.at(-1)).toEqual([[]]);
-		expect(terminals.at(-1)).toEqual([null]);
+		expect(terminals.at(-1)).toEqual([{ kind: "error", error: null }]);
 	});
 
 	it("exposes terminal metadata only for the invocation that observed the terminal", () => {
@@ -188,7 +188,7 @@ describe("C-23 raw ctx waveData is the only dep-value input (R-fn-contract / R-c
 			(ctx) => {
 				captures.push({
 					waveData: cloneWaveData(ctx),
-					terminal: [...ctx.terminal],
+					terminal: ctx.deps.map((d) => d.terminal),
 				});
 			},
 			{
@@ -198,10 +198,13 @@ describe("C-23 raw ctx waveData is the only dep-value input (R-fn-contract / R-c
 		collect(n);
 
 		a.complete();
-		expect(captures.at(-1)).toEqual({ waveData: [[], []], terminal: [true, false] });
+		expect(captures.at(-1)).toEqual({
+			waveData: [[], []],
+			terminal: [{ kind: "complete" }, undefined],
+		});
 
 		b.set(1);
-		expect(captures.at(-1)).toEqual({ waveData: [[], [[1]]], terminal: [false, false] });
+		expect(captures.at(-1)).toEqual({ waveData: [[], [[1]]], terminal: [undefined, undefined] });
 	});
 
 	it("rejects boolean ERROR payloads at the protocol boundary and coerces host-source failures", async () => {
@@ -245,15 +248,11 @@ describe("C-23 raw ctx waveData is the only dep-value input (R-fn-contract / R-c
 		const a = g.node<number>([], null, { initial: 1 });
 		const b = g.node<number>([], null);
 		const captures: unknown[][][][] = [];
-		const d = g.node<number>(
-			[a, b],
-			(ctx) => {
-				captures.push(cloneWaveData(ctx));
-				if (ctx.waveData[1]?.length) return;
-				ctx.down([["DATA", ctx.track?.(0) as number]]);
-			},
-			{ dynamic: true },
-		);
+		const d = g.node<number>([a, b], (ctx) => {
+			captures.push(cloneWaveData(ctx));
+			if (ctx.deps[1].waves.length) return;
+			ctx.down([["DATA", ctx.deps[0].value as number]]);
+		});
 		const { msgs } = collect(d);
 		msgs.length = 0;
 

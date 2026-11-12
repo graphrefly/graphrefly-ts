@@ -25,13 +25,13 @@ export interface NodeOptions<T = unknown> {
 	 * COMPLETE policy (R-terminals). `"auto"` (the default): once every dependency has ended, the
 	 * node completes after the run that sees the last terminal; a node with no dependencies never
 	 * completes automatically. `"manual"`: a dependency's COMPLETE is the function's input
-	 * (`ctx.terminal[i]`) and the node ends only when its function sends a terminal.
+	 * (`ctx.deps[i].terminal`) and the node ends only when its function sends a terminal.
 	 */
 	complete?: TerminalPolicy;
 	/**
 	 * ERROR policy (R-terminals). `"auto"` (the default): a dependency's ERROR ends the node with
 	 * that ERROR without running its function. `"manual"`: it is the function's input
-	 * (`ctx.terminal[i]`) and the node ends only when its function sends a terminal.
+	 * (`ctx.deps[i].terminal`) and the node ends only when its function sends a terminal.
 	 */
 	error?: TerminalPolicy;
 	/**
@@ -62,8 +62,6 @@ export interface NodeOptions<T = unknown> {
 	 * without one is local-only in a checkpoint.
 	 */
 	recipe?: unknown;
-	/** Mark this as a dynamicNode — fn gets ctx.track(i) for read-selection (R-dynamic-node / D35). */
-	dynamic?: boolean;
 	/** Dispatch pool for the fn (R-sync-core). Default sync. */
 	pool?: "sync" | "async";
 	/** Dispatcher to register/invoke against. Default = process-global (D26). */

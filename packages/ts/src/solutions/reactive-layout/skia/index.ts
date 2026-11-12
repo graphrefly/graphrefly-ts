@@ -1,4 +1,3 @@
-import { depLatest } from "../../../ctx/types.js";
 import type { Node } from "../../../node/node.js";
 import {
 	CapabilityMeasureAdapter,
@@ -127,7 +126,7 @@ export function skiaReadyTextMeasurements(
 		[opts.capability],
 		(ctx) => {
 			ctx.down([
-				["DATA", new CapabilityMeasureAdapter(depLatest(ctx, 0) as SkiaTextMeasureCapability)],
+				["DATA", new CapabilityMeasureAdapter(ctx.deps[0].value as SkiaTextMeasureCapability)],
 			]);
 		},
 		{

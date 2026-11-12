@@ -1,5 +1,5 @@
 /** D651 focused keyed rate-limit contracts and graph-visible admission correlation. */
-import { type Ctx, depBatch, depLatest, type NodeFn } from "../ctx/types.js";
+import type { Ctx, NodeFn } from "../ctx/types.js";
 import { eachInputArray } from "../graph/each-input-array.js";
 import type { Graph } from "../graph/graph.js";
 import type { GraphRecipeFactory } from "../graph/restore.js";
@@ -1046,14 +1046,14 @@ function keyedRateLimitRuntimeBuild(
 		const state = ctx.state.get<KeyedRateLimitRuntimeState>() as KeyedRateLimitRuntimeState;
 		const facts: KeyedRateLimitRuntimeFact[] = [];
 		if (correlated) {
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				processCorrelationFact(state, raw, maxPending, maxCompleted, facts);
 			}
 		} else {
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				processRequest(state, raw, maxPending, facts);
 			}
-			for (const raw of depBatch(ctx, 1) ?? []) {
+			for (const raw of ctx.deps[1]?.waves.flat() ?? []) {
 				processOutcome(state, raw, maxCompleted, facts);
 			}
 		}
@@ -1067,7 +1067,7 @@ function keyedRateLimitRuntimeBuild(
 		if (ctx.state.get<KeyedRateLimitRuntimeState>() === undefined)
 			ctx.state.set(
 				copyRuntimeState(
-					(depLatest(ctx, ledgerIndex) as KeyedRateLimitRuntimeState | undefined) ??
+					(ctx.deps[ledgerIndex]?.value as KeyedRateLimitRuntimeState | undefined) ??
 						initialRuntimeState(),
 				),
 			);

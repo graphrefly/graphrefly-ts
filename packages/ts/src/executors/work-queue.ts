@@ -5,7 +5,7 @@
  * lifecycle commands. The recipe never calls ExecutorBinding or treats a queue claim as dispatch.
  */
 
-import { type Ctx, depBatch } from "../ctx/types.js";
+import type { Ctx } from "../ctx/types.js";
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
 import { canonicalTupleKey } from "../identity.js";
@@ -131,7 +131,7 @@ export function executorWorkQueueRecipe(
 			: graph.node<WorkQueueCommand<ExecutorQueuedDispatchPayload>>(
 					[opts.requests],
 					oneArrayPerRun((ctx) => {
-						for (const raw of depBatch(ctx, 0) ?? []) {
+						for (const raw of ctx.deps[0].waves.flat()) {
 							const request = raw as AgentRequestIssued;
 							ctx.down([["DATA", executorSubmitCommand(request, opts.policy)]]);
 						}
@@ -142,10 +142,10 @@ export function executorWorkQueueRecipe(
 		[opts.records, opts.outcomes],
 		(ctx) => {
 			const state = ctx.state.get<ExecutorQueueState>() ?? emptyState();
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				reduceRecord(ctx, state, raw as WorkQueueRecord<ExecutorQueuedDispatchPayload>, opts);
 			}
-			for (const raw of depBatch(ctx, 1) ?? []) {
+			for (const raw of ctx.deps[1]?.waves.flat() ?? []) {
 				reduceOutcome(ctx, state, raw as ExecutorOutcome, opts);
 			}
 			ctx.state.set(state);
@@ -399,7 +399,7 @@ function project<T>(
 	return graph.node<T>(
 		[runtime],
 		oneArrayPerRun((ctx) => {
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const selected = select(raw as ExecutorQueueFact);
 				if (selected !== undefined) ctx.down([["DATA", selected]]);
 			}

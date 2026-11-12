@@ -6,7 +6,7 @@
  * the generic workQueue admission path.
  */
 
-import { type Ctx, depBatch } from "../../ctx/types.js";
+import type { Ctx } from "../../ctx/types.js";
 import type { DataIssue } from "../../data/index.js";
 import type { Graph } from "../../graph/graph.js";
 import { canonicalTupleKey, compoundTupleKey } from "../../identity.js";
@@ -122,7 +122,7 @@ export function workItemWorkQueueRecipe(
 	const submitCommands = graph.node<WorkQueueCommand<WorkItemQueuedWorkPayload>>(
 		[opts.effectRequests],
 		oneArrayPerRun((ctx) => {
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const request = raw as WorkItemEffectRequested;
 				ctx.down([["DATA", workItemSubmitCommand(request, opts.policy)]]);
 			}
@@ -134,7 +134,7 @@ export function workItemWorkQueueRecipe(
 		(ctx) => {
 			const state = ctx.state.get<WorkItemQueueState>() ?? emptyState();
 			const evidenceKinds = new Set(opts.policy?.evidenceStatuses ?? DEFAULT_EVIDENCE_RECORDS);
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const record = raw as WorkQueueRecord<WorkItemQueuedWorkPayload>;
 				if (record.kind === "work-admitted") {
 					state.payloads.set(record.workId, record.payload);
@@ -375,7 +375,7 @@ function project<T>(
 	return graph.node<T>(
 		[runtime],
 		oneArrayPerRun((ctx) => {
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const selected = select(raw as WorkItemQueueFact);
 				if (selected !== undefined) ctx.down([["DATA", selected]]);
 			}

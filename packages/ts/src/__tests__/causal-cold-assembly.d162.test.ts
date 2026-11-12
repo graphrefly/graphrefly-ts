@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { depLatest } from "../ctx/types.js";
+
 import { Dispatcher, type Handle } from "../dispatcher/index.js";
 import {
 	ColdConstructionError,
@@ -175,8 +175,8 @@ function combined(inject?: (scope: ConstructionScope) => void, empty = false) {
 			(ctx) => {
 				calls++;
 				// graphrefly-ts:D184: a kernel node runs on activation, before its input has a value.
-				if (depLatest(ctx, 0) === undefined) return;
-				ctx.down([["DATA", Number(depLatest(ctx, 0)) * 2]]);
+				if (ctx.deps[0].value === undefined) return;
+				ctx.down([["DATA", Number(ctx.deps[0].value) * 2]]);
 			},
 			{ name: "run/left" },
 		);
@@ -184,8 +184,8 @@ function combined(inject?: (scope: ConstructionScope) => void, empty = false) {
 			[a, b],
 			(ctx) => {
 				calls++;
-				if (depLatest(ctx, 0) === undefined || depLatest(ctx, 1) === undefined) return;
-				ctx.down([["DATA", Number(depLatest(ctx, 0)) + Number(depLatest(ctx, 1))]]);
+				if (ctx.deps[0].value === undefined || ctx.deps[1].value === undefined) return;
+				ctx.down([["DATA", Number(ctx.deps[0].value) + Number(ctx.deps[1].value)]]);
 			},
 			{ name: "run/right" },
 		);
@@ -193,10 +193,10 @@ function combined(inject?: (scope: ConstructionScope) => void, empty = false) {
 			[left, right],
 			(ctx) => {
 				calls++;
-				const value = `value-${Number(depLatest(ctx, 1))}`;
+				const value = `value-${Number(ctx.deps[1].value)}`;
 				const material = { ...f.occurrence, value };
 				// Both branches are real deps; value agrees with the frozen fixture at a=2,b=3.
-				if (Number(depLatest(ctx, 0)) !== 4) return;
+				if (Number(ctx.deps[0].value) !== 4) return;
 				ctx.down([["DATA", { ...material, digest: causalOccurrenceDigest(material) }]]);
 			},
 			{ name: "run/occurrence" },
@@ -212,7 +212,7 @@ function combined(inject?: (scope: ConstructionScope) => void, empty = false) {
 		const count = scope.node<number>(
 			[built.ports.released],
 			(ctx) => {
-				const released = depLatest(ctx, 0) as CausalOccurrence<string> | undefined;
+				const released = ctx.deps[0].value as CausalOccurrence<string> | undefined;
 				if (released !== undefined) ctx.down([["DATA", released.value.length]]);
 			},
 			{ name: "run/count" },
@@ -220,8 +220,8 @@ function combined(inject?: (scope: ConstructionScope) => void, empty = false) {
 		const final = scope.node(
 			[value, count],
 			(ctx) => {
-				if (depLatest(ctx, 0) === undefined || depLatest(ctx, 1) === undefined) return;
-				ctx.down([["DATA", [depLatest(ctx, 0), depLatest(ctx, 1)]]]);
+				if (ctx.deps[0].value === undefined || ctx.deps[1].value === undefined) return;
+				ctx.down([["DATA", [ctx.deps[0].value, ctx.deps[1].value]]]);
 			},
 			{ name: "run/final" },
 		);

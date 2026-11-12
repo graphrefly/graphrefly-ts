@@ -6,7 +6,6 @@
  * state is surfaced through graph-visible attempts/status/errors nodes.
  */
 
-import { depBatch } from "../ctx/types.js";
 import type { Graph } from "../graph/graph.js";
 import type { Node } from "../node/node.js";
 import type {
@@ -247,7 +246,7 @@ function remoteCallResponsesNode<TRequest, TResponse>(
 				pending: remotePendingState(),
 			};
 			const ready: RemoteCallResponse<TResponse>[] = [];
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const event = raw as WireBridgeEvent<
 					RemoteCallRequest<TRequest>,
 					RemoteCallResponse<TResponse>
@@ -289,7 +288,7 @@ function remoteCallResponsesNode<TRequest, TResponse>(
 					remotePendingTakeBySeq(state.pending, event.seq);
 				}
 			}
-			for (const raw of depBatch(ctx, 1) ?? []) {
+			for (const raw of ctx.deps[1]?.waves.flat() ?? []) {
 				const timeout = raw as RemoteCallTimeout;
 				remotePendingTakeByRequestId(state.pending, timeout.requestId);
 			}
@@ -313,7 +312,7 @@ function remoteCallResultsNode<TResponse>(
 	return graph.node<RemoteCallResult<TResponse>>(
 		[responses],
 		(ctx) => {
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const response = raw as RemoteCallResponse<TResponse>;
 				if (response.kind === "result") {
 					ctx.down([
@@ -349,7 +348,7 @@ function remoteCallStatusNode<TRequest, TResponse>(
 					status: { state: "idle", pending: 0, completed: 0, errors: 0, timeouts: 0 },
 					pending: remotePendingState(),
 				} satisfies State);
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const event = raw as WireBridgeEvent<
 					RemoteCallRequest<TRequest>,
 					RemoteCallResponse<TResponse>
@@ -477,7 +476,7 @@ function remoteCallStatusNode<TRequest, TResponse>(
 					}
 				}
 			}
-			for (const raw of depBatch(ctx, 1) ?? []) {
+			for (const raw of ctx.deps[1]?.waves.flat() ?? []) {
 				const timeout = raw as RemoteCallTimeout;
 				remotePendingTakeByRequestId(state.pending, timeout.requestId);
 				state.status = {
@@ -512,7 +511,7 @@ function remoteCallErrorsNode<TRequest, TResponse>(
 		[timeouts, events],
 		(ctx) => {
 			const pending = ctx.state.get<RemotePendingState>() ?? remotePendingState();
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const timeout = raw as RemoteCallTimeout;
 				remotePendingTakeByRequestId(pending, timeout.requestId);
 				ctx.down([
@@ -522,7 +521,7 @@ function remoteCallErrorsNode<TRequest, TResponse>(
 					],
 				]);
 			}
-			for (const raw of depBatch(ctx, 1) ?? []) {
+			for (const raw of ctx.deps[1]?.waves.flat() ?? []) {
 				const event = raw as WireBridgeEvent<
 					RemoteCallRequest<TRequest>,
 					RemoteCallResponse<TResponse>

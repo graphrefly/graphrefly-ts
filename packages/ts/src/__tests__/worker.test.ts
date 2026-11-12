@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { depBatch } from "../ctx/types.js";
+
 import { graph } from "../graph/graph.js";
 import { type WorkerDerivedJob, type WorkerDerivedSettle, workerDerived } from "../graph/worker.js";
 
@@ -16,7 +16,7 @@ describe("workerDerived — backend-required helper-first worker slice (D148)", 
 		const doubled = workerDerived<number, number>(g, [src], {
 			name: "worker/doubled",
 			prepare(ctx) {
-				const batch = depBatch(ctx, 0);
+				const batch = ctx.deps[0].waves.length === 0 ? null : ctx.deps[0].waves.flat();
 				const value = batch === null ? undefined : (batch.at(-1) as number | undefined);
 				return value === 0 ? undefined : value;
 			},
@@ -53,7 +53,9 @@ describe("workerDerived — backend-required helper-first worker slice (D148)", 
 		const worker = workerDerived<number, number>(g, [src], {
 			name: "worker",
 			prepare(ctx) {
-				const value = depBatch(ctx, 0)?.at(-1) as number | undefined;
+				const value = (ctx.deps[0].waves.length === 0 ? null : ctx.deps[0].waves.flat())?.at(-1) as
+					| number
+					| undefined;
 				return value === 0 ? undefined : value;
 			},
 			compute(input) {
@@ -93,7 +95,9 @@ describe("workerDerived — backend-required helper-first worker slice (D148)", 
 		const worker = workerDerived<number, number>(g, [src], {
 			name: "worker",
 			prepare(ctx) {
-				const value = depBatch(ctx, 0)?.at(-1) as number | undefined;
+				const value = (ctx.deps[0].waves.length === 0 ? null : ctx.deps[0].waves.flat())?.at(-1) as
+					| number
+					| undefined;
 				return value === 0 ? undefined : value;
 			},
 			compute(input) {
@@ -131,7 +135,9 @@ describe("workerDerived — backend-required helper-first worker slice (D148)", 
 		const worker = workerDerived<number, number>(g, [src], {
 			name: "worker",
 			prepare(ctx) {
-				const value = depBatch(ctx, 0)?.at(-1) as number | undefined;
+				const value = (ctx.deps[0].waves.length === 0 ? null : ctx.deps[0].waves.flat())?.at(-1) as
+					| number
+					| undefined;
 				return value === 0 ? undefined : value;
 			},
 			compute(input) {
@@ -176,7 +182,9 @@ describe("workerDerived — backend-required helper-first worker slice (D148)", 
 		const worker = workerDerived<number, number>(g, [src], {
 			name: "worker",
 			prepare(ctx) {
-				const value = depBatch(ctx, 0)?.at(-1) as number | undefined;
+				const value = (ctx.deps[0].waves.length === 0 ? null : ctx.deps[0].waves.flat())?.at(-1) as
+					| number
+					| undefined;
 				return value === 0 ? undefined : value;
 			},
 			compute(input) {
@@ -213,7 +221,9 @@ describe("workerDerived — backend-required helper-first worker slice (D148)", 
 		const worker = workerDerived<number, number>(g, [src], {
 			name: "worker",
 			prepare(ctx) {
-				return depBatch(ctx, 0)?.at(-1) as number | undefined;
+				return (ctx.deps[0].waves.length === 0 ? null : ctx.deps[0].waves.flat())?.at(-1) as
+					| number
+					| undefined;
 			},
 			compute(input) {
 				return input;
@@ -274,7 +284,9 @@ describe("workerDerived — backend-required helper-first worker slice (D148)", 
 		const worker = workerDerived<{ count: number }, number>(g, [src], {
 			name: "worker",
 			prepare(ctx) {
-				return depBatch(ctx, 0)?.at(-1) as { count: number } | undefined;
+				return (ctx.deps[0].waves.length === 0 ? null : ctx.deps[0].waves.flat())?.at(-1) as
+					| { count: number }
+					| undefined;
 			},
 			compute(input) {
 				return input.count;

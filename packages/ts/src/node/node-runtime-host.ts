@@ -64,6 +64,7 @@ export interface NodeRuntimeHost<T = unknown> {
 		terminal: unknown[];
 		invalidated?: boolean[];
 		latest: unknown[];
+		has: boolean[];
 	}): Ctx;
 	_refreshCtx(ctx: Ctx): void;
 	_makeState(signal: AbortSignal): CtxState;

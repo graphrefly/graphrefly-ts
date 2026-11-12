@@ -101,7 +101,6 @@ export interface NodeSlot<_T> {
 	quiet: boolean;
 	/** R-lifetime: runs once per lifetime, before its first run; may return the lifetime's cleanup. */
 	setup: ((ctx: Ctx) => (() => void) | undefined | void) | undefined;
-	dynamic: boolean;
 	name?: string;
 	factory?: string;
 }

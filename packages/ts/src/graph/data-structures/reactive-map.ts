@@ -21,16 +21,7 @@
  * Per-language (D6/D24, never in parity, no conformance — the substrate pull is already C-16).
  */
 
-import {
-	type Ctx,
-	ctxRewireDiff,
-	depBatch,
-	depCount,
-	depLiveBatch,
-	depTerminal,
-	isTerminalComplete,
-	type NodeFn,
-} from "../../ctx/types.js";
+import { type Ctx, ctxRewireDiff, depLiveBatch, type NodeFn } from "../../ctx/types.js";
 import { strictCanonicalJsonBytes } from "../../json/codec.js";
 import { attachableInput } from "../../node/attachable-input.js";
 import { Node } from "../../node/node.js";
@@ -547,22 +538,23 @@ function createReactiveMap<K, V>(
 				? undefined
 				: validateRetentionMaxSize(nextRetentionMaxSize);
 
-		for (const item of (depBatch(ctx, 0) ?? []) as readonly MapIntent<K, V>[]) {
+		for (const item of ctx.deps[0].waves.flat() as readonly MapIntent<K, V>[]) {
 			applyIntent(ctx, item);
 		}
 		const deps = apply.deps;
-		for (let i = 1; i < depCount(ctx); i++) {
+		for (let i = 1; i < ctx.deps.length; i++) {
 			if (i === lruReader.index || i === ttlReader.index || i === retentionReader.index) continue;
 			const dep = deps[i];
 			if (dep && bindDeps.has(dep)) {
-				for (const item of (depBatch(ctx, i) ?? []) as readonly MapIntent<K, V>[]) {
+				for (const item of ctx.deps[i].waves.flat() as readonly MapIntent<K, V>[]) {
 					applyIntent(ctx, item);
 				}
 				continue;
 			}
 			if (
 				dep === ttlTimer &&
-				((depBatch(ctx, i)?.length ?? 0) > 0 || isTerminalComplete(depTerminal(ctx, i)))
+				(((ctx.deps[i].waves.length === 0 ? null : ctx.deps[i].waves.flat())?.length ?? 0) > 0 ||
+					ctx.deps[i].terminal?.kind === "complete")
 			) {
 				if (ttlTimer) ctxRewireDiff(ctx, [], [ttlTimer]);
 				ttlTimer = null;
@@ -631,10 +623,10 @@ function createReactiveMap<K, V>(
 	const deltaOp: Operator<unknown, MapChange<K, V>> = {
 		factory: "reactiveMap.delta",
 		body: oneArrayPerRun((ctx: Ctx) => {
-			for (const change of depBatch(ctx, 0) ?? []) {
+			for (const change of ctx.deps[0].waves.flat()) {
 				ctx.down([["DATA", change as MapChange<K, V>]]);
 			}
-			for (const prep of depBatch(ctx, 1) ?? []) {
+			for (const prep of ctx.deps[1]?.waves.flat() ?? []) {
 				for (const change of (prep as SnapshotPrep<K, V>).expired) ctx.down([["DATA", change]]);
 			}
 		}),
@@ -648,7 +640,7 @@ function createReactiveMap<K, V>(
 	const snapshotOp: Operator<unknown, ReadonlyMap<K, V>> = {
 		factory: "reactiveMap.snapshot",
 		body: oneArrayPerRun((ctx: Ctx) => {
-			for (const prep of depBatch(ctx, 0) ?? []) {
+			for (const prep of ctx.deps[0].waves.flat()) {
 				ctx.down([["DATA", (prep as SnapshotPrep<K, V>).snapshot]]);
 			}
 		}),
@@ -752,7 +744,7 @@ function createReactiveMap<K, V>(
 				factory: "reactiveMap.bindSource",
 				body: oneArrayPerRun((ctx: Ctx) => {
 					try {
-						for (const [k, v] of (depBatch(ctx, 0) ?? []) as readonly (readonly [K, V])[]) {
+						for (const [k, v] of ctx.deps[0].waves.flat() as readonly (readonly [K, V])[]) {
 							ctx.down([["DATA", { kind: "set", key: k, value: v }]]);
 						}
 					} catch (e) {

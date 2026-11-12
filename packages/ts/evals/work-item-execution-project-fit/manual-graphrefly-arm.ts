@@ -1,4 +1,3 @@
-import { depBatch } from "../../src/ctx/types.js";
 import { compoundTupleKey } from "../../src/identity.js";
 import type {
 	AgentRequestFact,
@@ -37,7 +36,7 @@ export function runD686ManualGraphReFlyArm(scenario: D686Scenario): D686PathObse
 		const requestFacts = graph.node<AgentRequestFact<Record<string, unknown>>>(
 			[effectRuns.effectRuns],
 			(ctx) => {
-				for (const raw of depBatch(ctx, 0) ?? []) {
+				for (const raw of ctx.deps[0].waves.flat()) {
 					const run = raw as EffectRun<Record<string, unknown>>;
 					const proposal: AgentRequestProposal<Record<string, unknown>> = {
 						kind: "proposal",
@@ -66,7 +65,7 @@ export function runD686ManualGraphReFlyArm(scenario: D686Scenario): D686PathObse
 		const requests = graph.node<AgentRequestIssued<Record<string, unknown>>>(
 			[requestFacts],
 			(ctx) => {
-				for (const raw of depBatch(ctx, 0) ?? []) {
+				for (const raw of ctx.deps[0].waves.flat()) {
 					const fact = raw as AgentRequestFact<Record<string, unknown>>;
 					if (fact.kind === "issued") ctx.down([["DATA", fact]]);
 				}

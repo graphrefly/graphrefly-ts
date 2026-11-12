@@ -6,7 +6,7 @@
  * back to graph-visible orchestration evidence/status/issue facts.
  */
 
-import { type Ctx, depBatch } from "../ctx/types.js";
+import type { Ctx } from "../ctx/types.js";
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
 import type { Node } from "../node/node.js";
@@ -124,7 +124,7 @@ export function orchestrationWorkQueueRecipe<TEffect = unknown>(
 			: graph.node<WorkQueueCommand<OrchestrationQueuedEffectPayload<TEffect>>>(
 					[opts.effectRequests],
 					oneArrayPerRun((ctx) => {
-						for (const raw of depBatch(ctx, 0) ?? []) {
+						for (const raw of ctx.deps[0].waves.flat()) {
 							ctx.down([
 								["DATA", processEffectSubmitCommand(raw as ProcessEffectRequest<TEffect>)],
 							]);
@@ -145,7 +145,7 @@ export function orchestrationWorkQueueRecipe<TEffect = unknown>(
 				terminalRecords: new Set(),
 				auditSeq: 0,
 			};
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				reduceRecord(ctx, state, raw as WorkQueueRecord<OrchestrationQueuedEffectPayload<TEffect>>);
 			}
 			ctx.state.set(state);
@@ -331,7 +331,7 @@ function project<T>(
 	return graph.node<T>(
 		[runtime],
 		oneArrayPerRun((ctx) => {
-			for (const fact of depBatch(ctx, 0) ?? []) {
+			for (const fact of ctx.deps[0].waves.flat()) {
 				const value = pick(fact as OrchestrationQueueFact);
 				if (value !== undefined) ctx.down([["DATA", value]]);
 			}

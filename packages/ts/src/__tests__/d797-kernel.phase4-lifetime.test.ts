@@ -11,7 +11,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { type Ctx, depLatest } from "../ctx/types.js";
+import type { Ctx } from "../ctx/types.js";
 import { graph } from "../graph/graph.js";
 import type { Wave } from "../protocol/messages.js";
 
@@ -21,7 +21,7 @@ describe("C-33: a closed lifetime revokes old ctx, and cleanup failures stay iso
 		const g = graph({ report: (failure) => reports.push(failure.error) });
 		const a = g.state(1, { name: "a" });
 		const order: string[] = [];
-		const p = g.node<number>([a], (ctx) => ctx.down([["DATA", depLatest(ctx, 0) as number]]), {
+		const p = g.node<number>([a], (ctx) => ctx.down([["DATA", ctx.deps[0].value as number]]), {
 			name: "p",
 			setup: () => {
 				order.push("p:setup");
@@ -36,8 +36,8 @@ describe("C-33: a closed lifetime revokes old ctx, and cleanup failures stay iso
 			[p],
 			(ctx) => {
 				ctxs.push(ctx);
-				ctx.state.set({ ranOn: depLatest(ctx, 0) });
-				ctx.down([["DATA", (depLatest(ctx, 0) as number) * 10]]);
+				ctx.state.set({ ranOn: ctx.deps[0].value });
+				ctx.down([["DATA", (ctx.deps[0].value as number) * 10]]);
 			},
 			{
 				name: "n",
@@ -91,7 +91,7 @@ describe("C-33: a closed lifetime revokes old ctx, and cleanup failures stay iso
 			[a],
 			(ctx) => {
 				ctx.state.set("held");
-				if (depLatest(ctx, 0) === 2) ctx.down([["COMPLETE"]]);
+				if (ctx.deps[0].value === 2) ctx.down([["COMPLETE"]]);
 			},
 			{
 				name: "n",
@@ -117,7 +117,7 @@ describe("C-33: status is derived, not stored (R-node@2)", () => {
 		const g = graph();
 		const a = g.state(1, { name: "a" });
 		let duringCleanup: unknown;
-		const n = g.node<number>([a], (ctx) => ctx.down([["DATA", depLatest(ctx, 0) as number]]), {
+		const n = g.node<number>([a], (ctx) => ctx.down([["DATA", ctx.deps[0].value as number]]), {
 			name: "n",
 			setup: () => () => {
 				duringCleanup = n.status;

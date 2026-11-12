@@ -1,4 +1,3 @@
-import { depBatch } from "../../ctx/types.js";
 import type { DataIssue } from "../../data/index.js";
 import type { Graph } from "../../graph/graph.js";
 import { cloneStrictJsonValue } from "../../json/codec.js";
@@ -241,7 +240,7 @@ export function agenticMemoryCommittedFactReadMaterializationBundle<
 	const projection = graph.node<AgenticMemoryCommittedFactReadMaterializationProjection<TJson>>(
 		[opts.readResult],
 		(ctx) => {
-			const reads = depBatch(ctx, 0) ?? [];
+			const reads = ctx.deps[0].waves.flat();
 			if (reads.length === 0) return;
 			const state =
 				ctx.state.get<{ evaluation: number }>() ??

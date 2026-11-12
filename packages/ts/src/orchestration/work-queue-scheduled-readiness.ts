@@ -1,4 +1,3 @@
-import { depBatch } from "../ctx/types.js";
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
 import { canonicalTupleKey, compoundTupleKey, parseCanonicalTupleKey } from "../identity.js";
@@ -163,7 +162,7 @@ export function workQueueScheduledReadinessProjector<T = unknown>(
 		[opts.records],
 		(ctx) => {
 			const state = ctx.state.get<WorkQueueScheduledReadinessProjectorState>() ?? initialState();
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const translated = translateRecord(raw);
 				if (translated.kind === "none") continue;
 				if (translated.kind === "issue") {
@@ -286,16 +285,16 @@ export function workQueueReadinessHandoffProjector<T = unknown>(
 		deps,
 		(ctx) => {
 			const state = ctx.state.get<WorkQueueReadinessHandoffProjectorState>() ?? handoffState();
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const record = raw as WorkQueueRecord<T>;
 				ingestWorkQueueRecord(state, record);
 			}
-			for (const raw of depBatch(ctx, 1) ?? []) {
+			for (const raw of ctx.deps[1]?.waves.flat() ?? []) {
 				const ready = raw as ScheduledReadinessReady;
 				state.readyByScheduleId.set(ready.scheduleId, ready);
 			}
 			if (opts.overdue !== undefined) {
-				for (const raw of depBatch(ctx, 2) ?? []) {
+				for (const raw of ctx.deps[2]?.waves.flat() ?? []) {
 					emitOverdueHandoffStatus(ctx, state, raw as ScheduledReadinessOverdue);
 				}
 			}
@@ -374,7 +373,7 @@ export function workQueueLeaseExpirationCommandProjector<T = unknown>(
 			const state =
 				ctx.state.get<WorkQueueLeaseExpirationCommandProjectorState<T>>() ??
 				leaseExpirationCommandState<T>();
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const candidate = raw as WorkQueueReadinessCandidate;
 				if (candidate.candidateKind !== "lease-expiration-eligible") continue;
 				if (state.commandByCandidateId.has(candidate.candidateId)) continue;

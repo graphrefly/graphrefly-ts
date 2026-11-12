@@ -23,18 +23,7 @@ import { constructionAcquisitions, type NodeAcquisition } from "../node/owned-ac
  * dep-type safety is recovered by the typed `g.initNode` overloads.
  */
 
-import {
-	type Ctx,
-	depBatch,
-	depCount,
-	depLatest,
-	depTerminal,
-	depWaves,
-	isTerminalComplete,
-	isTerminalError,
-	type NodeFn,
-	terminalErrorValue,
-} from "../ctx/types.js";
+import type { Ctx, NodeFn } from "../ctx/types.js";
 import type { Dispatcher } from "../dispatcher/index.js";
 import type { NodeCore } from "../node/core.js";
 import { Node, type NodeOptions, withEnvironmentDrivers, withNodeCore } from "../node/node.js";
@@ -46,7 +35,7 @@ import type { GraphRestoreDefinition, GraphRestoreEntry, GraphRestoreRegistry } 
 
 /**
  * A free-standing operator definition (D43). `TIn` = the element type each dep delivers
- * (the operator reads `depLatest(ctx, i) as TIn`); `TOut` = the emitted value type.
+ * (the operator reads `ctx.deps[i].value as TIn`); `TOut` = the emitted value type.
  * `__in`/`__out` are phantom-only (never assigned) — they let `g.initNode` infer + check the
  * dep tuple against the operator without an explicit type argument.
  */
@@ -266,7 +255,7 @@ export function operatorNodeFn<TIn, TOut>(op: Operator<TIn, TOut>): NodeFn {
 // All read dep 0 positionally + emit via ctx.down. Under D49 every occurrence is DATA (no
 // equals-absorption); a body that returns WITHOUT emitting gets a substrate-synthesized undirty
 // RESOLVED (R-resolved-undirty) — so a "skip this wave" is a bare `return`. Terminal-emitting
-// operators (reduce/last/find/elementAt) read `depTerminal(ctx, 0)` via the
+// operators (reduce/last/find/elementAt) read `ctx.deps[0].terminal` via the
 // the manual COMPLETE policy flags (R-deps-terminal): the fn fires
 // on the source's COMPLETE and emits its final value. NOT 1:1 pure-ts ports — the frozen reference
 // (D41) uses a producer + internal `subscribeOr`, the D45-banned describe island; these are
@@ -365,7 +354,7 @@ export function scan<S, T>(reducer: (acc: T, v: S) => T, seed: T): Operator<S, T
 	return {
 		factory: "scan",
 		body: (ctx) => {
-			if (depWaves(ctx, 0).length === 0) return;
+			if (ctx.deps[0].waves.length === 0) return;
 			let acc = ctx.state.get<T>() ?? seed;
 			eachInputArray<S>(ctx, 0, (v, out) => {
 				acc = reducer(acc, v);
@@ -469,12 +458,12 @@ export function merge<T>(): Operator<T, T> {
 			if (ctx.state.get<boolean>() === undefined) {
 				ctx.state.set(true);
 				const out: Message[] = [];
-				for (let i = 0; i < depCount(ctx); i++)
-					for (const v of depBatch(ctx, i) ?? []) out.push(["DATA", v]);
+				for (let i = 0; i < ctx.deps.length; i++)
+					for (const v of ctx.deps[i].waves.flat()) out.push(["DATA", v]);
 				if (out.length > 0) ctx.down(out);
 				return;
 			}
-			for (let i = 0; i < depCount(ctx); i++)
+			for (let i = 0; i < ctx.deps.length; i++)
 				eachInputArray(ctx, i, (v, out) => {
 					out.push(["DATA", v]);
 				});
@@ -506,11 +495,11 @@ export function reduce<S, T>(reducer: (acc: T, v: S) => T, seed: T): Operator<S,
 		factory: "reduce",
 		opts: { complete: "manual" },
 		body: (ctx) => {
-			const b = depBatch(ctx, 0);
+			const b = ctx.deps[0].waves.length === 0 ? null : ctx.deps[0].waves.flat();
 			let acc = ctx.state.get<T>() ?? seed;
 			if (b) for (const v of b) acc = reducer(acc, v as S);
 			ctx.state.set(acc);
-			if (isTerminalComplete(depTerminal(ctx, 0))) ctx.down([["DATA", acc], ["COMPLETE"]]);
+			if (ctx.deps[0].terminal?.kind === "complete") ctx.down([["DATA", acc], ["COMPLETE"]]);
 			// else (live DATA wave): no emit → substrate-synthesized undirty RESOLVED (D49).
 		},
 	};
@@ -613,7 +602,7 @@ export function first<S>(pred?: (v: S) => boolean): Operator<S, S> {
 	return {
 		factory: "first",
 		body: (ctx) => {
-			const b = depBatch(ctx, 0);
+			const b = ctx.deps[0].waves.length === 0 ? null : ctx.deps[0].waves.flat();
 			if (!b) return;
 			for (const v of b as readonly S[]) {
 				if (!pred || pred(v)) {
@@ -645,9 +634,9 @@ export function last<S>(pred?: (v: S) => boolean): Operator<S, S> {
 		factory: "last",
 		opts: { complete: "manual" },
 		body: (ctx) => {
-			const b = depBatch(ctx, 0);
+			const b = ctx.deps[0].waves.length === 0 ? null : ctx.deps[0].waves.flat();
 			if (b) for (const v of b) if (!pred || pred(v as S)) ctx.state.set({ v });
-			if (isTerminalComplete(depTerminal(ctx, 0))) {
+			if (ctx.deps[0].terminal?.kind === "complete") {
 				const st = ctx.state.get<{ v: S }>();
 				ctx.down(st ? [["DATA", st.v], ["COMPLETE"]] : [["COMPLETE"]]);
 			}
@@ -672,7 +661,7 @@ export function find<S>(pred: (v: S) => boolean): Operator<S, S> {
 		factory: "find",
 		opts: { complete: "manual" },
 		body: (ctx) => {
-			const b = depBatch(ctx, 0);
+			const b = ctx.deps[0].waves.length === 0 ? null : ctx.deps[0].waves.flat();
 			if (b) {
 				for (const v of b) {
 					if (pred(v as S)) {
@@ -681,7 +670,7 @@ export function find<S>(pred: (v: S) => boolean): Operator<S, S> {
 					}
 				}
 			}
-			if (isTerminalComplete(depTerminal(ctx, 0))) ctx.down([["COMPLETE"]]); // not found → bare COMPLETE
+			if (ctx.deps[0].terminal?.kind === "complete") ctx.down([["COMPLETE"]]); // not found → bare COMPLETE
 		},
 	};
 }
@@ -703,7 +692,7 @@ export function elementAt<S>(index: number): Operator<S, S> {
 		factory: "elementAt",
 		opts: { complete: "manual" },
 		body: (ctx) => {
-			const b = depBatch(ctx, 0);
+			const b = ctx.deps[0].waves.length === 0 ? null : ctx.deps[0].waves.flat();
 			let count = ctx.state.get<number>() ?? 0;
 			if (b) {
 				for (const v of b) {
@@ -715,7 +704,7 @@ export function elementAt<S>(index: number): Operator<S, S> {
 				}
 				ctx.state.set(count);
 			}
-			if (isTerminalComplete(depTerminal(ctx, 0))) ctx.down([["COMPLETE"]]); // index out of range → bare COMPLETE
+			if (ctx.deps[0].terminal?.kind === "complete") ctx.down([["COMPLETE"]]); // index out of range → bare COMPLETE
 		},
 	};
 }
@@ -767,12 +756,12 @@ export function tap<S>(fnOrObserver: ((v: S) => void) | TapObserver<S>): Operato
 				obs.data?.(v);
 				out.push(["DATA", v]);
 			});
-			const terminal = depTerminal(ctx, 0);
-			if (isTerminalComplete(terminal)) {
+			const terminal = ctx.deps[0].terminal;
+			if (terminal?.kind === "complete") {
 				obs.complete?.();
 				ctx.down([["COMPLETE"]]);
-			} else if (isTerminalError(terminal)) {
-				const err = terminalErrorValue(terminal);
+			} else if (terminal?.kind === "error") {
+				const err = terminal?.kind === "error" ? terminal.error : undefined;
 				obs.error?.(err);
 				ctx.down([["ERROR", err]]);
 			}
@@ -897,7 +886,7 @@ export function settle<S>(opts: SettleOpts<S>): Operator<S, S> {
 
 // ── Slice 3 — error-handling control (CSP-2.7, D40) ──
 // rescue/catchError ABSORB the source ERROR (the manual ERROR policy) and read the error payload
-// from `depTerminal(ctx, 0)` (R-deps-terminal). They set the manual COMPLETE policy so a
+// from `ctx.deps[0].terminal` (R-deps-terminal). They set the manual COMPLETE policy so a
 // normal source COMPLETE is forwarded explicitly — which ALSO sidesteps B40 (the
 // completeWhenDepsComplete:true × absorbed-errored-dep auto-complete gap): there is no auto-complete
 // to block. valve is a [source, control] gate (state-verb-legitimate control input).
@@ -924,16 +913,16 @@ export function rescue<S>(recover: (err: unknown) => S): Operator<S, S> {
 			error: "manual",
 		},
 		body: (ctx) => {
-			const terminal = depTerminal(ctx, 0);
+			const terminal = ctx.deps[0].terminal;
 			eachInputArray(ctx, 0, (v, out) => {
 				out.push(["DATA", v]);
 			});
-			if (isTerminalComplete(terminal)) {
+			if (terminal?.kind === "complete") {
 				ctx.down([["COMPLETE"]]);
-			} else if (isTerminalError(terminal)) {
+			} else if (terminal?.kind === "error") {
 				// ERROR payload absorbed → recover.
 				try {
-					ctx.down([["DATA", recover(terminalErrorValue(terminal))]]);
+					ctx.down([["DATA", recover(terminal?.kind === "error" ? terminal.error : undefined)]]);
 				} catch (e) {
 					ctx.down([["ERROR", errorPayload(e, "rescue threw without a valid error payload")]]);
 				}
@@ -977,10 +966,11 @@ export function valve<S>(opts?: ValveOpts): Operator<unknown, S> {
 		factory: "valve",
 		opts: { complete: "manual" },
 		body: (ctx) => {
-			const srcBatch = depBatch(ctx, 0);
-			const ctlBatch = depBatch(ctx, 1);
-			const srcTerminal = depTerminal(ctx, 0);
-			const controlValue = depLatest(ctx, 1) as boolean | undefined;
+			const srcBatch = ctx.deps[0].waves.length === 0 ? null : ctx.deps[0].waves.flat();
+			const ctlBatch =
+				(ctx.deps[1]?.waves ?? []).length === 0 ? null : (ctx.deps[1]?.waves.flat() ?? []);
+			const srcTerminal = ctx.deps[0].terminal;
+			const controlValue = ctx.deps[1]?.value as boolean | undefined;
 
 			if (abortInFlight != null) {
 				// Fire abort on the truthy→falsy edge only (never on activation / no prior state).
@@ -1001,15 +991,16 @@ export function valve<S>(opts?: ValveOpts): Operator<unknown, S> {
 					});
 				} else {
 					// Gate just opened this wave (control fired, source didn't): re-emit the last source value.
-					const srcLatest = depLatest(ctx, 0);
+					const srcLatest = ctx.deps[0].value;
 					if (ctlBatch && ctlBatch.length > 0 && srcLatest !== undefined)
 						ctx.down([["DATA", srcLatest as S]]);
 				}
 			}
 			// Then the source's terminal, after values that came with it; a control terminal is
 			// absorbed by the manual COMPLETE policy. A closed gate sends nothing (the kernel's RESOLVED).
-			if (isTerminalComplete(srcTerminal)) ctx.down([["COMPLETE"]]);
-			else if (isTerminalError(srcTerminal)) ctx.down([["ERROR", terminalErrorValue(srcTerminal)]]);
+			if (srcTerminal?.kind === "complete") ctx.down([["COMPLETE"]]);
+			else if (srcTerminal?.kind === "error")
+				ctx.down([["ERROR", srcTerminal?.kind === "error" ? srcTerminal.error : undefined]]);
 		},
 	};
 }

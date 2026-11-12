@@ -6,7 +6,7 @@
  * registry, and not protocol ERROR/tier/message semantics.
  */
 
-import { type Ctx, depBatch } from "../ctx/types.js";
+import type { Ctx } from "../ctx/types.js";
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
 import { canonicalTupleKey, compoundTupleKey } from "../identity.js";
@@ -178,7 +178,7 @@ export function capabilityAdmissionProjector(
 		(ctx) => {
 			const state =
 				ctx.state.get<CapabilityAdmissionStateInternal>() ?? emptyCapabilityAdmissionState();
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const proposal = raw as CapabilityAdmissionProposal;
 				const issue = capabilityAdmissionProposalIssue(proposal);
 				if (issue !== undefined) {
@@ -232,7 +232,7 @@ export function capabilityAdmissionProjector(
 				}
 				state.policies.set(policy.policyId, policy);
 			});
-			for (const raw of depBatch(ctx, 1) ?? []) {
+			for (const raw of ctx.deps[1]?.waves.flat() ?? []) {
 				const decision = raw as CapabilityAdmissionDecision;
 				const issue = capabilityAdmissionDecisionIssue(decision);
 				if (issue !== undefined) {
@@ -442,7 +442,7 @@ function capabilityAdmissionViews(
 					issues: [],
 					audit: [],
 				};
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const fact = raw as CapabilityAdmissionFact;
 				if (fact.kind === "admission") {
 					const admission = fact.admission;
@@ -800,7 +800,7 @@ function forEachPolicyDepBatch(
 	fn: (value: unknown) => void,
 ): void {
 	for (let i = 0; i < count; i += 1) {
-		for (const value of depBatch(ctx, start + i) ?? []) fn(value);
+		for (const value of ctx.deps[start + i]?.waves.flat() ?? []) fn(value);
 	}
 }
 
@@ -814,7 +814,7 @@ function projectRuntimeFact<T, TOut>(
 	return graph.node<TOut>(
 		[runtime],
 		oneArrayPerRun((ctx) => {
-			for (const fact of depBatch(ctx, 0) ?? []) {
+			for (const fact of ctx.deps[0].waves.flat()) {
 				const typed = fact as T;
 				const value = pick(typed);
 				if (value !== undefined) ctx.down([["DATA", value]]);

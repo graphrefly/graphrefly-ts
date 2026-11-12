@@ -32,16 +32,6 @@ export interface DeliveryMeta {
 	readonly snapshot?: boolean;
 }
 
-/**
- * Internal current-value reader. It is deliberately a symbol-backed implementation detail:
- * raw ctx exposes `waveData` + `terminal`; helpers below derive from that plus this dep cache.
- */
-export const CTX_DEP_CACHE: unique symbol = Symbol.for("graphrefly.ctx.depCache");
-
-export interface CtxDepCache {
-	readonly latest: readonly unknown[];
-}
-
 export interface CtxDepWaveOrigin {
 	readonly live: readonly (readonly boolean[])[];
 }
@@ -74,55 +64,33 @@ export function ctxRewireDiff(
 	ctx[CTX_NODE_BINDING]?.rewireDiff(add, remove);
 }
 
-/** Per-dep wave projections: dep -> waves -> values/SENTINEL markers. */
-export type WaveData = readonly (readonly (readonly unknown[])[])[];
-
-/** Terminal metadata parallel to `waveData`: false = none, true = COMPLETE, otherwise ERROR payload. */
-export type TerminalData = readonly unknown[];
-
-/**
- * Check whether a terminal slot carries COMPLETE.
- *
- * @param t - Terminal slot value from {@link Ctx.terminal}.
- * @returns `true` when the slot is the COMPLETE shorthand `true`.
- * @example
- * ```ts
- * isTerminalComplete(true); // true
- * ```
- * @category core
- */
-export function isTerminalComplete(t: unknown): t is true {
-	return t === true;
-}
+/** A dependency's terminal in this invocation (R-invocation@2): COMPLETE, or ERROR with its payload. */
+export type DepTerminal =
+	| { readonly kind: "complete" }
+	| { readonly kind: "error"; readonly error: unknown };
 
 /**
- * Check whether a terminal slot carries ERROR payload data.
- *
- * @param t - Terminal slot value from {@link Ctx.terminal}.
- * @returns `true` when the slot is neither none nor COMPLETE.
- * @example
- * ```ts
- * isTerminalError(new Error("boom")); // true
- * ```
- * @category core
+ * One dependency as the function sees it in this invocation (R-invocation@2, the user's Q3).
  */
-export function isTerminalError(t: unknown): boolean {
-	return !isTerminalNone(t) && !isTerminalComplete(t);
-}
-
-/**
- * Read the terminal payload when the slot is an ERROR value.
- *
- * @param t - Terminal slot value from {@link Ctx.terminal}.
- * @returns The payload when `t` is an ERROR slot, otherwise `undefined`.
- * @example
- * ```ts
- * terminalErrorValue(new Error("boom"));
- * ```
- * @category core
- */
-export function terminalErrorValue(t: unknown): unknown {
-	return isTerminalError(t) ? t : undefined;
+export interface CtxDep {
+	/** The dependency's id in its graph. */
+	readonly id: string;
+	/**
+	 * The arrays it delivered to this invocation, each as its DATA payloads in order, keeping array
+	 * boundaries; a RESOLVED array is empty, and `[]` means it delivered nothing.
+	 */
+	readonly waves: readonly (readonly unknown[])[];
+	/** Its terminal in this invocation, if any. */
+	readonly terminal: DepTerminal | undefined;
+	/** The latest value received from it; `undefined` when it has none (see `has`). */
+	readonly value: unknown;
+	/** Whether a value has been received from it. */
+	readonly has: boolean;
+	/**
+	 * Under the manual INVALIDATE policy, whether an INVALIDATE arrived on it in this invocation;
+	 * always false under the auto policy, where the function does not run for an INVALIDATE.
+	 */
+	readonly invalidated: boolean;
 }
 
 /**
@@ -150,21 +118,8 @@ export interface Ctx {
 	 * own array: consecutive calls are never merged.
 	 */
 	emit(...values: readonly unknown[]): void;
-	/**
-	 * The single raw dep-value input surface (R-ctx-wave-data / D77): dep -> upstream waves ->
-	 * per-wave DATA payloads and INVALIDATE/SENTINEL markers. `waveData[i] = []` means dep i
-	 * delivered no wave to this invocation; `waveData[i] = [[]]` means RESOLVED-only.
-	 */
-	waveData: WaveData;
-	/** Terminal metadata for the same invocation; terminal values never enter `waveData`. */
-	terminal: TerminalData;
-	/**
-	 * R-invalidation: under the manual INVALIDATE policy, `invalidated[i]` is true when an
-	 * INVALIDATE reached dependency i in this wave; the function decides what to clear and whether
-	 * to send INVALIDATE itself. Always false under the auto policy, where the function does not
-	 * run for an INVALIDATE.
-	 */
-	invalidated: readonly boolean[];
+	/** The dependencies, one view each, in dependency order (R-invocation@2). */
+	deps: readonly CtxDep[];
 	/** Private state for the current lifetime (R-invocation, R-lifetime). */
 	state: CtxState;
 	/**
@@ -184,135 +139,21 @@ export interface Ctx {
 	 * input wave. When the lifetime closes the dependencies go back to the declared ones.
 	 */
 	rewire(deps: readonly Node<unknown>[]): void;
-	/**
-	 * Read a dep's latest value by index (dynamicNode only, R-dynamic-node / D35).
-	 * Present only on dynamicNode fns; all declared deps still participate in wave
-	 * tracking. Under D49/R-resolved-undirty an unread dep's change still fires the fn,
-	 * which re-emits its (unchanged) output as a DATA occurrence — there is NO equals-
-	 * absorption; pair with distinctUntilChanged to suppress unchanged re-emits (opt-in).
-	 */
-	track?(depIndex: number): unknown;
-	[CTX_DEP_CACHE]?: CtxDepCache;
 	[CTX_NODE_BINDING]?: CtxNodeBinding;
 }
 
 /** A node fn (R-fn-contract). Registered in a dispatcher pool, indexed by Handle. */
 export type NodeFn = (ctx: Ctx) => void;
 
-/** Number of declared dep slots visible in this invocation.
- * @param ctx - Node execution context supplied by the dispatcher.
- * @returns A `number` value.
- * @category core
- * @example
- * ```ts
- * import { depCount } from "@graphrefly/ts/core";
- * ```
- */
-export function depCount(ctx: Ctx): number {
-	return ctx.waveData.length;
-}
-
-/**
- * Check whether a terminal slot carries no terminal state.
- *
- * @param t - Terminal slot value from {@link Ctx.terminal}.
- * @returns `true` when the slot is `false` or `undefined`.
- * @example
- * ```ts
- * isTerminalNone(false); // true
- * ```
- * @category core
- */
-export function isTerminalNone(t: unknown): boolean {
-	return t === false || t === undefined;
-}
-
-/** DATA/SENTINEL projection batches delivered by one dep in this invocation.
- * @param ctx - Node execution context supplied by the dispatcher.
- * @param depIndex - dep index value used by the helper.
- * @returns A `readonly (readonly unknown[])[]` value.
- * @category core
- * @example
- * ```ts
- * import { depWaves } from "@graphrefly/ts/core";
- * ```
- */
-export function depWaves(ctx: Ctx, depIndex: number): readonly (readonly unknown[])[] {
-	return ctx.waveData[depIndex] ?? [];
-}
-
-/** Flattened DATA projection for event-counting operator bodies; null = no wave.
- * @param ctx - Node execution context supplied by the dispatcher.
- * @param depIndex - dep index value used by the helper.
- * @returns A `readonly unknown[] | null` value.
- * @category core
- * @example
- * ```ts
- * import { depBatch } from "@graphrefly/ts/core";
- * ```
- */
-export function depBatch(ctx: Ctx, depIndex: number): readonly unknown[] | null {
-	const waves = depWaves(ctx, depIndex);
-	if (waves.length === 0) return null;
-	const flattened = waves.flat().filter((v) => v !== SENTINEL);
-	return flattened.length === 0 ? [] : flattened;
-}
-
-/** Internal adapter helper: dep waves produced by live graph-event deliveries only. */
+/** Internal adapter helper: the waves dependency `depIndex` delivered live, not as a snapshot. */
 export function depLiveWaves(ctx: Ctx, depIndex: number): readonly (readonly unknown[])[] {
-	const waves = depWaves(ctx, depIndex);
+	const waves = ctx.deps[depIndex]?.waves ?? [];
 	const live = ctxDepWaveOrigins.get(ctx)?.live[depIndex] ?? [];
 	return waves.filter((_, index) => live[index]);
 }
 
-/** Internal adapter helper: flattened DATA values from live-delivered dep waves only. */
+/** Internal adapter helper: the values dependency `depIndex` delivered live; null when none came. */
 export function depLiveBatch(ctx: Ctx, depIndex: number): readonly unknown[] | null {
 	const waves = depLiveWaves(ctx, depIndex);
-	if (waves.length === 0) return null;
-	const flattened = waves.flat().filter((v) => v !== SENTINEL);
-	return flattened.length === 0 ? [] : flattened;
-}
-
-/**
- * Read the most recent DATA value from one upstream dependency during a node run.
- *
- * `depIndex` is positional: `0` reads the first dependency in `node([first, ...])`, `1` reads the
- * second dependency, and so on. If that dependency has not produced DATA in the current graph
- * lifecycle, the value is `undefined`.
- *
- * @param ctx - Node execution context supplied by the dispatcher.
- * @param depIndex - Zero-based dependency position in the node's dependency list.
- * @returns The latest DATA value for that dependency, or `undefined` when no DATA is available yet.
- * @category core
- * @example
- * ```ts
- * import { depLatest } from "@graphrefly/ts/core";
- * import { graph } from "@graphrefly/ts/graph";
- *
- * const g = graph();
- * const count = g.state(1);
- * const doubled = g.node<number>([count], (ctx) => {
- *   const latest = depLatest(ctx, 0);
- *   if (latest === undefined) return;
- *   ctx.down([["DATA", Number(latest) * 2]]);
- * });
- * ```
- */
-export function depLatest(ctx: Ctx, depIndex: number): unknown {
-	return ctx[CTX_DEP_CACHE]?.latest[depIndex];
-}
-
-/** Terminal metadata for one dep: false = none, true = COMPLETE, otherwise ERROR payload.
- * @param ctx - Node execution context supplied by the dispatcher.
- * @param depIndex - dep index value used by the helper.
- * @returns The dep terminal result.
- * @category core
- * @example
- * ```ts
- * import { depTerminal } from "@graphrefly/ts/core";
- * ```
- */
-export function depTerminal(ctx: Ctx, depIndex: number): unknown {
-	const t = ctx.terminal[depIndex];
-	return t === undefined ? false : t;
+	return waves.length === 0 ? null : waves.flat();
 }

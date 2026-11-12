@@ -1,4 +1,4 @@
-import { type Ctx, depBatch } from "../../ctx/types.js";
+import type { Ctx } from "../../ctx/types.js";
 import type { DataIssue } from "../../data/index.js";
 import type { Graph } from "../../graph/graph.js";
 import type { Node } from "../../node/node.js";
@@ -72,17 +72,17 @@ export function workItemVerificationRequestLowerer<TInput = unknown>(
 				statusSeq: 0,
 				auditSeq: 0,
 			};
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const workItem = raw as WorkItemProjection<TInput>;
 				state.workItems.set(workItem.workItemId, workItem);
 				lowerPlan(ctx, state, workItem, opts.policy);
 			}
 			if (dispatchIntentIndex >= 0) {
-				for (const raw of depBatch(ctx, dispatchIntentIndex) ?? [])
+				for (const raw of ctx.deps[dispatchIntentIndex]?.waves.flat() ?? [])
 					lowerIntent(ctx, state, raw as WorkItemDispatchIntent<TInput>, opts.policy);
 			}
 			if (verificationResultIndex >= 0) {
-				for (const raw of depBatch(ctx, verificationResultIndex) ?? [])
+				for (const raw of ctx.deps[verificationResultIndex]?.waves.flat() ?? [])
 					recordVerificationResult(ctx, state, raw as VerificationResultRecorded, opts.policy);
 			}
 			ctx.state.set(state);
@@ -155,13 +155,13 @@ export function workItemVerificationResultMapper<TInput = unknown>(
 				statusSeq: 0,
 				auditSeq: 0,
 			};
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const workItem = raw as WorkItemProjection<TInput>;
 				state.workItems.set(workItem.workItemId, workItem);
 				replayEvidence(ctx, state, workItem.workItemId);
 			}
 			if (opts.policies !== undefined) {
-				for (const raw of depBatch(ctx, 2) ?? []) {
+				for (const raw of ctx.deps[2]?.waves.flat() ?? []) {
 					const policy = raw as WorkItemVerificationMappingPolicy;
 					const issues = validateMappingPolicy(policy);
 					if (issues.length > 0) {
@@ -179,7 +179,7 @@ export function workItemVerificationResultMapper<TInput = unknown>(
 					mapEvidence(ctx, state, evidence, true);
 				}
 			}
-			for (const raw of depBatch(ctx, 1) ?? [])
+			for (const raw of ctx.deps[1]?.waves.flat() ?? [])
 				mapEvidence(ctx, state, raw as WorkItemEvidenceRecorded);
 			ctx.state.set(state);
 		},

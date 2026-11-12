@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Ctx, Message } from "../index.js";
-import { depLatest, graph } from "../index.js";
+import { graph } from "../index.js";
 import type { Subscribable } from "./helpers/collect.js";
 
 function collect(n: Subscribable) {
@@ -61,7 +61,7 @@ describe("QA fixes", () => {
 		const src = g.node<number>([], null, { initial: 0 });
 		// dep sends nothing for an odd value, so the kernel settles it with RESOLVED.
 		const dep = g.node<number>([src], (ctx: Ctx) => {
-			const v = depLatest(ctx, 0) as number;
+			const v = ctx.deps[0].value as number;
 			if (v % 2 === 0) ctx.down([["DATA", v]]);
 		});
 		const pass = g.node<number>([dep], null); // passthrough wire (_handle === null)

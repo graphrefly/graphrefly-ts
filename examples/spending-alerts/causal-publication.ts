@@ -1,6 +1,6 @@
 /** Consumer-private, passive publication. D160-D163; never an execution permission. */
 import { createHash } from "node:crypto";
-import { depBatch, depLatest } from "../../packages/ts/src/ctx/types.js";
+
 import type {
 	ConstructionScope,
 	StartupFact,
@@ -416,7 +416,7 @@ export function buildSpendingPublication<T>(
 		(ctx) => {
 			// Missing dependencies invalidate positional meaning; never use an old cached join.
 			if (
-				ctx.waveData.length !== 2 ||
+				ctx.deps.length !== 2 ||
 				requestMaterialJoin.deps[0] !== causal.committedEffects ||
 				requestMaterialJoin.deps[1] !== materialSource
 			) {
@@ -434,9 +434,11 @@ export function buildSpendingPublication<T>(
 			}
 			// These context helpers read only DATA delivered to this invocation's declared edges.
 			// Their per-dependency INVALIDATE bookkeeping remains valid even while this node is SENTINEL.
-			const view = depLatest(ctx, 0) as CommittedEffectsView | undefined;
-			const raw = depLatest(ctx, 1);
-			const materialArrived = Boolean(depBatch(ctx, 1)?.length);
+			const view = ctx.deps[0].value as CommittedEffectsView | undefined;
+			const raw = ctx.deps[1]?.value;
+			const materialArrived = Boolean(
+				(ctx.deps[1]?.waves.length ? (ctx.deps[1]?.waves.flat() ?? []) : null)?.length,
+			);
 			if (raw === undefined && !materialArrived) {
 				state.raw = undefined;
 				state.index = undefined;
@@ -474,7 +476,7 @@ export function buildSpendingPublication<T>(
 	const publication = scope.node<Publication>(
 		[requestMaterialJoin],
 		oneArrayPerRun((ctx) => {
-			for (const j of (depBatch(ctx, 0) ?? []) as JoinResult[])
+			for (const j of ctx.deps[0].waves.flat() as JoinResult[])
 				ctx.down([["DATA", publicationFor(j, asOf)]]);
 		}),
 		{ name: projectionNames.publication, factory: "spendingPublication" },

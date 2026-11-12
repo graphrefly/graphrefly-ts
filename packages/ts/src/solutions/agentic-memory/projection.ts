@@ -1,4 +1,3 @@
-import { depBatch, depLatest } from "../../ctx/types.js";
 import type { Graph } from "../../graph/graph.js";
 import type { Node } from "../../node/node.js";
 import { oneArrayPerRun } from "../../node/one-array-per-run.js";
@@ -22,7 +21,7 @@ export function solutionProjection<TFact, TSnapshot>(
 	return graph.node<TFact>(
 		[snapshot],
 		oneArrayPerRun((ctx) => {
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				ctx.down([["DATA", select(raw as TSnapshot)]]);
 			}
 		}),
@@ -45,7 +44,7 @@ export function agenticMemoryProjection<TFact, T>(
 	return graph.node<TFact>(
 		[snapshot],
 		oneArrayPerRun((ctx) => {
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				ctx.down([["DATA", select(raw as AgenticMemoryProjectionSnapshot<T>)]]);
 			}
 		}),
@@ -67,8 +66,8 @@ export function agenticMemoryContextProjection<T>(
 	return graph.node<AgenticMemoryContext<T>>(
 		[projection, retrieval],
 		oneArrayPerRun((ctx) => {
-			const projectionFact = depLatest(ctx, 0) as AgenticMemoryProjectionSnapshot<T> | undefined;
-			const retrievalFacts = depBatch(ctx, 1) ?? [];
+			const projectionFact = ctx.deps[0].value as AgenticMemoryProjectionSnapshot<T> | undefined;
+			const retrievalFacts = ctx.deps[1]?.waves.flat() ?? [];
 			if (projectionFact === undefined || retrievalFacts.length === 0) return;
 			for (const raw of retrievalFacts) {
 				ctx.down([
@@ -131,7 +130,7 @@ export function agenticMemoryRecordProjection<T>(
 				ctx.state.get<{ evaluation: number }>() ??
 				({ evaluation: 0 } satisfies { evaluation: number });
 			state.evaluation += 1;
-			const rawRecords = (depBatch(ctx, 0) ?? []).at(-1);
+			const rawRecords = ctx.deps[0].waves.flat().at(-1);
 			const projected = validateAndProjectRecords<T>(rawRecords);
 			const cursor: AgenticMemoryProjectionCursor = Object.freeze({
 				evaluation: state.evaluation,

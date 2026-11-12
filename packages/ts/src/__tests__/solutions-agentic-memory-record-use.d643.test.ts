@@ -1,5 +1,5 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
-import { depBatch } from "../ctx/types.js";
+
 import { graph } from "../graph/graph.js";
 import * as packageRoot from "../index.js";
 import { strictCanonicalJsonBytes } from "../json/codec.js";
@@ -1134,7 +1134,7 @@ describe("AgenticMemory D789 real keyed exact-use lifecycle", () => {
 		const selected = g.node<readonly AgenticMemoryRecord<string>[]>(
 			[gate.allowedRecords],
 			(ctx) => {
-				for (const raw of depBatch(ctx, 0) ?? []) {
+				for (const raw of ctx.deps[0].waves.flat()) {
 					const occurrence = raw as SolutionOccurrence<readonly AgenticMemoryRecord<string>[]>;
 					if (occurrence.occurrenceId === kind) ctx.down([["DATA", occurrence.value]]);
 				}

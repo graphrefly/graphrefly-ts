@@ -1,4 +1,3 @@
-import { depBatch } from "../ctx/types.js";
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
 import type { RetryPolicy } from "../graph/resilience.js";
@@ -70,7 +69,7 @@ export function toolProviderRunRetryProjector(
 		(ctx) => {
 			const state = ctx.state.get<ToolProviderRunRetryProjectorState>() ?? initialRetryState();
 			state.usesSharedReadiness = readinessDeps.length > 0;
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const input = raw as ToolProviderAdapterInput;
 				state.inputsById.set(input.adapterInputId, input);
 				let inputIds = state.inputIdsByRequest.get(input.requestId);
@@ -84,7 +83,7 @@ export function toolProviderRunRetryProjector(
 				const policy = sanitizeToolProviderRunRetryPolicy(raw as ToolProviderRunRetryPolicy);
 				state.policies.set(policy.policyId, policy);
 			});
-			for (const rawNow of depBatch(ctx, nowDepIndex) ?? []) {
+			for (const rawNow of ctx.deps[nowDepIndex]?.waves.flat() ?? []) {
 				if (typeof rawNow === "number" && Number.isFinite(rawNow)) state.nowMs = rawNow;
 			}
 			forEachDepBatch(ctx, readinessDepStart, readinessDeps.length, (raw) => {
@@ -95,7 +94,7 @@ export function toolProviderRunRetryProjector(
 				}
 				state.readinessBySchedule.set(ready.scheduleId, ready);
 			});
-			for (const raw of depBatch(ctx, outcomeDepIndex) ?? []) {
+			for (const raw of ctx.deps[outcomeDepIndex]?.waves.flat() ?? []) {
 				retainOutcome(state, raw as ExecutorOutcome);
 			}
 			evaluateOutcomes(ctx, state);

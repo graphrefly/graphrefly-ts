@@ -1,6 +1,6 @@
 /** No-I/O mechanism probe, not a qualified causal authority or host implementation. */
 import { expect, it } from "vitest";
-import { depBatch } from "../ctx/types.js";
+
 import {
 	ColdConstructionError,
 	prepareConstruction,
@@ -60,7 +60,7 @@ it("delivers a bounded receipt frame through a quiet node in an acyclic cold gra
 	const result = scope.node<readonly number[]>(
 		[input],
 		(ctx) => {
-			const values = depBatch(ctx, 0);
+			const values = ctx.deps[0].waves.length === 0 ? null : ctx.deps[0].waves.flat();
 			if (values?.length) ctx.down([["DATA", Object.freeze([...values])]]);
 		},
 		{ name: "result" },
@@ -70,7 +70,7 @@ it("delivers a bounded receipt frame through a quiet node in an acyclic cold gra
 	const receipt = scope.node(
 		[result],
 		(ctx) => {
-			for (const frame of depBatch(ctx, 0) ?? []) ctx.down([["DATA", frame]]);
+			for (const frame of ctx.deps[0].waves.flat()) ctx.down([["DATA", frame]]);
 		},
 		{ name: "receipt", quiet: true },
 	);
@@ -78,7 +78,7 @@ it("delivers a bounded receipt frame through a quiet node in an acyclic cold gra
 	const controller = scope.node(
 		[result, receipt],
 		(ctx) => {
-			for (const frame of depBatch(ctx, 1) ?? []) received.push(frame);
+			for (const frame of ctx.deps[1].waves.flat()) received.push(frame);
 		},
 		{ name: "controller" },
 	);

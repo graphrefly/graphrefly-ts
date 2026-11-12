@@ -5,42 +5,6 @@ export const apiSidebar = [
 		"collapsed": true,
 		"items": [
 			{
-				"label": "isTerminalComplete()",
-				"link": "/api/isterminalcomplete"
-			},
-			{
-				"label": "isTerminalError()",
-				"link": "/api/isterminalerror"
-			},
-			{
-				"label": "terminalErrorValue()",
-				"link": "/api/terminalerrorvalue"
-			},
-			{
-				"label": "depCount()",
-				"link": "/api/depcount"
-			},
-			{
-				"label": "isTerminalNone()",
-				"link": "/api/isterminalnone"
-			},
-			{
-				"label": "depWaves()",
-				"link": "/api/depwaves"
-			},
-			{
-				"label": "depBatch()",
-				"link": "/api/depbatch"
-			},
-			{
-				"label": "depLatest()",
-				"link": "/api/deplatest"
-			},
-			{
-				"label": "depTerminal()",
-				"link": "/api/depterminal"
-			},
-			{
 				"label": "Dispatcher",
 				"link": "/api/dispatcher"
 			},

@@ -1,6 +1,6 @@
 /** Minimal host-boundary counterexample; no production effect or I/O. */
 import { expect, it } from "vitest";
-import { depBatch } from "../ctx/types.js";
+
 import { Graph } from "../graph/graph.js";
 
 it("an outer batch can produce completion after the wrapped source call has returned", () => {
@@ -12,7 +12,7 @@ it("an outer batch can produce completion after the wrapped source call has retu
 	const guard = graph.node(
 		[source],
 		(ctx) => {
-			for (const value of depBatch(ctx, 0) ?? []) {
+			for (const value of ctx.deps[0].waves.flat()) {
 				trace.push(`guard:${value}`);
 				pending.push(value as number);
 			}

@@ -6,7 +6,7 @@
  */
 
 import type { CqrsCommand, CqrsError, CqrsEvent, CqrsStatus } from "../cqrs/index.js";
-import { depBatch } from "../ctx/types.js";
+
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
 import { canonicalTupleKey, compoundTupleKey } from "../identity.js";
@@ -76,7 +76,7 @@ export function cqrsMessagingRecipe<TPayload = unknown, TCommand = unknown, TEve
 	const runtime = graph.node<CqrsMessagingFact<TCommand>>(
 		[opts.deliveries],
 		oneArrayPerRun((ctx) => {
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const page = raw as MessageBusAvailablePage<TPayload>;
 				for (const message of page.messages) {
 					const delivery = messageDelivery(page, message);
@@ -193,12 +193,12 @@ export function cqrsMessageAckCommands(
 			const deliveries =
 				ctx.state.get<Map<string, MessageBusDelivery[]>>() ??
 				new Map<string, MessageBusDelivery[]>();
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const command = raw as CqrsCommand;
 				const delivery = commandDelivery(command);
 				if (delivery !== undefined) pushDelivery(deliveries, command.id, delivery);
 			}
-			for (const raw of depBatch(ctx, 1) ?? []) {
+			for (const raw of ctx.deps[1]?.waves.flat() ?? []) {
 				const status = raw as CqrsStatus;
 				if (status.state === "rejected" && opts.ackRejected === false) continue;
 				if (status.commandId === undefined) continue;
@@ -207,7 +207,7 @@ export function cqrsMessageAckCommands(
 				ctx.down([["DATA", ackCommand(delivery, ackCommandId("cqrs", delivery, "status"))]]);
 			}
 			if (opts.issues !== undefined) {
-				for (const raw of depBatch(ctx, 2) ?? []) {
+				for (const raw of ctx.deps[2]?.waves.flat() ?? []) {
 					const issue = raw as DataIssue;
 					const delivery = issueDelivery(issue);
 					if (delivery !== undefined) {
@@ -249,7 +249,7 @@ export function cqrsEventOutboxCommands<TEvent>(
 	return graph.node<MessageBusCommand>(
 		[events],
 		oneArrayPerRun((ctx) => {
-			for (const event of depBatch(ctx, 0) ?? []) {
+			for (const event of ctx.deps[0].waves.flat()) {
 				const typed = event as CqrsEvent<TEvent>;
 				ctx.down([
 					[
@@ -285,7 +285,7 @@ function project<T, TCommand>(
 	return graph.node<T>(
 		[runtime],
 		oneArrayPerRun((ctx) => {
-			for (const fact of depBatch(ctx, 0) ?? []) {
+			for (const fact of ctx.deps[0].waves.flat()) {
 				const value = pick(fact as CqrsMessagingFact<TCommand>);
 				if (value !== undefined) ctx.down([["DATA", value]]);
 			}

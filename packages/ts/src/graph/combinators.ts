@@ -7,12 +7,12 @@
  * show). Re-derived here as static-dep kernel nodes, which run on any dependency (graphrefly-ts:D184),
  * with `ctx.state` (queue / phase / winner) — so every edge is a real subscription `describe`
  * shows truthfully (D3 / R-edges-derived). Multi-source completion / error reads
- * `depTerminal(ctx, i)` (R-deps-terminal) via the manual COMPLETE policy.
+ * `ctx.deps[i].terminal` (R-deps-terminal) via the manual COMPLETE policy.
  *
  * Under D49 (no equals-absorption) `combine` emits a fresh tuple on EVERY contributing wave (no
  * substrate tuple-dedup; the pure-ts `equals` tuple comparator is gone) — pair with
  * `distinctUntilChanged` for opt-in dedup. SENTINEL ("a dep has never delivered DATA") is detected
- * via `depLatest(ctx, i) === undefined` (R-sentinel: `undefined` is the global sentinel, `null` is a valid
+ * via `ctx.deps[i].value === undefined` (R-sentinel: `undefined` is the global sentinel, `null` is a valid
  * value).
  *
  * NOT re-derived in this cut (flagged): the window family (`window`/`windowCount`/`windowTime`)
@@ -21,17 +21,7 @@
  * how an emitted live sub-stream appears in `describe` (D45/D51). Deferred to a design pass.
  */
 
-import {
-	type Ctx,
-	depBatch,
-	depCount,
-	depLatest,
-	depTerminal,
-	isTerminalComplete,
-	isTerminalError,
-	isTerminalNone,
-	terminalErrorValue,
-} from "../ctx/types.js";
+import type { Ctx, DepTerminal } from "../ctx/types.js";
 import type { Message } from "../protocol/messages.js";
 import { eachInputArray } from "./each-input-array.js";
 import type { Operator } from "./operators.js";
@@ -39,7 +29,7 @@ import type { Operator } from "./operators.js";
 /**
  * combine (alias `combineLatest`): emit a tuple of every dep's latest value whenever ANY dep
  * delivers, once ALL deps have delivered at least one value. the all-delivered gate
- * is `depLatest(ctx, i) !== undefined` per dep. Completes when ALL deps complete (default
+ * is `ctx.deps[i].value !== undefined` per dep. Completes when ALL deps complete (default
  * the auto COMPLETE policy); any dep ERROR propagates (the auto ERROR policy). Emits a fresh
  * tuple per wave (D49 — no dedup; compose `distinctUntilChanged` to suppress unchanged tuples).
  * @returns A `Operator<unknown, T>` value.
@@ -54,7 +44,7 @@ export function combine<T extends readonly unknown[]>(): Operator<unknown, T> {
 		factory: "combine",
 		opts: {},
 		body: (ctx) => {
-			const vals = Array.from({ length: depCount(ctx) }, (_, i) => depLatest(ctx, i));
+			const vals = Array.from({ length: ctx.deps.length }, (_, i) => ctx.deps[i].value);
 			if (vals.some((v) => v === undefined)) return; // not all deps delivered → undirty RESOLVED
 			ctx.down([["DATA", vals as unknown as T]]);
 		},
@@ -84,11 +74,11 @@ export function withLatestFrom<A, B>(): Operator<unknown, readonly [A, B]> {
 		factory: "withLatestFrom",
 		opts: { complete: "manual" },
 		body: (ctx) => {
-			const sec = depLatest(ctx, 1) as B | undefined;
+			const sec = ctx.deps[1]?.value as B | undefined;
 			if (sec === undefined) {
 				// No secondary yet: hold this run's primary values until it arrives.
 				const held = ctx.state.get<A[]>() ?? [];
-				for (const v of depBatch(ctx, 0) ?? []) held.push(v as A);
+				for (const v of ctx.deps[0].waves.flat()) held.push(v as A);
 				ctx.state.set(held);
 			} else {
 				const held = ctx.state.get<A[]>();
@@ -102,7 +92,7 @@ export function withLatestFrom<A, B>(): Operator<unknown, readonly [A, B]> {
 					out.push(["DATA", [v, sec] as readonly [A, B]]);
 				});
 			}
-			if (isTerminalComplete(depTerminal(ctx, 0))) ctx.down([["COMPLETE"]]);
+			if (ctx.deps[0].terminal?.kind === "complete") ctx.down([["COMPLETE"]]);
 		},
 	};
 }
@@ -131,7 +121,7 @@ export function zip<T extends readonly unknown[]>(): Operator<unknown, T> {
 		factory: "zip",
 		opts: { complete: "manual" },
 		body: (ctx) => {
-			const n = depCount(ctx);
+			const n = ctx.deps.length;
 			if (n === 0) {
 				ctx.down([["COMPLETE"]]);
 				return;
@@ -141,9 +131,9 @@ export function zip<T extends readonly unknown[]>(): Operator<unknown, T> {
 				terminal: new Array(n).fill(false),
 			};
 			for (let i = 0; i < n; i++) {
-				const b = depBatch(ctx, i);
+				const b = ctx.deps[i].waves.length === 0 ? null : ctx.deps[i].waves.flat();
 				if (b) for (const v of b) st.queues[i].push(v);
-				if (isTerminalComplete(depTerminal(ctx, i))) st.terminal[i] = true;
+				if (ctx.deps[i].terminal?.kind === "complete") st.terminal[i] = true;
 			}
 			// The tuples a run forms go out as one array, with COMPLETE last if a dep is drained.
 			const out: Message[] = [];
@@ -182,10 +172,11 @@ export function concat<S>(): Operator<S, S> {
 		factory: "concat",
 		opts: { complete: "manual" },
 		body: (ctx) => {
-			const firstBatch = depBatch(ctx, 0);
-			const secondBatch = depBatch(ctx, 1);
-			const firstTerminal = depTerminal(ctx, 0);
-			const secondTerminal = depTerminal(ctx, 1);
+			const firstBatch = ctx.deps[0].waves.length === 0 ? null : ctx.deps[0].waves.flat();
+			const secondBatch =
+				(ctx.deps[1]?.waves ?? []).length === 0 ? null : (ctx.deps[1]?.waves.flat() ?? []);
+			const firstTerminal = ctx.deps[0].terminal;
+			const secondTerminal = ctx.deps[1]?.terminal;
 			const st: ConcatState<S> = ctx.state.get<ConcatState<S>>() ?? {
 				phase: 0,
 				pending: [],
@@ -199,8 +190,8 @@ export function concat<S>(): Operator<S, S> {
 			if (st.phase === 0) {
 				play(firstBatch);
 				if (secondBatch) for (const v of secondBatch) st.pending.push(v as S);
-				if (isTerminalComplete(secondTerminal)) st.secondDone = true;
-				if (isTerminalComplete(firstTerminal)) {
+				if (secondTerminal?.kind === "complete") st.secondDone = true;
+				if (firstTerminal?.kind === "complete") {
 					st.phase = 1;
 					play(st.pending);
 					st.pending = [];
@@ -208,7 +199,7 @@ export function concat<S>(): Operator<S, S> {
 				}
 			} else {
 				play(secondBatch);
-				if (isTerminalComplete(secondTerminal)) out.push(["COMPLETE"]);
+				if (secondTerminal?.kind === "complete") out.push(["COMPLETE"]);
 			}
 			ctx.state.set(st);
 			if (out.length > 0) ctx.down(out);
@@ -219,7 +210,7 @@ export function concat<S>(): Operator<S, S> {
 /** Internal: which dep won the {@link race} (null until the first DATA). */
 interface RaceState {
 	winner: number | null;
-	terminals: unknown[];
+	terminals: (DepTerminal | null)[];
 }
 
 /**
@@ -241,26 +232,26 @@ export function race<S>(): Operator<S, S> {
 			error: "manual",
 		},
 		body: (ctx) => {
-			const n = depCount(ctx);
+			const n = ctx.deps.length;
 			const st: RaceState = ctx.state.get<RaceState>() ?? {
 				winner: null,
-				terminals: new Array(n).fill(false),
+				terminals: new Array(n).fill(null),
 			};
 			for (let i = 0; i < n; i++) {
-				const terminal = depTerminal(ctx, i);
-				if (!isTerminalNone(terminal)) st.terminals[i] = terminal;
+				const terminal = ctx.deps[i].terminal;
+				if (terminal !== undefined) st.terminals[i] = terminal;
 			}
 			if (st.winner === null) {
 				// Find the first dep that delivered DATA this wave → it wins.
 				for (let i = 0; i < n; i++) {
-					const b = depBatch(ctx, i);
+					const b = ctx.deps[i].waves.length === 0 ? null : ctx.deps[i].waves.flat();
 					if (b && b.length > 0) {
 						st.winner = i;
 						break;
 					}
 				}
 				// No winner yet — if EVERY dep is terminal (none ever delivered DATA), COMPLETE.
-				if (st.winner === null && st.terminals.every((t) => !isTerminalNone(t))) {
+				if (st.winner === null && st.terminals.every((t) => t !== null)) {
 					ctx.state.set(st);
 					ctx.down([["COMPLETE"]]);
 					return;
@@ -270,12 +261,12 @@ export function race<S>(): Operator<S, S> {
 			if (st.winner === null) return;
 			// The winner's values, then its terminal when it came in the same array (also in the
 			// wave that picked it).
-			const terminal = depTerminal(ctx, st.winner);
+			const terminal = ctx.deps[st.winner]?.terminal;
 			eachInputArray(ctx, st.winner, (v, out) => {
 				out.push(["DATA", v]);
 			});
-			if (isTerminalComplete(terminal)) ctx.down([["COMPLETE"]]);
-			else if (isTerminalError(terminal)) ctx.down([["ERROR", terminalErrorValue(terminal)]]);
+			if (terminal?.kind === "complete") ctx.down([["COMPLETE"]]);
+			else if (terminal?.kind === "error") ctx.down([["ERROR", terminal.error]]);
 		},
 	};
 }
@@ -299,11 +290,12 @@ export function buffer<S>(): Operator<unknown, S[]> {
 		factory: "buffer",
 		opts: { complete: "manual" },
 		body: (ctx) => {
-			const sourceBatch = depBatch(ctx, 0);
-			const notifierBatch = depBatch(ctx, 1);
+			const sourceBatch = ctx.deps[0].waves.length === 0 ? null : ctx.deps[0].waves.flat();
+			const notifierBatch =
+				(ctx.deps[1]?.waves ?? []).length === 0 ? null : (ctx.deps[1]?.waves.flat() ?? []);
 			const buf = ctx.state.get<S[]>() ?? [];
 			if (sourceBatch) for (const v of sourceBatch) buf.push(v as S);
-			if (isTerminalComplete(depTerminal(ctx, 0))) {
+			if (ctx.deps[0].terminal?.kind === "complete") {
 				if (buf.length > 0) ctx.down([["DATA", [...buf]]]);
 				ctx.state.set([]);
 				ctx.down([["COMPLETE"]]);
@@ -338,7 +330,7 @@ export function bufferCount<S>(count: number): Operator<S, S[]> {
 		factory: "bufferCount",
 		opts: { complete: "manual" },
 		body: (ctx) => {
-			const b = depBatch(ctx, 0);
+			const b = ctx.deps[0].waves.length === 0 ? null : ctx.deps[0].waves.flat();
 			const buf = ctx.state.get<S[]>() ?? [];
 			// The buffers a run fills go out as one array, with the remainder and COMPLETE at the end.
 			const out: Message[] = [];
@@ -348,7 +340,7 @@ export function bufferCount<S>(count: number): Operator<S, S[]> {
 					if (buf.length >= count) out.push(["DATA", buf.splice(0, buf.length)]);
 				}
 			}
-			if (isTerminalComplete(depTerminal(ctx, 0))) {
+			if (ctx.deps[0].terminal?.kind === "complete") {
 				if (buf.length > 0) out.push(["DATA", [...buf]]);
 				ctx.state.set([]);
 				out.push(["COMPLETE"]);
@@ -388,29 +380,32 @@ export function sample<S>(): Operator<unknown, S> {
 			error: "manual",
 		},
 		body: (ctx) => {
-			const sourceBatch = depBatch(ctx, 0);
-			const notifierBatch = depBatch(ctx, 1);
-			const sourceTerminal = depTerminal(ctx, 0);
-			const notifierTerminal = depTerminal(ctx, 1);
+			const sourceBatch = ctx.deps[0].waves.length === 0 ? null : ctx.deps[0].waves.flat();
+			const notifierBatch =
+				(ctx.deps[1]?.waves ?? []).length === 0 ? null : (ctx.deps[1]?.waves.flat() ?? []);
+			const sourceTerminal = ctx.deps[0].terminal;
+			const notifierTerminal = ctx.deps[1]?.terminal;
 			// No `last` key until a value arrives: private state is strict JSON (R-checkpoint@1).
 			const st: SampleState<S> = ctx.state.get<SampleState<S>>() ?? {
 				sourceDone: false,
 			};
 			// ERROR from either dep → terminate.
-			if (isTerminalError(sourceTerminal)) {
-				ctx.down([["ERROR", terminalErrorValue(sourceTerminal)]]);
+			if (sourceTerminal?.kind === "error") {
+				ctx.down([["ERROR", sourceTerminal?.kind === "error" ? sourceTerminal.error : undefined]]);
 				return;
 			}
-			if (isTerminalError(notifierTerminal)) {
-				ctx.down([["ERROR", terminalErrorValue(notifierTerminal)]]);
+			if (notifierTerminal?.kind === "error") {
+				ctx.down([
+					["ERROR", notifierTerminal?.kind === "error" ? notifierTerminal.error : undefined],
+				]);
 				return;
 			}
 			if (sourceBatch) for (const v of sourceBatch) st.last = { v: v as S };
-			if (isTerminalComplete(sourceTerminal)) {
+			if (sourceTerminal?.kind === "complete") {
 				st.sourceDone = true;
 				delete st.last;
 			}
-			if (isTerminalComplete(notifierTerminal)) {
+			if (notifierTerminal?.kind === "complete") {
 				ctx.state.set(st);
 				ctx.down([["COMPLETE"]]);
 				return;
@@ -440,14 +435,15 @@ export function takeUntil<S>(): Operator<unknown, S> {
 		factory: "takeUntil",
 		opts: { complete: "manual" },
 		body: (ctx: Ctx) => {
-			const sourceBatch = depBatch(ctx, 0);
-			const notifierBatch = depBatch(ctx, 1);
+			const sourceBatch = ctx.deps[0].waves.length === 0 ? null : ctx.deps[0].waves.flat();
+			const notifierBatch =
+				(ctx.deps[1]?.waves ?? []).length === 0 ? null : (ctx.deps[1]?.waves.flat() ?? []);
 			if (notifierBatch && notifierBatch.length > 0) {
 				ctx.down([["COMPLETE"]]); // notifier fired → stop
 				return;
 			}
 			if (sourceBatch) for (const v of sourceBatch) ctx.down([["DATA", v]]);
-			if (isTerminalComplete(depTerminal(ctx, 0))) ctx.down([["COMPLETE"]]);
+			if (ctx.deps[0].terminal?.kind === "complete") ctx.down([["COMPLETE"]]);
 		},
 	};
 }

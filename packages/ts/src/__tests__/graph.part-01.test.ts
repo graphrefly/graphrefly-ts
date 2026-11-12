@@ -1,5 +1,5 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
-import { depLatest } from "../ctx/types.js";
+
 import type {
 	GraphBlueprintJson,
 	GraphCheckpointJson,
@@ -202,9 +202,9 @@ describe("Graph.topology — pure structure snapshot (D173)", () => {
 		const g = graph();
 		const a = g.state(1, { name: "a" });
 		const b = g.state(2, { name: "b" });
-		const d = g.node([a], (ctx) => ctx.down([["DATA", depLatest(ctx, 0)]]), { name: "d" });
+		const d = g.node([a], (ctx) => ctx.down([["DATA", ctx.deps[0].value]]), { name: "d" });
 
-		rewireOwnedNode(d, [b], (ctx) => ctx.down([["DATA", depLatest(ctx, 0)]]));
+		rewireOwnedNode(d, [b], (ctx) => ctx.down([["DATA", ctx.deps[0].value]]));
 
 		const topology = g.topology();
 		expect(topology.nodes.find((node) => node.id === "d")?.deps).toEqual(["b"]);

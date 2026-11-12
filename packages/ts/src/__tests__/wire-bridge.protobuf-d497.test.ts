@@ -11,7 +11,7 @@ import {
 	wireBridgeEnvelope,
 	wireBridgeProtobuf,
 } from "../adapters/index.js";
-import { depBatch } from "../ctx/types.js";
+
 import { graph } from "../graph/graph.js";
 import { asState } from "./helpers/as-state.js";
 

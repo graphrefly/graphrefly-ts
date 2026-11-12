@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { depBatch } from "../ctx/types.js";
+
 import { graph, type Message } from "../index.js";
 
 describe("D806 kernel corrections", () => {
@@ -17,7 +17,9 @@ describe("D806 kernel corrections", () => {
 		const d = g.node<number>(
 			[b, c],
 			(ctx) => {
-				runs.push(`b=${String(ctx.terminal[0])} c=${String(ctx.terminal[1])}`);
+				runs.push(
+					`b=${ctx.deps[0].terminal?.kind ?? "none"} c=${ctx.deps[1].terminal?.kind ?? "none"}`,
+				);
 			},
 			{ name: "d" },
 		);
@@ -27,7 +29,7 @@ describe("D806 kernel corrections", () => {
 		b.complete(); // an earlier terminal alone does not run it
 		expect(runs).toEqual([]);
 		c.complete(); // the last terminal, the run's only input: one run, then COMPLETE
-		expect(runs).toEqual(["b=false c=true"]);
+		expect(runs).toEqual(["b=none c=complete"]);
 		expect(d.status.output).toBe("completed");
 		expect(out.filter((m) => m[0] === "COMPLETE")).toHaveLength(1);
 	});
@@ -38,7 +40,7 @@ describe("D806 kernel corrections", () => {
 		const q = g.node<number>(
 			[s],
 			(ctx) => {
-				for (const v of depBatch(ctx, 0) ?? []) ctx.down([["DATA", v as number]]);
+				for (const v of ctx.deps[0].waves.flat()) ctx.down([["DATA", v as number]]);
 			},
 			{ name: "q", quiet: true },
 		);

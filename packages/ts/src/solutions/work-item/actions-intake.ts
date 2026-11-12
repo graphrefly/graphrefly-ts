@@ -1,4 +1,4 @@
-import { type Ctx, depBatch } from "../../ctx/types.js";
+import type { Ctx } from "../../ctx/types.js";
 import type { Graph } from "../../graph/graph.js";
 import type { WorkItemDomainActionProposal } from "../../orchestration/work-item-runtime.js";
 import { workItemDomainActionProposal } from "./actions-builders.js";
@@ -38,7 +38,7 @@ export function workItemDomainActionProposalIntakeProjector(
 				statusSeq: 0,
 				auditSeq: 0,
 			};
-			for (const raw of depBatch(ctx, 0) ?? []) reduceProposalIntake(ctx, state, raw, now());
+			for (const raw of ctx.deps[0].waves.flat()) reduceProposalIntake(ctx, state, raw, now());
 			ctx.state.set(state);
 		},
 		{

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Ctx, Message, Wave } from "../index.js";
-import { depLatest, graph } from "../index.js";
+import { graph } from "../index.js";
 
 function collect(n: { subscribe(s: (msgs: Wave) => void): () => void }) {
 	const msgs: Message[] = [];
@@ -21,7 +21,7 @@ describe("batch (R-batch-coalesce / D12)", () => {
 		const b = g.node<number>([], null, { initial: 1 });
 		const d = g.node<number>([a, b], (ctx: Ctx) => {
 			fires++;
-			ctx.down([["DATA", (depLatest(ctx, 0) as number) + (depLatest(ctx, 1) as number)]]);
+			ctx.down([["DATA", (ctx.deps[0].value as number) + (ctx.deps[1].value as number)]]);
 		});
 		collect(d);
 		expect(d.cache).toBe(2);
@@ -83,15 +83,11 @@ describe("dynamic node (R-dynamic-node / D35; D49 — no equals-absorption)", ()
 		const sel = g.node<"a" | "b">([], null, { initial: "a" });
 		const a = g.node<number>([], null, { initial: 100 });
 		const b = g.node<number>([], null, { initial: 200 });
-		const router = g.node<number>(
-			[sel, a, b],
-			(ctx: Ctx) => {
-				const which = ctx.track?.(0) as "a" | "b";
-				const value = which === "a" ? (ctx.track?.(1) as number) : (ctx.track?.(2) as number);
-				ctx.down([["DATA", value]]);
-			},
-			{ dynamic: true },
-		);
+		const router = g.node<number>([sel, a, b], (ctx: Ctx) => {
+			const which = ctx.deps[0].value as "a" | "b";
+			const value = which === "a" ? (ctx.deps[1].value as number) : (ctx.deps[2].value as number);
+			ctx.down([["DATA", value]]);
+		});
 		const { msgs } = collect(router);
 		expect(router.cache).toBe(100); // sel="a" -> reads a
 		msgs.length = 0;

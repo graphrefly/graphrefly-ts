@@ -3,7 +3,7 @@
  * set up topology for tests of describe, incoming topology and restore. The package has no
  * graph-level rewire (R-request-order): nodes rewire themselves through ctx.rewire.
  */
-import { depBatch, type NodeFn } from "../../ctx/types.js";
+import type { NodeFn } from "../../ctx/types.js";
 import type { Graph } from "../../graph/graph.js";
 import type { Node, StateNode } from "../../node/node.js";
 import { nodeRuntimeHost } from "../../node/node-runtime-host.js";
@@ -45,12 +45,12 @@ export function injectOwnedNodeInput<T>(
 	host._rewire(
 		[...kept, input as Node<unknown>],
 		(ctx) => {
-			const ended = ctx.terminal[index];
-			if (ended !== undefined && ended !== false && ended !== true) {
-				ctx.down([["ERROR", ended]]);
+			const ended = ctx.deps[index].terminal;
+			if (ended?.kind === "error") {
+				ctx.down([["ERROR", ended.error]]);
 				return;
 			}
-			const values = depBatch(ctx, index) ?? [];
+			const values = ctx.deps[index].waves.flat();
 			if (values.length > 0) ctx.down(values.map((value) => ["DATA", value] as const));
 			if (original !== null) original(ctx);
 		},

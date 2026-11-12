@@ -8,7 +8,6 @@
  * storage-owned restore surface.
  */
 
-import { depBatch } from "../ctx/types.js";
 import type { Graph } from "../graph/graph.js";
 import { compoundTupleKey } from "../identity.js";
 import type { Node } from "../node/node.js";
@@ -244,7 +243,7 @@ export function cqrs<TCommand = unknown, TEvent = unknown>(
 					seenCommandIds: [],
 					seenEventIds: [],
 				} satisfies CqrsRuntimeState);
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				reduceCommandFact(raw, state, handlers, knownEvents, now, dedupe, (fact) =>
 					ctx.down([["DATA", fact as CqrsRuntimeFact<TEvent>]]),
 				);
@@ -389,7 +388,7 @@ export function cqrsProjection<TState, TEvent = unknown>(
 		[source.events],
 		oneArrayPerRun((ctx) => {
 			const state = ctx.state.get<{ value: TState }>() ?? { value: opts.initial };
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const event = raw as CqrsEvent<TEvent>;
 				if (eventFilter !== undefined && !eventFilter.has(event.type)) continue;
 				try {
@@ -438,7 +437,7 @@ export function cqrsProjection<TState, TEvent = unknown>(
 	const value = graph.node<TState>(
 		[frames],
 		oneArrayPerRun((ctx) => {
-			for (const frame of depBatch(ctx, 0) ?? []) {
+			for (const frame of ctx.deps[0].waves.flat()) {
 				const typed = frame as CqrsProjectionFrame<TState>;
 				if (typed.kind === "value") ctx.down([["DATA", typed.state]]);
 			}
@@ -453,7 +452,7 @@ export function cqrsProjection<TState, TEvent = unknown>(
 	const errors = graph.node<CqrsProjectionError>(
 		[frames],
 		oneArrayPerRun((ctx) => {
-			for (const frame of depBatch(ctx, 0) ?? []) {
+			for (const frame of ctx.deps[0].waves.flat()) {
 				const typed = frame as CqrsProjectionFrame<TState>;
 				if (typed.kind === "error") ctx.down([["DATA", typed.error]]);
 			}
@@ -468,7 +467,7 @@ export function cqrsProjection<TState, TEvent = unknown>(
 	const status = graph.node<CqrsProjectionStatus>(
 		[frames],
 		oneArrayPerRun((ctx) => {
-			for (const frame of depBatch(ctx, 0) ?? []) {
+			for (const frame of ctx.deps[0].waves.flat()) {
 				const typed = frame as CqrsProjectionFrame<TState>;
 				if (typed.kind === "value") {
 					ctx.down([
@@ -802,7 +801,7 @@ function runtimeProjection<TOut, TEvent>(
 	return graph.node<TOut>(
 		[runtime],
 		oneArrayPerRun((ctx) => {
-			for (const fact of depBatch(ctx, 0) ?? []) {
+			for (const fact of ctx.deps[0].waves.flat()) {
 				const typed = fact as CqrsRuntimeFact<TEvent>;
 				if (typed.kind !== kind) continue;
 				const selected = select(typed);

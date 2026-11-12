@@ -1,4 +1,3 @@
-import { depBatch } from "../../ctx/types.js";
 import type { DataIssue } from "../../data/index.js";
 import type { Graph } from "../../graph/graph.js";
 import { cloneStrictJsonValue } from "../../json/codec.js";
@@ -361,7 +360,7 @@ export function agenticMemoryDurabilityGateBundle<TJson extends StrictJsonValue 
 	const projection = graph.node<AgenticMemoryDurabilityGateProjection>(
 		[opts.attemptResult],
 		(ctx) => {
-			const attempts = depBatch(ctx, 0) ?? [];
+			const attempts = ctx.deps[0].waves.flat();
 			if (attempts.length === 0) return;
 			const state =
 				ctx.state.get<{ evaluation: number }>() ??

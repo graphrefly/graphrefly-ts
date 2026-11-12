@@ -15,7 +15,7 @@ import type { OwnedConstruction } from "./construction-scope.js";
 
 import { type BatchCtx, batchIn, currentBatch } from "../batch/batch.js";
 import { isWaveActive, observeFailures, reportFailure } from "../batch/boundary.js";
-import { type Ctx, depCount, depLatest, type NodeFn } from "../ctx/types.js";
+import type { Ctx, NodeFn } from "../ctx/types.js";
 import { type Dispatcher, defaultDispatcher } from "../dispatcher/index.js";
 import { NodeCore } from "../node/core.js";
 import {
@@ -30,6 +30,7 @@ import {
 	nodeCreationIndex,
 	releaseRuntimeOfNode,
 	StateNode,
+	setGraphNodeIdResolver,
 	setNodeOwner,
 	setNodeTopologyDepsChangedObserver,
 	subscriberCountOfNode,
@@ -433,8 +434,9 @@ export class Graph {
 	): Node<T> {
 		this._assertDepsLocal(deps, `dep of '${opts.name ?? "derived"}'`);
 		const ctxFn: NodeFn = (ctx: Ctx) => {
-			const args = Array.from({ length: depCount(ctx) }, (_, i) =>
-				depLatest(ctx, i),
+			const args = Array.from(
+				{ length: ctx.deps.length },
+				(_, i) => ctx.deps[i].value,
 			) as DepValues<D>;
 			// graphrefly-ts:D184 (the user's Q1): the value-level gate. The function waits until every
 			// dependency has a value; until then a run sends nothing.
@@ -467,8 +469,9 @@ export class Graph {
 		// signal, not in private state, which a checkpoint saves as JSON (R-checkpoint@1).
 		const cleanups = new WeakMap<AbortSignal, () => void>();
 		const ctxFn: NodeFn = (ctx: Ctx) => {
-			const args = Array.from({ length: depCount(ctx) }, (_, i) =>
-				depLatest(ctx, i),
+			const args = Array.from(
+				{ length: ctx.deps.length },
+				(_, i) => ctx.deps[i].value,
 			) as DepValues<D>;
 			// graphrefly-ts:D184 (the user's Q1): the value-level gate. The function waits until every
 			// dependency has a value; until then a run sends nothing.
@@ -1099,7 +1102,6 @@ export class Graph {
 				error: slot.errorPolicy,
 				invalidate: slot.invalidatePolicy,
 				quiet: slot.quiet,
-				dynamic: slot.dynamic,
 				pool: slot.pool,
 			};
 			const lifetime = helper ? undefined : this._checkpointLifetime(node, id, localId);
@@ -1186,6 +1188,15 @@ export function graph(opts: GraphOptions = {}): Graph {
 
 // Capture once, so instance/subclass/prototype inspect overrides keep the original call path.
 const nativeInspect = Graph.prototype.inspect;
+
+// R-invocation@2: ctx.deps[i].id is the dependency's id in its graph.
+setGraphNodeIdResolver((owner, node) =>
+	owner instanceof Graph
+		? (owner as unknown as { _idForTopologyNode(n: Node<unknown>): string })._idForTopologyNode(
+				node,
+			)
+		: undefined,
+);
 
 /** @internal D122 graph-owned ephemeral node-group release. */
 export function releaseGraphNodes(

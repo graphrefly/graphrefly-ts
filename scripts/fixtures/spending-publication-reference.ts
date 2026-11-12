@@ -1,5 +1,5 @@
 /** Independent two-node reference. No production material/join/projection import. */
-import { depBatch, depLatest } from "../../packages/ts/src/ctx/types.js";
+
 import type {
 	ConstructionScope,
 	StartupFact,
@@ -37,7 +37,7 @@ export function buildReferencePublication<T>(
 		[causal.committedEffects, material],
 		(ctx) => {
 			if (
-				ctx.waveData.length !== 2 ||
+				ctx.deps.length !== 2 ||
 				join.deps[0] !== causal.committedEffects ||
 				join.deps[1] !== material
 			) {
@@ -49,8 +49,9 @@ export function buildReferencePublication<T>(
 				memory = {};
 				ctx.state.set(memory);
 			}
-			const current = depLatest(ctx, 1),
-				delivered = (depBatch(ctx, 1)?.length ?? 0) > 0;
+			const current = ctx.deps[1]?.value,
+				delivered =
+					((ctx.deps[1]?.waves.length ? (ctx.deps[1]?.waves.flat() ?? []) : null)?.length ?? 0) > 0;
 			if (current === undefined && !delivered) {
 				memory.input = undefined;
 				memory.index = undefined;
@@ -64,7 +65,7 @@ export function buildReferencePublication<T>(
 				memory.index = verifyPublicationMaterial(current, profile);
 				memory.input = current;
 			}
-			const view = depLatest(ctx, 0) as CommittedEffectsView | undefined;
+			const view = ctx.deps[0].value as CommittedEffectsView | undefined;
 			if (!view) return;
 			if (
 				view.kind !== "causal-committed-effects" ||
@@ -84,7 +85,7 @@ export function buildReferencePublication<T>(
 	const publication = scope.node<ReturnType<typeof oraclePublication>>(
 		[join],
 		oneArrayPerRun((ctx) => {
-			for (const input of depBatch(ctx, 0) ?? []) {
+			for (const input of ctx.deps[0].waves.flat()) {
 				const value = input as { view: CommittedEffectsView; index: OracleIndex };
 				const result = oraclePublication(value.view, value.index, profile);
 				ctx.down([["DATA", result]]);

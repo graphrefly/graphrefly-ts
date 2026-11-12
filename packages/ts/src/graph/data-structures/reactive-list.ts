@@ -12,7 +12,7 @@
  * Per-language (D6/D24, never in parity, no conformance).
  */
 
-import { type Ctx, depBatch, depCount, depLatest } from "../../ctx/types.js";
+import type { Ctx } from "../../ctx/types.js";
 import { attachableInput } from "../../node/attachable-input.js";
 import { Node } from "../../node/node.js";
 import { oneArrayPerRun } from "../../node/one-array-per-run.js";
@@ -223,15 +223,15 @@ export function reactiveList<T>(
 
 	const applyBody = (ctx: Ctx): void => {
 		const deps = apply?.deps ?? [];
-		for (let i = 0; i < depCount(ctx); i++) {
+		for (let i = 0; i < ctx.deps.length; i++) {
 			const dep = deps[i];
 			if (dep === capacityPolicy) {
-				const latest = depLatest(ctx, i);
+				const latest = ctx.deps[i].value;
 				if (latest !== undefined) currentMaxSize = validateMaxSize(latest as number);
 				continue;
 			}
 			if (dep && bindDeps.has(dep)) {
-				for (const value of (depBatch(ctx, i) ?? []) as readonly T[]) {
+				for (const value of ctx.deps[i].waves.flat() as readonly T[]) {
 					backend.append(value);
 					core.emit({ kind: "append", value });
 					enforceCapacity();
@@ -336,7 +336,7 @@ export function reactiveList<T>(
 				factory: "reactiveList.bindSource",
 				body: oneArrayPerRun((ctx: Ctx) => {
 					try {
-						for (const value of (depBatch(ctx, 0) ?? []) as readonly T[]) {
+						for (const value of ctx.deps[0].waves.flat() as readonly T[]) {
 							ctx.down([["DATA", value]]);
 						}
 					} catch (e) {

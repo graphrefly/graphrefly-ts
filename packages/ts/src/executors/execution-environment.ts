@@ -6,7 +6,7 @@
  * run before a concrete local-host binding may observe it.
  */
 
-import { type Ctx, depBatch } from "../ctx/types.js";
+import type { Ctx } from "../ctx/types.js";
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
 import { canonicalTupleKey } from "../identity.js";
@@ -320,7 +320,7 @@ export function localHostExecutionGate(
 function reduceGate(ctx: Ctx, opts: LocalHostExecutionGateOptions): void {
 	const state = ctx.state.get<GateState>() ?? emptyState();
 	let dep = 0;
-	for (const raw of depBatch(ctx, dep++) ?? []) {
+	for (const raw of ctx.deps[dep++]?.waves.flat() ?? []) {
 		try {
 			assertPlainData(raw, "tool-provider adapter input");
 			const input = snapshotPlainData(raw) as ToolProviderAdapterInput;
@@ -332,7 +332,7 @@ function reduceGate(ctx: Ctx, opts: LocalHostExecutionGateOptions): void {
 		}
 	}
 	for (let index = 0; index < opts.profiles.length; index += 1) {
-		for (const raw of depBatch(ctx, dep++) ?? []) {
+		for (const raw of ctx.deps[dep++]?.waves.flat() ?? []) {
 			try {
 				const profile = environmentPinnedExecutorProfile(raw as EnvironmentPinnedExecutorProfile);
 				state.profiles.set(profile.profileId, profile);
@@ -342,7 +342,7 @@ function reduceGate(ctx: Ctx, opts: LocalHostExecutionGateOptions): void {
 		}
 	}
 	for (let index = 0; index < opts.routes.length; index += 1) {
-		for (const raw of depBatch(ctx, dep++) ?? []) {
+		for (const raw of ctx.deps[dep++]?.waves.flat() ?? []) {
 			try {
 				const route = environmentPinnedExecutorRoute(raw as EnvironmentPinnedExecutorRoute);
 				state.routes.set(route.routeId, route);
@@ -352,7 +352,7 @@ function reduceGate(ctx: Ctx, opts: LocalHostExecutionGateOptions): void {
 		}
 	}
 	for (let index = 0; index < opts.admittedRunRequests.length; index += 1) {
-		for (const raw of depBatch(ctx, dep++) ?? []) {
+		for (const raw of ctx.deps[dep++]?.waves.flat() ?? []) {
 			try {
 				assertPlainData(raw, "admitted environment-pinned run");
 			} catch (error) {
@@ -663,7 +663,7 @@ function project<T>(
 	return graph.node<T>(
 		[source],
 		oneArrayPerRun((ctx) => {
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const value = pick(raw as GateFact);
 				if (value !== undefined) ctx.down([["DATA", value]]);
 			}

@@ -209,7 +209,7 @@ describe("C-12 (c): RESOLVED is the kernel's alone", () => {
 		const g = graph();
 		const a = g.node<number>([], null, { initial: 1 });
 		const n = g.node<number>([a], (ctx) => {
-			if (ctx.waveData[0]?.flat().includes(2)) ctx.down([["RESOLVED"]]);
+			if (ctx.deps[0].waves.flat().includes(2)) ctx.down([["RESOLVED"]]);
 			else ctx.down([["DATA", 1]]);
 		});
 		const d = g.node<number>([n], (ctx) => {

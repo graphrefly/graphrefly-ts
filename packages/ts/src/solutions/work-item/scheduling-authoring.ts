@@ -1,4 +1,4 @@
-import { type Ctx, depBatch } from "../../ctx/types.js";
+import type { Ctx } from "../../ctx/types.js";
 import type { DataIssue } from "../../data/index.js";
 import type { Graph } from "../../graph/graph.js";
 import {
@@ -56,7 +56,7 @@ export function workItemAuthoringProjector<TInput = unknown>(
 				statusSeq: 0,
 				auditSeq: 0,
 			};
-			for (const raw of depBatch(ctx, 0) ?? [])
+			for (const raw of ctx.deps[0].waves.flat())
 				reduceAuthoring(ctx, state, raw as WorkItemAuthoringInput<TInput>, opts.policy);
 			ctx.state.set(state);
 		},

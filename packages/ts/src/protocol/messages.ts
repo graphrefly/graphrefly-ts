@@ -44,7 +44,7 @@ export function isInvalidErrorPayload(v: unknown): boolean {
 	return v === SENTINEL || typeof v === "boolean";
 }
 
-/** R-data-payload / D78: host-language failures that collide with ctx.terminal shorthand become diagnostics.
+/** R-data-payload / D78: host-language failures that are not a valid ERROR payload become diagnostics.
  * @param reason - reason value used by the helper.
  * @param fallback - fallback value used by the helper.
  * @returns The error payload result.

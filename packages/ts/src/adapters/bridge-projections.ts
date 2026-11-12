@@ -6,7 +6,6 @@
  * state is surfaced through graph-visible attempts/status/errors nodes.
  */
 
-import { depBatch } from "../ctx/types.js";
 import type { Graph } from "../graph/graph.js";
 import { declaredLedger } from "../graph/ledger.js";
 import type { Node, StateNode } from "../node/node.js";
@@ -30,7 +29,7 @@ export function projectOutbound<TOutbound, TInbound>(
 	return graph.node<WireBridgeEnvelope<TOutbound>>(
 		[events],
 		(ctx) => {
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const event = raw as WireBridgeEvent<TOutbound, TInbound>;
 				if (event.kind === "outbound") ctx.down([["DATA", event.envelope]]);
 			}
@@ -47,7 +46,7 @@ export function projectAcks<TOutbound, TInbound>(
 	return graph.node<WireBridgeAck>(
 		[events],
 		(ctx) => {
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const event = raw as WireBridgeEvent<TOutbound, TInbound>;
 				if (event.kind === "ack") {
 					ctx.down([["DATA", { ackForSeq: event.ackForSeq, envelope: event.envelope }]]);
@@ -66,7 +65,7 @@ export function projectNacks<TOutbound, TInbound>(
 	return graph.node<WireBridgeNack>(
 		[events],
 		(ctx) => {
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const event = raw as WireBridgeEvent<TOutbound, TInbound>;
 				if (event.kind === "nack") {
 					ctx.down([
@@ -118,7 +117,7 @@ export function projectStatus<TOutbound, TInbound>(
 		(ctx) => {
 			const working = ctx.state.get<WireBridgeStatusLedger>() as WireBridgeStatusLedger;
 			let next = working.status;
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const event = raw as WireBridgeEvent<TOutbound, TInbound>;
 				if (event.index <= working.highWater) continue;
 				working.highWater = event.index;
@@ -210,7 +209,7 @@ export function projectErrors<TOutbound, TInbound>(
 	return graph.node<unknown>(
 		[events],
 		(ctx) => {
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const event = raw as WireBridgeEvent<TOutbound, TInbound>;
 				if (event.kind === "nack") ctx.down([["DATA", event.error]]);
 				else if (event.kind === "exhausted") ctx.down([["DATA", event.error]]);
@@ -254,7 +253,7 @@ export function projectCursor<TOutbound, TInbound>(
 	return graph.node<number>(
 		[events],
 		(ctx) => {
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const event = raw as WireBridgeEvent<TOutbound, TInbound>;
 				if (event.kind === "cursor") ctx.down([["DATA", event.cursor]]);
 			}
@@ -271,7 +270,7 @@ export function projectAttempts<TOutbound, TInbound>(
 	return graph.node<WireBridgeAttempt>(
 		[events],
 		(ctx) => {
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const event = raw as WireBridgeEvent<TOutbound, TInbound>;
 				if (event.kind === "outbound" && shouldTrackAck(event.envelope.type)) {
 					ctx.down([

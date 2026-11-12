@@ -1,4 +1,4 @@
-import { type Ctx, depBatch } from "../ctx/types.js";
+import type { Ctx } from "../ctx/types.js";
 import type { Graph } from "../graph/graph.js";
 import { canonicalTupleKey, compoundTupleKey } from "../identity.js";
 import type { Node } from "../node/node.js";
@@ -53,11 +53,11 @@ export function workItemDomainActionProposalProjector(
 			const state =
 				ctx.state.get<WorkItemDomainActionProposalState>() ??
 				emptyWorkItemDomainActionProposalState();
-			for (const raw of depBatch(ctx, 0) ?? []) {
+			for (const raw of ctx.deps[0].waves.flat()) {
 				const workItem = raw as WorkItemSeed;
 				state.workItems.set(workItem.workItemId, workItem);
 			}
-			for (const raw of depBatch(ctx, 1) ?? []) {
+			for (const raw of ctx.deps[1]?.waves.flat() ?? []) {
 				const evidence = raw as WorkItemEvidenceRecorded;
 				if (state.evidence.has(evidence.evidenceId)) {
 					emitWorkItemActionProposalIssue(
@@ -73,7 +73,7 @@ export function workItemDomainActionProposalProjector(
 				}
 				state.evidence.set(evidence.evidenceId, evidence);
 			}
-			for (const raw of depBatch(ctx, 2) ?? []) {
+			for (const raw of ctx.deps[2]?.waves.flat() ?? []) {
 				const result = raw as EffectRunResult;
 				if (state.results.has(result.resultId)) {
 					emitWorkItemActionProposalIssue(
@@ -136,7 +136,7 @@ export function workItemDomainActionProposalProjector(
 					issues: [],
 					audit: [],
 				};
-				for (const raw of depBatch(ctx, 0) ?? []) {
+				for (const raw of ctx.deps[0].waves.flat()) {
 					const fact = raw as WorkItemDomainActionProposalFact;
 					if (fact.kind === "proposal") {
 						const proposal = fact.proposal;

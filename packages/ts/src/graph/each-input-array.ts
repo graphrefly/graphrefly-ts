@@ -1,4 +1,4 @@
-import { type Ctx, depWaves } from "../ctx/types.js";
+import type { Ctx } from "../ctx/types.js";
 import type { Message } from "../protocol/messages.js";
 import { SENTINEL } from "../protocol/messages.js";
 
@@ -16,7 +16,7 @@ export function eachInputArray<V>(
 	// biome-ignore lint/suspicious/noConfusingVoidType: a value callback returns false to stop, or nothing.
 	onValue: (value: V, out: Message[]) => boolean | void,
 ): boolean {
-	for (const wave of depWaves(ctx, dep)) {
+	for (const wave of ctx.deps[dep]?.waves ?? []) {
 		const out: Message[] = [];
 		let stopped = false;
 		for (const value of wave) {
