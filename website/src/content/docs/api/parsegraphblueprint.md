@@ -19,7 +19,7 @@ import { parseGraphBlueprint } from "@graphrefly/ts/graph";
 ## Signature
 
 ```ts
-function parseGraphBlueprint(value: unknown): GraphBlueprintEvidence
+function parseGraphBlueprint(value: unknown): GraphBlueprint
 ```
 
 ## Parameters

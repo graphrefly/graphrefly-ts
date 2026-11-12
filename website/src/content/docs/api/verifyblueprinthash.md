@@ -17,7 +17,7 @@ import { verifyBlueprintHash } from "@graphrefly/ts/graph";
 
 ```ts
 function verifyBlueprintHash(
-	blueprint: GraphBlueprintEvidence,
+	blueprint: GraphBlueprint,
 	options: GraphBlueprintHashOptions,
 ): boolean | Promise<boolean>
 ```
@@ -26,7 +26,7 @@ function verifyBlueprintHash(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `blueprint` | `GraphBlueprintEvidence` | Blueprint carrying optional hash metadata. |
+| `blueprint` | `GraphBlueprint` | Blueprint carrying optional hash metadata. |
 | `options` | `GraphBlueprintHashOptions` | Expected algorithm and sync or async hash implementation. |
 
 ## Returns

@@ -7,7 +7,7 @@
 import { canonicalTupleKey } from "../identity.js";
 import type { Status } from "../node/types.js";
 import {
-	type GraphBlueprintEvidence,
+	type GraphBlueprint,
 	graphBlueprintDiagnostics,
 	type NormalizedGraphTopologySnapshot,
 } from "./blueprint.js";
@@ -109,7 +109,7 @@ export function inspectToMermaid(
  * @category graph
  */
 export function blueprintToMermaid(
-	blueprint: GraphBlueprintEvidence,
+	blueprint: GraphBlueprint,
 	opts: GraphBlueprintToMermaidOptions = {},
 ): string {
 	const parsed = parseGraphBlueprint(blueprint);
@@ -130,7 +130,7 @@ export function blueprintToMermaid(
 		let childIndent = indent;
 		if (!root) {
 			const alias = `sg${subgraphIndex++}`;
-			const label = topology.name ?? topology.mountId ?? alias;
+			const label = topology.name ?? (topology.mountId as string);
 			lines.push(`${indent}subgraph ${alias}["${escapeMermaidLabel(label)}"]`);
 			childIndent = `${indent}  `;
 		}

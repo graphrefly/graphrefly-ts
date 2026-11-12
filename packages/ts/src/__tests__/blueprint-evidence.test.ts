@@ -4,9 +4,7 @@ import {
 	canonicalTopologyJson,
 	diffGraphBlueprints,
 	GRAPH_BLUEPRINT_VERSION,
-	GRAPH_BLUEPRINT_VERSION_V1,
 	type GraphBlueprint,
-	type LegacyGraphBlueprint,
 	parseGraphBlueprint,
 	verifyBlueprintHash,
 	withBlueprintHash,
@@ -40,23 +38,7 @@ const blueprint = (meta: Record<string, unknown> = {}): GraphBlueprint =>
 				},
 			],
 		},
-	}) as GraphBlueprint;
-
-const legacyBlueprint = (named = true): LegacyGraphBlueprint =>
-	parseGraphBlueprint({
-		version: GRAPH_BLUEPRINT_VERSION_V1,
-		topology: {
-			nodes: [{ id: "root", factory: "state", deps: [] }],
-			edges: [],
-			subgraphs: [
-				{
-					...(named ? { name: "legacy-child" } : {}),
-					nodes: [{ id: "legacy::node", factory: "state", deps: [] }],
-					edges: [],
-				},
-			],
-		},
-	}) as LegacyGraphBlueprint;
+	});
 
 describe("portable GraphBlueprint evidence helpers (D629/D630)", () => {
 	it("strictly parses, normalizes, and freezes a versioned Blueprint", () => {
@@ -70,6 +52,9 @@ describe("portable GraphBlueprint evidence helpers (D629/D630)", () => {
 		expect(Object.isFrozen(parsed.topology.nodes)).toBe(true);
 		expect(() => parseGraphBlueprint({ ...parsed, version: "graphrefly.blueprint.v3" })).toThrow(
 			/version must be/,
+		);
+		expect(() => parseGraphBlueprint({ ...parsed, version: "graphrefly.blueprint.v1" })).toThrow(
+			"GraphBlueprint.version must be 'graphrefly.blueprint.v2', received graphrefly.blueprint.v1",
 		);
 		expect(() => parseGraphBlueprint({ ...parsed, surprise: true })).toThrow(/unknown field/);
 		expect(() =>
@@ -139,18 +124,6 @@ describe("portable GraphBlueprint evidence helpers (D629/D630)", () => {
 		const changed = blueprint({ changed: true });
 		const tampered = parseGraphBlueprint({ ...changed, hash: hashed.hash });
 		expect(verifyBlueprintHash(tampered, { algorithm: "test", hash: testHash })).toBe(false);
-
-		const legacy = legacyBlueprint();
-		const legacyHashed: LegacyGraphBlueprint = {
-			...legacy,
-			hash: {
-				kind: "topology",
-				algorithm: "test",
-				input: "strictCanonicalTopologyBytes",
-				value: testHash(new TextEncoder().encode(canonicalTopologyJson(legacy.topology))),
-			},
-		};
-		expect(verifyBlueprintHash(legacyHashed, { algorithm: "test", hash: testHash })).toBe(true);
 	});
 
 	it("renders Mermaid directly from the Blueprint and preserves subgraph grouping", () => {
@@ -167,7 +140,29 @@ describe("portable GraphBlueprint evidence helpers (D629/D630)", () => {
 				"  end",
 			].join("\n"),
 		);
-		expect(blueprintToMermaid(legacyBlueprint(false))).toContain("legacy::node");
+		const unnamedChild = parseGraphBlueprint({
+			version: GRAPH_BLUEPRINT_VERSION,
+			topology: {
+				nodes: [{ id: "root", factory: "state", deps: [] }],
+				edges: [],
+				subgraphs: [
+					{
+						mountId: "unnamed-mount",
+						nodes: [{ id: "unnamed::node", factory: "state", deps: [] }],
+						edges: [],
+					},
+				],
+			},
+		});
+		expect(blueprintToMermaid(unnamedChild)).toBe(
+			[
+				"flowchart LR",
+				'  n0["root"]',
+				'  subgraph sg0["unnamed-mount"]',
+				'    n1["unnamed::node"]',
+				"  end",
+			].join("\n"),
+		);
 	});
 
 	it("returns deterministic intrinsic node, edge, metadata, and subgraph events", () => {
@@ -233,14 +228,6 @@ describe("portable GraphBlueprint evidence helpers (D629/D630)", () => {
 	});
 
 	it("fails closed when a structural diff lacks trustworthy identity", () => {
-		const legacyAmbiguous = legacyBlueprint(false);
-		expect(() => diffGraphBlueprints(legacyAmbiguous, legacyAmbiguous)).toThrow(
-			/v1 subgraphs require non-empty unique names/,
-		);
-		expect(() => diffGraphBlueprints(legacyBlueprint(), blueprint())).toThrow(
-			/versions must match/,
-		);
-
 		const duplicate = parseGraphBlueprint({
 			version: GRAPH_BLUEPRINT_VERSION,
 			topology: {

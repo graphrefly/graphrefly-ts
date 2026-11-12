@@ -15,16 +15,8 @@ import {
 } from "../json/codec.js";
 import type { GraphTopologyEdge, GraphTopologySnapshot } from "./describe.js";
 
-/** Historical Blueprint envelope accepted for read compatibility (D630). */
-export const GRAPH_BLUEPRINT_VERSION_V1 = "graphrefly.blueprint.v1" as const;
-
-/** Current Graph-emitted Blueprint envelope with stable subgraph mount identity (D630). */
+/** The one Blueprint envelope version, with stable subgraph mount identity (D630). */
 export const GRAPH_BLUEPRINT_VERSION = "graphrefly.blueprint.v2" as const;
-
-/** Blueprint envelope versions understood by portable evidence helpers. */
-export type GraphBlueprintVersion =
-	| typeof GRAPH_BLUEPRINT_VERSION_V1
-	| typeof GRAPH_BLUEPRINT_VERSION;
 
 export type GraphBlueprintJson = StrictJsonValue;
 
@@ -39,7 +31,7 @@ export interface NormalizedGraphTopologyNode {
 }
 
 export interface NormalizedGraphTopologySnapshot {
-	/** Stable graph-owned coordinate at the parent mount; required on v2 non-root subgraphs. */
+	/** Stable graph-owned coordinate at the parent mount; required on non-root subgraphs. */
 	readonly mountId?: string;
 	readonly name?: string;
 	readonly nodes: readonly NormalizedGraphTopologyNode[];
@@ -84,18 +76,6 @@ export interface GraphBlueprint {
 	readonly provenance?: GraphBlueprintProvenance;
 	readonly hash?: GraphBlueprintHash;
 }
-
-/** Strict historical v1 envelope retained for parsing, rendering, and verification. */
-export interface LegacyGraphBlueprint {
-	readonly version: typeof GRAPH_BLUEPRINT_VERSION_V1;
-	readonly topology: NormalizedGraphTopologySnapshot;
-	readonly diagnostics?: GraphBlueprintDiagnostics;
-	readonly provenance?: GraphBlueprintProvenance;
-	readonly hash?: GraphBlueprintHash;
-}
-
-/** Any versioned Blueprint envelope accepted by portable evidence helpers. */
-export type GraphBlueprintEvidence = GraphBlueprint | LegacyGraphBlueprint;
 
 export interface GraphBlueprintOptions {
 	/** Include graph-local structural diagnostics over the normalized topology. */

@@ -20,7 +20,7 @@ import { blueprintToMermaid } from "@graphrefly/ts/graph";
 
 ```ts
 function blueprintToMermaid(
-	blueprint: GraphBlueprintEvidence,
+	blueprint: GraphBlueprint,
 	opts: GraphBlueprintToMermaidOptions = {},
 ): string
 ```
@@ -29,7 +29,7 @@ function blueprintToMermaid(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `blueprint` | `GraphBlueprintEvidence` | Portable GraphBlueprint evidence. |
+| `blueprint` | `GraphBlueprint` | Portable GraphBlueprint evidence. |
 | `opts` | `GraphBlueprintToMermaidOptions` | Diagram direction. |
 
 ## Returns

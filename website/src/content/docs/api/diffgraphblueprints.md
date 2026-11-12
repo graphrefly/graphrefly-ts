@@ -19,8 +19,8 @@ import { diffGraphBlueprints } from "@graphrefly/ts/graph";
 
 ```ts
 function diffGraphBlueprints(
-	previous: GraphBlueprintEvidence,
-	next: GraphBlueprintEvidence,
+	previous: GraphBlueprint,
+	next: GraphBlueprint,
 ): GraphBlueprintDelta
 ```
 
@@ -28,12 +28,12 @@ function diffGraphBlueprints(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `previous` | `GraphBlueprintEvidence` | Semantic parent Blueprint. |
-| `next` | `GraphBlueprintEvidence` | Current Blueprint. |
+| `previous` | `GraphBlueprint` | Semantic parent Blueprint. |
+| `next` | `GraphBlueprint` | Current Blueprint. |
 
 ## Returns
 
-A deterministic v1 structural event set.
+A deterministic structural event set.
 
 ## Documentation Status
 

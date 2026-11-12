@@ -5,14 +5,12 @@ import { assertStrictJsonObject, type StrictJsonObject, stableJsonString } from 
 import {
 	canonicalTopologyBytes,
 	GRAPH_BLUEPRINT_VERSION,
-	GRAPH_BLUEPRINT_VERSION_V1,
+	type GraphBlueprint,
 	type GraphBlueprintDiagnosticCode,
 	type GraphBlueprintDiagnosticIssue,
 	type GraphBlueprintDiagnostics,
-	type GraphBlueprintEvidence,
 	type GraphBlueprintHash,
 	type GraphBlueprintHashOptions,
-	type GraphBlueprintVersion,
 	graphBlueprintDiagnostics,
 	type NormalizedGraphTopologyNode,
 	type NormalizedGraphTopologySnapshot,
@@ -65,19 +63,18 @@ export type GraphBlueprintDeltaEvent =
 			readonly topology: NormalizedGraphTopologySnapshot;
 	  };
 
-/** Versioned deterministic structural difference between equal-version Blueprints. */
+/** Versioned deterministic structural difference between two Blueprints. */
 export interface GraphBlueprintDelta {
 	readonly version: typeof GRAPH_BLUEPRINT_DELTA_VERSION;
-	readonly fromBlueprintVersion: GraphBlueprintVersion;
-	readonly toBlueprintVersion: GraphBlueprintVersion;
+	readonly fromBlueprintVersion: typeof GRAPH_BLUEPRINT_VERSION;
+	readonly toBlueprintVersion: typeof GRAPH_BLUEPRINT_VERSION;
 	readonly fromHash?: GraphBlueprintHash;
 	readonly toHash?: GraphBlueprintHash;
 	readonly events: readonly GraphBlueprintDeltaEvent[];
 }
 
 const BLUEPRINT_KEYS = new Set(["version", "topology", "diagnostics", "provenance", "hash"]);
-const TOPOLOGY_V1_KEYS = new Set(["name", "nodes", "edges", "subgraphs"]);
-const TOPOLOGY_V2_KEYS = new Set(["mountId", "name", "nodes", "edges", "subgraphs"]);
+const TOPOLOGY_KEYS = new Set(["mountId", "name", "nodes", "edges", "subgraphs"]);
 const NODE_KEYS = new Set(["id", "name", "factory", "deps", "meta"]);
 const EDGE_KEYS = new Set(["from", "to"]);
 const DIAGNOSTICS_KEYS = new Set(["ok", "issues"]);
@@ -99,19 +96,19 @@ const DIAGNOSTIC_CODES = new Set<GraphBlueprintDiagnosticCode>([
  * @returns A deeply frozen normalized GraphBlueprint.
  * @category graph
  */
-export function parseGraphBlueprint(value: unknown): GraphBlueprintEvidence {
+export function parseGraphBlueprint(value: unknown): GraphBlueprint {
 	const input = assertStrictJsonObject(value, "GraphBlueprint") as Record<string, unknown>;
 	assertKnownKeys(input, BLUEPRINT_KEYS, "GraphBlueprint");
-	if (input.version !== GRAPH_BLUEPRINT_VERSION && input.version !== GRAPH_BLUEPRINT_VERSION_V1) {
+	if (input.version !== GRAPH_BLUEPRINT_VERSION) {
 		throw new TypeError(
-			`GraphBlueprint.version must be '${GRAPH_BLUEPRINT_VERSION_V1}' or '${GRAPH_BLUEPRINT_VERSION}', received ${String(input.version)}`,
+			`GraphBlueprint.version must be '${GRAPH_BLUEPRINT_VERSION}', received ${String(input.version)}`,
 		);
 	}
 	const version = input.version;
 
-	const topology = parseTopology(input.topology, "GraphBlueprint.topology", version, true);
+	const topology = parseTopology(input.topology, "GraphBlueprint.topology", true);
 	const out: {
-		version: GraphBlueprintVersion;
+		version: typeof GRAPH_BLUEPRINT_VERSION;
 		topology: NormalizedGraphTopologySnapshot;
 		diagnostics?: GraphBlueprintDiagnostics;
 		provenance?: StrictJsonObject;
@@ -130,7 +127,7 @@ export function parseGraphBlueprint(value: unknown): GraphBlueprintEvidence {
 		out.provenance = assertStrictJsonObject(input.provenance, "GraphBlueprint.provenance");
 	}
 	if (input.hash !== undefined) out.hash = parseHash(input.hash);
-	return deepFreeze(out) as GraphBlueprintEvidence;
+	return deepFreeze(out);
 }
 
 /**
@@ -142,7 +139,7 @@ export function parseGraphBlueprint(value: unknown): GraphBlueprintEvidence {
  * @category graph
  */
 export function verifyBlueprintHash(
-	blueprint: GraphBlueprintEvidence,
+	blueprint: GraphBlueprint,
 	options: GraphBlueprintHashOptions,
 ): boolean | Promise<boolean> {
 	if (typeof options.algorithm !== "string" || options.algorithm.length === 0) {
@@ -176,26 +173,23 @@ export function verifyBlueprintHash(
  *
  * @param previous - Semantic parent Blueprint.
  * @param next - Current Blueprint.
- * @returns A deterministic v1 structural event set.
+ * @returns A deterministic structural event set.
  * @category graph
  */
 export function diffGraphBlueprints(
-	previous: GraphBlueprintEvidence,
-	next: GraphBlueprintEvidence,
+	previous: GraphBlueprint,
+	next: GraphBlueprint,
 ): GraphBlueprintDelta {
 	const before = parseGraphBlueprint(previous);
 	const after = parseGraphBlueprint(next);
-	if (before.version !== after.version) {
-		throw new TypeError("diffGraphBlueprints: Blueprint versions must match");
-	}
 	if (
 		!graphBlueprintDiagnostics(before.topology).ok ||
 		!graphBlueprintDiagnostics(after.topology).ok
 	) {
 		throw new TypeError("diffGraphBlueprints: cannot diff a topology with error diagnostics");
 	}
-	const p = flattenTopology(before.topology, before.version);
-	const n = flattenTopology(after.topology, after.version);
+	const p = flattenTopology(before.topology);
+	const n = flattenTopology(after.topology);
 	const events: GraphBlueprintDeltaEvent[] = [];
 
 	for (const key of addedKeys(p.subgraphs, n.subgraphs)) {
@@ -248,24 +242,17 @@ export function diffGraphBlueprints(
 function parseTopology(
 	value: unknown,
 	label: string,
-	version: GraphBlueprintVersion,
 	root: boolean,
 ): NormalizedGraphTopologySnapshot {
 	const input = objectValue(value, label);
-	assertKnownKeys(
-		input,
-		version === GRAPH_BLUEPRINT_VERSION ? TOPOLOGY_V2_KEYS : TOPOLOGY_V1_KEYS,
-		label,
-	);
+	assertKnownKeys(input, TOPOLOGY_KEYS, label);
 	let mountId: string | undefined;
-	if (version === GRAPH_BLUEPRINT_VERSION) {
-		if (root && input.mountId !== undefined) {
-			throw new TypeError(`${label}.mountId must be absent on the root topology`);
-		}
-		if (!root) {
-			mountId = stringValue(input.mountId, `${label}.mountId`);
-			if (mountId.length === 0) throw new TypeError(`${label}.mountId must be non-empty`);
-		}
+	if (root && input.mountId !== undefined) {
+		throw new TypeError(`${label}.mountId must be absent on the root topology`);
+	}
+	if (!root) {
+		mountId = stringValue(input.mountId, `${label}.mountId`);
+		if (mountId.length === 0) throw new TypeError(`${label}.mountId must be non-empty`);
 	}
 	if (input.name !== undefined) stringValue(input.name, `${label}.name`);
 	const nodes = denseArray(input.nodes, `${label}.nodes`).map((nodeValue, index) => {
@@ -300,9 +287,9 @@ function parseTopology(
 		input.subgraphs === undefined
 			? undefined
 			: denseArray(input.subgraphs, `${label}.subgraphs`).map((subgraph, index) =>
-					parseTopology(subgraph, `${label}.subgraphs[${index}]`, version, false),
+					parseTopology(subgraph, `${label}.subgraphs[${index}]`, false),
 				);
-	if (version === GRAPH_BLUEPRINT_VERSION && subgraphs !== undefined) {
+	if (subgraphs !== undefined) {
 		const mountIds = new Set<string>();
 		for (const child of subgraphs) {
 			const childMountId = child.mountId as string;
@@ -387,10 +374,7 @@ interface FlatSubgraphEntry {
 	topology: NormalizedGraphTopologySnapshot;
 }
 
-function flattenTopology(
-	topology: NormalizedGraphTopologySnapshot,
-	version: GraphBlueprintVersion,
-): {
+function flattenTopology(topology: NormalizedGraphTopologySnapshot): {
 	nodes: Map<string, FlatNodeEntry>;
 	edges: Map<string, FlatEdgeEntry>;
 	subgraphs: Map<string, FlatSubgraphEntry>;
@@ -406,26 +390,11 @@ function flattenTopology(
 		for (const edge of snapshot.edges) {
 			edges.set(canonicalTupleKey([pathKey, edge.from, edge.to]), { path, edge });
 		}
-		const children = snapshot.subgraphs ?? [];
-		const nameCounts = new Map<string, number>();
-		if (version === GRAPH_BLUEPRINT_VERSION_V1) {
-			for (const child of children) {
-				if (child.name === undefined || child.name.length === 0) {
-					throw new TypeError("diffGraphBlueprints: v1 subgraphs require non-empty unique names");
-				}
-				nameCounts.set(child.name, (nameCounts.get(child.name) ?? 0) + 1);
-			}
-		}
-		children.forEach((child) => {
-			const segment =
-				version === GRAPH_BLUEPRINT_VERSION ? (child.mountId as string) : (child.name as string);
-			if (version === GRAPH_BLUEPRINT_VERSION_V1 && nameCounts.get(segment) !== 1) {
-				throw new TypeError("diffGraphBlueprints: v1 subgraphs require non-empty unique names");
-			}
-			const childPath = [...path, segment];
+		for (const child of snapshot.subgraphs ?? []) {
+			const childPath = [...path, child.mountId as string];
 			subgraphs.set(canonicalTupleKey(childPath), { path: childPath, topology: child });
 			visit(child, childPath);
-		});
+		}
 	};
 	visit(topology, []);
 	return { nodes, edges, subgraphs };
