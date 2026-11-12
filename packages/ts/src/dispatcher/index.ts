@@ -1,78 +1,24 @@
 /**
- * Dispatcher, pools, and the pure-data Handle.
+ * Dispatcher: one function table, indexed by the pure-data Handle.
  *
- * Canonical authority: ~/src/graphrefly/spec/rules.jsonl
- *   R-dispatch-all (D21), R-sync-core (D20/D21); the pure-data Handle is D7.
- *
- * Lifted from the validated retired handle-dispatch PoC (R8/R9):
- * fn lives in an external pool, indexed by handle; `dispatcher.invoke` is uniformly
- * SYNC void — async/remote behavior lives in the fn body (it kicks off async work
- * and emits later via `ctx.down`), not in a different call mechanism.
+ * graphrefly:D807: the runtime keeps one function table with no pool kinds. A node's function
+ * has the shape (ctx) => void and is never reentered (R-invocation@2); a ctx.down after it
+ * returned starts a later wave (R-wave@2); graphs may share a dispatcher's function table
+ * (R-graph-domain@3). `invoke` is uniformly sync void: async or remote work lives in the
+ * function body, which starts it and sends its result later through `ctx.down`.
  */
 
 import type { Ctx, NodeFn } from "../ctx/types.js";
 
-/** A pool kind label. LocalSync + LocalAsync ship in 1.0 (D20). */
-export type PoolKind = "sync" | "async";
-
 /**
- * Handle = pure data `(poolId, handleId)`, NO methods (D7). A serializable
- * index into a pool's dispatch table. node != handle.
+ * Handle = the index of a function in the dispatcher's table: pure data, no methods (D7).
+ * node != handle. A freed index is reused by a later `register` (B15).
  */
-export interface Handle {
-	readonly poolId: number;
-	readonly handleId: number;
-}
-
-/** A dispatch pool: a flat fn table + an array-indexed sync invoke. */
-export interface Pool {
-	readonly kind: PoolKind;
-	register(fn: NodeFn): number;
-	/** Free a handle's slot so its fn closure is GC'd and the id is reused (B15). */
-	unregister(handleId: number): void;
-	invoke(handleId: number, ctx: Ctx): void;
-}
-
-/**
- * Array-indexed fn table with a free-list (B15). `register` reuses a freed slot before
- * growing the array, so a rewire-heavy graph (fn-swap on every rewire,
- * e.g. CSP-2.7 higher-order *Map operators) keeps the table bounded to its peak live size
- * instead of leaking a slot + closure per swap. `unregister` tombstones the slot (drops the
- * closure reference for GC) and offers the id for reuse. handleId reuse is safe: the graph is
- * a single causal domain (D22) and D37 forbids a fn rewiring its own handle mid-run, so a
- * freed id is never re-registered while an invoke of it is in flight. The hot path stays a
- * raw array index (F-PERF).
- */
-class PoolTable implements Pool {
-	constructor(readonly kind: PoolKind) {}
-	private fns: (NodeFn | undefined)[] = [];
-	private free: number[] = [];
-	register(fn: NodeFn): number {
-		const reused = this.free.pop();
-		if (reused !== undefined) {
-			this.fns[reused] = fn;
-			return reused;
-		}
-		const id = this.fns.length;
-		this.fns.push(fn);
-		return id;
-	}
-	unregister(handleId: number): void {
-		if (this.fns[handleId] === undefined) return; // already free → idempotent
-		this.fns[handleId] = undefined; // drop the closure (GC)
-		this.free.push(handleId); // offer the slot for reuse (bounded growth)
-	}
-	invoke(handleId: number, ctx: Ctx): void {
-		// A live handle always resolves to a fn; a dead/unregistered id throws (TypeError —
-		// invoking an unregistered handle is a bug, surfaced loudly). Cast keeps the hot path
-		// a raw index with no extra branch (F-PERF).
-		(this.fns[handleId] as NodeFn)(ctx);
-	}
-}
+export type Handle = number;
 
 /**
  * Per-handle profiling counters (D39; profiling is the package's own, R-graph-surface). Lives on
- * the dispatcher — the invoke funnel (F-DISPATCH-ALL) — NEVER on the thin node (R-node-thin).
+ * the dispatcher, where every function is invoked, NEVER on the thin node (R-node-thin).
  */
 export interface HandleStat {
 	invokes: number;
@@ -80,12 +26,18 @@ export interface HandleStat {
 	lastDurationNs: number;
 }
 
-const dispatcherHandleStatKey = (h: Handle): string =>
-	JSON.stringify([String(h.poolId), String(h.handleId)]);
-
 /**
- * First-class dispatcher (D21). Owns pools; graph binds to one (default = process-global,
- * D26 — the only global singleton). Pool trait is pluggable for WorkerPool/RemotePool (D20).
+ * First-class dispatcher (D21). Owns the function table; a graph binds to one (default =
+ * process-global, D26 — the only global singleton).
+ *
+ * The table is array-indexed with a free-list (B15). `register` reuses a freed slot before
+ * growing the array, so a rewire-heavy graph (a function swap on every rewire, e.g. the
+ * higher-order *Map operators) keeps the table bounded to its peak live size instead of leaking a
+ * slot and closure per swap. `unregister` tombstones the slot (drops the closure for GC) and
+ * offers the index for reuse. Reuse is safe: a graph is one concurrency domain
+ * (R-graph-domain@3) and a running function is never reentered (R-invocation@2), so a freed index
+ * is never registered again while an invoke of it is in flight. The hot path stays a raw array
+ * index (F-PERF).
  *
  * @example
  * ```ts
@@ -96,19 +48,13 @@ const dispatcherHandleStatKey = (h: Handle): string =>
  * @category core
  */
 export class Dispatcher {
-	private pools: Pool[] = [];
-	readonly syncPoolId: number;
-	readonly asyncPoolId: number;
+	private fns: (NodeFn | undefined)[] = [];
+	private free: number[] = [];
 
 	// opt-in profile recorder (default OFF → zero overhead, F-PERF).
 	private _recording = false;
-	private _stats = new Map<string, HandleStat>();
+	private _stats = new Map<Handle, HandleStat>();
 	private _totalInvokes = 0;
-
-	constructor() {
-		this.syncPoolId = this.addPool(new PoolTable("sync"));
-		this.asyncPoolId = this.addPool(new PoolTable("async"));
-	}
 
 	/** Turn the profile recorder on/off (D39). Off = zero overhead on invoke. */
 	setRecording(on: boolean): void {
@@ -121,56 +67,60 @@ export class Dispatcher {
 	}
 	/** Read a handle's accumulated counters (undefined if it never ran while recording). */
 	statFor(handle: Handle): HandleStat | undefined {
-		return this._stats.get(dispatcherHandleStatKey(handle));
+		return this._stats.get(handle);
 	}
 	/** Total fn invocations recorded across the dispatcher. */
 	get totalInvokes(): number {
 		return this._totalInvokes;
 	}
 
-	addPool(pool: Pool): number {
-		const id = this.pools.length;
-		this.pools.push(pool);
-		return id;
-	}
-
-	/** Register a fn in a pool, returning its Handle. Default pool = sync (R-sync-core). */
-	register(fn: NodeFn, pool: PoolKind | number = "sync"): Handle {
-		const poolId = pool === "sync" ? this.syncPoolId : pool === "async" ? this.asyncPoolId : pool;
-		const handleId = this.pools[poolId].register(fn);
-		return { poolId, handleId };
+	/** Register a fn in the table, returning its Handle (a freed index is reused first). */
+	register(fn: NodeFn): Handle {
+		const reused = this.free.pop();
+		if (reused !== undefined) {
+			this.fns[reused] = fn;
+			return reused;
+		}
+		const handle = this.fns.length;
+		this.fns.push(fn);
+		return handle;
 	}
 
 	/**
-	 * Release a handle (B15): frees the pool slot (closure GC'd, id reusable) and drops any
-	 * accumulated profile stat so a reused id never inherits the previous tenant's counters.
+	 * Release a handle (B15): frees the table slot (closure GC'd, index reusable) and drops any
+	 * accumulated profile stat so a reused index never inherits the previous tenant's counters.
 	 * Called when replace gives a node a new function (the old handle is dropped after the new one
 	 * is registered) and when a node is released. Idempotent. NOT called on deactivate (a node's
 	 * handle survives activate↔deactivate and is reused on reactivation).
 	 */
 	unregister(handle: Handle): void {
-		this.pools[handle.poolId].unregister(handle.handleId);
 		// Drop the stat UNCONDITIONALLY (QA F2.1), not only while recording: if recording was
-		// OFF at unregister time the key would linger, and a later register reusing this id (the
-		// free-list) would inherit the prior tenant's counters once recording resumes. delete of
-		// an absent key is a cheap no-op; unregister is off the hot invoke path (F-PERF intact).
-		this._stats.delete(dispatcherHandleStatKey(handle));
+		// OFF at unregister time the key would linger, and a later register reusing this index
+		// (the free-list) would inherit the prior tenant's counters once recording resumes. delete
+		// of an absent key is a cheap no-op; unregister is off the hot invoke path (F-PERF intact).
+		this._stats.delete(handle);
+		if (this.fns[handle] === undefined) return; // already free → idempotent
+		this.fns[handle] = undefined; // drop the closure (GC)
+		this.free.push(handle); // offer the slot for reuse (bounded growth)
 	}
 
-	/** Uniform sync-void invoke (R-sync-core / R-dispatch-all). */
+	/**
+	 * Uniform sync-void invoke. A live handle always resolves to a fn; a dead or unregistered
+	 * handle throws (TypeError — invoking one is a bug, surfaced loudly). The cast keeps the hot
+	 * path a raw index with no extra branch (F-PERF).
+	 */
 	invoke(handle: Handle, ctx: Ctx): void {
 		if (!this._recording) {
-			this.pools[handle.poolId].invoke(handle.handleId, ctx);
+			(this.fns[handle] as NodeFn)(ctx);
 			return;
 		}
 		this._totalInvokes++;
 		const t0 = performance.now();
 		try {
-			this.pools[handle.poolId].invoke(handle.handleId, ctx);
+			(this.fns[handle] as NodeFn)(ctx);
 		} finally {
 			const dur = (performance.now() - t0) * 1e6; // ms → ns
-			const key = dispatcherHandleStatKey(handle);
-			const s = this._stats.get(key) ?? {
+			const s = this._stats.get(handle) ?? {
 				invokes: 0,
 				totalDurationNs: 0,
 				lastDurationNs: 0,
@@ -178,12 +128,8 @@ export class Dispatcher {
 			s.invokes++;
 			s.lastDurationNs = dur;
 			s.totalDurationNs += dur;
-			this._stats.set(key, s);
+			this._stats.set(handle, s);
 		}
-	}
-
-	poolKind(poolId: number): PoolKind {
-		return this.pools[poolId].kind;
 	}
 }
 

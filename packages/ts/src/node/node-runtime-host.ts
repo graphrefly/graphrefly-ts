@@ -51,14 +51,7 @@ export interface NodeRuntimeHost<T = unknown> {
 	_tryRun(): void;
 	_runWave(): void;
 	_buildCtx(): Ctx;
-	_makeCtx(snapshot?: {
-		waveData: unknown[][][];
-		waveLive?: boolean[][];
-		terminal: unknown[];
-		invalidated?: boolean[];
-		latest: unknown[];
-		has: boolean[];
-	}): Ctx;
+	_makeCtx(): Ctx;
 	_refreshCtx(ctx: Ctx): void;
 	_makeState(signal: AbortSignal): CtxState;
 	_down(msgs: Wave): void;

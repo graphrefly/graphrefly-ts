@@ -940,7 +940,7 @@ export class Graph {
 
 	/**
 	 * profile() = accumulated-counter snapshot (D39; package-level, R-graph-surface). invokes +
-	 * duration are dispatcher-backed (the invoke funnel, F-DISPATCH-ALL) — counters never live on
+	 * duration are dispatcher-backed (it invokes every node function) — counters never live on
 	 * the thin node (R-node-thin). Requires `graph({ profile: true })` (opt-in, F-PERF).
 	 */
 	profile(): Profile {
@@ -948,7 +948,7 @@ export class Graph {
 		let totalInvokes = 0;
 		for (const e of this._entries.values()) {
 			const h = e.node.handle;
-			const stat = h ? this._dispatcher.statFor(h) : undefined;
+			const stat = h !== null ? this._dispatcher.statFor(h) : undefined;
 			const invokes = stat?.invokes ?? 0;
 			nodes[e.id] = {
 				invokes,
@@ -1078,7 +1078,6 @@ export class Graph {
 				error: slot.errorPolicy,
 				invalidate: slot.invalidatePolicy,
 				quiet: slot.quiet,
-				pool: slot.pool,
 			};
 			const lifetime = helper ? undefined : this._checkpointLifetime(node, id, localId);
 			if (lifetime !== undefined) out.lifetime = lifetime;

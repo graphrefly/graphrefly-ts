@@ -18,7 +18,6 @@ export type NodeId = number & { readonly __nodeId: unique symbol };
 export interface DepInput {
 	/** The dependency's position in the node's current dependencies; -1 once it has been removed. */
 	idx: number;
-	batch: unknown[] | null;
 	/** The input arrays of the current run, each an array of its DATA values. */
 	waveData: unknown[][];
 	/** For each array in `waveData`, whether it came live, not as a snapshot. */
@@ -105,7 +104,6 @@ export interface NodeSlot<_T> {
 	id: NodeId;
 	deps: Node<unknown>[];
 	handle: Handle | null;
-	pool: "sync" | "async";
 	dispatcher: Dispatcher;
 	environment: EnvironmentDrivers;
 	completePolicy: "auto" | "manual";
@@ -229,7 +227,6 @@ export class NodeCore {
 export function makeDepInput(idx: number): DepInput {
 	return {
 		idx,
-		batch: null,
 		waveData: [],
 		waveLive: [],
 		prev: SENTINEL,

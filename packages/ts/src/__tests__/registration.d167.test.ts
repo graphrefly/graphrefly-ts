@@ -199,7 +199,7 @@ describe("D167 known cold acquisitions", () => {
 	});
 	it("does not unregister a borrowed handle after a failed bare construction", () => {
 		const dispatcher = new CountingDispatcher();
-		const handle = dispatcher.register(idle, "sync");
+		const handle = dispatcher.register(idle);
 		expect(
 			() =>
 				new Node([], handle, {

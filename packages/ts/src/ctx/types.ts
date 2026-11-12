@@ -157,7 +157,7 @@ export function ctxWithDeps(ctx: Ctx, deps: readonly CtxDep[]): Ctx {
 	return out;
 }
 
-/** A node fn (R-invocation). Registered in a dispatcher pool, indexed by Handle. */
+/** A node fn (R-invocation). Registered in the dispatcher's function table, indexed by Handle. */
 export type NodeFn = (ctx: Ctx) => void;
 
 /** Internal adapter helper: the waves dependency `depIndex` delivered live, not as a snapshot. */

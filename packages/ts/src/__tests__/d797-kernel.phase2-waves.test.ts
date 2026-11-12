@@ -370,13 +370,9 @@ describe("C-4: a sync leg and an async leg: the async result is a later wave, no
 		const b = g.node<number>([a], (ctx) =>
 			ctx.down([["DATA", (ctx.deps[0].value as number) + 10]]),
 		); // sync leg
-		const c = g.node<number>(
-			[a],
-			(ctx) => {
-				cctx = ctx; // async leg: the result comes later through this ctx
-			},
-			{ pool: "async" },
-		);
+		const c = g.node<number>([a], (ctx) => {
+			cctx = ctx; // async leg: the result comes later through this ctx
+		});
 		const cs = arrays();
 		c.subscribe(cs.sink);
 		// Waiting for both legs is sugar (a gate), not kernel behaviour; derived holds it
@@ -542,5 +538,27 @@ describe("an empty ctx.down sends nothing (R-wave, as in Rust and Python)", () =
 			held().down([]);
 		});
 		expect(s.log.slice(before)).toEqual([[["PENDING"], ["DATA", 40]]]);
+	});
+});
+
+describe("a ctx kept past its run reads the node's current inputs (D185, graphrefly-ts:D187)", () => {
+	it("ctx.deps on a kept ctx shows the latest input, not the first run's copy", () => {
+		const g = graph();
+		const a = g.state(1, { name: "a" });
+		let kept: Ctx | undefined;
+		const n = g.node<number>(
+			[a],
+			(ctx) => {
+				kept ??= ctx;
+				ctx.down([["DATA", ctx.deps[0].value as number]]);
+			},
+			{ name: "n" },
+		);
+		n.subscribe(() => undefined);
+		const first = kept as Ctx;
+		expect(first.deps[0].value).toBe(1);
+		a.set(2);
+		expect(first.deps[0].value).toBe(2);
+		expect(n.cache).toBe(2);
 	});
 });

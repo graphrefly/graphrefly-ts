@@ -45,8 +45,6 @@ export {
 	defaultDispatcher,
 	type Handle,
 	type HandleStat,
-	type Pool,
-	type PoolKind,
 } from "./dispatcher/index.js";
 export {
 	canonicalTopologyBytes,

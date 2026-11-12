@@ -542,7 +542,6 @@ export function nodeResetDepState<T>(self: NodeRuntimeHost<T>): void {
 	const inputs = self._dep.inputs;
 	for (let i = 0; i < inputs.length; i++) {
 		const input = inputs[i];
-		input.batch = null;
 		input.waveData = [];
 		input.waveLive = [];
 		input.prev = SENTINEL;

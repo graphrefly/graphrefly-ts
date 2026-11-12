@@ -823,13 +823,12 @@ function recipeContext(registry: GraphRestoreRegistry, out: Graph, id: string): 
 
 function policyOptions(
 	p: GraphCheckpointPolicies,
-): Pick<NodeOptions<unknown>, "complete" | "error" | "invalidate" | "quiet" | "pool"> {
+): Pick<NodeOptions<unknown>, "complete" | "error" | "invalidate" | "quiet"> {
 	return {
 		complete: p.complete,
 		error: p.error,
 		invalidate: p.invalidate,
 		quiet: p.quiet,
-		pool: p.pool,
 	};
 }
 

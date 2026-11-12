@@ -570,9 +570,9 @@ describe("D161 graph construction ownership", () => {
 		const failedSlots = failure!.cleanupErrors.filter((e) => e.slot !== undefined);
 		expect(failedSlots).toHaveLength(2);
 		for (const failed of failedSlots) expect(failed.core!.get(failed.slot!)).toBeDefined();
-		expect(new Set(failure!.cleanupErrors.filter((e) => e.handle).map((e) => e.handle))).toEqual(
-			f.dispatcher.live,
-		);
+		expect(
+			new Set(failure!.cleanupErrors.filter((e) => e.handle !== undefined).map((e) => e.handle)),
+		).toEqual(f.dispatcher.live);
 	});
 
 	it("reports an exact handle when registration fails after Node construction", () => {

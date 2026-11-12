@@ -14,19 +14,15 @@ function collect(n: { subscribe(s: (m: Wave) => void): () => void }) {
 }
 const types = (msgs: Message[]) => msgs.map((m) => m[0]);
 
-describe("async pool (R-sync-core async label, R8 late-emit pairing)", () => {
-	it("a late ctx.down from an async fn pairs PENDING+DATA downstream", () => {
+describe("a late ctx.down is a later wave (R-wave@2, R8 late-emit pairing)", () => {
+	it("a late ctx.down from a function that kept its ctx pairs PENDING+DATA downstream", () => {
 		const g = graph();
 		const a = g.node<number>([], null, { initial: 3 });
 		let resolve = null as (() => void) | null;
-		const dbl = g.node<number>(
-			[a],
-			(ctx: Ctx) => {
-				const v = ctx.deps[0].value as number;
-				resolve = () => ctx.down([["DATA", v * 2]]);
-			},
-			{ pool: "async" },
-		);
+		const dbl = g.node<number>([a], (ctx: Ctx) => {
+			const v = ctx.deps[0].value as number;
+			resolve = () => ctx.down([["DATA", v * 2]]);
+		});
 		const { msgs } = collect(dbl);
 		// fn ran synchronously (set resolve) but emitted nothing yet.
 		expect(dbl.cache).toBeUndefined();

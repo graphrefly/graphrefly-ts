@@ -43,7 +43,6 @@ export interface GraphCheckpointPolicies {
 	error: "auto" | "manual";
 	invalidate: "auto" | "manual";
 	quiet: boolean;
-	pool: "sync" | "async";
 }
 
 /** What a node received from one dependency: that dependency's last-array values and terminal. */

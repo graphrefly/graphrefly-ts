@@ -430,6 +430,8 @@ const rootAbsentExports = [
 ];
 
 const rootAbsentTypeExports = [
+	"Pool",
+	"PoolKind",
 	"KeyedRateLimitRequest",
 	"KeyedRateLimitOutcome",
 	"KeyedRateLimitAdmission",

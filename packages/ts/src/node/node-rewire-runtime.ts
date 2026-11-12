@@ -256,7 +256,7 @@ function nodeApplyReplace<T>(
 	}
 	// The new instance.
 	const oldHandle = self._slot.handle;
-	self._slot.handle = self._slot.dispatcher.register(fn, self._slot.pool);
+	self._slot.handle = self._slot.dispatcher.register(fn);
 	if (oldHandle !== null) self._slot.dispatcher.unregister(oldHandle);
 	self._slot.fn = fn;
 	self._slot.setup = opts.setup;

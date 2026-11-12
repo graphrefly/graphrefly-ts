@@ -52,7 +52,6 @@ export function nodeReceiveFromDep<T>(
 				// R-subscription: a new instance of this dependency (a replace) starts its record over.
 				input.waveData = [];
 				input.waveLive = [];
-				input.batch = null;
 				input.prev = SENTINEL;
 				input.hasData = false;
 				input.terminal = undefined;
@@ -77,9 +76,6 @@ export function nodeReceiveFromDep<T>(
 				const v = msg[1];
 				if (wave === null) wave = nodeOpenDepWave(input, !snapshot);
 				wave.push(v);
-				const b = input.batch;
-				if (b === null) input.batch = [v];
-				else b.push(v);
 				input.prev = v;
 				input.hasData = true;
 			} else if (t === "RESOLVED") {
@@ -89,7 +85,6 @@ export function nodeReceiveFromDep<T>(
 				// after it is ordinary input. What it does to this node is decided once the wave settles.
 				input.waveData = [];
 				input.waveLive = [];
-				input.batch = null;
 				input.prev = SENTINEL;
 				input.hasData = false;
 				input.invalidated = true;
@@ -247,7 +242,6 @@ function nodeConsumeInput<T>(self: NodeRuntimeHost<T>): void {
 	const inputs = self._dep.inputs;
 	for (let i = 0; i < inputs.length; i++) {
 		const input = inputs[i];
-		input.batch = null;
 		input.waveData = [];
 		input.waveLive = [];
 		input.terminalInput = undefined;

@@ -163,7 +163,6 @@ export function workerDerived<TInput, TResult>(
 	return graph.node<TResult>(deps, fn, {
 		name: opts.name ?? "workerDerived",
 		factory: "workerDerived",
-		pool: "async",
 		complete: "manual",
 		error: "manual",
 		// R-lifetime: closing the lifetime cancels the run still in flight.

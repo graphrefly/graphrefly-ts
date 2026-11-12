@@ -65,8 +65,6 @@ export interface NodeOptions<T = unknown> {
 	 * without one is local-only in a checkpoint.
 	 */
 	recipe?: unknown;
-	/** Dispatch pool for the fn (R-sync-core). Default sync. */
-	pool?: "sync" | "async";
 	/** Dispatcher to register/invoke against. Default = process-global (D26). */
 	dispatcher?: Dispatcher;
 	/** Optional debug name (graph layer owns real naming/inspection). */

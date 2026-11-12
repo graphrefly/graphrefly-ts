@@ -10,8 +10,8 @@
  * (D6/D24), never in parity.
  *
  * Instantiate via `g.initNode(timer(1000), [])` (graph-bound, inspectable) or
- * {@link initNode}(timer(1000), []) (bare). Pool defaults (D43): timer/interval = sync;
- * fromPromise/fromAsyncIter = async (their late emits are later waves).
+ * {@link initNode}(timer(1000), []) (bare). A late emit (timer, fromPromise, fromAsyncIter) is a
+ * later wave of its own (R-wave@2).
  */
 
 import type { Ctx } from "../ctx/types.js";
@@ -67,11 +67,10 @@ function source<T>(
 	factory: string,
 	// biome-ignore lint/suspicious/noConfusingVoidType: setup returns a cleanup fn OR nothing — the void arm keeps no-return source bodies (e.g. `of`/`fromIter`) ergonomic, same idiom as EffectFn.
 	setup: (ctx: Ctx) => void | (() => void),
-	opts?: Partial<NodeOptions<T>>,
 ): Operator<never, T> {
 	// R-lifetime: a source's work is its lifetime's setup, run once just before the first run in the
 	// lifetime; what it returns is the lifetime's cleanup.
-	return { factory, opts: { ...opts, setup }, body: () => {} };
+	return { factory, opts: { setup }, body: () => {} };
 }
 
 function assertNonEmptyString(value: string, label: string): void {
@@ -112,35 +111,31 @@ function driverOneShotSource<T>(
 	missing: string,
 	start: (ctx: Ctx, callback: (result: DriverResult<T>) => void) => DriverCancel | undefined,
 ): Operator<never, T> {
-	return source<T>(
-		factory,
-		(ctx) => {
-			const active = { value: true };
-			const cancelSlot: { value: DriverCancel | undefined } = { value: undefined };
-			const callback = (result: DriverResult<T>) => {
-				if (!active.value) return;
-				cleanupDriverWork(active, cancelSlot);
-				if (result.ok) ctx.down([["DATA", result.value], ["COMPLETE"]]);
-				else ctx.down([["ERROR", errorPayload(result.error)]]);
-			};
-			let cancel: DriverCancel | undefined;
-			try {
-				cancel = start(ctx, callback);
-			} catch (e) {
-				active.value = false;
-				ctx.down([["ERROR", errorPayload(e)]]);
-				return;
-			}
-			if (cancel === undefined) {
-				active.value = false;
-				ctx.down([["ERROR", missing]]);
-				return;
-			}
-			installDriverCancel(active, cancelSlot, cancel);
-			return () => cleanupDriverWork(active, cancelSlot);
-		},
-		{ pool: "async" },
-	);
+	return source<T>(factory, (ctx) => {
+		const active = { value: true };
+		const cancelSlot: { value: DriverCancel | undefined } = { value: undefined };
+		const callback = (result: DriverResult<T>) => {
+			if (!active.value) return;
+			cleanupDriverWork(active, cancelSlot);
+			if (result.ok) ctx.down([["DATA", result.value], ["COMPLETE"]]);
+			else ctx.down([["ERROR", errorPayload(result.error)]]);
+		};
+		let cancel: DriverCancel | undefined;
+		try {
+			cancel = start(ctx, callback);
+		} catch (e) {
+			active.value = false;
+			ctx.down([["ERROR", errorPayload(e)]]);
+			return;
+		}
+		if (cancel === undefined) {
+			active.value = false;
+			ctx.down([["ERROR", missing]]);
+			return;
+		}
+		installDriverCancel(active, cancelSlot, cancel);
+		return () => cleanupDriverWork(active, cancelSlot);
+	});
 }
 
 function driverStreamSource<T, E extends { readonly kind: string }>(
@@ -150,42 +145,38 @@ function driverStreamSource<T, E extends { readonly kind: string }>(
 	dataOf: (event: E) => T | undefined,
 	errorOf: (event: E) => unknown,
 ): Operator<never, T> {
-	return source<T>(
-		factory,
-		(ctx) => {
-			const active = { value: true };
-			const cancelSlot: { value: DriverCancel | undefined } = { value: undefined };
-			const callback = (event: E) => {
-				if (!active.value) return;
-				if (event.kind === "event") {
-					const value = dataOf(event);
-					if (value !== undefined) ctx.down([["DATA", value]]);
-				} else if (event.kind === "error") {
-					cleanupDriverWork(active, cancelSlot);
-					ctx.down([["ERROR", errorPayload(errorOf(event))]]);
-				} else if (event.kind === "complete") {
-					cleanupDriverWork(active, cancelSlot);
-					ctx.down([["COMPLETE"]]);
-				}
-			};
-			let cancel: DriverCancel | undefined;
-			try {
-				cancel = start(ctx, callback);
-			} catch (e) {
-				active.value = false;
-				ctx.down([["ERROR", errorPayload(e)]]);
-				return;
+	return source<T>(factory, (ctx) => {
+		const active = { value: true };
+		const cancelSlot: { value: DriverCancel | undefined } = { value: undefined };
+		const callback = (event: E) => {
+			if (!active.value) return;
+			if (event.kind === "event") {
+				const value = dataOf(event);
+				if (value !== undefined) ctx.down([["DATA", value]]);
+			} else if (event.kind === "error") {
+				cleanupDriverWork(active, cancelSlot);
+				ctx.down([["ERROR", errorPayload(errorOf(event))]]);
+			} else if (event.kind === "complete") {
+				cleanupDriverWork(active, cancelSlot);
+				ctx.down([["COMPLETE"]]);
 			}
-			if (cancel === undefined) {
-				active.value = false;
-				ctx.down([["ERROR", missing]]);
-				return;
-			}
-			installDriverCancel(active, cancelSlot, cancel);
-			return () => cleanupDriverWork(active, cancelSlot);
-		},
-		{ pool: "async" },
-	);
+		};
+		let cancel: DriverCancel | undefined;
+		try {
+			cancel = start(ctx, callback);
+		} catch (e) {
+			active.value = false;
+			ctx.down([["ERROR", errorPayload(e)]]);
+			return;
+		}
+		if (cancel === undefined) {
+			active.value = false;
+			ctx.down([["ERROR", missing]]);
+			return;
+		}
+		installDriverCancel(active, cancelSlot, cancel);
+		return () => cleanupDriverWork(active, cancelSlot);
+	});
 }
 
 function isNode(x: unknown): x is Node {
@@ -532,60 +523,56 @@ export function fromCron(
 	if (!Number.isFinite(tickMs) || tickMs <= 0) {
 		throw new RangeError("fromCron: tickMs must be a positive finite number");
 	}
-	return source<Date | number | string>(
-		"fromCron",
-		(ctx) => {
-			let done = false;
-			let lastFiredKey: string | undefined;
-			let firedTimezoneDay: string | undefined;
-			const firedTimezoneMinutes = new Set<string>();
-			let intervalId: ReturnType<typeof setInterval> | undefined;
-			const cleanup = () => {
-				done = true;
-				if (intervalId !== undefined) clearInterval(intervalId);
-				intervalId = undefined;
-				signal?.removeEventListener("abort", onAbort);
-			};
-			const onAbort = () => {
-				if (done) return;
-				cleanup();
-				ctx.down([["ERROR", errorPayload(signal?.reason)]]);
-			};
-			const emitNow = (now: Date) => {
-				if (output === "date") ctx.down([["DATA", now]]);
-				else if (output === "timestamp_ms") ctx.down([["DATA", now.getTime()]]);
-				else ctx.down([["DATA", dateToTimestampNs(now)]]);
-			};
-			const check = () => {
-				if (done) return;
-				const now = new Date();
-				const key = cronMinuteKey(now, timezone);
-				const alreadyFired =
-					timezone === undefined ? key === lastFiredKey : firedTimezoneMinutes.has(key);
-				if (!alreadyFired && matchesCron(schedule, now, { timezone })) {
-					lastFiredKey = key;
-					if (timezone !== undefined) {
-						const dayKey = cronDayKey(now, timezone);
-						if (dayKey !== firedTimezoneDay) {
-							firedTimezoneDay = dayKey;
-							firedTimezoneMinutes.clear();
-						}
-						firedTimezoneMinutes.add(key);
+	return source<Date | number | string>("fromCron", (ctx) => {
+		let done = false;
+		let lastFiredKey: string | undefined;
+		let firedTimezoneDay: string | undefined;
+		const firedTimezoneMinutes = new Set<string>();
+		let intervalId: ReturnType<typeof setInterval> | undefined;
+		const cleanup = () => {
+			done = true;
+			if (intervalId !== undefined) clearInterval(intervalId);
+			intervalId = undefined;
+			signal?.removeEventListener("abort", onAbort);
+		};
+		const onAbort = () => {
+			if (done) return;
+			cleanup();
+			ctx.down([["ERROR", errorPayload(signal?.reason)]]);
+		};
+		const emitNow = (now: Date) => {
+			if (output === "date") ctx.down([["DATA", now]]);
+			else if (output === "timestamp_ms") ctx.down([["DATA", now.getTime()]]);
+			else ctx.down([["DATA", dateToTimestampNs(now)]]);
+		};
+		const check = () => {
+			if (done) return;
+			const now = new Date();
+			const key = cronMinuteKey(now, timezone);
+			const alreadyFired =
+				timezone === undefined ? key === lastFiredKey : firedTimezoneMinutes.has(key);
+			if (!alreadyFired && matchesCron(schedule, now, { timezone })) {
+				lastFiredKey = key;
+				if (timezone !== undefined) {
+					const dayKey = cronDayKey(now, timezone);
+					if (dayKey !== firedTimezoneDay) {
+						firedTimezoneDay = dayKey;
+						firedTimezoneMinutes.clear();
 					}
-					emitNow(now);
+					firedTimezoneMinutes.add(key);
 				}
-			};
-			if (signal?.aborted) {
-				onAbort();
-				return cleanup;
+				emitNow(now);
 			}
-			signal?.addEventListener("abort", onAbort, { once: true });
-			check();
-			intervalId = setInterval(check, tickMs);
+		};
+		if (signal?.aborted) {
+			onAbort();
 			return cleanup;
-		},
-		{ pool: "sync" },
-	);
+		}
+		signal?.addEventListener("abort", onAbort, { once: true });
+		check();
+		intervalId = setInterval(check, tickMs);
+		return cleanup;
+	});
 }
 
 /**
@@ -806,54 +793,50 @@ export function fromWebhookWithOptions(
 
 function timerSource(factory: string, ms: number, opts?: TimerSourceOpts): Operator<never, number> {
 	const { period, signal } = opts ?? {};
-	const op = source<number>(
-		factory,
-		(ctx) => {
-			let done = false;
-			// The tick count is private state (R-checkpoint@1), so a restored source counts on.
-			const nextCount = () => {
-				const count = ctx.state.get<number>() ?? 0;
-				ctx.state.set(count + 1);
-				return count;
-			};
-			let t: ReturnType<typeof setTimeout> | undefined;
-			let iv: ReturnType<typeof setInterval> | undefined;
-			const cleanup = () => {
-				done = true;
-				if (t !== undefined) clearTimeout(t);
-				if (iv !== undefined) clearInterval(iv);
-				signal?.removeEventListener("abort", onAbort);
-			};
-			const onAbort = () => {
-				if (done) return;
-				cleanup();
-				ctx.down([["ERROR", errorPayload(signal?.reason)]]);
-			};
-			const finish = () => {
-				if (done) return;
-				if (period != null) {
+	const op = source<number>(factory, (ctx) => {
+		let done = false;
+		// The tick count is private state (R-checkpoint@1), so a restored source counts on.
+		const nextCount = () => {
+			const count = ctx.state.get<number>() ?? 0;
+			ctx.state.set(count + 1);
+			return count;
+		};
+		let t: ReturnType<typeof setTimeout> | undefined;
+		let iv: ReturnType<typeof setInterval> | undefined;
+		const cleanup = () => {
+			done = true;
+			if (t !== undefined) clearTimeout(t);
+			if (iv !== undefined) clearInterval(iv);
+			signal?.removeEventListener("abort", onAbort);
+		};
+		const onAbort = () => {
+			if (done) return;
+			cleanup();
+			ctx.down([["ERROR", errorPayload(signal?.reason)]]);
+		};
+		const finish = () => {
+			if (done) return;
+			if (period != null) {
+				ctx.down([["DATA", nextCount()]]);
+				iv = setInterval(() => {
+					if (done) return;
 					ctx.down([["DATA", nextCount()]]);
-					iv = setInterval(() => {
-						if (done) return;
-						ctx.down([["DATA", nextCount()]]);
-					}, period);
-				} else {
-					// One-shot: DATA then COMPLETE in one wave (terminal-is-forever).
-					done = true;
-					signal?.removeEventListener("abort", onAbort);
-					ctx.down([["DATA", nextCount()], ["COMPLETE"]]);
-				}
-			};
-			if (signal?.aborted) {
-				onAbort();
-				return;
+				}, period);
+			} else {
+				// One-shot: DATA then COMPLETE in one wave (terminal-is-forever).
+				done = true;
+				signal?.removeEventListener("abort", onAbort);
+				ctx.down([["DATA", nextCount()], ["COMPLETE"]]);
 			}
-			signal?.addEventListener("abort", onAbort, { once: true });
-			t = setTimeout(finish, ms);
-			return cleanup;
-		},
-		{ pool: "sync" },
-	);
+		};
+		if (signal?.aborted) {
+			onAbort();
+			return;
+		}
+		signal?.addEventListener("abort", onAbort, { once: true });
+		t = setTimeout(finish, ms);
+		return cleanup;
+	});
 	// A signal is a host object, so a timer that takes one is local-only (R-checkpoint).
 	if (signal !== undefined) return op;
 	if (factory === "interval") {
@@ -877,8 +860,8 @@ function timerSource(factory: string, ms: number, opts?: TimerSourceOpts): Opera
 
 /**
  * Timer source: one-shot (first tick then COMPLETE) or periodic (`{period}` → 0, 1, 2, …).
- * sync pool. Emits the
- * tick counter from 0; deactivation clears the timers.
+ * Emits the tick counter from 0; each tick is a later wave of its own; deactivation clears the
+ * timers.
  *
  * @param ms - Delay before the first tick in milliseconds.
  * @param opts - Optional period and source options.
@@ -936,8 +919,7 @@ export function interval(ms: number): Operator<never, number> {
 
 /**
  * Lift a Promise (or thenable) to a single-value stream: one DATA then COMPLETE, or ERROR on
- * rejection. async pool (its late emit is a later wave). Optional
- * `signal` aborts to ERROR.
+ * rejection; the late emit is a later wave of its own. Optional `signal` aborts to ERROR.
  *
  * @param p - Promise or thenable to lift into the graph.
  * @param opts - Optional abort signal and async source options.
@@ -956,47 +938,43 @@ export function fromPromise<T>(
 	opts?: AsyncSourceOpts,
 ): Operator<never, T> {
 	const signal = opts?.signal;
-	return source<T>(
-		"fromPromise",
-		(ctx) => {
-			let settled = false;
-			const onAbort = () => {
+	return source<T>("fromPromise", (ctx) => {
+		let settled = false;
+		const onAbort = () => {
+			if (settled) return;
+			settled = true;
+			// onAbort only runs from a `signal` listener / the `signal.aborted` guard → signal is defined.
+			ctx.down([["ERROR", errorPayload((signal as AbortSignal).reason)]]);
+		};
+		if (signal?.aborted) {
+			onAbort();
+			return;
+		}
+		signal?.addEventListener("abort", onAbort, { once: true });
+		void Promise.resolve(p).then(
+			(v) => {
 				if (settled) return;
 				settled = true;
-				// onAbort only runs from a `signal` listener / the `signal.aborted` guard → signal is defined.
-				ctx.down([["ERROR", errorPayload((signal as AbortSignal).reason)]]);
-			};
-			if (signal?.aborted) {
-				onAbort();
-				return;
-			}
-			signal?.addEventListener("abort", onAbort, { once: true });
-			void Promise.resolve(p).then(
-				(v) => {
-					if (settled) return;
-					settled = true;
-					signal?.removeEventListener("abort", onAbort);
-					ctx.down([["DATA", v], ["COMPLETE"]]);
-				},
-				(e) => {
-					if (settled) return;
-					settled = true;
-					signal?.removeEventListener("abort", onAbort);
-					ctx.down([["ERROR", errorPayload(e)]]);
-				},
-			);
-			return () => {
+				signal?.removeEventListener("abort", onAbort);
+				ctx.down([["DATA", v], ["COMPLETE"]]);
+			},
+			(e) => {
+				if (settled) return;
 				settled = true;
 				signal?.removeEventListener("abort", onAbort);
-			};
-		},
-		{ pool: "async" },
-	);
+				ctx.down([["ERROR", errorPayload(e)]]);
+			},
+		);
+		return () => {
+			settled = true;
+			signal?.removeEventListener("abort", onAbort);
+		};
+	});
 }
 
 /**
- * Read an async iterable: each value → DATA; COMPLETE when done; ERROR on failure. async pool.
- * Optional `signal` aborts the pump.
+ * Read an async iterable: each value → DATA; COMPLETE when done; ERROR on failure. Each emit is a
+ * later wave of its own. Optional `signal` aborts the pump.
  *
  * @param iterable - Async iterable to pump into the graph.
  * @param opts - Optional abort signal and async source options.
@@ -1015,34 +993,30 @@ export function fromAsyncIter<T>(
 	opts?: AsyncSourceOpts,
 ): Operator<never, T> {
 	const outerSignal = opts?.signal;
-	return source<T>(
-		"fromAsyncIter",
-		(ctx) => {
-			const ac = new AbortController();
-			const onOuterAbort = () => ac.abort(outerSignal?.reason);
-			outerSignal?.addEventListener("abort", onOuterAbort, { once: true });
-			let done = false;
-			const pump = async () => {
-				try {
-					for await (const v of iterable) {
-						if (ac.signal.aborted) break;
-						ctx.down([["DATA", v]]);
-					}
-					if (!ac.signal.aborted) ctx.down([["COMPLETE"]]);
-				} catch (e) {
-					if (!ac.signal.aborted) ctx.down([["ERROR", errorPayload(e)]]);
-				} finally {
-					done = true;
+	return source<T>("fromAsyncIter", (ctx) => {
+		const ac = new AbortController();
+		const onOuterAbort = () => ac.abort(outerSignal?.reason);
+		outerSignal?.addEventListener("abort", onOuterAbort, { once: true });
+		let done = false;
+		const pump = async () => {
+			try {
+				for await (const v of iterable) {
+					if (ac.signal.aborted) break;
+					ctx.down([["DATA", v]]);
 				}
-			};
-			void pump();
-			return () => {
-				if (!done) ac.abort();
-				outerSignal?.removeEventListener("abort", onOuterAbort);
-			};
-		},
-		{ pool: "async" },
-	);
+				if (!ac.signal.aborted) ctx.down([["COMPLETE"]]);
+			} catch (e) {
+				if (!ac.signal.aborted) ctx.down([["ERROR", errorPayload(e)]]);
+			} finally {
+				done = true;
+			}
+		};
+		void pump();
+		return () => {
+			if (!done) ac.abort();
+			outerSignal?.removeEventListener("abort", onOuterAbort);
+		};
+	});
 }
 
 /**
@@ -1060,15 +1034,11 @@ export function fromAsyncIter<T>(
  * @category sources
  */
 export function of<T = never>(...values: T[]): Operator<never, T> {
-	const op = source<T>(
-		"of",
-		(ctx) => {
-			// One array: what a source sends at activation reaches a first subscriber as its snapshot
-			// (R-subscription).
-			ctx.down([...values.map((value) => ["DATA", value] as Message), ["COMPLETE"]]);
-		},
-		{ pool: "sync" },
-	);
+	const op = source<T>("of", (ctx) => {
+		// One array: what a source sends at activation reaches a first subscriber as its snapshot
+		// (R-subscription).
+		ctx.down([...values.map((value) => ["DATA", value] as Message), ["COMPLETE"]]);
+	});
 	// Values that are not strict JSON cannot be a recipe's configuration: such an `of` is local-only.
 	let json: GraphCheckpointJson;
 	try {
@@ -1094,25 +1064,21 @@ export function of<T = never>(...values: T[]): Operator<never, T> {
  * @category sources
  */
 export function fromIter<T>(iterable: Iterable<T>): Operator<never, T> {
-	return source<T>(
-		"fromIter",
-		(ctx) => {
-			// One array (R-subscription), ending with COMPLETE, or with ERROR after the values the
-			// iterator gave if it throws (a throw out of the setup would drop them, R-failure).
-			const out: Message[] = [];
-			try {
-				for (const v of iterable) out.push(["DATA", v]);
-				out.push(["COMPLETE"]);
-			} catch (error) {
-				out.push([
-					"ERROR",
-					errorPayload(error, "fromIter iterator threw without a valid error payload"),
-				]);
-			}
-			ctx.down(out);
-		},
-		{ pool: "sync" },
-	);
+	return source<T>("fromIter", (ctx) => {
+		// One array (R-subscription), ending with COMPLETE, or with ERROR after the values the
+		// iterator gave if it throws (a throw out of the setup would drop them, R-failure).
+		const out: Message[] = [];
+		try {
+			for (const v of iterable) out.push(["DATA", v]);
+			out.push(["COMPLETE"]);
+		} catch (error) {
+			out.push([
+				"ERROR",
+				errorPayload(error, "fromIter iterator threw without a valid error payload"),
+			]);
+		}
+		ctx.down(out);
+	});
 }
 
 /**
@@ -1130,13 +1096,9 @@ export function fromIter<T>(iterable: Iterable<T>): Operator<never, T> {
  */
 export function empty<T = never>(): Operator<never, T> {
 	return {
-		...source<T>(
-			"empty",
-			(ctx) => {
-				ctx.down([["COMPLETE"]]);
-			},
-			{ pool: "sync" },
-		),
+		...source<T>("empty", (ctx) => {
+			ctx.down([["COMPLETE"]]);
+		}),
 		recipe: { ref: "empty" },
 	};
 }
@@ -1155,7 +1117,7 @@ export function empty<T = never>(): Operator<never, T> {
  * @category sources
  */
 export function never<T = never>(): Operator<never, T> {
-	return { ...source<T>("never", () => undefined, { pool: "sync" }), recipe: { ref: "never" } };
+	return { ...source<T>("never", () => undefined), recipe: { ref: "never" } };
 }
 
 /**
@@ -1173,13 +1135,9 @@ export function never<T = never>(): Operator<never, T> {
  * @category sources
  */
 export function throwError(err: unknown): Operator<never, never> {
-	return source<never>(
-		"throwError",
-		(ctx) => {
-			ctx.down([["ERROR", errorPayload(err)]]);
-		},
-		{ pool: "sync" },
-	);
+	return source<never>("throwError", (ctx) => {
+		ctx.down([["ERROR", errorPayload(err)]]);
+	});
 }
 
 /**
@@ -1213,21 +1171,17 @@ export function fromEvent<T = unknown>(
 	if (typeof type !== "string" || type.length === 0) {
 		throw new TypeError("fromEvent: event type must be a non-empty string");
 	}
-	return source<T>(
-		"fromEvent",
-		(ctx) => {
-			let done = false;
-			const handler = (event: unknown) => {
-				if (!done) ctx.down([["DATA", event as T]]);
-			};
-			target.addEventListener(type, handler, opts);
-			return () => {
-				done = true;
-				target.removeEventListener(type, handler, opts);
-			};
-		},
-		{ pool: "sync" },
-	);
+	return source<T>("fromEvent", (ctx) => {
+		let done = false;
+		const handler = (event: unknown) => {
+			if (!done) ctx.down([["DATA", event as T]]);
+		};
+		target.addEventListener(type, handler, opts);
+		return () => {
+			done = true;
+			target.removeEventListener(type, handler, opts);
+		};
+	});
 }
 
 /**
@@ -1245,21 +1199,17 @@ export function fromPushNotification<T = unknown>(register: PushRegister<T>): Op
 	if (typeof register !== "function") {
 		throw new TypeError("fromPushNotification: register must be a function");
 	}
-	return source<T>(
-		"fromPushNotification",
-		(ctx) => {
-			let done = false;
-			const deliver = (payload: T) => {
-				if (!done) ctx.down([["DATA", payload]]);
-			};
-			const unsubscribe = register(deliver);
-			return () => {
-				done = true;
-				if (typeof unsubscribe === "function") unsubscribe();
-			};
-		},
-		{ pool: "sync" },
-	);
+	return source<T>("fromPushNotification", (ctx) => {
+		let done = false;
+		const deliver = (payload: T) => {
+			if (!done) ctx.down([["DATA", payload]]);
+		};
+		const unsubscribe = register(deliver);
+		return () => {
+			done = true;
+			if (typeof unsubscribe === "function") unsubscribe();
+		};
+	});
 }
 
 /** The source operator a {@link NodeInput} coerces to (D43). */

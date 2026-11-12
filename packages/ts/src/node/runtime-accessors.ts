@@ -229,7 +229,7 @@ export function restoreStateOfNode(n: Node<unknown>, seed: NodeSeed): void {
 
 /**
  * @internal R-checkpoint@1: give a node `wrap` of its function in place of it, keeping the instance,
- * its values, lifetime and pool (a restore wraps a restored node's function).
+ * its values and lifetime (a restore wraps a restored node's function).
  */
 export function wrapFnOfNode(n: Node<unknown>, wrap: (fn: NodeFn) => NodeFn): void {
 	const self = liveRegistration(n)?.host;
@@ -238,7 +238,7 @@ export function wrapFnOfNode(n: Node<unknown>, wrap: (fn: NodeFn) => NodeFn): vo
 	if (fn === null) return;
 	const wrapped = wrap(fn);
 	const old = self._slot.handle;
-	self._slot.handle = self._slot.dispatcher.register(wrapped, self._slot.pool);
+	self._slot.handle = self._slot.dispatcher.register(wrapped);
 	if (old !== null) self._slot.dispatcher.unregister(old);
 	self._slot.fn = wrapped;
 	self._syncCtx = null;

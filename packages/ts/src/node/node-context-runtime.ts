@@ -26,43 +26,16 @@ import type { NodeRuntimeHost } from "./node-runtime-host.js";
 import { validateNodeOutput } from "./protocol-guards.js";
 import { graphNodeIdOf, withEnvironmentDrivers, withNodeCore } from "./runtime-accessors.js";
 
+/**
+ * The ctx a run is given (graphrefly:D807: one kind of run, no pool kinds). One ctx per lifetime,
+ * reused run after run; its dependency views read the node's live inputs, so a read during a run
+ * is that run's view (R-invocation@2). A function that keeps its ctx past the run uses it for
+ * output (`ctx.down`, a later wave, R-wave@2) and its lifetime's state and signal.
+ */
 export function nodeBuildCtx<T>(self: NodeRuntimeHost<T>): Ctx {
-	const kind = self._slot.handle
-		? self._slot.dispatcher.poolKind(self._slot.handle.poolId)
-		: "sync";
-	if (kind === "sync") {
-		if (self._syncCtx === null) self._syncCtx = self._makeCtx();
-		self._refreshCtx(self._syncCtx);
-		return self._syncCtx;
-	}
-	// async: snapshot dep inputs so a deferred late-emit reads this wave's view.
-	const inputs = self._dep.inputs;
-	const manual = self._slot.invalidatePolicy === "manual";
-	const waveData: unknown[][][] = [];
-	const waveLive: boolean[][] = [];
-	const terminal: unknown[] = [];
-	const invalidated: boolean[] = [];
-	const latest: unknown[] = [];
-	const has: boolean[] = [];
-	for (let i = 0; i < inputs.length; i++) {
-		const input = inputs[i];
-		waveData.push(input.waveData.map((w) => [...w]));
-		waveLive.push([...input.waveLive]);
-		terminal.push(input.terminalInput);
-		invalidated.push(manual && input.invalidated);
-		latest.push(input.prev);
-		has.push(input.hasData);
-	}
-	return self._makeCtx({ waveData, waveLive, terminal, invalidated, latest, has });
-}
-
-/** What a ctx's dependency views read: the node's live inputs, or an async run's snapshot. */
-interface DepInputs {
-	readonly waveData: readonly (readonly unknown[])[][];
-	readonly terminal: readonly (true | unknown | undefined)[];
-	readonly invalidated: readonly boolean[];
-	readonly latest: readonly unknown[];
-	readonly has: readonly boolean[];
+	if (self._syncCtx === null) self._syncCtx = self._makeCtx();
+	self._refreshCtx(self._syncCtx);
+	return self._syncCtx;
 }
 
 const COMPLETE: DepTerminal = Object.freeze({ kind: "complete" });
@@ -75,9 +48,9 @@ function depTerminalOf(t: unknown): DepTerminal | undefined {
 
 /**
  * One dependency's view (R-invocation@2): an array keeps its boundary; markers are not values.
- * Without `snapshot` it reads the node's live inputs, so a reused sync ctx needs no refresh.
+ * It reads the node's live inputs, so a reused ctx needs no refresh.
  */
-function makeDepView<T>(self: NodeRuntimeHost<T>, index: number, snapshot?: DepInputs): CtxDep {
+function makeDepView<T>(self: NodeRuntimeHost<T>, index: number): CtxDep {
 	let idNode: Node<unknown> | undefined;
 	let id = "";
 	return {
@@ -90,23 +63,20 @@ function makeDepView<T>(self: NodeRuntimeHost<T>, index: number, snapshot?: DepI
 			return id;
 		},
 		get waves() {
-			const arrays = snapshot ? snapshot.waveData[index] : self._dep.inputs[index]?.waveData;
+			const arrays = self._dep.inputs[index]?.waveData;
 			if (arrays === undefined || arrays.length === 0) return NO_WAVES;
 			return arrays.map((a) => (a.includes(SENTINEL) ? a.filter((v) => v !== SENTINEL) : a));
 		},
 		get terminal() {
-			return depTerminalOf(
-				snapshot ? snapshot.terminal[index] : self._dep.inputs[index]?.terminalInput,
-			);
+			return depTerminalOf(self._dep.inputs[index]?.terminalInput);
 		},
 		get value() {
-			return snapshot ? snapshot.latest[index] : self._dep.inputs[index]?.prev;
+			return self._dep.inputs[index]?.prev;
 		},
 		get has() {
-			return (snapshot ? snapshot.has[index] : self._dep.inputs[index]?.hasData) === true;
+			return self._dep.inputs[index]?.hasData === true;
 		},
 		get invalidated() {
-			if (snapshot) return snapshot.invalidated[index] === true;
 			return (
 				self._slot.invalidatePolicy === "manual" && self._dep.inputs[index]?.invalidated === true
 			);
@@ -115,38 +85,18 @@ function makeDepView<T>(self: NodeRuntimeHost<T>, index: number, snapshot?: DepI
 }
 
 /** The dependency views of a ctx, one per current dependency. */
-function makeDepViews<T>(self: NodeRuntimeHost<T>, snapshot?: DepInputs): CtxDep[] {
-	return self._slot.deps.map((_, i) => makeDepView(self, i, snapshot));
+function makeDepViews<T>(self: NodeRuntimeHost<T>): CtxDep[] {
+	return self._slot.deps.map((_, i) => makeDepView(self, i));
 }
 
-export function nodeMakeCtx<T>(
-	self: NodeRuntimeHost<T>,
-	snapshot?: {
-		waveData: unknown[][][];
-		waveLive?: boolean[][];
-		terminal: unknown[];
-		invalidated?: boolean[];
-		latest: unknown[];
-		has: boolean[];
-	},
-): Ctx {
-	const inputs: DepInputs | undefined =
-		snapshot === undefined
-			? undefined
-			: {
-					waveData: snapshot.waveData,
-					terminal: snapshot.terminal,
-					invalidated: snapshot.invalidated ?? [],
-					latest: snapshot.latest,
-					has: snapshot.has,
-				};
+export function nodeMakeCtx<T>(self: NodeRuntimeHost<T>): Ctx {
 	// R-lifetime: every ctx belongs to exactly one lifetime; output through a ctx whose lifetime has
 	// closed is dropped.
 	const signal = nodeLifetimeSignal(self);
 	const ctx: Ctx = {
-		// Wave-owner boundary (D47): a SYNC fn's emit nests under the public entry that drove
-		// it (cheap inc/dec, no early drain); an ASYNC-pool fn re-enters here from its stashed
-		// ctx at depth 0, so this is the boundary that drains any ctx.rewire it issued.
+		// Wave-owner boundary (D47): an emit during the run nests under the public entry that
+		// drove it (cheap inc/dec, no early drain); a function that kept its ctx re-enters here
+		// at depth 0 after it returned, so this is the boundary that drains any ctx.rewire it issued.
 		down: (msgs) => {
 			if (self._released || signal.aborted) return;
 			// An empty array sends nothing: no array, no wave, no request, no output (as in Rust
@@ -174,7 +124,7 @@ export function nodeMakeCtx<T>(
 		emit: (...values) => {
 			ctx.down(values.map((v) => ["DATA", v] as const));
 		},
-		deps: makeDepViews(self, inputs),
+		deps: makeDepViews(self),
 		state: self._makeState(signal),
 		seed: undefined,
 		signal,
@@ -190,15 +140,9 @@ export function nodeMakeCtx<T>(
 			rewireDiffNow: (add, remove) => nodeApplyRewireDiff(self, signal, add, remove),
 		},
 	};
-	// The live flags of each dependency's arrays: an async run's snapshot, or the node's live
-	// inputs, which a reused sync ctx reads as its views do, so it needs no refresh.
-	const live = snapshot?.waveLive;
-	setCtxDepWaveOrigin(ctx, {
-		live:
-			live === undefined
-				? (depIndex) => self._dep.inputs[depIndex]?.waveLive
-				: (depIndex) => live[depIndex],
-	});
+	// The live flags of each dependency's arrays: the node's live inputs, which a reused ctx
+	// reads as its views do, so it needs no refresh.
+	setCtxDepWaveOrigin(ctx, { live: (depIndex) => self._dep.inputs[depIndex]?.waveLive });
 	return ctx;
 }
 

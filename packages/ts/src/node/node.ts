@@ -194,11 +194,9 @@ export class Node<T = unknown> {
 			opts.dispatcher ?? stagedDispatcher ?? running?.dispatcher ?? defaultDispatcher;
 		const environment = stagedEnvironment ?? running?.environment ?? EnvironmentDrivers.empty();
 		try {
-			const pool = opts.pool ?? "sync";
-
 			let handle: Handle | null;
 			if (handleOrFn === null) handle = null;
-			else if (typeof handleOrFn === "function") handle = dispatcher.register(handleOrFn, pool);
+			else if (typeof handleOrFn === "function") handle = dispatcher.register(handleOrFn);
 			else handle = handleOrFn;
 			if (handle !== null && typeof handleOrFn === "function") {
 				acquisition.dispatcher = dispatcher;
@@ -226,7 +224,6 @@ export class Node<T = unknown> {
 				{
 					deps,
 					handle,
-					pool,
 					dispatcher,
 					environment,
 					completePolicy: opts.complete ?? "auto",
@@ -316,7 +313,7 @@ export class Node<T = unknown> {
 	}
 
 	/**
-	 * The fn handle (pure data `(poolId, handleId)`, D7) or null for state/passthrough
+	 * The fn handle (pure data: the function's index in the dispatcher's table, D7) or null for state/passthrough
 	 * nodes. Inspection-only (L1.6 handle is referenceable/inspectable) — lets the graph
 	 * layer key a dispatcher-backed profile recorder WITHOUT putting counters on the node
 	 * (R-node-thin / D39).
@@ -518,15 +515,8 @@ export class Node<T = unknown> {
 		return nodeBuildCtx(nodeRuntimeHost(this));
 	}
 
-	private _makeCtx(snapshot?: {
-		waveData: unknown[][][];
-		waveLive?: boolean[][];
-		terminal: unknown[];
-		invalidated?: boolean[];
-		latest: unknown[];
-		has: boolean[];
-	}): Ctx {
-		return nodeMakeCtx(nodeRuntimeHost(this), snapshot);
+	private _makeCtx(): Ctx {
+		return nodeMakeCtx(nodeRuntimeHost(this));
 	}
 
 	private _refreshCtx(ctx: Ctx): void {

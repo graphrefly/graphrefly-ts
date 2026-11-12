@@ -110,9 +110,9 @@ interface SeqState {
 /**
  * Free-standing graph-layer cascading cache factory (D104/D105/D107).
  *
- * Passive tiers stay in `tieredReadThrough`; this factory wraps lookup work at an async pool
- * boundary and exposes every request, invalidation, lookup, promotion, fill, status, and value
- * change through declared graph nodes. `requestSeq` is the stale-fill guard for visible graph
+ * Passive tiers stay in `tieredReadThrough`; this factory runs lookup work asynchronously, its
+ * results arriving as later waves, and exposes every request, invalidation, lookup, promotion,
+ * fill, status, and value change through declared graph nodes. `requestSeq` is the stale-fill guard for visible graph
  * nodes: older async fills may still be observable as events, but downstream value/status nodes
  * ignore them. Storage promotion defaults to `false` here because passive tier writes have no
  * generation/CAS contract; callers may opt in with `promoteTo` when best-effort promotion is
@@ -147,7 +147,6 @@ export function reactiveCascadingCache<K extends string, V>(
 	const eventOpts: SugarOpts<CascadingCacheEvent<K, V>> = {
 		name: `${baseName}.events`,
 		meta,
-		pool: "async",
 		// R-lifetime: closing the lifetime drops every in-flight load's result.
 		setup: (ctx) => () => {
 			const st = ctx.state.get<DriverState<K>>();
