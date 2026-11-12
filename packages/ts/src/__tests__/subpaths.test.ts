@@ -428,7 +428,7 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof sources.throwError).toBe("function");
 		expect(Object.hasOwn(sources, "fromFSWatch")).toBe(false);
 		expect(Object.hasOwn(sources, "fromRaf")).toBe(false);
-		expect(typeof composition.topologyDiff).toBe("function");
+		expect("topologyDiff" in composition).toBe(false);
 		expect(typeof dataStructures.reactiveMap).toBe("function");
 		expect(typeof render.renderToJson).toBe("function");
 		expect(typeof render.renderToMermaidUrl).toBe("function");

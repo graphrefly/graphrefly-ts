@@ -51,7 +51,7 @@ import { operatorRestoreRegistry } from "./operator-restore.js";
 import { map, operatorNodeFn, take } from "./operators.js";
 import { type RestoredReceived, restoredFirstRun, restoredNote } from "./restore-first-run.js";
 import { timer } from "./sources.js";
-import { mountGraph } from "./topology.js";
+import * as topology from "./topology.js";
 
 /** A registered named function, for a recipe whose configuration names one (TS: map). */
 export interface GraphRestoreDefinition<S = never, T = unknown> {
@@ -1021,9 +1021,7 @@ function constructPrepared(
 		for (const id of prepared.nodes.keys()) buildNode(id);
 
 		for (const mount of prepared.mounts) {
-			mountGraph(out, constructPrepared(mount.prepared, registry, dispatcher), {
-				at: mount.at,
-			});
+			topology.mount(out, constructPrepared(mount.prepared, registry, dispatcher), mount.at);
 		}
 
 		for (const [id, made] of built) {

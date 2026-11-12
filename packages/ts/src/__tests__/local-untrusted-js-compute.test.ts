@@ -20,7 +20,7 @@ import {
 import { graphTopology } from "../graph/blueprint.js";
 import type { RenderSnapshot } from "../graph/describe.js";
 import { Graph } from "../graph/graph.js";
-import { topologyGroup } from "../graph/graph-topology-group.js";
+import * as topologyModule from "../graph/topology.js";
 import { strictCanonicalJsonBytes } from "../json/codec.js";
 import type {
 	AgentRuntimeAuditRecord,
@@ -617,7 +617,7 @@ describe("D667 local untrusted JS compute contract", () => {
 describe("D667 local untrusted JS compute Graph-visible runtime", () => {
 	const setup = (driver: LocalUntrustedJsComputeDriver) => {
 		const graph = new Graph();
-		const sources = topologyGroup(graph, { name: "local-untrusted-js-compute-fixtures" });
+		const sources = topologyModule.group(graph, { name: "local-untrusted-js-compute-fixtures" });
 		const inputNode = sources.node<ToolProviderAdapterInput<LocalUntrustedJsComputeArguments>>();
 		const requestNode = sources.node<ToolProviderAdapterRunRequested>();
 		const admissionNode = sources.node<ToolProviderRunAdmission>();

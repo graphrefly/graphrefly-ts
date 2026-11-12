@@ -1,7 +1,7 @@
 /** Concrete PostgreSQL-backed managed-cloud PostgreSQL control-plane binding (D605). */
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
-import { topologyGroup } from "../graph/graph-topology-group.js";
+import * as topology from "../graph/topology.js";
 import { canonicalTupleKey, parseCanonicalTupleKey } from "../identity.js";
 import type { Node, StateNode } from "../node/node.js";
 import type {
@@ -1198,7 +1198,7 @@ export function managedCloudPostgresqlRuntime(
 		throw new TypeError("Managed-cloud authorization recheck compatibility mismatch.");
 	const now = opts.now ?? Date.now;
 	const name = opts.name ?? "managedCloudPostgresql";
-	const group = topologyGroup(graph, { name });
+	const group = topology.group(graph, { name });
 	const admittedEnvelopes = group.node<ManagedCloudPostgresqlAdmittedEnvelope>([], null, {
 		name: `${name}/admittedEnvelopes`,
 		factory: "managedCloudPostgresqlAdmittedEnvelopes",

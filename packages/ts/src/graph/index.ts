@@ -127,7 +127,6 @@ export {
 	type TopologyGroupOptions,
 	type TopologyGroupReleaseOptions,
 } from "./graph.js";
-export { topologyGroup } from "./graph-topology-group.js";
 export type {
 	NodeProfile,
 	ObserveEvent,
@@ -165,7 +164,7 @@ export {
 	takeRestoreDescriptor,
 	timerRestoreDescriptor,
 } from "./restore.js";
-export { graphName, mountGraph } from "./topology.js";
+export * as topology from "./topology.js";
 export {
 	type WorkerDerivedBackend,
 	type WorkerDerivedCancel,

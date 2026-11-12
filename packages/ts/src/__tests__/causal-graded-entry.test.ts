@@ -20,8 +20,8 @@ import {
 import { oracleRequest } from "../../../../scripts/fixtures/spending-preset-oracle.js";
 import { graphTopology } from "../graph/blueprint.js";
 import { Graph } from "../graph/graph.js";
-import { topologyGroup } from "../graph/graph-topology-group.js";
 import { renderSnapshot } from "../graph/render.js";
+import * as topologyModule from "../graph/topology.js";
 
 type Host = ReturnType<typeof composeOfflineSpending>;
 function setup(graph = new Graph({ name: "graded-entry" })) {
@@ -35,7 +35,7 @@ function setup(graph = new Graph({ name: "graded-entry" })) {
 }
 function teardown(graph: Graph, hosts: readonly Host[] = []) {
 	for (const host of hosts) for (const lease of host.owner.roots) lease.unsubscribe?.();
-	const group = topologyGroup(graph);
+	const group = topologyModule.group(graph);
 	for (const n of renderSnapshot(graph).nodes) group.add(graph.find(n.id)!);
 	group.release();
 }

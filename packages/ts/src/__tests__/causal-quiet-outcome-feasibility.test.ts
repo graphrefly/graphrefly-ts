@@ -6,8 +6,8 @@ import {
 	startConstruction,
 } from "../graph/construction-scope.js";
 import { Graph } from "../graph/graph.js";
-import { topologyGroup } from "../graph/graph-topology-group.js";
 import { renderSnapshot } from "../graph/render.js";
+import * as topology from "../graph/topology.js";
 import { relayFirst } from "./helpers/relay.js";
 
 for (const closingEdge of ["receipt-to-guard", "authority-to-receipt"] as const) {
@@ -96,7 +96,7 @@ it("delivers a bounded receipt frame through a quiet node in an acyclic cold gra
 		expect(received).toEqual([[1, 2]]);
 	} finally {
 		for (const root of owner.roots) root.unsubscribe?.();
-		const group = topologyGroup(graph);
+		const group = topology.group(graph);
 		for (const node of owner.nodes) group.add(node);
 		group.release();
 	}

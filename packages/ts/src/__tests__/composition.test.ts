@@ -1,6 +1,7 @@
 import { renderSnapshot } from "../graph/render.js";
+import { topology } from "../index.js";
 /**
- * CSP-2.8 composition helpers (D56): topologyDiff + static stratify/stratifyBranch.
+ * CSP-2.8 composition helpers (D56): topology.diff + static stratify/stratifyBranch.
  *
  * D56 authority: composition is per-language graph-layer sugar; topology only through declared deps
  * (no internal subscribe island), and dynamic branch add/remove is deferred.
@@ -16,7 +17,6 @@ import {
 	type RenderSnapshot,
 	stratify,
 	stratifyBranch,
-	topologyDiff,
 } from "../index.js";
 import { collect } from "./helpers/collect.js";
 
@@ -27,7 +27,7 @@ const data = <T>(msgs: Message[]): T[] =>
 const SETTLED: Status = { cache: "ready", output: "open", lifecycle: "active" };
 const SENTINEL: Status = { cache: "empty", output: "open", lifecycle: "active" };
 
-describe("topologyDiff (D56)", () => {
+describe("topology.diff (D56)", () => {
 	it("diffs D39 describe snapshots without old-core deps", () => {
 		const prev: RenderSnapshot = {
 			nodes: [
@@ -44,7 +44,7 @@ describe("topologyDiff (D56)", () => {
 			edges: [{ from: "a", to: "c" }],
 		};
 
-		expect(topologyDiff(prev, next).events).toEqual([
+		expect(topology.diff(prev, next).events).toEqual([
 			{ type: "node-added", id: "c", node: next.nodes[1] },
 			{ type: "node-meta-changed", id: "a", prevMeta: { role: "old" }, nextMeta: { role: "new" } },
 			{ type: "edge-added", from: "a", to: "c" },
@@ -62,7 +62,7 @@ describe("topologyDiff (D56)", () => {
 				{ nodes: [{ id: "child::x", factory: "state", status: SETTLED, deps: [] }], edges: [] },
 			],
 		};
-		expect(topologyDiff(prev, next).events[0]).toEqual({
+		expect(topology.diff(prev, next).events[0]).toEqual({
 			type: "subgraph-mounted",
 			path: "child",
 		});
@@ -80,7 +80,7 @@ describe("topologyDiff (D56)", () => {
 				},
 			],
 		};
-		expect(topologyDiff(prev, next).events[0]).toEqual({
+		expect(topology.diff(prev, next).events[0]).toEqual({
 			type: "subgraph-mounted",
 			path: "parent::child",
 		});

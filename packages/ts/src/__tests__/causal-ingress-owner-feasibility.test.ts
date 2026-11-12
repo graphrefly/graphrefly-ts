@@ -1,7 +1,7 @@
 /** Minimal host-boundary counterexample; no production effect or I/O. */
 import { expect, it } from "vitest";
 import { Graph } from "../graph/graph.js";
-import { topologyGroup } from "../graph/graph-topology-group.js";
+import * as topology from "../graph/topology.js";
 
 it("an outer batch can produce completion after the wrapped source call has returned", () => {
 	const graph = new Graph();
@@ -35,7 +35,7 @@ it("an outer batch can produce completion after the wrapped source call has retu
 		expect(pending).toEqual([2]);
 	} finally {
 		stop();
-		const group = topologyGroup(graph);
+		const group = topology.group(graph);
 		group.add(guard);
 		group.add(source);
 		group.release();

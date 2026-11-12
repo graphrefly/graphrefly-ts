@@ -8,8 +8,8 @@ import {
 	startConstruction,
 } from "../graph/construction-scope.js";
 import { Graph } from "../graph/graph.js";
-import { topologyGroup } from "../graph/graph-topology-group.js";
 import { renderSnapshot } from "../graph/render.js";
+import * as topology from "../graph/topology.js";
 import { checkpointStateOfNode, subscriberCountOfNode } from "../node/runtime-accessors.js";
 import {
 	assertCausalCapabilities,
@@ -40,7 +40,7 @@ afterEach(() => {
 	for (const g of graphs.splice(0)) {
 		for (const name of ["run", "context", "foreign", "sealed"])
 			for (const lease of constructionOf(g, name)?.roots ?? []) lease.unsubscribe?.();
-		const group = topologyGroup(g);
+		const group = topology.group(g);
 		for (const n of renderSnapshot(g).nodes) group.add(g.find(n.id)!);
 		group.release();
 	}
@@ -527,7 +527,7 @@ describe("D162 private shared cold assembly", () => {
 	it("preserves shared dependency protection before ownership or activation", () => {
 		const f = combined();
 		// Actual removal invalidates real dependency membership at the normal construction boundary.
-		const group = topologyGroup(f.graph);
+		const group = topology.group(f.graph);
 		group.add(f.a);
 		expect(() => group.release()).toThrow();
 		expect(f.calls()).toBe(0);

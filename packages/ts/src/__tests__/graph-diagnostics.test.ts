@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { renderSnapshot } from "../graph/render.js";
-import { mountGraph } from "../graph/topology.js";
+import * as topology from "../graph/topology.js";
 import {
 	explainPath,
 	graph,
@@ -74,7 +74,7 @@ describe("graph diagnostics over RenderSnapshot (D39)", () => {
 		const leaf = child.state(1, { name: "leaf" });
 		child.derived([leaf], (x) => x, { name: "leafD" });
 		child.state(9, { name: "orphan" });
-		mountGraph(parent, child, { at: "child" });
+		topology.mount(parent, child, "child");
 
 		const result = validateNoIslands(renderSnapshot(parent));
 		expect(result.ok).toBe(false);

@@ -1,10 +1,9 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { releaseGraphNodes } from "../graph/graph.js";
-import { topologyGroup } from "../graph/graph-topology-group.js";
 import { graphProfile, observeTopology } from "../graph/inspect.js";
 import { renderSnapshot } from "../graph/render.js";
-import { mountGraph } from "../graph/topology.js";
+import * as topology from "../graph/topology.js";
 import type { Message, TopologyEvent } from "../index.js";
 import {
 	Dispatcher,
@@ -80,7 +79,7 @@ describe("observeTopology — read-only topology egress (D145)", () => {
 		const events: TopologyEvent[] = [];
 		const unsub = observeTopology(parent, "sub").subscribe((event) => events.push(event));
 
-		mountGraph(parent, child, { at: "sub" });
+		topology.mount(parent, child, "sub");
 
 		unsub();
 		expect(events).toEqual([
@@ -93,7 +92,7 @@ describe("observeTopology — read-only topology egress (D145)", () => {
 	it("forwards mounted child topology events through mount-aware parent paths", () => {
 		const parent = graph();
 		const child = graph();
-		mountGraph(parent, child, { at: "sub" });
+		topology.mount(parent, child, "sub");
 		const events: TopologyEvent[] = [];
 		const unsub = observeTopology(parent, "sub").subscribe((event) => events.push(event));
 
@@ -132,7 +131,7 @@ describe("observeTopology — read-only topology egress (D145)", () => {
 	it("stops forwarding mounted child topology events after parent unsubscribe", () => {
 		const parent = graph();
 		const child = graph();
-		mountGraph(parent, child, { at: "sub" });
+		topology.mount(parent, child, "sub");
 		const events: TopologyEvent[] = [];
 		const unsub = observeTopology(parent).subscribe((event) => events.push(event));
 		unsub();
@@ -235,7 +234,7 @@ describe("observeTopology — read-only topology egress (D145)", () => {
 	it("emits node-released only after quiescent atomic graph release commits", () => {
 		const g = graph();
 		const source = g.state(1, { name: "source" });
-		const group = topologyGroup(g, { name: "view" });
+		const group = topology.group(g, { name: "view" });
 		const derived = group.derived([source], (n) => n! + 1, { name: "derived" });
 		const events: TopologyEvent[] = [];
 		const unsub = observeTopology(g, "derived").subscribe((event) => events.push(event));
@@ -261,7 +260,7 @@ describe("observeTopology — read-only topology egress (D145)", () => {
 	it("does not emit node-released or hide topology when release is not quiescent", () => {
 		const g = graph();
 		const source = g.state(1, { name: "source" });
-		const group = topologyGroup(g, { name: "view" });
+		const group = topology.group(g, { name: "view" });
 		const derived = group.derived([source], (n) => n! + 1, { name: "derived" });
 		g.derived([derived], (n) => n! + 1, { name: "consumer" });
 		const events: TopologyEvent[] = [];
@@ -309,13 +308,13 @@ describe("observeTopology — read-only topology egress (D145)", () => {
 	});
 });
 
-describe("topologyGroup — graph-owned dynamic topology release (D152/D153)", () => {
+describe("topology.group — graph-owned dynamic topology release (D152/D153)", () => {
 	it("creates registered child nodes and releases them atomically from inspection surfaces", () => {
 		const g = graph({ dispatcher: new Dispatcher(), profile: true });
 		const source = g.state(1, { name: "source" });
 		const events: TopologyEvent[] = [];
 		const unsub = observeTopology(g).subscribe((event) => events.push(event));
-		const group = topologyGroup(g, { name: "view" });
+		const group = topology.group(g, { name: "view" });
 
 		const delta = group.derived([source], (n) => n! + 1, { name: "view.delta" });
 		const snapshot = group.derived([delta], (n) => n! * 2, { name: "view.snapshot" });
@@ -379,7 +378,7 @@ describe("topologyGroup — graph-owned dynamic topology release (D152/D153)", (
 
 	it("add only accepts ordinary graph-registered nodes from the owning graph", () => {
 		const g = graph();
-		const group = topologyGroup(g, { name: "view" });
+		const group = topology.group(g, { name: "view" });
 		const registered = g.state(1, { name: "registered" });
 		expect(group.add(registered)).toBe(registered);
 		expect(group.add(registered)).toBe(registered);
@@ -394,7 +393,7 @@ describe("topologyGroup — graph-owned dynamic topology release (D152/D153)", (
 
 	it("rejects release while an external live subscriber points into the group and can retry", () => {
 		const g = graph();
-		const group = topologyGroup(g, { name: "view" });
+		const group = topology.group(g, { name: "view" });
 		const child = group.state(1, { name: "view.child" });
 		const unsub = child.subscribe(() => {});
 
@@ -418,7 +417,7 @@ describe("Graph.checkpoint — data shape (R-checkpoint / D802, TS layout D178)"
 		count.set(5);
 		const child = graph({ name: "child" });
 		child.state(null, { name: "nil" });
-		mountGraph(parent, child, { at: "child" });
+		topology.mount(parent, child, "child");
 
 		const checkpoint = parent.checkpoint();
 		expect(checkpoint.format).toBe(GRAPH_CHECKPOINT_FORMAT);
@@ -535,7 +534,7 @@ describe("Graph.checkpoint — data shape (R-checkpoint / D802, TS layout D178)"
 		expect(() => duplicate.state(2, { name: "same" })).toThrow(/duplicate node id/);
 
 		const cyclic = graph();
-		mountGraph(cyclic, cyclic, { at: "self" });
+		topology.mount(cyclic, cyclic, "self");
 		expect(() => cyclic.checkpoint()).toThrow(/cyclic graph mount/);
 	});
 
@@ -666,7 +665,7 @@ describe("Graph.checkpoint — data shape (R-checkpoint / D802, TS layout D178)"
 describe("Graph release-local subscriber accounting — D122/D124", () => {
 	it("counts real active fan-out/fan-in subscriptions and preserves the rejected group", () => {
 		const g = graph({ dispatcher: new Dispatcher(), profile: true });
-		const group = topologyGroup(g, { name: "diamond" });
+		const group = topology.group(g, { name: "diamond" });
 		const a = group.state(2, { name: "a" });
 		const b = group.state(3, { name: "b" });
 		const left = group.derived([a, b], (x, y) => x! + y!, { name: "left" });

@@ -68,7 +68,7 @@ export class GraphTopologyGroup implements TopologyGroup {
 	add<T extends Node<unknown>>(node: T): T {
 		this._assertLive();
 		const lifecycle = graphRegistrations.get(this._graph);
-		if (lifecycle === undefined) throw new Error("topologyGroup: graph lifecycle unavailable");
+		if (lifecycle === undefined) throw new Error("topology.group: graph lifecycle unavailable");
 		lifecycle.assertRegisteredNode(node, `topology group '${this.name ?? "group"}' member`);
 		if (!this._members.includes(node)) this._members.push(node);
 		return node;
@@ -129,7 +129,7 @@ export class GraphTopologyGroup implements TopologyGroup {
 	release(opts: TopologyGroupReleaseOptions = {}): void {
 		if (this._released) return;
 		const lifecycle = graphRegistrations.get(this._graph);
-		if (lifecycle === undefined) throw new Error("topologyGroup: graph lifecycle unavailable");
+		if (lifecycle === undefined) throw new Error("topology.group: graph lifecycle unavailable");
 		lifecycle.releaseNodes([...this._members], {
 			reason: opts.reason ?? this.name,
 		});
@@ -142,9 +142,4 @@ export class GraphTopologyGroup implements TopologyGroup {
 			throw new Error(`topology group '${this.name ?? "group"}' has been released (D152)`);
 		}
 	}
-}
-
-/** Create a graph-owned release group without expanding Graph's query surface. */
-export function topologyGroup(graph: Graph, opts: TopologyGroupOptions = {}): TopologyGroup {
-	return new GraphTopologyGroup(graph, opts);
 }

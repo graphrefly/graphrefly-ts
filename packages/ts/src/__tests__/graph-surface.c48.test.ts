@@ -1,4 +1,5 @@
-import { graphName, mountGraph } from "../graph/topology.js";
+import * as graphApi from "../graph/index.js";
+import * as publicApi from "../index.js";
 /**
  * C-48 (R-graph-surface@1, graphrefly:D805): the graph layer's find, describe, observe and retain,
  * with R-node, R-subscription and R-lifetime; and how each one's stop behaves within a wave.
@@ -236,17 +237,42 @@ describe("stop within a wave (R-request-order, C-33, R-graph-surface@1)", () => 
 	});
 });
 
-// D189 keeps metadata/mount ownership in the existing registrar.
-it("names and mounts graphs through modules without activation", () => {
+// D190 keeps metadata/mount/group ownership in the existing registrar.
+it.each([publicApi, graphApi])("exposes only the topology namespace without activation", (api) => {
+	for (const oldName of ["graphName", "mountGraph", "topologyGroup", "topologyDiff"])
+		expect(oldName in api, oldName).toBe(false);
+	for (const member of ["name", "mount", "group", "diff"] as const)
+		expect(typeof api.topology[member]).toBe("function");
+	const topology = api.topology;
 	const parent = graph({ name: "parent" }),
 		child = graph({ name: "child" });
+	let invocations = 0;
 	const n = child.node([], () => {
+		invocations++;
 		throw new Error("must stay cold");
 	});
-	mountGraph(parent, child, { at: "child" });
-	expect(graphName(parent)).toBe("parent");
-	expect(graphName(graph())).toBeUndefined();
+	const members = topology.group(child, { name: "cold group" });
+	members.add(n);
+	const before = renderSnapshot(parent);
+	topology.mount(parent, child, "child");
+	expect(topology.diff(before, renderSnapshot(parent)).events).toContainEqual({
+		type: "subgraph-mounted",
+		path: "child",
+	});
+	expect(members.name).toBe("cold group");
+	expect(members.released).toBe(false);
+	expect(topology.name(parent)).toBe("parent");
+	expect(topology.name(graph())).toBeUndefined();
 	expect(graphTopology(parent).subgraphs?.[0]).toMatchObject({ name: "child", mountId: "child" });
+	expect(invocations).toBe(0);
 	expect(parent.checkpoint().mounts?.[0].checkpoint.name).toBe("child");
 	expect(n.status.lifecycle).toBe("inactive");
+});
+
+// The approved API takes a path string, with no compatibility envelope.
+it("refuses the removed mount options envelope", () => {
+	expect(() => {
+		// @ts-expect-error D190: the third argument is a path string.
+		publicApi.topology.mount(graph(), graph(), { at: "child" });
+	}).toThrow("non-empty string");
 });

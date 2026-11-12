@@ -1,5 +1,5 @@
 ---
-title: "mountGraph()"
+title: "topology.mount()"
 description: "Embed a child graph under a stable mount path for topology, rendering and checkpoints. This package module operation uses the existing mount records (D189); it does not connect graph execution domains. Duplicate sibling paths and empty paths are refused."
 ---
 
@@ -12,46 +12,39 @@ graph execution domains. Duplicate sibling paths and empty paths are refused.
 ## Import
 
 ```ts
-import { mountGraph } from "@graphrefly/ts/graph";
+import { topology } from "@graphrefly/ts/graph";
 ```
 
 ## Signature
 
 ```ts
-function mountGraph(
-	parent: Graph,
-	child: Graph,
-	opts: { at: string },
-): void
+namespace topology {
+	function mount(
+		parent: Graph,
+		child: Graph,
+		at: string,
+	): void
+}
 ```
 
 ## Parameters
 
 | Parameter | Type | Description |
 |---|---|---|
-| `parent` | `Graph` | Missing @param parent JSDoc. |
-| `child` | `Graph` | Missing @param child JSDoc. |
-| `opts` | `{ at: string }` | Missing @param opts JSDoc. |
+| `parent` | `Graph` | Graph that owns the mount record. |
+| `child` | `Graph` | Child graph to mount. |
+| `at` | `string` | Non-empty path unique among the parent's mounts. |
 
 ## Returns
 
-`void`
+Nothing; updates the existing mount records.
 
 ## Example
 
 ```ts
 const parent = graph(), child = graph({ name: "orders" });
-mountGraph(parent, child, { at: "orders" });
+topology.mount(parent, child, "orders");
 ```
-
-## Documentation Status
-
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param parent`.
-- Missing `@param child`.
-- Missing `@param opts`.
 
 ## Source
 

@@ -51,6 +51,28 @@ sends DATA.
 storage helpers, framework adapters, messaging, work queues, orchestration,
 CQRS, renderers, testing helpers, and solution modules live in one package.
 
+## Topology module
+
+The main package and `@graphrefly/ts/graph` both export `topology`:
+
+```ts
+import { graph, renderSnapshot, topology } from "@graphrefly/ts";
+
+const parent = graph({ name: "shop" });
+const orders = graph({ name: "orders" });
+const members = topology.group(orders, { name: "order view" });
+members.state(0, { name: "count" });
+const before = renderSnapshot(parent);
+topology.mount(parent, orders, "orders");
+console.log(topology.name(parent)); // "shop"
+console.log(topology.diff(before, renderSnapshot(parent)).events);
+```
+
+These calls keep nodes cold. Mounting adds a named child view for rendering and
+checkpoints; each graph retains its own execution domain. Release groups own no
+extra graph state and release their members only when quiescent. `topology.diff`
+compares two render snapshots without subscribing to either graph.
+
 ## Package Names
 
 | Package | Status |
@@ -65,7 +87,8 @@ uses focused subpaths instead of the old root, `utils`, `base`, `compat`, and
 
 ## What It Gives You
 
-- Graph-owned `state`, `derived`, `producer`, `effect`, and `mount` sugar.
+- Graph-owned `state`, `derived`, `producer`, and `effect` sugar;
+  `topology.mount(parent, child, path)` composes diagnostic graph views.
 - Glitch-free synchronous wave propagation; every node belongs to one graph,
   and `graph.batch(fn)` commits a group of writes as one wave.
 - Free-standing operator factories such as `map`, `filter`, `scan`,

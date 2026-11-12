@@ -121,7 +121,6 @@ export {
 	type StratifyRule,
 	stratify,
 	stratifyBranch,
-	topologyDiff,
 } from "./graph/composition.js";
 export type {
 	IndexChange,
@@ -232,7 +231,6 @@ export {
 	type TopologyGroupOptions,
 	type TopologyGroupReleaseOptions,
 } from "./graph/graph.js";
-export { topologyGroup } from "./graph/graph-topology-group.js";
 export {
 	concatMap,
 	exhaustMap,
@@ -390,7 +388,7 @@ export {
 	throttle,
 	timeout,
 } from "./graph/time.js";
-export { graphName, mountGraph } from "./graph/topology.js";
+export * as topology from "./graph/topology.js";
 export {
 	type WorkerDerivedBackend,
 	type WorkerDerivedCancel,

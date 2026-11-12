@@ -1,6 +1,6 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
 import { graph } from "../graph/index.js";
-import { mountGraph } from "../graph/topology.js";
+import * as topology from "../graph/topology.js";
 import { type BoundaryCapabilityRef, boundaryManifest } from "../inspection/boundary.js";
 
 describe("framework-neutral boundary projection", () => {
@@ -25,7 +25,7 @@ describe("framework-neutral boundary projection", () => {
 		const child = graph({ name: "child" });
 		const amount = child.state(1, { name: "amount" });
 		child.derived([amount], (value) => value! * 2, { name: "total" });
-		mountGraph(parent, child, { at: "child" });
+		topology.mount(parent, child, "child");
 
 		const manifest = boundaryManifest(parent);
 

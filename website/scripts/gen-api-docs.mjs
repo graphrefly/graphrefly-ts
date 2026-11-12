@@ -153,6 +153,14 @@ function collectExports(filePath) {
 			for (const [name, info] of exported) exports.set(name, info);
 			continue;
 		}
+		if (ts.isNamespaceExport(statement.exportClause)) {
+			const namespace = statement.exportClause.name.text;
+			for (const [name, info] of exported) {
+				const qualifiedName = `${namespace}.${name}`;
+				exports.set(qualifiedName, { ...info, name: qualifiedName, namespace });
+			}
+			continue;
+		}
 		if (!ts.isNamedExports(statement.exportClause)) continue;
 		for (const element of statement.exportClause.elements) {
 			const originalName = (element.propertyName ?? element.name).text;
@@ -446,6 +454,10 @@ function markdownEscapeTable(value) {
 }
 
 function signatureFor(info) {
+	if (info.namespace) {
+		const member = { ...info, name: info.name.slice(info.namespace.length + 1), namespace: undefined };
+		return `namespace ${info.namespace} {\n${signatureFor(member).split("\n").map((line) => `\t${line}`).join("\n")}\n}`;
+	}
 	if (info.kind === "class") return `class ${info.name}`;
 	const params = info.node.parameters.map((parameter) => parameter.getText(info.sourceFile));
 	if (params.length <= 1) {
@@ -476,7 +488,7 @@ function renderApiPage(info) {
 		"## Import",
 		"",
 		"```ts",
-		`import { ${info.name} } from "${info.importPath}";`,
+		`import { ${info.namespace ?? info.name} } from "${info.importPath}";`,
 		"```",
 		"",
 		"## Signature",
@@ -530,8 +542,12 @@ function renderApiPage(info) {
 	return `${lines.join("\n").replace(/\n{3,}/g, "\n\n").trimEnd()}\n`;
 }
 
+function baseSlugFor(info) {
+	return info.name.toLowerCase().replaceAll(".", "-");
+}
+
 function slugFor(info) {
-	return info.slug ?? info.name.toLowerCase();
+	return info.slug ?? baseSlugFor(info);
 }
 
 function fileNameFor(info) {
@@ -541,12 +557,12 @@ function fileNameFor(info) {
 function assignSlugs(symbols) {
 	const baseCounts = new Map();
 	for (const info of symbols) {
-		const base = info.name.toLowerCase();
+		const base = baseSlugFor(info);
 		baseCounts.set(base, (baseCounts.get(base) ?? 0) + 1);
 	}
 	const used = new Set();
 	for (const info of symbols) {
-		const base = info.name.toLowerCase();
+		const base = baseSlugFor(info);
 		let slug =
 			baseCounts.get(base) === 1 || (info.kind === "function" && !used.has(base))
 				? base

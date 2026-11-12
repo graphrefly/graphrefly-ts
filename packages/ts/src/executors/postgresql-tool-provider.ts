@@ -1,4 +1,4 @@
-import { topologyGroup } from "../graph/graph-topology-group.js";
+import * as topologyModule from "../graph/topology.js";
 /**
  * PostgreSQL-compatible read-only Layer C adapter (D602).
  *
@@ -427,7 +427,7 @@ export function postgresqlToolProviderRuntime(
 	const profileId = opts.profileId ?? `${providerId}:read-only:${opts.adapterVersion}`;
 	const limits = normalizedLimits(opts);
 	const catalog = postgresqlToolProviderCatalog(opts);
-	const topology = topologyGroup(graph, { name });
+	const topology = topologyModule.group(graph, { name });
 	const outcomes = topology.node<ExecutorOutcome<PostgresqlQueryToolResult>>([], null, {
 		name: `${name}/outcomes`,
 	});

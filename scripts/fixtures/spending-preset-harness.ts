@@ -1,4 +1,4 @@
-import { topologyGroup } from "../../packages/ts/src/graph/graph-topology-group.js";
+import * as topology from "../../packages/ts/src/graph/topology.js";
 /** Passive offline fixtures; explicitly no qualified host, writer, or effect dispatch. */
 
 import type {
@@ -294,7 +294,7 @@ export function presetRun(
 	const cleanup = () => {
 		disconnect();
 		for (const root of owner.roots) root.unsubscribe?.();
-		const group = topologyGroup(graph);
+		const group = topology.group(graph);
 		for (const n of graph.describe()) group.add(graph.find(n.id)!);
 		group.release();
 	};

@@ -30,7 +30,14 @@ const removedEcosystemSubpaths = [
 	"./adapters/vue",
 ];
 const expectedSubpaths = {
-	"./graph": { present: ["graphName", "mountGraph"], absent: [] },
+	".": {
+		present: ["topology"],
+		absent: ["graphName", "mountGraph", "topologyGroup", "topologyDiff"],
+	},
+	"./graph": {
+		present: ["topology"],
+		absent: ["graphName", "mountGraph", "topologyGroup", "topologyDiff"],
+	},
 	"./adapters": {
 		present: [
 			"CanonicalProtobufError",
@@ -680,21 +687,28 @@ ${Object.entries(expectedSubpaths)
 		const specifier = `@graphrefly/ts${subpath.slice(1)}`;
 		const presentChecks = present
 			.map((name) =>
-				name === "LOCAL_CONTAINER_POSTGRESQL_COMPATIBILITY"
-					? `assert(mod[${JSON.stringify(name)}] === "graphrefly-local-container-postgresql-v1", ${JSON.stringify(`${specifier}.${name}`)});`
-					: name === "MANAGED_CLOUD_POSTGRESQL_COMPATIBILITY"
-						? `assert(mod[${JSON.stringify(name)}] === "graphrefly-managed-cloud-postgresql-v2", ${JSON.stringify(`${specifier}.${name}`)});`
-						: name === "MANAGED_CLOUD_POSTGRESQL_DEPLOYMENT_PROFILE"
-							? `assert(mod[${JSON.stringify(name)}] === "control-plane-managed-kubernetes", ${JSON.stringify(`${specifier}.${name}`)});`
-							: name === "CUSTOMER_HOSTED_POSTGRESQL_COMPATIBILITY"
-								? `assert(mod[${JSON.stringify(name)}] === "customer-hosted-postgresql-v1", ${JSON.stringify(`${specifier}.${name}`)});`
-								: name === "POSTGRESQL_RUN_OPERATIONS_COMPATIBILITY"
-									? `assert(mod[${JSON.stringify(name)}] === "postgresql-run-operations-v1", ${JSON.stringify(`${specifier}.${name}`)});`
-									: name === "SHARED_CONTROL_PANEL_AUTHORITY_COMPATIBILITY"
-										? `assert(mod[${JSON.stringify(name)}] === "shared-control-panel-authority-v1", ${JSON.stringify(`${specifier}.${name}`)});`
-										: name === "PRODUCTION_EVALUATION_AUTHORITY_COMPATIBILITY"
-											? `assert(mod[${JSON.stringify(name)}] === "production-evaluation-authority-v1", ${JSON.stringify(`${specifier}.${name}`)});`
-											: `assert(typeof mod[${JSON.stringify(name)}] === "function", ${JSON.stringify(`${specifier}.${name}`)});`,
+				name === "topology"
+					? ["name", "mount", "group", "diff"]
+							.map(
+								(member) =>
+									`assert(typeof mod.topology[${JSON.stringify(member)}] === "function", ${JSON.stringify(`${specifier}.topology`)});`,
+							)
+							.join("\n")
+					: name === "LOCAL_CONTAINER_POSTGRESQL_COMPATIBILITY"
+						? `assert(mod[${JSON.stringify(name)}] === "graphrefly-local-container-postgresql-v1", ${JSON.stringify(`${specifier}.${name}`)});`
+						: name === "MANAGED_CLOUD_POSTGRESQL_COMPATIBILITY"
+							? `assert(mod[${JSON.stringify(name)}] === "graphrefly-managed-cloud-postgresql-v2", ${JSON.stringify(`${specifier}.${name}`)});`
+							: name === "MANAGED_CLOUD_POSTGRESQL_DEPLOYMENT_PROFILE"
+								? `assert(mod[${JSON.stringify(name)}] === "control-plane-managed-kubernetes", ${JSON.stringify(`${specifier}.${name}`)});`
+								: name === "CUSTOMER_HOSTED_POSTGRESQL_COMPATIBILITY"
+									? `assert(mod[${JSON.stringify(name)}] === "customer-hosted-postgresql-v1", ${JSON.stringify(`${specifier}.${name}`)});`
+									: name === "POSTGRESQL_RUN_OPERATIONS_COMPATIBILITY"
+										? `assert(mod[${JSON.stringify(name)}] === "postgresql-run-operations-v1", ${JSON.stringify(`${specifier}.${name}`)});`
+										: name === "SHARED_CONTROL_PANEL_AUTHORITY_COMPATIBILITY"
+											? `assert(mod[${JSON.stringify(name)}] === "shared-control-panel-authority-v1", ${JSON.stringify(`${specifier}.${name}`)});`
+											: name === "PRODUCTION_EVALUATION_AUTHORITY_COMPATIBILITY"
+												? `assert(mod[${JSON.stringify(name)}] === "production-evaluation-authority-v1", ${JSON.stringify(`${specifier}.${name}`)});`
+												: `assert(typeof mod[${JSON.stringify(name)}] === "function", ${JSON.stringify(`${specifier}.${name}`)});`,
 			)
 			.join("\n");
 		const absentChecks = absent
@@ -1140,7 +1154,12 @@ void protobufBundle;
 	`,
 	);
 	const rootForbiddenExports = [
-		...new Set([...rootAbsentExports, ...rootAbsentTypeExports, ...rateLimitPublicExports]),
+		...new Set([
+			...rootAbsentExports,
+			...rootAbsentTypeExports,
+			...rateLimitPublicExports,
+			...expectedSubpaths["."].absent,
+		]),
 	];
 	const rootForbiddenNames = rootForbiddenExports.join(", ");
 	writeFileSync(
@@ -1165,6 +1184,24 @@ void protobufBundle;
 	);
 
 	writeFileSync(
+		join(tmp, "topology-types.mts"),
+		`import { graph, renderSnapshot, topology } from "@graphrefly/ts";
+import { topology as graphTopology } from "@graphrefly/ts/graph";
+const parent = graph({ name: "parent" });
+const child = graph();
+for (const api of [topology, graphTopology]) {
+  const name: string | undefined = api.name(parent);
+  api.mount(parent, child, "child");
+  api.group(child).state(1);
+  api.diff(renderSnapshot(parent), renderSnapshot(parent));
+  // @ts-expect-error The removed options object must not remain callable.
+  api.mount(parent, child, { at: "child" });
+  void name;
+}
+`,
+	);
+
+	writeFileSync(
 		join(tmp, "tsconfig.json"),
 		JSON.stringify(
 			{
@@ -1176,7 +1213,7 @@ void protobufBundle;
 					noEmit: true,
 					skipLibCheck: true,
 				},
-				include: ["types-smoke.mts"],
+				include: ["types-smoke.mts", "topology-types.mts"],
 			},
 			null,
 			"\t",

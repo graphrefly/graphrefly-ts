@@ -18,10 +18,10 @@ import {
 	postgresqlToolProviderRuntime,
 } from "../executors/postgresql-tool-provider.js";
 import { graphTopology } from "../graph/blueprint.js";
-import { topologyDiff } from "../graph/composition.js";
 import { graph } from "../graph/graph.js";
 import { renderSnapshot } from "../graph/render.js";
 import { compoundTupleKey } from "../identity.js";
+import { topology } from "../index.js";
 import {
 	type ToolProviderAdapterInput,
 	type ToolProviderAdapterRunRequested,
@@ -267,7 +267,7 @@ describe("execution environment targeting and local host gate (D603)", () => {
 			now: () => 200,
 		});
 		const after = renderSnapshot(g);
-		const delta = topologyDiff(before, after).events;
+		const delta = topology.diff(before, after).events;
 		expect(delta.filter((event) => event.type === "node-added")).toHaveLength(5);
 		expect(delta.filter((event) => event.type === "edge-added")).toHaveLength(8);
 		expect(

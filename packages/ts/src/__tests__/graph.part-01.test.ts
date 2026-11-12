@@ -1,7 +1,7 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
 import { graphBlueprint, graphTopology } from "../graph/blueprint.js";
 import { renderSnapshot } from "../graph/render.js";
-import { mountGraph } from "../graph/topology.js";
+import * as topologyModule from "../graph/topology.js";
 
 import type {
 	GraphBlueprintJson,
@@ -128,7 +128,7 @@ describe("renderSnapshot — snapshot shape (D39)", () => {
 		parent.state(0, { name: "root" });
 		const child = graph({ name: "c" });
 		child.state(1, { name: "leaf" });
-		mountGraph(parent, child, { at: "sub" });
+		topologyModule.mount(parent, child, "sub");
 
 		const snap = renderSnapshot(parent);
 		expect(snap.subgraphs?.[0].mountId).toBe("sub");
@@ -137,9 +137,9 @@ describe("renderSnapshot — snapshot shape (D39)", () => {
 
 	it("rejects empty and duplicate sibling mount identities (D630)", () => {
 		const parent = graph();
-		expect(() => mountGraph(parent, graph(), { at: "" })).toThrow(/non-empty string/);
-		mountGraph(parent, graph(), { at: "child" });
-		expect(() => mountGraph(parent, graph(), { at: "child" })).toThrow(
+		expect(() => topologyModule.mount(parent, graph(), "")).toThrow(/non-empty string/);
+		topologyModule.mount(parent, graph(), "child");
+		expect(() => topologyModule.mount(parent, graph(), "child")).toThrow(
 			/duplicate sibling mount id/,
 		);
 	});
@@ -197,7 +197,7 @@ describe("graphTopology — pure structure snapshot (D173)", () => {
 		const parent = graph({ name: "parent" });
 		const child = graph({ name: "child" });
 		child.state(1, { name: "leaf" });
-		mountGraph(parent, child, { at: "sub" });
+		topologyModule.mount(parent, child, "sub");
 
 		const topology = graphTopology(parent);
 		expect(topology.subgraphs?.[0]?.mountId).toBe("sub");
@@ -238,7 +238,7 @@ describe("graphBlueprint — sync audit envelope (D173/D177)", () => {
 		const doubled = parent.derived([count], (n) => n! * 2, { name: "doubled" });
 		const child = graph({ name: "child" });
 		child.state(1, { name: "leaf" });
-		mountGraph(parent, child, { at: "sub" });
+		topologyModule.mount(parent, child, "sub");
 		collect(doubled);
 		count.set(5);
 

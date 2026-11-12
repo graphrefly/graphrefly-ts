@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { pathToFileURL } from "node:url";
 import { graphTopology } from "../../packages/ts/src/graph/blueprint.js";
 import { Graph } from "../../packages/ts/src/graph/graph.js";
-import { topologyGroup } from "../../packages/ts/src/graph/graph-topology-group.js";
+import * as topologyModule from "../../packages/ts/src/graph/topology.js";
 import {
 	evaluationFixture,
 	evaluationPack,
@@ -318,7 +318,7 @@ export async function runGradedSpendingDemo() {
 		// Deterministic test/example cleanup, not a newly introduced public lifecycle method.
 		for (const instance of [app, appB])
 			for (const lease of instance?.owner.roots ?? []) lease.unsubscribe?.();
-		const group = topologyGroup(graph);
+		const group = topologyModule.group(graph);
 		for (const node of graph.describe()) group.add(graph.find(node.id)!);
 		group.release();
 	}

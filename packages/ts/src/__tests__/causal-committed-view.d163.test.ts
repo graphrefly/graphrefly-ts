@@ -5,8 +5,8 @@ import {
 	startConstruction,
 } from "../graph/construction-scope.js";
 import { Graph } from "../graph/graph.js";
-import { topologyGroup } from "../graph/graph-topology-group.js";
 import { renderSnapshot } from "../graph/render.js";
+import * as topology from "../graph/topology.js";
 import type { Node } from "../node/node.js";
 import { checkpointStateOfNode } from "../node/runtime-accessors.js";
 import type { CausalBinding } from "../solutions/causal-occurrence/capabilities.js";
@@ -39,7 +39,7 @@ afterEach(() => {
 	for (const stop of stops.splice(0)) stop();
 	for (const graph of graphs.splice(0)) {
 		for (const lease of constructionOf(graph, "run")?.roots ?? []) lease.unsubscribe?.();
-		const group = topologyGroup(graph);
+		const group = topology.group(graph);
 		for (const n of renderSnapshot(graph).nodes) group.add(graph.find(n.id)!);
 		group.release();
 		expect(renderSnapshot(graph).nodes).toHaveLength(0);

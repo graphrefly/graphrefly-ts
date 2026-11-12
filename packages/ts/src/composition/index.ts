@@ -8,5 +8,4 @@ export {
 	type StratifyRule,
 	stratify,
 	stratifyBranch,
-	topologyDiff,
 } from "../graph/composition.js";

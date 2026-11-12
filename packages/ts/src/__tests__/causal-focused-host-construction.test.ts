@@ -20,8 +20,8 @@ import {
 import { oracleRequest } from "../../../../scripts/fixtures/spending-preset-oracle.js";
 import { ColdConstructionError } from "../graph/construction-scope.js";
 import { Graph } from "../graph/graph.js";
-import { topologyGroup } from "../graph/graph-topology-group.js";
 import { renderSnapshot } from "../graph/render.js";
+import * as topologyModule from "../graph/topology.js";
 
 function fixture(create: typeof composeOfflineSpending, diagnostics: "off" | "summary") {
 	const graph = new Graph({ name: "same-construction" });
@@ -39,7 +39,7 @@ function fixture(create: typeof composeOfflineSpending, diagnostics: "off" | "su
 	);
 	const teardown = () => {
 		for (const root of host.owner.roots) root.unsubscribe?.();
-		const group = topologyGroup(graph);
+		const group = topologyModule.group(graph);
 		for (const n of renderSnapshot(graph).nodes) group.add(graph.find(n.id)!);
 		group.release();
 	};
@@ -170,7 +170,7 @@ it("explicit afterStart cannot schedule duplicate startup notifications", async 
 		expect(host.inspect().notifications).toBe(before);
 	} finally {
 		for (const root of host.owner.roots) root.unsubscribe?.();
-		const group = topologyGroup(graph);
+		const group = topologyModule.group(graph);
 		for (const n of renderSnapshot(graph).nodes) group.add(graph.find(n.id)!);
 		group.release();
 	}

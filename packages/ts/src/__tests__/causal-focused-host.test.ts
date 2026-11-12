@@ -16,8 +16,8 @@ import {
 } from "../../../../scripts/fixtures/spending-preset-harness.js";
 import { oracleRequest } from "../../../../scripts/fixtures/spending-preset-oracle.js";
 import { Graph } from "../graph/graph.js";
-import { topologyGroup } from "../graph/graph-topology-group.js";
 import { renderSnapshot } from "../graph/render.js";
+import * as topology from "../graph/topology.js";
 
 for (const mode of ["off", "summary"] as const) {
 	it(`real host closes exact authority obligation and replays without another call (${mode})`, async () => {
@@ -198,7 +198,7 @@ it("one resource epoch cannot belong to two compositions", async () => {
 		expect(renderSnapshot(secondGraph)).toEqual(before);
 	} finally {
 		for (const root of first.owner.roots) root.unsubscribe?.();
-		const group = topologyGroup(graph);
+		const group = topology.group(graph);
 		for (const node of renderSnapshot(graph).nodes) group.add(graph.find(node.id)!);
 		group.release();
 	}
@@ -226,7 +226,7 @@ it("failed cold construction releases only its untransferred resource claim", as
 		expect(retried.inspect().fault).toBeUndefined();
 	} finally {
 		for (const root of retried.owner.roots) root.unsubscribe?.();
-		const group = topologyGroup(retryGraph);
+		const group = topology.group(retryGraph);
 		for (const node of renderSnapshot(retryGraph).nodes) group.add(retryGraph.find(node.id)!);
 		group.release();
 	}

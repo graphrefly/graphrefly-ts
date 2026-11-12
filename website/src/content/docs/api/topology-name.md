@@ -1,5 +1,5 @@
 ---
-title: "graphName()"
+title: "topology.name()"
 description: "Read the graph name supplied at construction, from its existing registrar."
 ---
 
@@ -10,38 +10,33 @@ Read the graph name supplied at construction, from its existing registrar.
 ## Import
 
 ```ts
-import { graphName } from "@graphrefly/ts/graph";
+import { topology } from "@graphrefly/ts/graph";
 ```
 
 ## Signature
 
 ```ts
-function graphName(graph: Graph): string | undefined
+namespace topology {
+	function name(graph: Graph): string | undefined
+}
 ```
 
 ## Parameters
 
 | Parameter | Type | Description |
 |---|---|---|
-| `graph` | `Graph` | Missing @param graph JSDoc. |
+| `graph` | `Graph` | Graph whose construction name is read. |
 
 ## Returns
 
-`string | undefined`
+The optional graph name.
 
 ## Example
 
 ```ts
 const g = graph({ name: "orders" });
-graphName(g); // "orders"
+topology.name(g); // "orders"
 ```
-
-## Documentation Status
-
-This page was generated from source JSDoc, but the structured API tags are incomplete:
-
-- Missing `@returns`.
-- Missing `@param graph`.
 
 ## Source
 

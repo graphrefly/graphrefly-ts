@@ -1149,10 +1149,10 @@ class GraphRegistration implements GraphLifecycleRegistrar {
 	/** Embed a child graph addressable under `at`; mount is this package's own (R-graph-surface). */
 	mount(child: Graph, opts: { at: string }): void {
 		if (typeof opts.at !== "string" || opts.at.length === 0) {
-			throw new TypeError("mountGraph: at must be a non-empty string");
+			throw new TypeError("topology.mount: at must be a non-empty string");
 		}
 		if (this.host._mounts.some((mounted) => mounted.at === opts.at)) {
-			throw new Error(`mountGraph: duplicate sibling mount id '${opts.at}'`);
+			throw new Error(`topology.mount: duplicate sibling mount id '${opts.at}'`);
 		}
 		const mount = { at: opts.at, graph: child };
 		this.host._mounts.push(mount);

@@ -103,10 +103,6 @@ export const apiSidebar = [
 				"link": "/api/domwebsocketdriver"
 			},
 			{
-				"label": "topologyGroup()",
-				"link": "/api/topologygroup"
-			},
-			{
 				"label": "Graph",
 				"link": "/api/graph-class"
 			},
@@ -179,12 +175,20 @@ export const apiSidebar = [
 				"link": "/api/restoregraph"
 			},
 			{
-				"label": "graphName()",
-				"link": "/api/graphname"
+				"label": "topology.name()",
+				"link": "/api/topology-name"
 			},
 			{
-				"label": "mountGraph()",
-				"link": "/api/mountgraph"
+				"label": "topology.mount()",
+				"link": "/api/topology-mount"
+			},
+			{
+				"label": "topology.group()",
+				"link": "/api/topology-group"
+			},
+			{
+				"label": "topology.diff()",
+				"link": "/api/topology-diff"
 			},
 			{
 				"label": "workerDerived()",
@@ -1042,10 +1046,6 @@ export const apiSidebar = [
 		"label": "Composition",
 		"collapsed": true,
 		"items": [
-			{
-				"label": "topologyDiff()",
-				"link": "/api/topologydiff"
-			},
 			{
 				"label": "stratifyBranch()",
 				"link": "/api/stratifybranch"

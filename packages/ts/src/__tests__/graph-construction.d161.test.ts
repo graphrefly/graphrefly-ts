@@ -8,9 +8,9 @@ import {
 	startConstruction,
 } from "../graph/construction-scope.js";
 import { Graph, type GraphOptions } from "../graph/graph.js";
-import { topologyGroup } from "../graph/graph-topology-group.js";
 import { observeTopology } from "../graph/inspect.js";
 import { renderSnapshot } from "../graph/render.js";
+import * as topology from "../graph/topology.js";
 import { NodeCore, type NodeId } from "../node/core.js";
 import type { StateNode } from "../node/node.js";
 import * as inputRuntime from "../node/node-input-runtime.js";
@@ -195,7 +195,7 @@ describe("D161 graph construction ownership", () => {
 		expect(constructionOf(f.graph, "causal")).toBeUndefined();
 		// Only the fixture's input nodes remain: eight lanes plus the watermark's host input.
 		expect(renderSnapshot(f.graph).nodes).toHaveLength(9);
-		const group = topologyGroup(f.graph);
+		const group = topology.group(f.graph);
 		for (const node of renderSnapshot(f.graph).nodes) group.add(f.graph.find(node.id)!);
 		group.release();
 	});
@@ -232,7 +232,7 @@ describe("D161 graph construction ownership", () => {
 			expect(() =>
 				prepareConstruction(g, { name: "bad", epoch: 1, names: ["bad/startup"], inputs: [input] }),
 			).toThrow();
-		const retired = topologyGroup(g);
+		const retired = topology.group(g);
 		retired.node([], null, { name: "retired" });
 		retired.release();
 		expect(() =>
@@ -697,10 +697,10 @@ describe("D161 graph construction ownership", () => {
 		vi.spyOn(f.dispatcher, "unregister").mockImplementationOnce(() => {
 			throw new Error("residual handle");
 		});
-		const group = topologyGroup(f.graph);
+		const group = topology.group(f.graph);
 		for (const node of owner.nodes) group.add(node);
 		expect(() => group.release()).toThrow(/residual/);
-		topologyGroup(f.graph).release();
+		topology.group(f.graph).release();
 		expect(constructionOf(f.graph, "view")).toBe(owner);
 	});
 
@@ -771,7 +771,7 @@ describe("D161 graph construction ownership", () => {
 			expect(subscriberCountOfNode(source)).toBe(2);
 			// This non-causal view has no business obligations and is explicitly ended by its owner.
 			for (const lease of owner.roots) lease.unsubscribe?.();
-			const group = topologyGroup(g);
+			const group = topology.group(g);
 			for (const node of owner.nodes) group.add(node);
 			group.release();
 			expect(constructionOf(g, name)).toBeUndefined();

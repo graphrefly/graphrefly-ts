@@ -8,7 +8,7 @@ import {
 	startConstruction,
 } from "../../packages/ts/src/graph/construction-scope.js";
 import { Graph } from "../../packages/ts/src/graph/graph.js";
-import { topologyGroup } from "../../packages/ts/src/graph/graph-topology-group.js";
+import * as topology from "../../packages/ts/src/graph/topology.js";
 import type { Node } from "../../packages/ts/src/node/node.js";
 import { nodeDown } from "../../packages/ts/src/node/node-output-runtime.js";
 import { checkpointStateOfNode } from "../../packages/ts/src/node/runtime-accessors.js";
@@ -174,11 +174,11 @@ export function publicationRun(
 		try {
 			scope.abort(error);
 		} catch {
-			const group = topologyGroup(graph);
+			const group = topology.group(graph);
 			for (const n of graph.describe()) group.add(graph.find(n.id)!);
 			group.release();
 			if (foreign) {
-				const group = topologyGroup(foreign);
+				const group = topology.group(foreign);
 				for (const n of foreign.describe()) group.add(foreign.find(n.id)!);
 				group.release();
 			}
@@ -258,7 +258,7 @@ export function publicationRun(
 	const close = () => {
 		disconnect();
 		for (const r of owner.roots) r.unsubscribe?.();
-		const group = topologyGroup(graph);
+		const group = topology.group(graph);
 		for (const n of graph.describe()) group.add(graph.find(n.id)!);
 		group.release();
 		assert.equal(graph.describe().length, 0);

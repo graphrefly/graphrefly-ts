@@ -1,7 +1,7 @@
 /** Focused ClickHouse trusted-query production-evaluation contracts and runtime glue (D628). */
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
-import { topologyGroup } from "../graph/graph-topology-group.js";
+import * as topologyModule from "../graph/topology.js";
 import { canonicalTupleKey, compoundTupleKey } from "../identity.js";
 import type { Node } from "../node/node.js";
 import type {
@@ -754,7 +754,7 @@ export function clickHouseTrustedQueryRuntime(
 	if (!publicToken(name))
 		throw new TypeError("clickhouse-trusted-query-runtime-name-invalid-or-private-material");
 	const timeoutMs = positiveInteger(opts.timeoutMs, 30_000);
-	const topology = topologyGroup(graph, { name });
+	const topology = topologyModule.group(graph, { name });
 	const outcomes = topology.node<ExecutorOutcome<ClickHouseTrustedQueryHostSettlement>>([], null, {
 		name: `${name}/outcomes`,
 	});

@@ -1,7 +1,7 @@
 /** Concrete, host-injected local-container PostgreSQL binding (D604). */
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
-import { topologyGroup } from "../graph/graph-topology-group.js";
+import * as topology from "../graph/topology.js";
 import { canonicalTupleKey } from "../identity.js";
 import type { Node } from "../node/node.js";
 import type {
@@ -930,7 +930,7 @@ export function localContainerPostgresqlRuntime(
 	if (opts.driver.compatibility !== LOCAL_CONTAINER_POSTGRESQL_COMPATIBILITY)
 		throw new TypeError("Incompatible local-container driver.");
 	const name = opts.name ?? "localContainerPostgresqlRuntime";
-	const group = topologyGroup(graph, { name });
+	const group = topology.group(graph, { name });
 	const node = <T>(suffix: string) => group.node<T>([], null, { name: `${name}/${suffix}` });
 	const admittedRunRequests = node<ToolProviderAdapterRunRequested>("admittedRunRequests");
 	const runStatus = node<ToolProviderAdapterRunStatus>("runStatus");

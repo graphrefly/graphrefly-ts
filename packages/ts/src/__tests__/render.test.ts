@@ -1,5 +1,5 @@
 import { renderSnapshot } from "../graph/render.js";
-import { mountGraph } from "../graph/topology.js";
+import * as topology from "../graph/topology.js";
 /**
  * CSP-2.8 render first-cut (D39/D40): pure functions over RenderSnapshot.
  */
@@ -40,7 +40,7 @@ describe("inspect renderers (D39/D40)", () => {
 		const child = graph();
 		const leaf = child.state("ready", { name: 'leaf "quoted"' });
 		leaf.subscribe(() => {});
-		mountGraph(parent, child, { at: "child" });
+		topology.mount(parent, child, "child");
 
 		expect(renderToMermaid(renderSnapshot(parent), { direction: "TD" })).toBe(
 			[

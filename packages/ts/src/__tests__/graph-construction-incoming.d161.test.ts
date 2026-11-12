@@ -4,7 +4,7 @@ import { Graph, releaseGraphNodes } from "../graph/graph.js";
 import type { TopologyEvent } from "../graph/inspect.js";
 import { observeTopology } from "../graph/inspect.js";
 import { renderSnapshot } from "../graph/render.js";
-import { mountGraph } from "../graph/topology.js";
+import * as topology from "../graph/topology.js";
 import type { NodeCore } from "../node/core.js";
 import { Node, withNodeCore } from "../node/node.js";
 import { releaseRuntimeOfNode } from "../node/runtime-accessors.js";
@@ -90,7 +90,7 @@ describe("D161 B1 incoming inspection", () => {
 			vi.spyOn(u, "deps", "get").mockReturnValue([w, v]);
 			inspected.node([u, v, u], relayFirst, { name: "background" });
 			inspected.node([], null, { name: "~hidden#0" });
-			if (mount) mountGraph(f.g, inspected, { at: "child" });
+			if (mount) topology.mount(f.g, inspected, "child");
 			renderSnapshot(f.g);
 			if (local) f.scope.readIncoming();
 			const events: TopologyEvent[] = [];

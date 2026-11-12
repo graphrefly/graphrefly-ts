@@ -6,7 +6,7 @@
 import { afterEach, describe, expect, expectTypeOf, it, vi } from "vitest";
 import type { Ctx, NodeFn } from "../ctx/types.js";
 import { renderSnapshot } from "../graph/render.js";
-import { mountGraph } from "../graph/topology.js";
+import * as topology from "../graph/topology.js";
 import type {
 	GraphRecipeFactory,
 	GraphRestoreRegistry,
@@ -627,7 +627,7 @@ describe("checkpoint and restore: ported cases (TS layout, graphrefly-ts:D178)",
 		parent.state(1, { name: "root" });
 		const child = graph({ name: "child" });
 		child.state(2, { name: "leaf" });
-		mountGraph(parent, child, { at: "child" });
+		topology.mount(parent, child, "child");
 		const checkpoint = parent.checkpoint();
 		expect(checkpoint.mounts?.[0].checkpoint.nodes.map((n) => n.id)).toEqual(["leaf"]);
 		const restored = restoreGraph(checkpoint, { registry: defaultRestoreRegistry });
@@ -664,7 +664,7 @@ describe("checkpoint and restore: ported cases (TS layout, graphrefly-ts:D178)",
 		const parent = graph();
 		const child = graph();
 		child.state(1, { name: "leaf" });
-		mountGraph(parent, child, { at: "child" });
+		topology.mount(parent, child, "child");
 		const badMount = parent.checkpoint();
 		if (badMount.mounts) badMount.mounts[0].checkpoint.nodes[0].id = "child::leaf";
 		expect(() => restoreGraph(badMount, { registry: defaultRestoreRegistry })).toThrow(

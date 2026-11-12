@@ -3,8 +3,8 @@ import { readFile } from "node:fs/promises";
 import { createContext, Script, SourceTextModule } from "node:vm";
 import { graphTopology } from "../../src/graph/blueprint.js";
 import { graph } from "../../src/graph/graph.js";
-import { topologyGroup } from "../../src/graph/graph-topology-group.js";
 import { renderSnapshot } from "../../src/graph/render.js";
+import * as topologyModule from "../../src/graph/topology.js";
 import { strictCanonicalJsonBytes } from "../../src/json/codec.js";
 import type { Node } from "../../src/node/node.js";
 
@@ -447,7 +447,7 @@ function materializeResult(
 ): Record<string, unknown> {
 	const { plan } = evaluated;
 	const runtimeGraph = graph({ name: plan.graphName });
-	const group = topologyGroup(runtimeGraph, { name: "local-untrusted-js-runner" });
+	const group = topologyModule.group(runtimeGraph, { name: "local-untrusted-js-runner" });
 	const nodes = new Map<string, Node<unknown>>();
 	const releases: Array<() => void> = [];
 	let result: Record<string, unknown> | undefined;

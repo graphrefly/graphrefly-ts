@@ -4,8 +4,8 @@ import { afterEach, describe, expect, it } from "vitest";
 import type { DataIssue, DataResult } from "../data/index.js";
 import { constructionOf } from "../graph/construction-scope.js";
 import { Graph } from "../graph/graph.js";
-import { topologyGroup } from "../graph/graph-topology-group.js";
 import { renderSnapshot } from "../graph/render.js";
+import * as topology from "../graph/topology.js";
 import { stableJsonString } from "../json/codec.js";
 import type { Node } from "../node/node.js";
 import type { Message, Wave } from "../protocol/messages.js";
@@ -104,7 +104,7 @@ function fixture(
 		for (const release of owner.retainedStops.splice(0)) release();
 		// Test-owned teardown, never a production lifecycle settlement policy.
 		for (const root of constructionOf(owner, "causal")?.roots ?? []) root.unsubscribe?.();
-		const group = topologyGroup(owner, { name: "causal fixture cleanup" });
+		const group = topology.group(owner, { name: "causal fixture cleanup" });
 		for (const entry of renderSnapshot(owner).nodes) group.add(owner.find(entry.id)!);
 		group.release();
 		cleanups.delete(stop);
