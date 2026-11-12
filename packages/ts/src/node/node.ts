@@ -21,7 +21,6 @@ import {
 	request,
 	stagedBatchWave,
 } from "../batch/batch.js";
-import { enterWave, exitWave } from "../batch/boundary.js";
 import type { Ctx, CtxState, DeliveryMeta, NodeFn, Sink } from "../ctx/types.js";
 import { defaultDispatcher, type Handle } from "../dispatcher/index.js";
 import { EnvironmentDrivers } from "../graph/environment.js";
@@ -64,10 +63,11 @@ import {
 	nodeSeedRestoredDepAt,
 	nodeStatus,
 	nodeSubscribeDepAt,
+	nodeSubscribeOwned,
 	nodeSubscriberCount,
+	setPlainSubscribeOwned,
 } from "./node-lifecycle-runtime.js";
 import {
-	nodeCallSink,
 	nodeDown,
 	nodeMarkDependents,
 	nodePublish,
@@ -143,6 +143,7 @@ export class Node<T = unknown> {
 	private readonly _value: ValueState<T>;
 	// biome-ignore lint/correctness/noUnusedPrivateClassMembers: accessed through the checked internal runtime host.
 	private readonly _wave: WaveState;
+	// biome-ignore lint/correctness/noUnusedPrivateClassMembers: accessed through the checked internal runtime host.
 	private readonly _lifecycle: LifecycleState;
 	// biome-ignore lint/correctness/noUnusedPrivateClassMembers: used by the issued runtime host.
 	private readonly _privateState: PrivateState;
@@ -157,6 +158,12 @@ export class Node<T = unknown> {
 	// biome-ignore lint/correctness/noUnusedPrivateClassMembers: accessed through the checked internal runtime host.
 	private set _syncCtx(ctx: Ctx | null) {
 		this._syncCtxState.value = ctx;
+	}
+
+	static {
+		// graphrefly-ts Q15: the activation loop subscribes a dependency on its own stack when the
+		// dependency's subscription method is this one, and through the method otherwise.
+		setPlainSubscribeOwned(Node.prototype._subscribeOwned);
 	}
 
 	private static _retainIndirectRuntimeMethods(node: Node<unknown>): void {
@@ -357,59 +364,9 @@ export class Node<T = unknown> {
 		subscriber: Subscriber,
 		acquisition?: SubscriptionAcquisition,
 	): () => void {
-		this._assertNotReleased("subscribe");
-		// Wave-owner boundary (R-rewire-deferred / D47): the activation cascade can run fns that
-		// issue ctx.rewire; the OUTERMOST exit drains them. Nested subscribes (dep wiring)
-		// just inc/dec the depth.
-		enterWave(this._core);
-		try {
-			let left = false;
-			const unsubscribe = () => {
-				if (left) return;
-				left = true;
-				this._lifecycle.subscribers.delete(subscriber);
-				if (this._lifecycle.subscribers.size === 0) this._deactivate();
-			};
-			// D161: ownership precedes dependency activation, START and the snapshot.
-			acquisition?.record(unsubscribe);
-			// R-subscription / R-lifetime: subscribing activates an inactive node first, so the first
-			// array is START plus the snapshot as the activation left it; arrays the activation sent
-			// before this subscriber joined are not delivered to it separately. An ended node's
-			// function never runs again.
-			if (!this._lifecycle.activated && this._value.terminal === undefined) this._activate();
-			this._lifecycle.subscribers.add(subscriber);
-			const terminal = this._value.terminal;
-			const start: Message[] = [
-				["START"],
-				...this._value.lastArray.map((v) => ["DATA", v] as Message),
-				...(terminal === undefined
-					? []
-					: [(terminal === true ? ["COMPLETE"] : ["ERROR", terminal]) as Message]),
-			];
-			if (subscriber.kind === "sink") {
-				nodeCallSink(nodeRuntimeHost(this), subscriber, start);
-			} else {
-				// A new dependent receives the snapshot as one input array, not a live wave. A
-				// dependent whose handshake throws is not subscribed, unless an owned acquisition
-				// records the lease for its owner to release (D161).
-				const wave = {};
-				try {
-					for (let i = 0; i < start.length; i++)
-						subscriber.fn(start[i] as Message, {
-							wave,
-							last: i === start.length - 1,
-							snapshot: true,
-						});
-				} catch (e) {
-					if (acquisition === undefined) unsubscribe();
-					throw e;
-				}
-			}
-
-			return unsubscribe;
-		} finally {
-			exitWave(this._core);
-		}
+		// graphrefly-ts Q15: activation runs on an explicit stack (nodeSubscribeOwned), so a chain of
+		// any depth subscribes without JS recursion.
+		return nodeSubscribeOwned(nodeRuntimeHost(this), subscriber, acquisition);
 	}
 
 	/**
@@ -514,10 +471,12 @@ export class Node<T = unknown> {
 
 	// ── activation / deactivation (lazy; R-rom-ram) ──
 
+	// biome-ignore lint/correctness/noUnusedPrivateClassMembers: accessed through the checked internal runtime host.
 	private _activate(): void {
 		nodeActivate(nodeRuntimeHost(this));
 	}
 
+	// biome-ignore lint/correctness/noUnusedPrivateClassMembers: accessed through the checked internal runtime host.
 	private _deactivate(): void {
 		nodeDeactivate(nodeRuntimeHost(this));
 	}

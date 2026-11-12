@@ -3,7 +3,14 @@ import type { Handle } from "../dispatcher/index.js";
 import type { Message } from "../protocol/messages.js";
 import { errorPayload, isTerminal, SENTINEL } from "../protocol/messages.js";
 import { nodeDeferQuietOutput } from "./node-context-runtime.js";
-import { isMarking } from "./node-output-runtime.js";
+import {
+	isMarking,
+	nodeMarkDependents,
+	nodePublishTail,
+	TAIL_DELIVERY,
+	TAIL_MARK,
+	takeTailCall,
+} from "./node-output-runtime.js";
 import type { NodeRuntimeHost } from "./node-runtime-host.js";
 import { withRunningGraph } from "./runtime-accessors.js";
 
@@ -28,6 +35,8 @@ export function nodeReceiveFromDep<T>(
 	msg: Message,
 	delivery?: DeliveryMeta,
 ): void {
+	// Q15: a call straight from a delivery or marking loop continues that loop instead of recursing.
+	const tail = takeTailCall();
 	if (self._released) return;
 	const t = msg[0];
 	if (t === "START") {
@@ -52,7 +61,7 @@ export function nodeReceiveFromDep<T>(
 			self._dep.dirty[idx] = true;
 			self._wave.pending++;
 			self._dep.tier[idx] = 2;
-			self._markDirty();
+			nodeMarkDirty(self, tail === TAIL_MARK);
 		}
 		return;
 	}
@@ -91,10 +100,10 @@ export function nodeReceiveFromDep<T>(
 		self._wave.pending--;
 	}
 	// A delivery is all of a node's arrays for the wave; the node settles once, at its end.
-	if (last) self._maybeRun();
+	if (last) nodeMaybeRun(self, tail === TAIL_DELIVERY);
 }
 
-export function nodeMarkDirty<T>(self: NodeRuntimeHost<T>): void {
+export function nodeMarkDirty<T>(self: NodeRuntimeHost<T>, tail = false): void {
 	// R-wave: a quiet node consumes its input waves without being marked pending or sending
 	// anything, so its dependents never wait for it and its status never turns "dirty"; what its
 	// function sends goes out after the current wave as a new wave of its own (the quiet branch
@@ -102,11 +111,11 @@ export function nodeMarkDirty<T>(self: NodeRuntimeHost<T>): void {
 	if (self._slot.quiet) return;
 	if (!self._wave.emittedDirtyThisWave) {
 		self._wave.emittedDirtyThisWave = true;
-		self._markDependents();
+		nodeMarkDependents(self, tail);
 	}
 }
 
-export function nodeMaybeRun<T>(self: NodeRuntimeHost<T>): void {
+export function nodeMaybeRun<T>(self: NodeRuntimeHost<T>, tail = false): void {
 	// R-rewire: an added cached dep's push-on-subscribe lands here mid-mutation. Defer
 	// the fn-run to ONE atomic two-phase settle after every added dep is wired, so the
 	// fn never fires on a partially-populated added-dep view (multi-add) — _settleRewire
@@ -116,7 +125,7 @@ export function nodeMaybeRun<T>(self: NodeRuntimeHost<T>): void {
 		self._wave.rewireRunPending = true;
 		return;
 	}
-	self._tryRun();
+	nodeTryRun(self, tail);
 }
 
 export function nodeSettleRewire<T>(self: NodeRuntimeHost<T>): void {
@@ -125,9 +134,9 @@ export function nodeSettleRewire<T>(self: NodeRuntimeHost<T>): void {
 	nodeSettle(self, false);
 }
 
-export function nodeTryRun<T>(self: NodeRuntimeHost<T>): void {
+export function nodeTryRun<T>(self: NodeRuntimeHost<T>, tail = false): void {
 	if (self._wave.pending > 0) return;
-	nodeSettle(self, false);
+	nodeSettle(self, false, tail);
 }
 
 function nodeTerminalPolicy<T>(self: NodeRuntimeHost<T>, t: unknown): "auto" | "manual" {
@@ -145,9 +154,10 @@ function nodeTerminalPolicy<T>(self: NodeRuntimeHost<T>, t: unknown): "auto" | "
  *    run's only input (graphrefly:D806 (1), R-terminals@1, C-17);
  * 4. auto COMPLETE: once every dependency has ended, COMPLETE follows the run's output;
  * 5. a node marked pending that sent nothing gets the kernel's one RESOLVED.
- * All of it goes out as one delivery, so a dependent settles once on it.
+ * All of it goes out as one delivery, so a dependent settles once on it. `tail` (Q15): this settle
+ * was reached straight from a delivery's last message, so its publication continues that loop.
  */
-export function nodeSettle<T>(self: NodeRuntimeHost<T>, force: boolean): void {
+export function nodeSettle<T>(self: NodeRuntimeHost<T>, force: boolean, tail = false): void {
 	if (self._value.terminal !== undefined || self._released) return;
 	const wasDirty = self._wave.emittedDirtyThisWave;
 	const n = self._slot.deps.length;
@@ -161,7 +171,7 @@ export function nodeSettle<T>(self: NodeRuntimeHost<T>, force: boolean): void {
 			const end: Message[][] = [];
 			if (anyInvalidated && self._value.hasData) end.push([["INVALIDATE"]]);
 			end.push([["ERROR", error]]);
-			nodeSettleOutput(self, [], end, wasDirty);
+			nodeSettleOutput(self, [], end, wasDirty, tail);
 			return;
 		}
 	}
@@ -200,7 +210,7 @@ export function nodeSettle<T>(self: NodeRuntimeHost<T>, force: boolean): void {
 
 	const endsItself = out.some((a) => a.some((m) => isTerminal(m[0])));
 	if (self._slot.completePolicy === "auto" && allEnded && !endsItself) out.push([["COMPLETE"]]);
-	nodeSettleOutput(self, lead, out, wasDirty);
+	nodeSettleOutput(self, lead, out, wasDirty, tail);
 }
 
 /** The input a settlement consumed. */
@@ -224,16 +234,34 @@ function nodeSettleOutput<T>(
 	now: Message[][],
 	rest: Message[][],
 	wasDirty: boolean,
+	tail: boolean,
 ): void {
 	if (self._slot.quiet) {
-		if (now.length > 0) self._publish(now);
-		if (rest.length > 0) nodeDeferQuietOutput(self, rest);
+		if (now.length > 0) {
+			// Q15: in the delivery loop's tail, the loop sends `now` and then does the rest.
+			if (tail && nodePublishTail(self, now, quietSettleTail, rest)) return;
+			self._publish(now);
+		}
+		quietSettleTail(self, rest);
 		return;
 	}
 	const out = [...now, ...rest];
 	if (wasDirty && !out.some((a) => a.some(isMarking))) out.push([["RESOLVED"]]);
-	if (out.length > 0) self._publish(out);
+	if (out.length > 0) {
+		if (tail && nodePublishTail(self, out, settleTail, undefined)) return;
+		self._publish(out);
+	}
+	settleTail(self, undefined);
+}
+
+/** What a settle does after its publication's fanout (a function, so the loop can run it later). */
+function settleTail(self: NodeRuntimeHost<unknown>, _rest?: Message[][]): void {
 	self._wave.emittedDirtyThisWave = false;
+}
+
+/** A quiet node's settle after its INVALIDATE's fanout: the rest is a wave of its own, later. */
+function quietSettleTail(self: NodeRuntimeHost<unknown>, rest: Message[][] | undefined): void {
+	if (rest !== undefined && rest.length > 0) nodeDeferQuietOutput(self, rest);
 }
 
 /** One run of the node's function; returns the arrays it sent (R-invocation, R-failure). */
