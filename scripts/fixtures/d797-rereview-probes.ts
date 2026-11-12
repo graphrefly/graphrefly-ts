@@ -36,6 +36,43 @@ function stopProbes(): { observeStop: unknown[]; subscribeStop: unknown[] } {
 	return { observeStop, subscribeStop };
 }
 
+export function runQuietErrorProbes() {
+	return (["auto", "manual"] as const).flatMap((invalidate) =>
+		[true, false].map((retained) => {
+			const g = graph();
+			const a = g.state(1),
+				b = g.state(1);
+			const q = g.node(
+				[a],
+				(ctx) => {
+					if (retained && ctx.deps[0].has) ctx.emit(ctx.deps[0].value);
+				},
+				{ quiet: true, invalidate },
+			);
+			const d = g.node([q, b], (ctx) => {
+				if (ctx.deps.every((dep) => dep.has))
+					ctx.emit((ctx.deps[0].value as number) + (ctx.deps[1].value as number));
+			});
+			const values: unknown[] = [],
+				events: string[] = [];
+			const stop = d.subscribe((msgs) => {
+				for (const m of msgs) {
+					if (m[0] === "DATA") values.push(m[1]);
+					if (m[0] !== "PENDING") events.push(m[0]);
+				}
+			});
+			values.length = events.length = 0;
+			g.batch(() => {
+				a.invalidate();
+				a.error("boom");
+				b.set(2);
+			});
+			stop();
+			return { invalidate, retained, values, events };
+		}),
+	);
+}
+
 export function runRereviewProbes() {
 	const qg = graph();
 	const source = qg.state(0);
@@ -156,6 +193,7 @@ export function runRereviewProbes() {
 		replaceCleanup,
 		endedBatch,
 		checkpointMissingRecipe,
+		quietError: runQuietErrorProbes(),
 	};
 }
 

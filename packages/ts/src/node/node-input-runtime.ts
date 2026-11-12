@@ -189,18 +189,18 @@ export function nodeSettle<T>(self: Node<T>, force: boolean, tail = false): void
 		if (at >= 0) {
 			const error = inputs[at].terminalInput;
 			nodeConsumeInput(self);
-			const end: Message[][] = [];
-			if (anyInvalidated && self[VALUE].hasData) end.push([["INVALIDATE"]]);
-			end.push([["ERROR", error]]);
-			nodeSettleOutput(self, [], end, wasDirty, tail);
+			nodeSettleOutput(
+				self,
+				nodeInvalidationLead(self, anyInvalidated),
+				[[["ERROR", error]]],
+				wasDirty,
+				tail,
+			);
 			return;
 		}
 	}
 
-	const lead: Message[][] =
-		anyInvalidated && self[SLOT].invalidatePolicy === "auto" && self[VALUE].hasData
-			? [[["INVALIDATE"]]]
-			: [];
+	const lead = nodeInvalidationLead(self, anyInvalidated && self[SLOT].invalidatePolicy === "auto");
 
 	let out: Message[][] = [];
 	let allEnded = n > 0;
@@ -237,6 +237,11 @@ export function nodeSettle<T>(self: Node<T>, force: boolean, tail = false): void
 	const endsItself = out.some((a) => a.some((m) => isTerminal(m[0])));
 	if (self[SLOT].completePolicy === "auto" && allEnded && !endsItself) out.push([["COMPLETE"]]);
 	nodeSettleOutput(self, lead, out, wasDirty, tail);
+}
+
+/** An INVALIDATE preceding auto ERROR takes effect under either invalidation policy. */
+function nodeInvalidationLead<T>(self: Node<T>, invalidated: boolean): Message[][] {
+	return invalidated && self[VALUE].hasData ? [[["INVALIDATE"]]] : [];
 }
 
 /** The input a settlement consumed. */

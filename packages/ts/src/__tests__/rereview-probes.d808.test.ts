@@ -17,6 +17,14 @@ describe("D808 cross-runtime rereview traces", () => {
 			replaceCleanup: [42],
 			endedBatch: { updaterRuns: 0, otherValue: 0, reports: 1 },
 			checkpointMissingRecipe: "not restorable: n: missing recipe",
+			quietError: ["auto", "manual"].flatMap((invalidate) =>
+				[true, false].map((retained) => ({
+					invalidate,
+					retained,
+					values: [],
+					events: [retained ? "INVALIDATE" : "RESOLVED", "ERROR"],
+				})),
+			),
 		});
 	});
 });
@@ -54,4 +62,25 @@ it("uses exact node-level checkpoint refusal reasons", () => {
 		localOnly: "not restorable: n: local-only, built or replaced without a recipe",
 		missingReceived: "not restorable: n: missing received records",
 	});
+});
+
+it("drops quiet auto ERROR when immediate INVALIDATE retires its lifetime", () => {
+	const g = graph();
+	const source = g.state(1);
+	const q = g.node([source], (ctx) => ctx.emit(ctx.deps[0].value), { quiet: true });
+	const events: string[] = [];
+	const stop = q.subscribe((msgs) => {
+		for (const m of msgs) {
+			if (m[0] !== "PENDING") events.push(m[0]);
+			if (m[0] === "INVALIDATE") g.replace(q, [], () => {});
+		}
+	});
+	events.length = 0;
+	g.batch(() => {
+		source.invalidate();
+		source.error("boom");
+	});
+	expect(events).toEqual(["INVALIDATE", "START"]);
+	expect(q.status.output).toBe("open");
+	stop();
 });
