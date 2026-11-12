@@ -29,9 +29,9 @@ function copyOf<S>(value: S): S {
 /** @internal Build a bundle's ledger state and the runtime setup that keeps it. */
 export function declaredLedger<S>(
 	graph: Graph,
-	opts: { readonly name: string; readonly factory: string; readonly initial: () => S },
+	opts: { readonly name: string; readonly initial: () => S },
 ): DeclaredLedger<S> {
-	const ledger = graph.state<S>(opts.initial(), { name: opts.name, factory: opts.factory });
+	const ledger = graph.state<S>(opts.initial(), { name: opts.name });
 	return {
 		ledger,
 		setup: (ledgerIndex) => (ctx) => {

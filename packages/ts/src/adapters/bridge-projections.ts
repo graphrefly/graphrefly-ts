@@ -97,7 +97,6 @@ export function projectStatus<TOutbound, TInbound>(
 	// including the retained events node's snapshot replay.
 	const { ledger, setup } = declaredLedger<WireBridgeStatusLedger>(graph, {
 		name: `${name}/statusLedger`,
-		factory: "wireBridgeStatusLedger",
 		initial: () => ({
 			status: {
 				sessionId,

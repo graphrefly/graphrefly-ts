@@ -184,7 +184,6 @@ export function eventFlow<T = unknown>(
 	// state the runtime declares, so a resubscribe goes on from them instead of restarting at 1.
 	const { ledger, setup } = declaredLedger(graph, {
 		name: `${name}/ledger`,
-		factory: "eventFlowLedger",
 		initial: initialFlowState,
 	});
 	const runtime = graph.node<EventFlowRuntimeFact<T>>(
@@ -259,7 +258,6 @@ export function eventFlowProjection<TState, TPayload = unknown>(
 	// The user's Q13: the fold and its high water are the projection's ledger.
 	const { ledger, setup } = declaredLedger<ProjectionState>(graph, {
 		name: `${name}/ledger`,
-		factory: "eventFlowProjectionLedger",
 		initial: () => ({ value: opts.initial, highWater: emptyHighWater(projectionId), sources: [] }),
 	});
 	const runtime = graph.node<EventFlowProjectionFact<TState>>(
