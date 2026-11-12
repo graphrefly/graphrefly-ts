@@ -21,3 +21,11 @@ the qualification that produced it; it mutates live source nodes the D797 kernel
 longer runs and was not re-qualified. `scripts/check-causal-lint-evidence.py` accepts a frozen file
 under `archive/` at its original path with the same sha256; `frozen-files.json` and biome's
 `files.includes` are unchanged. The root `test:causal-occurrence:qualification` script was removed.
+
+## D687 qualified evidence
+
+Archived on 2026-11-11 (Q14, option (a) for D687). `evals/work-item-execution-default/d687-qualified-evidence.json`
+is the frozen D687 evidence, bound to the preregistration with baselineCommit 963ab285, byte for
+byte as before. Its frozen test is removed until the final migration head, where D687 is
+re-qualified under a new preregistration whose baselineCommit is that head; the old
+preregistration is archived as it is then, and no new digest is bound to it.
