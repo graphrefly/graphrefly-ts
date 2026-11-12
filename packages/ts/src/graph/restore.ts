@@ -1017,9 +1017,7 @@ function constructPrepared(
 			restoreStateOfNode(made, {
 				values: node.values,
 				terminal: item.terminal,
-				// A detached copy: a restored node may change its state in place (zip, buffer), and two
-				// graphs restored from one checkpoint object must not share it.
-				privateState: lifetime?.state === undefined ? SENTINEL : structuredClone(lifetime.state),
+				privateState: lifetime?.state === undefined ? SENTINEL : lifetime.state,
 				// A ctx.rewire's lifetime dependencies; the declared ones come back when it closes.
 				...(lifetime?.deps === undefined
 					? {}
@@ -1065,7 +1063,8 @@ export function restoreGraph(checkpoint: GraphCheckpoint, options: RestoreGraphO
 		}
 	}
 	validateCheckpointNodeJson(checkpoint);
-	toCheckpointJson(checkpoint);
-	const prepared = prepareCheckpoint(checkpoint, options.registry);
+	// JSON admission owns one detached input tree before any registry callback sees its data.
+	const detached = toCheckpointJson(checkpoint) as unknown as GraphCheckpoint;
+	const prepared = prepareCheckpoint(detached, options.registry);
 	return constructPrepared(prepared, options.registry, options.dispatcher);
 }

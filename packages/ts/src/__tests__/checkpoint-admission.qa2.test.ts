@@ -163,3 +163,64 @@ describe("QA2 complete checkpoint admission before factory effects", () => {
 		expect(savedNode(restored.checkpoint()).policies).toEqual(savedNode(cp).policies);
 	});
 });
+
+describe("QA2 restored JSON ownership", () => {
+	it("detaches retained values and recipe config for every restore", () => {
+		const cp = capture();
+		const configs: { n: number }[] = [];
+		const registry = {
+			r: {
+				ref: "r",
+				build: (config: unknown) => {
+					if (config !== undefined) configs.push(config as { n: number });
+					return { fn: () => {} };
+				},
+			},
+		};
+		const a = restoreGraph(cp, { registry }),
+			b = restoreGraph(cp, { registry });
+		(a.find("source")!.cache as { n: number }).n = 9;
+		(a.find("n")!.cache as { n: number }).n = 8;
+		configs[0].n = 7;
+		expect(b.find("source")!.cache).toEqual({ n: 1 });
+		expect(b.find("n")!.cache).toEqual({ n: 1 });
+		expect(cp.nodes.find((n) => n.id === "source")!.values).toEqual([{ n: 1 }]);
+		expect(savedNode(cp).values).toEqual([{ n: 1 }]);
+		expect(savedNode(cp).recipe!.config).toEqual({ n: 1 });
+		expect(configs[1]).toEqual({ n: 1 });
+	});
+	it("detaches received records before the restored first-activation comparison", () => {
+		const cp = capture();
+		const fn = vi.fn();
+		const registry = { r: { ref: "r", build: () => ({ fn }) } };
+		const a = restoreGraph(cp, { registry }),
+			b = restoreGraph(cp, { registry });
+		(savedNode(cp).lifetime!.received[0].values[0] as { n: number }).n = 9;
+		const sa = a.retain("n"),
+			sb = b.retain("n");
+		expect(fn).not.toHaveBeenCalled();
+		expect(a.find("n")!.cache).toEqual({ n: 1 });
+		expect(b.find("n")!.cache).toEqual({ n: 1 });
+		sa();
+		sb();
+	});
+	it("detaches ERROR payloads from the input and other restored graphs", () => {
+		const g = graph();
+		const source = g.state(1, { name: "source" });
+		source.error({ code: 1 });
+		const cp = g.checkpoint();
+		const a = restoreGraph(cp, { registry: {} }),
+			b = restoreGraph(cp, { registry: {} });
+		const sa = a.find("source")!.subscribe((messages) => {
+			for (const m of messages) if (m[0] === "ERROR") (m[1] as { code: number }).code = 9;
+		});
+		const errors: unknown[] = [];
+		const sb = b.find("source")!.subscribe((messages) => {
+			for (const m of messages) if (m[0] === "ERROR") errors.push(m[1]);
+		});
+		expect(errors).toEqual([{ code: 1 }]);
+		expect(cp.nodes[0].terminal).toEqual({ kind: "ERROR", error: { code: 1 } });
+		sa();
+		sb();
+	});
+});
