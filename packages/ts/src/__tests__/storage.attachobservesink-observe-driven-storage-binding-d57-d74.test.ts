@@ -55,14 +55,14 @@ const awaitDone = (run: (done: () => void) => void) =>
 const bytesToHex = (bytes: Uint8Array) =>
 	[...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 
-const _sha256Hex = async (bytes: Uint8Array) =>
+const _sha256Hex = async (bytes: Uint8Array<ArrayBuffer>) =>
 	bytesToHex(new Uint8Array(await globalThis.crypto.subtle.digest("SHA-256", bytes)));
 
 describe("attachObserveSink — observe-driven storage binding (D57/D74)", () => {
 	it("writes filtered observe events in graph order", () => {
 		const g = graph();
 		const a = g.state(0, { name: "a" });
-		const _b = g.derived([a], (n) => n + 1, { name: "b" });
+		const _b = g.derived([a], (n) => (n === undefined ? undefined : n + 1), { name: "b" });
 		const events: ObserveEvent[] = [];
 
 		const handle = attachObserveSink(
@@ -93,7 +93,7 @@ describe("attachObserveSink — observe-driven storage binding (D57/D74)", () =>
 		const finished: number[] = [];
 		const releases: Array<() => void> = [];
 
-		const handle = attachObserveSink(
+		const handle = attachObserveSink<number>(
 			g,
 			{
 				write: (value) => {

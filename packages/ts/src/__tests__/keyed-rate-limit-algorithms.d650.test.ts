@@ -62,8 +62,10 @@ function withUnits(value: KeyedRateLimitRequest, units: number): KeyedRateLimitR
 	return assertKeyedRateLimitRequest({ ...value, requestId: `${value.requestId}-${units}`, units });
 }
 
-function mutableClone<T>(value: T): T {
-	return strictJsonCodec.decode(strictJsonCodec.encode(value)) as T;
+type DeepMutable<T> = { -readonly [K in keyof T]: DeepMutable<T[K]> };
+
+function mutableClone<T>(value: T): DeepMutable<T> {
+	return strictJsonCodec.decode(strictJsonCodec.encode(value)) as DeepMutable<T>;
 }
 
 function expectErrorCode(fn: () => unknown, code: string): KeyedRateLimitTransitionError {
@@ -262,7 +264,7 @@ describe("D650 keyed rate-limit reference transitions — common strict boundary
 		expect(tokenRun()).toEqual(tokenRun());
 	});
 
-	it.each([
+	it.each<[string, () => Record<string, unknown>]>([
 		["function", () => ({ surprise: () => undefined })],
 		["BigInt", () => ({ surprise: 1n })],
 		["Date", () => ({ surprise: new Date(0) })],

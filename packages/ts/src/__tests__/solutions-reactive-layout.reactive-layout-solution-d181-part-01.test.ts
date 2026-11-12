@@ -1,6 +1,6 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
 import { graph } from "../graph/graph.js";
-import type { Message } from "../protocol/messages.js";
+import type { Message, Wave } from "../protocol/messages.js";
 import {
 	analyzeAndMeasure,
 	type BlockAdapters,
@@ -50,7 +50,7 @@ const fixedAdapters: BlockAdapters = { text: fixedAdapter };
 const data = <T>(messages: readonly Message[]): T[] =>
 	messages.filter((m) => m[0] === "DATA").map((m) => (m as readonly ["DATA", T])[1]);
 
-function collect(node: { subscribe(sink: (messages: Message) => void): () => void }) {
+function collect(node: { subscribe(sink: (messages: Wave) => void): () => void }) {
 	const messages: Message[] = [];
 	const unsubscribe = node.subscribe((incoming) => {
 		for (const message of incoming) {

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { Message } from "../index.js";
+import type { Message, Node } from "../index.js";
 import {
 	catchError,
 	distinctUntilChanged,
@@ -699,9 +699,9 @@ describe("Slice 3 — error-handling control (CSP-2.7)", () => {
 	// A source that ERRORs on a sentinel value (D30 throw→ERROR at the derived boundary).
 	const flakyChain = (g: ReturnType<typeof graph>) => {
 		const s = g.state(1);
-		const bad = g.derived([s], (v: number) => {
+		const bad = g.derived([s], (v) => {
 			if (v === 2) throw new Error("boom");
-			return v * 10;
+			return v! * 10;
 		});
 		return { s, bad };
 	};

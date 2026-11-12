@@ -6,7 +6,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import type { Ctx, Graph, Message } from "../index.js";
+import type { Ctx, Graph, Message, Wave } from "../index.js";
 import {
 	concatMap,
 	Dispatcher,
@@ -18,7 +18,7 @@ import {
 	switchMap,
 } from "../index.js";
 
-function collect(n: { subscribe(s: (m: Message) => void): () => void }) {
+function collect(n: { subscribe(s: (msgs: Wave) => void): () => void }) {
 	const msgs: Message[] = [];
 	const unsub = n.subscribe((incoming) => {
 		for (const m of incoming) {
@@ -89,7 +89,8 @@ describe("mergeMap (D47 / R-rewire-deferred)", () => {
 		const g = graph({ dispatcher });
 		const s = g.node<number>([], null);
 		const trapGraph = graph();
-		let trapNode: object | null = null;
+		// Assigned inside the proxy trap, which control-flow narrowing cannot see.
+		let trapNode = null as object | null;
 		const target = {};
 		const thenKey = "th" + "en";
 		Object.defineProperty(target, thenKey, { value: () => undefined });

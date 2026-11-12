@@ -17,13 +17,14 @@ import { graph } from "../graph/graph.js";
 import { selectRetentionVictims } from "../graph/policies/collection.js";
 import { Dispatcher, type Message } from "../index.js";
 import type { Node } from "../node/node.js";
+import type { Wave } from "../protocol/messages.js";
 import { asState } from "./helpers/as-state.js";
 
 const types = (m: Message[]) => m.map((x) => x[0]);
 const data = <T>(m: Message[]): T[] =>
 	m.filter((x) => x[0] === "DATA").map((x) => (x as readonly ["DATA", T])[1]);
 
-function collect(n: { subscribe(s: (m: Message) => void): () => void }) {
+function collect(n: { subscribe(s: (m: Wave) => void): () => void }) {
 	const msgs: Message[] = [];
 	const unsub = n.subscribe((incoming) => {
 		for (const m of incoming) {

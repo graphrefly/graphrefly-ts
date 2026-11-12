@@ -19,13 +19,14 @@ import {
 	graph,
 	take,
 } from "../index.js";
+import type { Subscribable } from "./helpers/collect.js";
 import { addOwnedNodeDep, removeOwnedNodeDep, rewireOwnedNode } from "./helpers/owned-rewire.js";
 
 const types = (msgs: Message[]) => msgs.map((m) => m[0]);
 const data = (msgs: Message[]) =>
 	msgs.filter((m) => m[0] === "DATA").map((m) => (m as ["DATA", unknown])[1]);
 const _flush = () => new Promise((r) => setTimeout(r, 0));
-function collect(n: { subscribe(s: (m: Message) => void): () => void }) {
+function collect(n: Subscribable) {
 	const msgs: Message[] = [];
 	const unsub = n.subscribe((incoming) => {
 		for (const m of incoming) {
@@ -83,7 +84,7 @@ describe("C-4 a sync leg and an async leg: the async result is a later wave, not
 	it("settles the async leg with the kernel's RESOLVED in A's wave; its result is a later wave", () => {
 		const g = graph();
 		let dRuns = 0;
-		let cctx: Ctx | null = null;
+		let cctx = null as Ctx | null;
 		const a = g.node<number>([], null, { initial: 1 });
 		const b = g.node<number>([a], (ctx: Ctx) =>
 			ctx.down([["DATA", (depLatest(ctx, 0) as number) + 10]]),
@@ -267,7 +268,7 @@ describe("C-12 occurrences stay DATA; RESOLVED is undirty-only (R-resolved-undir
 			filter((n: number) => n >= 100),
 			[s],
 		);
-		const d = g.derived([f], (v: number) => v * 2);
+		const d = g.derived([f], (v) => v! * 2);
 		const { msgs } = collect(d);
 		expect(d.cache).toBe(200); // f=100 → d=200
 		msgs.length = 0;

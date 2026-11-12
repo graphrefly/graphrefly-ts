@@ -4,6 +4,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toProcess } from "../adapters/index.js";
+import type {
+	DriverResult,
+	ProcessResult as EnvironmentProcessResult,
+} from "../graph/environment.js";
 import type { Message } from "../index.js";
 import { EnvironmentDrivers, fromProcess, graph } from "../index.js";
 import {
@@ -204,10 +208,7 @@ describe("node-only process sources", () => {
 
 	it("nodeProcessDriver closes stdin for stdin-draining commands", async () => {
 		const driver = nodeProcessDriver();
-		let result:
-			| { readonly ok: true; readonly value: ProcessResult }
-			| { readonly ok: false; readonly error: unknown }
-			| undefined;
+		let result: DriverResult<EnvironmentProcessResult> | undefined;
 		const cancel = driver.run(
 			{
 				program: process.execPath,
@@ -238,10 +239,7 @@ describe("node-only process sources", () => {
 
 	it("nodeProcessDriver reports ERROR when captured output exceeds maxBufferBytes", async () => {
 		const driver = nodeProcessDriver({ killGraceMs: 20, maxBufferBytes: 3 });
-		let result:
-			| { readonly ok: true; readonly value: ProcessResult }
-			| { readonly ok: false; readonly error: unknown }
-			| undefined;
+		let result: DriverResult<EnvironmentProcessResult> | undefined;
 		const cancel = driver.run(
 			{
 				program: process.execPath,

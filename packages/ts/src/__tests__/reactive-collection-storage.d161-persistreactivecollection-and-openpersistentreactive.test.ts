@@ -86,7 +86,7 @@ describe("D161 persistReactiveCollection and openPersistentReactive*", () => {
 			changeWrites: 1,
 			snapshotWrites: 1,
 		});
-		expect(persistence.status.cache.pending).toBe(0);
+		expect(persistence.status.cache?.pending).toBe(0);
 		expect((await changes.read()).map((entry) => entry.value.change)).toEqual([
 			{ kind: "append", value: 2 },
 		]);
@@ -124,14 +124,14 @@ describe("D161 persistReactiveCollection and openPersistentReactive*", () => {
 
 		await waitControl((done) => persistence.flush(done));
 
-		expect(persistence.status.cache.errors).toBe(1);
-		expect(persistence.status.cache.state).toBe("errored");
-		expect(persistence.status.cache.pending).toBe(0);
+		expect(persistence.status.cache?.errors).toBe(1);
+		expect(persistence.status.cache?.state).toBe("errored");
+		expect(persistence.status.cache?.pending).toBe(0);
 		expect(persistence.ready.cache).toBe(false);
 		expect(persistence.error.cache?.message).toMatch(/JSON/);
 		expect(await snapshots.get("strict/snapshot")).toBeUndefined();
 		await waitControl((done) => persistence.flush(done));
-		expect(persistence.status.cache.state).toBe("errored");
+		expect(persistence.status.cache?.state).toBe("errored");
 		expect(persistence.ready.cache).toBe(false);
 		await waitControl((done) => persistence.dispose(done));
 	});
@@ -258,7 +258,7 @@ describe("D161 persistReactiveCollection and openPersistentReactive*", () => {
 		await disposed;
 
 		expect(await snapshots.get("dispose/snapshot")).toBeUndefined();
-		expect(persistence.status.cache.state).toBe("disposed");
+		expect(persistence.status.cache?.state).toBe("disposed");
 	});
 
 	it("preserves post-enqueue snapshot cadence counts when a queued snapshot settles", async () => {

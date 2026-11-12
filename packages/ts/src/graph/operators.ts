@@ -971,7 +971,7 @@ export interface ValveOpts {
  * import { valve } from "@graphrefly/ts/operators";
  * ```
  */
-export function valve<S>(opts?: ValveOpts): Operator<S, S> {
+export function valve<S>(opts?: ValveOpts): Operator<unknown, S> {
 	const abortInFlight = opts?.abortInFlight;
 	return {
 		factory: "valve",

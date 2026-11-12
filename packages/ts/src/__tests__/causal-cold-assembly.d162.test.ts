@@ -9,6 +9,7 @@ import {
 	startConstruction,
 } from "../graph/construction-scope.js";
 import { Graph } from "../graph/graph.js";
+import { nodeRuntimeHost } from "../node/node-runtime-host.js";
 import { checkpointStateOfNode, subscriberCountOfNode } from "../node/runtime-accessors.js";
 import {
 	assertCausalCapabilities,
@@ -204,14 +205,11 @@ function combined(inject?: (scope: ConstructionScope) => void, empty = false) {
 			prepareCausalOptions({ ...f.options, name: "run/causal", occurrences: occurrence }),
 			binding,
 		);
-		const value = scope.node([built.ports.released], null, { name: "run/value", replayBuffer: 8 });
+		const value = scope.node([built.ports.released], null, { name: "run/value" });
 		const count = scope.node<number>(
 			[built.ports.released],
 			(ctx) => ctx.down([["DATA", (depLatest(ctx, 0) as CausalOccurrence<string>).value.length]]),
-			{
-				name: "run/count",
-				replayBuffer: 8,
-			},
+			{ name: "run/count" },
 		);
 		const final = scope.node(
 			[value, count],
@@ -234,7 +232,7 @@ function combined(inject?: (scope: ConstructionScope) => void, empty = false) {
 			calls: () => calls,
 		};
 	} catch (error) {
-		scope.abort(error);
+		return scope.abort(error);
 	}
 }
 function own(f: ReturnType<typeof combined>, extra = true) {
@@ -453,7 +451,7 @@ describe("D162 private shared cold assembly", () => {
 		const f = combined();
 		const owner = own(f);
 		// Fail only after the original release root has activated the actual authority.
-		vi.spyOn(f.final, "_subscribeOwned").mockImplementation(() => {
+		vi.spyOn(nodeRuntimeHost(f.final), "_subscribeOwned").mockImplementation(() => {
 			throw new Error("late root failure");
 		});
 		startConstruction(f.graph, owner);

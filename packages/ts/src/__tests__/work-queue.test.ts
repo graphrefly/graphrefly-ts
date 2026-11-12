@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { graph } from "../graph/graph.js";
 import { compoundTupleKey } from "../identity.js";
 import { messageBus } from "../messaging/index.js";
+import type { Message } from "../protocol/messages.js";
 import { workQueue } from "../work-queue/index.js";
 import { asState } from "./helpers/as-state.js";
 
@@ -20,8 +21,8 @@ describe("workQueue messageBus-backed lifecycle (D299-D324/D325)", () => {
 			subscriptionId: "q-admit",
 			now: () => now,
 		});
-		const records: unknown[] = [];
-		const cursor: unknown[] = [];
+		const records: Message[] = [];
+		const cursor: Message[] = [];
 		queue.records.subscribe((incoming) => {
 			for (const msg of incoming) {
 				records.push(msg);
@@ -68,8 +69,8 @@ describe("workQueue messageBus-backed lifecycle (D299-D324/D325)", () => {
 			subscriptionId: "q-admit",
 			now: () => 101,
 		});
-		const records: unknown[] = [];
-		const cursor: unknown[] = [];
+		const records: Message[] = [];
+		const cursor: Message[] = [];
 		queue.records.subscribe((incoming) => {
 			for (const msg of incoming) {
 				records.push(msg);
@@ -105,7 +106,7 @@ describe("workQueue messageBus-backed lifecycle (D299-D324/D325)", () => {
 			subscriptionId: "q-admit",
 			now: () => 1,
 		});
-		const records: unknown[] = [];
+		const records: Message[] = [];
 		queue.records.subscribe((incoming) => {
 			for (const msg of incoming) {
 				records.push(msg);
@@ -134,8 +135,8 @@ describe("workQueue messageBus-backed lifecycle (D299-D324/D325)", () => {
 			subscriptionId: "q-admit",
 			now: () => 1,
 		});
-		const records: unknown[] = [];
-		const issues: unknown[] = [];
+		const records: Message[] = [];
+		const issues: Message[] = [];
 		queue.records.subscribe((incoming) => {
 			for (const msg of incoming) {
 				records.push(msg);
@@ -171,8 +172,8 @@ describe("workQueue messageBus-backed lifecycle (D299-D324/D325)", () => {
 			subscriptionId: "q-admit",
 			now: () => 1,
 		});
-		const records: unknown[] = [];
-		const issues: unknown[] = [];
+		const records: Message[] = [];
+		const issues: Message[] = [];
 		queue.records.subscribe((incoming) => {
 			for (const msg of incoming) {
 				records.push(msg);
@@ -213,8 +214,8 @@ describe("workQueue messageBus-backed lifecycle (D299-D324/D325)", () => {
 			now: () => now,
 			leaseDurationMs: 10,
 		});
-		const records: unknown[] = [];
-		const issues: unknown[] = [];
+		const records: Message[] = [];
+		const issues: Message[] = [];
 		queue.records.subscribe((incoming) => {
 			for (const msg of incoming) {
 				records.push(msg);
@@ -285,8 +286,8 @@ describe("workQueue messageBus-backed lifecycle (D299-D324/D325)", () => {
 			subscriptionId: "q-admit",
 			now: () => 0,
 		});
-		const records: unknown[] = [];
-		const issues: unknown[] = [];
+		const records: Message[] = [];
+		const issues: Message[] = [];
 		queue.records.subscribe((incoming) => {
 			for (const msg of incoming) {
 				records.push(msg);
@@ -325,7 +326,7 @@ describe("workQueue messageBus-backed lifecycle (D299-D324/D325)", () => {
 			now: () => now,
 			leaseDurationMs: 5,
 		});
-		const records: unknown[] = [];
+		const records: Message[] = [];
 		queue.records.subscribe((incoming) => {
 			for (const msg of incoming) {
 				records.push(msg);
@@ -364,8 +365,8 @@ describe("workQueue messageBus-backed lifecycle (D299-D324/D325)", () => {
 			now: () => now,
 			leaseDurationMs: 5,
 		});
-		const records: unknown[] = [];
-		const issues: unknown[] = [];
+		const records: Message[] = [];
+		const issues: Message[] = [];
 		queue.records.subscribe((incoming) => {
 			for (const msg of incoming) {
 				records.push(msg);
@@ -412,7 +413,7 @@ describe("workQueue messageBus-backed lifecycle (D299-D324/D325)", () => {
 			now: () => now,
 			retry: { maxAttempts: 2, delayMs: 5 },
 		});
-		const records: unknown[] = [];
+		const records: Message[] = [];
 		queue.records.subscribe((incoming) => {
 			for (const msg of incoming) {
 				records.push(msg);
@@ -524,8 +525,8 @@ describe("workQueue messageBus-backed lifecycle (D299-D324/D325)", () => {
 			subscriptionId: "q-admit",
 			now: () => 0,
 		});
-		const records: unknown[] = [];
-		const issues: unknown[] = [];
+		const records: Message[] = [];
+		const issues: Message[] = [];
 		queue.records.subscribe((incoming) => {
 			for (const msg of incoming) {
 				records.push(msg);
@@ -565,8 +566,8 @@ describe("workQueue messageBus-backed lifecycle (D299-D324/D325)", () => {
 			subscriptionId: "q-admit",
 			now: () => 0,
 		});
-		const issues: unknown[] = [];
-		const records: unknown[] = [];
+		const issues: Message[] = [];
+		const records: Message[] = [];
 		queue.issues.subscribe((incoming) => {
 			for (const msg of incoming) {
 				issues.push(msg);

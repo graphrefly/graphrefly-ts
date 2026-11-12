@@ -136,17 +136,71 @@ describe("C-42: the message set is closed and nothing travels upstream", () => {
 		expect("up" in n).toBe(false);
 	});
 
-	it("a host emission through node.down is held to the same closed set", () => {
+	it("a host emission is held to the same closed set", () => {
+		// A host has no raw emission entry: a state's only inputs are set/invalidate/complete/error.
 		const g = graph();
-		const a = g.node<number>([], null, { initial: 1 });
-		for (const attempt of [
-			...Object.values(retired),
-			[["START"]],
-			[["PENDING"]],
-			[["RESOLVED"]],
-		] as Wave[])
-			expect(() => a.down(attempt)).toThrow();
+		const a = g.state(1);
+		expect("down" in a).toBe(false);
+		const s = recorder();
+		a.subscribe((incoming) => {
+			for (const message of incoming) s.sink(message);
+		});
+		expect(() => a.set(undefined as unknown as number)).toThrow(
+			"down: DATA requires a non-SENTINEL payload (R-data-payload)",
+		);
+		expect(() => a.error(undefined)).toThrow(
+			"down: ERROR requires a non-SENTINEL, non-boolean payload (R-data-payload)",
+		);
+		expect(() => a.error(false)).toThrow(
+			"down: ERROR requires a non-SENTINEL, non-boolean payload (R-data-payload)",
+		);
 		expect(a.cache).toBe(1);
+		a.set(2);
+		a.invalidate();
+		a.complete();
+		// The host inputs reach sinks only as DATA, INVALIDATE and COMPLETE (plus the kernel's own).
+		expect(types(s.msgs).filter((t) => t !== "START" && t !== "PENDING")).toEqual([
+			"DATA",
+			"DATA",
+			"INVALIDATE",
+			"COMPLETE",
+		]);
+		const b = g.state(1);
+		b.error(new Error("host failure"));
+		expect(b.status.output).toBe("errored");
+
+		// A node function's ctx.down is held to the same set, and the rejection is named.
+		for (const [attempt, message] of [
+			...Object.entries(retired).map(
+				([type, wave]) =>
+					[wave, `down: ${type} is not in the closed message-type set (R-msg-closed-set)`] as const,
+			),
+			...(["START", "PENDING", "RESOLVED"] as const).map(
+				(type) =>
+					[
+						[[type]] as Wave,
+						`down: ${type} is sent only by the kernel; node output cannot carry it (R-wave)`,
+					] as const,
+			),
+		]) {
+			const src = g.state(1);
+			let rejected: unknown;
+			const n = g.node<number>([src], (ctx) => {
+				try {
+					ctx.down(attempt);
+				} catch (error) {
+					rejected = error;
+				}
+			});
+			const out = recorder();
+			n.subscribe((incoming) => {
+				for (const m of incoming) out.sink(m);
+			});
+			expect(rejected).toBeInstanceOf(Error);
+			expect((rejected as Error).message).toBe(message);
+			expect(n.cache).toBeUndefined();
+			expect(types(out.msgs)).toEqual(["START"]);
+		}
 	});
 });
 

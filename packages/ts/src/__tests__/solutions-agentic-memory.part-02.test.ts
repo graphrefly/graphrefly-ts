@@ -9,7 +9,7 @@ import { graph } from "../graph/graph.js";
 import { compoundTupleKey } from "../identity.js";
 import { strictCanonicalJsonBytes } from "../json/codec.js";
 import type { MemoryAnswer, MemoryFragment } from "../patterns/index.js";
-import type { Message } from "../protocol/messages.js";
+import type { Message, Wave } from "../protocol/messages.js";
 import { indexedDbAgenticMemoryCommittedFactLogBackend } from "../solutions/agentic-memory/browser.js";
 import { nodeFileAgenticMemoryCommittedFactLogBackend } from "../solutions/agentic-memory/node.js";
 import {
@@ -24,6 +24,7 @@ import {
 	type AgenticMemoryCommittedFactReadMaterializationStatus,
 	type AgenticMemoryConsolidationCommand,
 	type AgenticMemoryConsolidationError,
+	type AgenticMemoryConsolidationOutcome,
 	type AgenticMemoryConsolidationRecordDraft,
 	type AgenticMemoryConsolidationStatus,
 	type AgenticMemoryContext,
@@ -237,7 +238,7 @@ describe("AgenticMemory D585 passive store-frame helpers", () => {
 	});
 
 	it("frames and decodes application evidence, priorEvidence, and application decisions", () => {
-		const snapshot = applyAgenticMemoryRecordAdmissions([admitted()], applicationPolicy());
+		const snapshot = applyAgenticMemoryRecordAdmissions<string>([admitted()], applicationPolicy());
 		const decisions = snapshot.applicationDecisions;
 		const evidence = projectAgenticMemoryRecordApplicationEvidenceFacts(decisions);
 		const evidenceFrame = frameAgenticMemoryApplicationEvidence(evidence.priorEvidence, {
@@ -275,7 +276,7 @@ describe("AgenticMemory D585 passive store-frame helpers", () => {
 
 	it("rejects malformed skipped/rejected decisions and optional decision fields in decision frames", () => {
 		const codec = agenticMemoryApplicationDecisionStoreFrameCodec();
-		const snapshot = applyAgenticMemoryRecordAdmissions([admitted()], applicationPolicy());
+		const snapshot = applyAgenticMemoryRecordAdmissions<string>([admitted()], applicationPolicy());
 		const frame = frameAgenticMemoryApplicationDecisions(snapshot.applicationDecisions);
 		const decision = frame.applicationDecisions[0];
 		if (decision === undefined) throw new Error("expected application decision fixture");
@@ -307,7 +308,7 @@ describe("AgenticMemory D585 passive store-frame helpers", () => {
 	});
 
 	it("rejects unknown top-level fields and forbidden metadata in store frames", () => {
-		const snapshot = applyAgenticMemoryRecordAdmissions([admitted()], applicationPolicy());
+		const snapshot = applyAgenticMemoryRecordAdmissions<string>([admitted()], applicationPolicy());
 		const decisions = snapshot.applicationDecisions;
 		const evidence = projectAgenticMemoryRecordApplicationEvidenceFacts(decisions);
 		const recordsFrame = frameAgenticMemoryRecords([record()]);
@@ -349,13 +350,14 @@ describe("AgenticMemory D585 passive store-frame helpers", () => {
 		);
 		const bundle = agenticMemoryRecordStoreFrameBundle(g, {
 			name: "d585RecordFrame",
+			// @ts-expect-error: deliberately malformed frame; the bundle reports it on the DATA issue path
 			storeFrame: malformed,
 		});
 		const projection = collect(bundle.projection);
 		const issues = collect(bundle.issues);
 		const status = collect(bundle.status);
 
-		malformed.set(malformed.cache);
+		malformed.set(malformed.cache!);
 
 		expect(projection.messages.map((message) => message[0])).not.toContain("ERROR");
 		expect(data<AgenticMemoryRecordStoreFrameProjection>(projection.messages).at(-1)).toMatchObject(
@@ -391,13 +393,14 @@ describe("AgenticMemory D585 passive store-frame helpers", () => {
 		);
 		const bundle = agenticMemoryApplicationEvidenceStoreFrameBundle(g, {
 			name: "d585EvidenceFrameInvalid",
+			// @ts-expect-error: deliberately malformed frame; the bundle reports it on the DATA issue path
 			storeFrame: malformed,
 		});
 		const projection = collect(bundle.projection);
 		const issues = collect(bundle.issues);
 		const status = collect(bundle.status);
 
-		malformed.set(malformed.cache);
+		malformed.set(malformed.cache!);
 
 		expect(projection.messages.map((message) => message[0])).not.toContain("ERROR");
 		expect(data(status.messages).at(-1)).toMatchObject({ state: "error" });
@@ -411,7 +414,7 @@ describe("AgenticMemory D585 passive store-frame helpers", () => {
 	});
 
 	it("decodes application evidence frames as ordinary DATA without storage or application authority", () => {
-		const snapshot = applyAgenticMemoryRecordAdmissions([admitted()], applicationPolicy());
+		const snapshot = applyAgenticMemoryRecordAdmissions<string>([admitted()], applicationPolicy());
 		const evidence = projectAgenticMemoryRecordApplicationEvidenceFacts(
 			snapshot.applicationDecisions,
 		);
@@ -441,7 +444,7 @@ describe("AgenticMemory D585 passive store-frame helpers", () => {
 
 	it("persists encoded frames outside the graph and re-enters decoded records only as explicit DATA", async () => {
 		const adapter = memoryAgenticMemoryPassiveStoreFrameAdapter();
-		const firstEvaluation = applyAgenticMemoryRecordAdmissions(
+		const firstEvaluation = applyAgenticMemoryRecordAdmissions<string>(
 			[admitted({ admissionId: "d585-boundary", proposalId: "d585-boundary" })],
 			applicationPolicy(),
 		);
@@ -453,7 +456,9 @@ describe("AgenticMemory D585 passive store-frame helpers", () => {
 
 		const write = await adapter.write(codec.encode(frame));
 		const read = await adapter.read();
-		const decodedRecords = decodeAgenticMemoryRecordStoreFrame(codec.decode(read.frames[0]!));
+		const decodedRecords = decodeAgenticMemoryRecordStoreFrame<string>(
+			codec.decode(read.frames[0]!),
+		);
 		const later = graph();
 		const records = later.state<readonly AgenticMemoryRecord<string>[]>([], {
 			name: "loadedRecords",
@@ -669,6 +674,9 @@ describe("AgenticMemory D589 committed fact-log contract", () => {
 				applicationPolicy(),
 			).applicationDecisions,
 		).evidenceFacts[0]!;
+		const recordMaterial = fact.material;
+		if (recordMaterial.kind !== "agentic-memory-committed-record-material")
+			throw new Error("expected record material fixture");
 
 		expect(() =>
 			assertAgenticMemoryCommittedFact({
@@ -682,7 +690,7 @@ describe("AgenticMemory D589 committed fact-log contract", () => {
 				{ subjectId: "bad-scope", scope: "x" } as never,
 				{
 					kind: "agentic-memory-committed-record-material",
-					record: fact.material.record,
+					record: recordMaterial.record,
 				},
 			),
 		).toThrow(/scope/);
@@ -727,7 +735,7 @@ describe("AgenticMemory D589 committed fact-log contract", () => {
 
 	it("commits application-emitted graph DATA only as canonical facts, not application acks", async () => {
 		const g = graph();
-		const records = [];
+		const records: AgenticMemoryRecord<string>[] = [];
 		const admissions = [admitted({ admissionId: "d589-app", proposalId: "d589-app" })];
 		const policy = applicationPolicy();
 		const occurrences = g.state(
@@ -1051,6 +1059,7 @@ describe("AgenticMemory D592 committed fact-log backend adapter contract", () =>
 					audit: [],
 				});
 			},
+			// @ts-expect-error: deliberately malformed issues and audit; the adapter must reject them
 			read() {
 				return Promise.resolve({
 					facts: [],
@@ -1194,7 +1203,7 @@ describe("AgenticMemory D592 committed fact-log backend adapter contract", () =>
 			{ operation: "create", correlationId: "d592-wrapper" },
 		);
 		const appended: (typeof fact)[] = [];
-		const backend: AgenticMemoryCommittedFactLogBackend = {
+		const backend: AgenticMemoryCommittedFactLogBackend<string> = {
 			append(batch) {
 				appended.push(...batch.facts);
 				return {
@@ -2256,7 +2265,7 @@ describe("AgenticMemory D590 durable-result gate boundary", () => {
 		const audit = collect(bundle.audit);
 		const cursor = collect(bundle.cursor);
 
-		attemptResult.set(attemptResult.cache);
+		attemptResult.set(attemptResult.cache!);
 
 		expect(g.describe().edges).toEqual(
 			expect.arrayContaining([
@@ -2319,9 +2328,9 @@ describe("AgenticMemory D590 durable-result gate boundary", () => {
 				{ from: "unrelatedCommitResult", to: "durability/projection" },
 			]),
 		);
-		expect(data(result.messages).map((item) => item.batchIdentity)).toEqual([
-			firstBatch.batchIdentity,
-		]);
+		expect(
+			data<{ readonly batchIdentity: unknown }>(result.messages).map((item) => item.batchIdentity),
+		).toEqual([firstBatch.batchIdentity]);
 		expect(data(result.messages)).not.toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({ batchIdentity: secondBatch.batchIdentity }),
@@ -2374,7 +2383,7 @@ describe("AgenticMemory D591 fact-log read materialization re-entry boundary", (
 		expect(read).not.toHaveProperty("records");
 		expect(read).not.toHaveProperty("priorEvidence");
 		expect(projection).toMatchObject<
-			Partial<AgenticMemoryCommittedFactReadMaterializationProjection<string>>
+			DeepPartial<AgenticMemoryCommittedFactReadMaterializationProjection<string>>
 		>({
 			kind: "agentic-memory-committed-fact-read-materialization-projection",
 			status: {
@@ -2431,7 +2440,7 @@ describe("AgenticMemory D591 fact-log read materialization re-entry boundary", (
 		await log.append(agenticMemoryCommittedFactBatch([fact]));
 		const read = await log.read();
 		const readResult = g.state(read, { name: "readResult" });
-		let liveRecords = [];
+		let liveRecords: readonly AgenticMemoryRecord<string>[] = [];
 		const laterAdmissionRecord = record({
 			id: "record-d591-later-application",
 			fragment: fragment({ id: "fragment-d591-later-application" }),
@@ -2992,7 +3001,7 @@ describe("AgenticMemory D593 materialized fact-log bootstrap/re-entry boundary",
 			await log.read(),
 		);
 		const materialization = g.state(materializationValue, { name: "materialization" });
-		let liveRecords = [];
+		let liveRecords: readonly AgenticMemoryRecord<string>[] = [];
 		const admissions = [
 			admitted({
 				admissionId: "d593-later-application",
@@ -3109,7 +3118,9 @@ describe("AgenticMemory D588-D593 runtime fact-log persistence composition", () 
 
 		const startup = await agenticMemoryCommittedFactLogStartupRead(log, { evaluation: 7 });
 
-		expect(startup).toMatchObject<Partial<AgenticMemoryCommittedFactLogStartupReadResult<string>>>({
+		expect(startup).toMatchObject<
+			DeepPartial<AgenticMemoryCommittedFactLogStartupReadResult<string>>
+		>({
 			kind: "agentic-memory-committed-fact-log-startup-read-result",
 			records: [committed],
 			priorEvidence: evidence.priorEvidence,
@@ -3156,30 +3167,30 @@ describe("AgenticMemory D588-D593 runtime fact-log persistence composition", () 
 		});
 		const read = await log.read();
 
-		expect(append).toMatchObject<Partial<AgenticMemoryCommittedFactLogAppendAttemptResult<string>>>(
-			{
-				kind: "agentic-memory-committed-fact-log-append-attempt-result",
-				batch,
-				commitResult: {
-					status: "committed",
-					facts: 1,
-					cursor: { kind: "agentic-memory-fact-stream.cursor", position: 1 },
-				},
-				durabilityStatus: {
-					state: "durable",
-					commitStatus: "committed",
-					downstreamAdvance: {
-						allowed: true,
-						policyId: "runtime-policy",
-						reason: "fact-log-committed",
-					},
-				},
-				cursor: {
-					evaluation: 3,
-					factLogCursor: { kind: "agentic-memory-fact-stream.cursor", position: 1 },
+		expect(append).toMatchObject<
+			DeepPartial<AgenticMemoryCommittedFactLogAppendAttemptResult<string>>
+		>({
+			kind: "agentic-memory-committed-fact-log-append-attempt-result",
+			batch,
+			commitResult: {
+				status: "committed",
+				facts: 1,
+				cursor: { kind: "agentic-memory-fact-stream.cursor", position: 1 },
+			},
+			durabilityStatus: {
+				state: "durable",
+				commitStatus: "committed",
+				downstreamAdvance: {
+					allowed: true,
+					policyId: "runtime-policy",
+					reason: "fact-log-committed",
 				},
 			},
-		);
+			cursor: {
+				evaluation: 3,
+				factLogCursor: { kind: "agentic-memory-fact-stream.cursor", position: 1 },
+			},
+		});
 		expect(read.facts).toEqual([fact]);
 		expect(append).not.toHaveProperty("records");
 		expect(append).not.toHaveProperty("priorEvidence");
@@ -3194,13 +3205,13 @@ describe("AgenticMemory D588-D593 runtime fact-log persistence composition", () 
 			id: "record-runtime-caller-wired",
 			fragment: fragment({ id: "fragment-runtime-caller-wired" }),
 		});
-		const log = memoryAgenticMemoryCommittedFactLog();
+		const log = memoryAgenticMemoryCommittedFactLog<string>();
 		await log.append(
 			agenticMemoryCommittedFactBatch([agenticMemoryCommittedRecordMaterialFact(committed)]),
 		);
 		const startup = await agenticMemoryCommittedFactLogStartupRead(log);
 		const g = graph();
-		let liveRecords = [];
+		let liveRecords: readonly AgenticMemoryRecord<string>[] = [];
 		const admissions = [admitted({ admissionId: "runtime-live", proposalId: "runtime-live" })];
 		const policy = applicationPolicy();
 		const occurrences = g.state(
@@ -3303,7 +3314,7 @@ describe("AgenticMemory D588-D593 runtime fact-log persistence composition", () 
 		const fact = agenticMemoryCommittedRecordMaterialFact(
 			record({ id: "record-runtime-async", fragment: fragment({ id: "fragment-runtime-async" }) }),
 		);
-		const syncLog = memoryAgenticMemoryCommittedFactLog();
+		const syncLog = memoryAgenticMemoryCommittedFactLog<string>();
 		const asyncLog = {
 			append(batch) {
 				return Promise.resolve(syncLog.append(batch));
@@ -3378,6 +3389,7 @@ describe("AgenticMemory D588-D593 runtime fact-log persistence composition", () 
 		expect(append.durabilityStatus.state).toBe("durable");
 		expect(jsonForBoundaryText({ startup, append })).not.toContain("must-not-leak");
 
+		// @ts-expect-error: deliberately malformed append and read results; startup read must reject them
 		const malformedLog = {
 			append() {
 				return Promise.resolve({ status: "committed", cursor: "backend-row", facts: 1 });
@@ -3438,6 +3450,8 @@ async function withIndexedDbMock(indexedDb: IDBFactory, fn: () => Promise<void>)
 }
 
 function createMemoryIndexedDb(opts: { readonly failPut?: boolean } = {}): IDBFactory {
+	/** The mock fills request results and errors in, which the DOM types declare read-only. */
+	type Writable<T> = { -readonly [K in keyof T]: T[K] };
 	type StoredDb = {
 		readonly stores: Map<string, Map<string, Uint8Array>>;
 		version: number;
@@ -3448,17 +3462,17 @@ function createMemoryIndexedDb(opts: { readonly failPut?: boolean } = {}): IDBFa
 		return new Event(type);
 	}
 
-	function makeRequest<T = unknown>(): IDBRequest<T> {
-		return {} as IDBRequest<T>;
+	function makeRequest<T = unknown>(): Writable<IDBRequest<T>> {
+		return {} as Writable<IDBRequest<T>>;
 	}
 
-	function completeTransaction(tx: Partial<IDBTransaction>): void {
+	function completeTransaction(tx: Partial<Writable<IDBTransaction>>): void {
 		tx.oncomplete?.call(tx as IDBTransaction, requestEvent("complete"));
 	}
 
 	function failTransaction(
-		tx: Partial<IDBTransaction>,
-		req: Partial<IDBRequest>,
+		tx: Partial<Writable<IDBTransaction>>,
+		req: Partial<Writable<IDBRequest>>,
 		message: string,
 	): void {
 		const error = new Error(message) as DOMException;
@@ -3487,7 +3501,7 @@ function createMemoryIndexedDb(opts: { readonly failPut?: boolean } = {}): IDBFa
 				if (store === undefined) {
 					throw new Error(`missing object store: ${storeName}`);
 				}
-				const tx: Partial<IDBTransaction> = {};
+				const tx: Partial<Writable<IDBTransaction>> = {};
 				const objectStore = {
 					get(key: IDBValidKey) {
 						const req = makeRequest<Uint8Array | undefined>();
@@ -3549,7 +3563,7 @@ function createMemoryIndexedDb(opts: { readonly failPut?: boolean } = {}): IDBFa
 
 	return {
 		open(name: string, version?: number) {
-			const req = {} as IDBOpenDBRequest;
+			const req = {} as Writable<IDBOpenDBRequest>;
 			queueMicrotask(() => {
 				let stored = dbs.get(name);
 				if (stored === undefined) {
@@ -3575,13 +3589,20 @@ function createMemoryIndexedDb(opts: { readonly failPut?: boolean } = {}): IDBFa
 	} as IDBFactory;
 }
 
+/** An expected value for `toMatchObject`: every field optional, at every depth. */
+type DeepPartial<T> = T extends readonly (infer U)[]
+	? readonly DeepPartial<U>[]
+	: T extends object
+		? { readonly [K in keyof T]?: DeepPartial<T[K]> }
+		: T;
+
 const data = <T>(messages: Message[]): T[] =>
 	messages.filter((m) => m[0] === "DATA").map((m) => (m as readonly ["DATA", T])[1]);
 
 const jsonForBoundaryText = (value: unknown): string =>
 	JSON.stringify(value, (_key, item) => (typeof item === "bigint" ? item.toString() : item));
 
-function collect(node: { subscribe(sink: (messages: Message) => void): () => void }) {
+function collect(node: { subscribe(sink: (messages: Wave) => void): () => void }) {
 	const messages: Message[] = [];
 	const unsubscribe = node.subscribe((incoming) => {
 		for (const message of incoming) {
@@ -3669,7 +3690,7 @@ describe("AgenticMemory D586 complete-next-record materializer", () => {
 		);
 		const proposal = projection.proposals[0];
 
-		expect(projection).toMatchObject<Partial<AgenticMemoryRecordMaterializationProjection>>({
+		expect(projection).toMatchObject<DeepPartial<AgenticMemoryRecordMaterializationProjection>>({
 			kind: "agentic-memory-record-materialization-projection",
 			status: { state: "ready" },
 			cursor: { evaluation: 7, proposals: 1, candidateMaterials: 1, issues: 0 },
@@ -4042,7 +4063,7 @@ describe("AgenticMemory D586 complete-next-record materializer", () => {
 		const status = collect(bundle.status);
 
 		expectTypeOf(bundle).toMatchTypeOf<AgenticMemoryRecordMaterializerBundle<string>>();
-		intents.set(intents.cache);
+		intents.set(intents.cache!);
 
 		expect(projection.messages.some((message) => message[0] === "ERROR")).toBe(false);
 		expect(data<readonly AgenticMemoryRecordProposal[]>(proposals.messages).at(-1)).toEqual([]);
@@ -4148,7 +4169,7 @@ describe("agentic memory consolidation bundle (D171)", () => {
 				reason: "merge",
 			},
 		];
-		const outcomes = [
+		const outcomes: AgenticMemoryConsolidationOutcome<string>[] = [
 			{
 				id: "outcome-1",
 				requestId: "request-1",
@@ -4291,7 +4312,7 @@ describe("agentic memory consolidation bundle (D171)", () => {
 			record({ id: "record-b", fragment: fragment({ id: "b" }) }),
 		];
 		const requests = [{ id: "request-1", commandId: "cmd-1", recordIds: ["record-a", "record-b"] }];
-		const outcomes = [
+		const outcomes: AgenticMemoryConsolidationOutcome<string>[] = [
 			{
 				id: "outcome-1",
 				requestId: "request-1",
@@ -4304,7 +4325,7 @@ describe("agentic memory consolidation bundle (D171)", () => {
 				],
 			},
 		];
-		const admissionPolicy = {
+		const admissionPolicy: AgenticMemoryRecordAdmissionPolicy = {
 			kind: "agentic-memory-record-admission-policy",
 			policyId: "admission-policy",
 			defaultState: "admitted",
@@ -4382,7 +4403,7 @@ describe("agentic memory consolidation bundle (D171)", () => {
 			record({ id: "record-b", fragment: fragment({ id: "b", payload: "kept" }) }),
 		];
 		const requests = [{ id: "request-1", commandId: "cmd-1", recordIds: ["record-a"] }];
-		const outcomes = [
+		const outcomes: AgenticMemoryConsolidationOutcome<string>[] = [
 			{
 				id: "outcome-1",
 				requestId: "request-1",
@@ -4398,7 +4419,7 @@ describe("agentic memory consolidation bundle (D171)", () => {
 				],
 			},
 		];
-		const admissionPolicy = {
+		const admissionPolicy: AgenticMemoryRecordAdmissionPolicy = {
 			kind: "agentic-memory-record-admission-policy",
 			policyId: "admission-policy",
 			defaultState: "admitted",
@@ -4485,7 +4506,7 @@ describe("agentic memory consolidation bundle (D171)", () => {
 			record({ id: "record-b", fragment: fragment({ id: "b", payload: "kept" }) }),
 		];
 		const requests = [{ id: "request-1", commandId: "cmd-1", recordIds: ["record-a"] }];
-		const outcomes = [
+		const outcomes: AgenticMemoryConsolidationOutcome<string>[] = [
 			{
 				id: "outcome-1",
 				requestId: "request-1",
@@ -4501,7 +4522,7 @@ describe("agentic memory consolidation bundle (D171)", () => {
 				],
 			},
 		];
-		const admissionPolicy = {
+		const admissionPolicy: AgenticMemoryRecordAdmissionPolicy = {
 			kind: "agentic-memory-record-admission-policy",
 			policyId: "admission-policy",
 			defaultState: "admitted",
@@ -4581,7 +4602,7 @@ describe("agentic memory consolidation bundle (D171)", () => {
 		const g = graph();
 		const records = [record({ id: "record-a", fragment: fragment({ id: "a" }) })];
 		const requests = [{ id: "request-1", commandId: "cmd-1", recordIds: ["record-a"] }];
-		const outcomes = [
+		const outcomes: AgenticMemoryConsolidationOutcome<string>[] = [
 			{
 				id: "outcome-1",
 				requestId: "request-1",
@@ -4594,7 +4615,7 @@ describe("agentic memory consolidation bundle (D171)", () => {
 				],
 			},
 		];
-		const admissionPolicy = {
+		const admissionPolicy: AgenticMemoryRecordAdmissionPolicy = {
 			kind: "agentic-memory-record-admission-policy",
 			policyId: "admission-policy",
 			defaultState: "rejected",
@@ -4682,7 +4703,7 @@ describe("agentic memory consolidation bundle (D171)", () => {
 		const g = graph();
 		const records = [record({ id: "record-a", fragment: fragment({ id: "a" }) })];
 		const requests = [{ id: "request-1", commandId: "cmd-1", recordIds: ["record-a"] }];
-		const outcomes = [
+		const outcomes: AgenticMemoryConsolidationOutcome<string>[] = [
 			{
 				id: "outcome-1",
 				requestId: "request-1",
@@ -4804,7 +4825,9 @@ describe("agentic memory admission policy source projection (D583)", () => {
 			metadata: { revision: 2, owner: "memory" },
 		});
 
-		expect(projection).toMatchObject<Partial<AgenticMemoryRecordAdmissionPolicySourceProjection>>({
+		expect(projection).toMatchObject<
+			DeepPartial<AgenticMemoryRecordAdmissionPolicySourceProjection>
+		>({
 			kind: "agentic-memory-record-admission-policy-source-projection",
 			admissionPolicy: {
 				kind: "agentic-memory-record-admission-policy",
@@ -4852,6 +4875,7 @@ describe("agentic memory admission policy source projection (D583)", () => {
 		);
 		const bundle = agenticMemoryRecordAdmissionPolicySourceBundle(g, {
 			name: "policySource",
+			// @ts-expect-error: deliberately malformed policy source material; it must surface as DATA issues
 			policySources,
 		});
 		const issues = collect(bundle.issues);
@@ -5272,7 +5296,7 @@ describe("agentic memory record proposal admission (D572/D573)", () => {
 	it("admits proposal facts without applying AgenticMemoryRecord truth", () => {
 		const g = graph();
 		const records = [record({ id: "record-existing", fragment: fragment({ id: "existing" }) })];
-		const proposals = [
+		const proposals: AgenticMemoryRecordProposal<string>[] = [
 			{
 				kind: "agentic-memory-record-proposal",
 				proposalId: "proposal-1",
@@ -5290,7 +5314,7 @@ describe("agentic memory record proposal admission (D572/D573)", () => {
 				correlationId: "corr-1",
 			},
 		];
-		const policy = {
+		const policy: AgenticMemoryRecordAdmissionPolicy = {
 			kind: "agentic-memory-record-admission-policy",
 			policyId: "admission-policy",
 			defaultState: "admitted",
@@ -5358,7 +5382,7 @@ describe("agentic memory record proposal admission (D572/D573)", () => {
 	it("rejects duplicate candidate ids and routes missing provenance to needs-review", () => {
 		const g = graph();
 		const records = [record({ id: "record-existing", fragment: fragment({ id: "existing" }) })];
-		const proposals = [
+		const proposals: AgenticMemoryRecordProposal<string>[] = [
 			{
 				kind: "agentic-memory-record-proposal",
 				proposalId: "duplicate",
@@ -5383,7 +5407,7 @@ describe("agentic memory record proposal admission (D572/D573)", () => {
 				},
 			},
 		];
-		const policy = {
+		const policy: AgenticMemoryRecordAdmissionPolicy = {
 			kind: "agentic-memory-record-admission-policy",
 			policyId: "admission-policy",
 			defaultState: "admitted",
@@ -5429,7 +5453,7 @@ describe("agentic memory record proposal admission (D572/D573)", () => {
 	});
 
 	it("validates hostile proposals in the pure admission boundary", () => {
-		const records = [];
+		const records: AgenticMemoryRecord<string>[] = [];
 		const proposals = [
 			{
 				kind: "agentic-memory-record-proposal",
@@ -5507,7 +5531,7 @@ describe("agentic memory record proposal admission (D572/D573)", () => {
 	});
 
 	it("validates hostile policies in the pure admission boundary", () => {
-		const records = [];
+		const records: AgenticMemoryRecord<string>[] = [];
 		const proposals = [
 			{
 				kind: "agentic-memory-record-proposal",
@@ -5803,9 +5827,9 @@ describe("agentic memory record proposal admission (D572/D573)", () => {
 
 	it("snapshots refs and preserves colon-distinct policy refs", () => {
 		const g = graph();
-		const records = [];
+		const records: AgenticMemoryRecord<string>[] = [];
 		const sourceRef = { kind: "review", id: "review-1", metadata: { rank: 1 } };
-		const proposals = [
+		const proposals: AgenticMemoryRecordProposal<string>[] = [
 			{
 				kind: "agentic-memory-record-proposal",
 				proposalId: "proposal-1",
@@ -5820,7 +5844,7 @@ describe("agentic memory record proposal admission (D572/D573)", () => {
 				],
 			},
 		];
-		const policy = {
+		const policy: AgenticMemoryRecordAdmissionPolicy = {
 			kind: "agentic-memory-record-admission-policy",
 			policyId: "admission-policy",
 			defaultState: "admitted",
@@ -5911,7 +5935,7 @@ describe("agentic memory record proposal admission (D572/D573)", () => {
 		).toBe(true);
 
 		const g = graph();
-		const records = [];
+		const records: AgenticMemoryRecord<string>[] = [];
 		const proposalNode = proposals;
 		const policyNode = policy;
 		const occurrences = g.state(
@@ -5941,8 +5965,8 @@ describe("agentic memory record proposal admission (D572/D573)", () => {
 
 	it("rejects duplicate candidate record ids within one proposal batch", () => {
 		const g = graph();
-		const records = [];
-		const proposals = [
+		const records: AgenticMemoryRecord<string>[] = [];
+		const proposals: AgenticMemoryRecordProposal<string>[] = [
 			{
 				kind: "agentic-memory-record-proposal",
 				proposalId: "first",
@@ -5962,7 +5986,7 @@ describe("agentic memory record proposal admission (D572/D573)", () => {
 				sourceRefs: [{ kind: "import", id: "import-b" }],
 			},
 		];
-		const policy = {
+		const policy: AgenticMemoryRecordAdmissionPolicy = {
 			kind: "agentic-memory-record-admission-policy",
 			policyId: "admission-policy",
 			defaultState: "admitted",
@@ -6351,7 +6375,12 @@ describe("agentic memory record application projector (D577)", () => {
 			"agentic-memory.application.target-record-missing",
 			"agentic-memory.application.candidate-record-id-mismatch",
 		]);
-		expect(snapshot.issues.every((issue) => issue.details?.operation === "update")).toBe(true);
+		expect(
+			snapshot.issues.every(
+				(issue) =>
+					(issue.details as { readonly operation?: unknown } | undefined)?.operation === "update",
+			),
+		).toBe(true);
 		expect(snapshot.status).toMatchObject({ state: "partial", cursor: { rejected: 3, issues: 3 } });
 	});
 
@@ -7051,10 +7080,10 @@ describe("agentic memory record application projector (D577)", () => {
 
 	it("exposes graph-visible topology and projection subnodes", () => {
 		const g = graph();
-		const records = [];
+		const records: AgenticMemoryRecord<string>[] = [];
 		const admissions = [admitted({ admissionId: "admission-create" })];
 		const policy = applicationPolicy();
-		const priorEvidence = [];
+		const priorEvidence: AgenticMemoryRecordApplicationEvidence[] = [];
 		const occurrences = g.state(
 			occurrenceFixture({
 				records: records,
@@ -7442,7 +7471,7 @@ describe("agentic memory record application projector (D577)", () => {
 
 	it("keeps current application decisions out of same-evaluation prior evidence wiring", () => {
 		const g = graph();
-		const records = [];
+		const records: AgenticMemoryRecord<string>[] = [];
 		const admissions = [
 			admitted({ admissionId: "same-evaluation", proposalId: "same-evaluation" }),
 		];
@@ -7460,7 +7489,7 @@ describe("agentic memory record application projector (D577)", () => {
 			name: "history/evidenceFacts",
 			applicationDecisions: g.derived(
 				[application.applicationDecisions],
-				(occurrence) => occurrence.value,
+				(occurrence) => occurrence?.value,
 				{ name: "application/decision-values" },
 			),
 		});
@@ -7597,7 +7626,7 @@ describe("agentic memory record application projector (D577)", () => {
 	it("keeps admission as proposal-only until the application projector consumes it", () => {
 		const g = graph();
 		const records = [record({ id: "record-existing", fragment: fragment({ id: "existing" }) })];
-		const proposals = [
+		const proposals: AgenticMemoryRecordProposal<string>[] = [
 			{
 				kind: "agentic-memory-record-proposal",
 				proposalId: "proposal-create",
@@ -7608,7 +7637,7 @@ describe("agentic memory record application projector (D577)", () => {
 				sourceRefs: [{ kind: "import", id: "import-1" }],
 			},
 		];
-		const admissionPolicy = {
+		const admissionPolicy: AgenticMemoryRecordAdmissionPolicy = {
 			kind: "agentic-memory-record-admission-policy",
 			policyId: "admission-policy",
 			defaultState: "admitted",
@@ -7626,10 +7655,13 @@ describe("agentic memory record application projector (D577)", () => {
 
 		const applicationInputs = g.derived(
 			[admissionBundle.admitted],
-			(occurrence) => ({
-				...occurrence,
-				value: { records, admissions: occurrence.value, policy: applicationPolicy() },
-			}),
+			(occurrence) =>
+				occurrence === undefined
+					? undefined
+					: {
+							...occurrence,
+							value: { records, admissions: occurrence.value, policy: applicationPolicy() },
+						},
 			{ name: "caller/application-occurrence" },
 		);
 		const application = agenticMemoryRecordApplicationBundle(g, {
@@ -7654,7 +7686,7 @@ describe("agentic memory record application projector (D577)", () => {
 
 	it("skips rejected and needs-review admissions without protocol ERROR", () => {
 		const g = graph();
-		const records = [];
+		const records: AgenticMemoryRecord<string>[] = [];
 		const admissions = [
 			admitted({
 				admissionId: "admission-rejected",
@@ -7809,10 +7841,12 @@ describe("agentic memory record application projector (D577)", () => {
 		} as const;
 		const snapshot = applyAgenticMemoryRecordAdmissions([], applicationPolicy(), {
 			priorEvidence: [
+				// @ts-expect-error: deliberately missing materialIdentity; it must surface as a DATA issue
 				baseEvidence,
 				{
 					...baseEvidence,
 					admissionId: "priorEvidence-material-algorithm",
+					// @ts-expect-error: deliberately unsupported algorithm; it must surface as a DATA issue
 					materialIdentity: { algorithm: "unsupported", key: "non-empty" },
 				},
 				{
@@ -7834,6 +7868,7 @@ describe("agentic memory record application projector (D577)", () => {
 								fragment: fragment({ id: "fragment-priorEvidence-material" }),
 							}),
 						),
+						// @ts-expect-error: deliberately unexpected field; it must surface as a DATA issue
 						patch: "nope",
 					},
 				},
@@ -7979,7 +8014,7 @@ describe("agentic memory record application projector (D577)", () => {
 
 	it("keeps hostile priorEvidence getters and unsafe input lengths on the DATA issue path", () => {
 		const hostilePriorEvidence = {
-			kind: "agentic-memory-record-application-prior-evidence",
+			kind: "agentic-memory-record-application-prior-evidence" as const,
 			entries: [],
 		};
 		Object.defineProperty(hostilePriorEvidence, "entries", {
@@ -8823,7 +8858,7 @@ describe("agentic memory context packing (D168)", () => {
 
 	it("rejects non-data attribution fact refs as DATA errors", () => {
 		const sourceRefs = [{ kind: "source", id: "source-1" }] as Array<Record<PropertyKey, unknown>>;
-		sourceRefs[Symbol("array-secret") as never] = true;
+		Reflect.set(sourceRefs, Symbol("array-secret"), true);
 		Object.defineProperty(sourceRefs, "graph", {
 			value: "nope",
 			enumerable: true,

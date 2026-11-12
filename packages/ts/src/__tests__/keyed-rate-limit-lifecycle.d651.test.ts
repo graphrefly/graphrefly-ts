@@ -687,7 +687,7 @@ describe("B111.6 inspection and injected-authority evidence", () => {
 							}),
 						);
 					}
-					return;
+					return undefined;
 				}
 				let available = availableByAuthority.get(authorityKey) ?? 1;
 				const allowed = req.units <= available;
@@ -704,6 +704,7 @@ describe("B111.6 inspection and injected-authority evidence", () => {
 				});
 				receipts.set(receiptKey, outcome);
 				complete(outcome);
+				return undefined;
 			},
 		};
 		const allowed = request("host-custom", "custom-allowed");

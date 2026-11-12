@@ -325,8 +325,9 @@ describe("workQueueScheduledReadinessProjector (B94/D424/D432/D433)", () => {
 				commandId: privateRef,
 				sourceRefs: ["visible-source", privateRef, ...extraRefs],
 				policyRefs: [privateRef],
+				// A raw payload rides along on purpose: the readiness views must not carry it.
 				payload: { apiKey: "SECRET", rawResponseBody: raw },
-			} as WorkQueueRecord<{ readonly apiKey: string; readonly rawResponseBody: string }>),
+			} as Partial<Extract<WorkQueueRecord, { kind: "work-scheduled" }>>),
 		);
 
 		const serialized = JSON.stringify(harness.seen.schedules[0]);
@@ -785,7 +786,7 @@ function leaseRenewed(
 function terminalRecord(
 	kind: "work-canceled" | "work-completed" | "work-dead-lettered",
 	recordSeq: number,
-	fields: Partial<Extract<WorkQueueRecord, { kind: typeof kind }>> = {},
+	fields: { readonly queueId?: string; readonly workId?: string } = {},
 ): WorkQueueRecord {
 	if (kind === "work-canceled") {
 		return {
@@ -859,7 +860,7 @@ function overdue(
 }
 
 function collectData<T>(node: {
-	subscribe(sink: (msg: readonly [string, unknown?]) => void): unknown;
+	subscribe(sink: (msgs: readonly (readonly [string, unknown?])[]) => void): unknown;
 }): T[] {
 	const out: T[] = [];
 	node.subscribe((incoming) => {

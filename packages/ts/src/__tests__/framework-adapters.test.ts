@@ -6,8 +6,8 @@ describe("framework-neutral boundary projection", () => {
 	it("derives a framework-neutral boundary manifest from describe topology", () => {
 		const g = graph({ name: "boundary" });
 		const amount = g.state(0, { name: "amount" });
-		const taxed = g.derived([amount], (value) => value + 1, { name: "taxed" });
-		g.derived([taxed], (value) => value * 2, { name: "total" });
+		const taxed = g.derived([amount], (value) => value! + 1, { name: "taxed" });
+		g.derived([taxed], (value) => value! * 2, { name: "total" });
 
 		const manifest = boundaryManifest(g);
 
@@ -23,7 +23,7 @@ describe("framework-neutral boundary projection", () => {
 		const parent = graph({ name: "parent" });
 		const child = graph({ name: "child" });
 		const amount = child.state(1, { name: "amount" });
-		child.derived([amount], (value) => value * 2, { name: "total" });
+		child.derived([amount], (value) => value! * 2, { name: "total" });
 		parent.mount(child, { at: "child" });
 
 		const manifest = boundaryManifest(parent);
@@ -45,7 +45,7 @@ describe("framework-neutral boundary projection", () => {
 				],
 			},
 		});
-		const total = g.derived([token], (value) => value.length, {
+		const total = g.derived([token], (value) => value!.length, {
 			name: "total",
 			meta: {
 				boundaryCapabilities: [

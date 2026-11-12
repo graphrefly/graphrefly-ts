@@ -96,16 +96,17 @@ function buildCausalComposition<T>(
 			opts.watermarks,
 		],
 	});
-	let prepared: import("../graph/construction-scope.js").OwnedConstruction;
-	let built: ReturnType<typeof buildCausalNodes<T>>;
-	try {
-		const startup = graph.startupSource();
-		built = buildCausalNodes(ownerGraph, graph, startup, preparedOptions, binding);
-		prepared = graph.seal(startup, built.roots);
-		graph.transferToGraph(prepared);
-	} catch (error) {
-		graph.abort(error);
-	}
-	startConstruction(ownerGraph, prepared);
-	return built;
+	const sealed = (() => {
+		try {
+			const startup = graph.startupSource();
+			const built = buildCausalNodes(ownerGraph, graph, startup, preparedOptions, binding);
+			const prepared = graph.seal(startup, built.roots);
+			graph.transferToGraph(prepared);
+			return { built, prepared };
+		} catch (error) {
+			return graph.abort(error);
+		}
+	})();
+	startConstruction(ownerGraph, sealed.prepared);
+	return sealed.built;
 }

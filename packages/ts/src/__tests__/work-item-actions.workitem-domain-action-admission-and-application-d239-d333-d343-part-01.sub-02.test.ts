@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { depBatch } from "../ctx/types.js";
 import { graph } from "../graph/graph.js";
 import type { BoundaryCapabilityKind } from "../inspection/boundary.js";
+import type { Node } from "../node/node.js";
+import type { Message } from "../protocol/messages.js";
 import type {
 	CapabilityAdmission,
 	CapabilityAdmissionStatus,
@@ -139,9 +141,7 @@ function capabilityRef(capabilityId: string, kind: BoundaryCapabilityKind = "aut
 	return { id: capabilityId, kind, required: true };
 }
 
-function collectData<T>(node: {
-	subscribe(sink: (msg: readonly [string, unknown?]) => void): unknown;
-}): T[] {
+function collectData<T>(node: Node<T>): T[] {
 	const out: T[] = [];
 	node.subscribe((incoming) => {
 		for (const msg of incoming) {
@@ -151,10 +151,8 @@ function collectData<T>(node: {
 	return out;
 }
 
-function collectMessages(node: {
-	subscribe(sink: (msg: readonly [string, unknown?]) => void): unknown;
-}) {
-	const out: (readonly [string, unknown?])[] = [];
+function collectMessages(node: Node<unknown>) {
+	const out: Message[] = [];
 	node.subscribe((incoming) => {
 		for (const msg of incoming) {
 			out.push(msg);

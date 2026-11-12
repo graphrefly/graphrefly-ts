@@ -17,6 +17,7 @@ import {
 	mapAgenticWorkItemMemoryBridge,
 } from "../solutions/agentic-work-item-memory/index.js";
 import type { WorkItemProjection } from "../solutions/work-item/index.js";
+import type { Subscribable } from "./helpers/collect.js";
 import { occurrenceData, occurrenceFixture } from "./solution-occurrence-fixture.js";
 
 const _data = <T>(messages: Message[]): T[] =>
@@ -29,7 +30,7 @@ const sourceCoordinate = (refs: readonly { kind: string; id: string; metadata?: 
 			.sort(),
 	);
 
-function collect(node: { subscribe(sink: (messages: Message) => void): () => void }) {
+function collect(node: Subscribable) {
 	const messages: Message[] = [];
 	const unsubscribe = node.subscribe((incoming) => {
 		for (const message of incoming) {
@@ -245,7 +246,7 @@ describe("agentic WorkItem memory bridge (D581)", () => {
 		const g = graph();
 		const workItems = workItem();
 		const policies = policy({ scoreRules: [] });
-		let candidates = [];
+		let candidates: AgenticWorkItemMemoryRecordCandidate<string>[] = [];
 		const occurrences = g.state(
 			occurrenceFixture({ workItem: workItems, policy: policies, candidates: candidates }),
 			{ name: "bridge/occurrences" },

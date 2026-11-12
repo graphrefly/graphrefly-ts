@@ -80,7 +80,9 @@ describe("messaging recipes (D349-D351/D353)", () => {
 		const deliveries = g.node<MessageBusAvailablePage>([], null, { name: "deliveries" });
 		const status = g.node<CqrsStatus>([], null, { name: "cqrsStatus" });
 		const recipe = cqrsMessagingRecipe(g, { deliveries, status });
-		const acks = collectData<MessageBusCommand>(recipe.ackCommands);
+		const acks = collectData<Extract<MessageBusCommand, { readonly kind: "ack" }>>(
+			recipe.ackCommands,
+		);
 
 		deliveries.set(page("sub-dup", [message("cmd-dup", 7), message("cmd-dup", 8)]));
 		g.batch(() => {
@@ -194,7 +196,7 @@ describe("messaging recipes (D349-D351/D353)", () => {
 });
 
 function collectData<T>(node: {
-	subscribe(sink: (msg: readonly [string, unknown?]) => void): unknown;
+	subscribe(sink: (msgs: readonly (readonly [string, unknown?])[]) => void): unknown;
 }): T[] {
 	const out: T[] = [];
 	node.subscribe((incoming) => {

@@ -171,7 +171,7 @@ function pins(
 
 function life(
 	state: CustomerHostedPostgresqlLifecycleFact["state"],
-	coordinates = lease(),
+	coordinates: CustomerHostedPostgresqlLeaseCoordinates = lease(),
 ): CustomerHostedPostgresqlLifecycleFact {
 	return {
 		...pins(coordinates),
@@ -654,7 +654,7 @@ describe("D606 customer-hosted PostgreSQL", () => {
 	it("derives settlement from the customer-local driver and exposes no credential value", async () => {
 		const driver: CustomerHostedPostgresqlWorkerDriver = {
 			execute: vi.fn(async ({ credentialBindingRevision }) => ({
-				outcome: "succeeded",
+				outcome: "succeeded" as const,
 				outcomeRefs: [{ kind: "artifact", id: `result-${credentialBindingRevision}` }],
 				issueRefs: [],
 			})),
@@ -761,11 +761,11 @@ describe("D606 customer-hosted PostgreSQL", () => {
 					outcome: "succeeded",
 					outcomeRefs: [{ kind: "artifact", id: "result-1" }],
 					issueRefs: [],
-				}) as Promise<{
-					outcome: "succeeded";
+				}) as {
+					outcome: "succeeded" | "canceled";
 					outcomeRefs: { kind: string; id: string }[];
 					issueRefs: never[];
-				}>,
+				},
 		);
 		const driver: CustomerHostedPostgresqlWorkerDriver = {
 			execute,
@@ -903,7 +903,7 @@ describe("D606 customer-hosted PostgreSQL", () => {
 		expect(
 			added
 				.map(({ name, factory, deps }) => ({ name, factory, deps }))
-				.sort((a, b) => a.name.localeCompare(b.name)),
+				.sort((a, b) => (a.name ?? "").localeCompare(b.name ?? "")),
 		).toEqual([
 			{
 				name: "customerHostedPostgresql/admittedEnvelopes",

@@ -4,6 +4,7 @@ import { attachToolProviderAdapterRuntime } from "../executors/tool-provider-run
 import { graph } from "../graph/graph.js";
 import { retryPolicy } from "../graph/resilience.js";
 import { compoundTupleKey } from "../identity.js";
+import type { Node } from "../node/node.js";
 import type {
 	ExecutorOutcome,
 	ScheduledReadinessReady,
@@ -647,9 +648,7 @@ function issue(code: string, subjectId: string): DataIssue {
 	return { kind: "issue", code, message: code, subjectId };
 }
 
-function collectData<T>(node: {
-	subscribe(sink: (msg: readonly [string, unknown?]) => void): unknown;
-}): T[] {
+function collectData<T>(node: Node<T>): T[] {
 	const out: T[] = [];
 	node.subscribe((incoming) => {
 		for (const msg of incoming) {

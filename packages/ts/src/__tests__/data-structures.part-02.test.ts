@@ -20,13 +20,14 @@ import { graph } from "../graph/graph.js";
 import type { Message } from "../index.js";
 import type { Node } from "../node/node.js";
 import { asState } from "./helpers/as-state.js";
+import type { Subscribable } from "./helpers/collect.js";
 import { rewireOwnedNode } from "./helpers/owned-rewire.js";
 
 const _types = (m: Message[]) => m.map((x) => x[0]);
 const data = <T>(m: Message[]): T[] =>
 	m.filter((x) => x[0] === "DATA").map((x) => (x as readonly ["DATA", T])[1]);
 
-function collect(n: { subscribe(s: (m: Message) => void): () => void }) {
+function collect(n: Subscribable) {
 	const msgs: Message[] = [];
 	const unsub = n.subscribe((incoming) => {
 		for (const m of incoming) {

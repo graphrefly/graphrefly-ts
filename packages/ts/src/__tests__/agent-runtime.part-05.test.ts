@@ -278,7 +278,7 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 5", () => {
 		const firstWithPayload = {
 			...first,
 			toolCall: {
-				...first.toolCall,
+				...first.toolCall!,
 				arguments: {
 					path: "README.md",
 					password: "SCORER_SECRET_ARGUMENT",

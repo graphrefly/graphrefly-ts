@@ -11,6 +11,7 @@ import {
 } from "../executors/execution-environment.js";
 import {
 	type PostgresqlDriverQueryRequest,
+	type PostgresqlQueryToolArguments,
 	type PostgresqlRunCancellationDecision,
 	type PostgresqlRunCancellationRequested,
 	postgresqlToolProviderInputFromIntent,
@@ -19,6 +20,7 @@ import {
 import { topologyDiff } from "../graph/composition.js";
 import { graph } from "../graph/graph.js";
 import { compoundTupleKey } from "../identity.js";
+import type { Node } from "../node/node.js";
 import {
 	type ToolProviderAdapterInput,
 	type ToolProviderAdapterRunRequested,
@@ -75,7 +77,7 @@ const route = (overrides = {}): EnvironmentPinnedExecutorRoute =>
 		...overrides,
 	});
 
-function input(): ToolProviderAdapterInput {
+function input(): ToolProviderAdapterInput<PostgresqlQueryToolArguments> {
 	return postgresqlToolProviderInputFromIntent(
 		{
 			contractVersion: "1",
@@ -98,9 +100,7 @@ function input(): ToolProviderAdapterInput {
 	);
 }
 
-function collect<T>(node: {
-	subscribe(callback: (message: readonly [string, unknown]) => void): () => void;
-}): T[] {
+function collect<T>(node: Node<T>): T[] {
 	const values: T[] = [];
 	node.subscribe((incoming) => {
 		for (const message of incoming) {
@@ -338,7 +338,9 @@ describe("execution environment targeting and local host gate (D603)", () => {
 
 	it("runs the canonical Canvas-coordinate lowerer through real D419 admission, local gate, and PostgreSQL runtime", async () => {
 		const g = graph({ name: "m11-local-postgresql" });
-		const inputs = g.node<ToolProviderAdapterInput>([], null, { name: "adapterInputs" });
+		const inputs = g.node<ToolProviderAdapterInput<PostgresqlQueryToolArguments>>([], null, {
+			name: "adapterInputs",
+		});
 		const profiles = g.node<EnvironmentPinnedExecutorProfile>([], null, {
 			name: "environmentProfiles",
 		});

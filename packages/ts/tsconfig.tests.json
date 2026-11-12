@@ -3,22 +3,32 @@
 	"compilerOptions": {
 		"declaration": false,
 		"noEmit": true,
-		"rootDir": ".",
-		"types": ["vitest/globals", "node"]
+		"rootDir": "../..",
+		"types": ["vitest/globals", "node"],
+		"baseUrl": ".",
+		"paths": {
+			"@graphrefly/ts": ["src/index.ts"],
+			"@graphrefly/ts/*": ["src/*/index.ts"]
+		}
 	},
-	"include": [
-		"src/solutions/shared-control-panel-contracts.ts",
-		"src/solutions/shared-control-panel-authority.ts",
-		"src/testing/shared-control-panel-memory-persistence.ts",
-		"src/__tests__/shared-control-panel-authority.test.ts",
-		"src/__tests__/shared-control-panel-memory-persistence.test.ts",
-		"src/solutions/production-evaluation-contracts.ts",
-		"src/solutions/production-evaluation-authority.ts",
-		"src/testing/production-evaluation-memory-persistence.ts",
-		"src/__tests__/production-evaluation-authority.test.ts",
-		"src/__tests__/solutions-agentic-memory-record-use.d643.test.ts",
-		"src/__tests__/solutions-agentic-memory-work-item-rerun-avoidance.current.test.ts",
-		"evals/graph-native-rerun-avoidance/**/*.ts"
-	],
-	"exclude": ["node_modules", "dist"]
+	"include": ["src/**/*.ts"],
+	"exclude": [
+		"node_modules",
+		"dist",
+		"src/__tests__/model-harness-profile-current.test.ts",
+		"src/__tests__/openrouter-shared-recovery.test.ts",
+		"src/__tests__/openrouter-shared-transport.test.ts",
+		"src/__tests__/provider-qualification.test.ts",
+		"src/__tests__/root-eval-d154-provider-cost.test.ts",
+		"src/__tests__/root-eval-focused-async-adapters.test.ts",
+		"src/__tests__/root-eval-historical-integrity.test.ts",
+		"src/__tests__/root-eval-http-transport-leaf.test.ts",
+		"src/__tests__/root-eval-private-diagnostic-sink.test.ts",
+		"src/__tests__/root-eval-quiet-data-boundary.test.ts",
+		"src/__tests__/root-eval-settled-spend.test.ts",
+		"src/__tests__/solutions-agentic-memory-work-item-root-eval-live.test.ts",
+		"src/__tests__/solutions-agentic-memory-work-item-root-eval-topology.test.ts",
+		"src/__tests__/work-item-execution-default.d687.test.ts",
+		"src/__tests__/work-item-execution-project-fit.d686.test.ts"
+	]
 }

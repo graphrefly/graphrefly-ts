@@ -26,6 +26,7 @@ describe("workerDerived — backend-required helper-first worker slice (D148)", 
 			backend: {
 				run(job, settle) {
 					jobs.push({ job, settle });
+					return undefined;
 				},
 			},
 		});
@@ -61,6 +62,7 @@ describe("workerDerived — backend-required helper-first worker slice (D148)", 
 			backend: {
 				run(job, settle) {
 					jobs.push({ job, settle });
+					return undefined;
 				},
 			},
 		});
@@ -100,6 +102,7 @@ describe("workerDerived — backend-required helper-first worker slice (D148)", 
 			backend: {
 				run(job, settle) {
 					settle({ ok: true, value: job.compute(job.input) });
+					return undefined;
 				},
 			},
 		});
@@ -142,6 +145,7 @@ describe("workerDerived — backend-required helper-first worker slice (D148)", 
 					} catch {
 						// Backend misuse may catch the synchronous guard; the helper still closes it.
 					}
+					return undefined;
 				},
 			},
 		});
@@ -246,6 +250,7 @@ describe("workerDerived — backend-required helper-first worker slice (D148)", 
 			backend: {
 				run() {
 					submitted = true;
+					return undefined;
 				},
 			},
 		});
@@ -277,6 +282,7 @@ describe("workerDerived — backend-required helper-first worker slice (D148)", 
 			backend: {
 				run(job) {
 					inputs.push(job.input);
+					return undefined;
 				},
 			},
 		});
@@ -304,6 +310,7 @@ describe("workerDerived — backend-required helper-first worker slice (D148)", 
 			backend: {
 				run() {
 					submitted = true;
+					return undefined;
 				},
 			},
 		});
@@ -338,6 +345,7 @@ describe("workerDerived — backend-required helper-first worker slice (D148)", 
 			backend: {
 				run() {
 					submitted = true;
+					return undefined;
 				},
 			},
 		});

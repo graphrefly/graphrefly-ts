@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { attachKeyedRateLimitAuthority, type KeyedRateLimitAuthority } from "../adapters/index.js";
+import {
+	attachKeyedRateLimitAuthority,
+	type KeyedRateLimitAuthority,
+	type KeyedRateLimitAuthorityAdapterStatus,
+} from "../adapters/index.js";
 import { graph } from "../graph/index.js";
 import { strictCanonicalJsonBytes, strictJsonCodec } from "../json/codec.js";
 import type { Node } from "../node/node.js";
@@ -45,7 +49,7 @@ function request(
 function outcome(
 	req: KeyedRateLimitRequest,
 	result: "allowed" | "denied" | "unavailable" | "conflict",
-	suffix = result,
+	suffix: string = result,
 ): KeyedRateLimitOutcome {
 	return createKeyedRateLimitOutcome(req, {
 		outcomeId: `outcome-${req.requestId}-${suffix}`,
@@ -489,6 +493,7 @@ describe("D648/D649 host authority adapter and topology", () => {
 			{
 				consume(req, complete) {
 					complete(outcome(req, "allowed"));
+					return undefined;
 				},
 			},
 			{ name: "authority" },
@@ -529,6 +534,7 @@ describe("D648/D649 host authority adapter and topology", () => {
 		const adapter = attachKeyedRateLimitAuthority(g, requests, {
 			consume(req, complete) {
 				complete(outcome(req, "allowed"));
+				return undefined;
 			},
 		});
 		requests.set(request("late-activation"));
@@ -546,6 +552,7 @@ describe("D648/D649 host authority adapter and topology", () => {
 				consume(_req, complete) {
 					if (mode === "throw") throw new Error("PRIVATE HOST ERROR");
 					complete({ bad: "PRIVATE HOST OUTCOME" } as unknown as KeyedRateLimitOutcome);
+					return undefined;
 				},
 			});
 			const gate = adapter.admission;
@@ -596,6 +603,7 @@ describe("D648/D649 host authority adapter and topology", () => {
 			{
 				consume() {
 					consumes += 1;
+					return undefined;
 				},
 			},
 			{ maxInFlight: 1 },
@@ -637,9 +645,10 @@ describe("D648/D649 host authority adapter and topology", () => {
 					consumes += 1;
 					if (req.requestId === "mismatch-a") {
 						complete(outcome(request("different-request"), "allowed"));
-						return;
+						return undefined;
 					}
 					complete(outcome(req, "allowed"));
+					return undefined;
 				},
 			},
 			{ maxInFlight: 1 },
@@ -671,12 +680,17 @@ describe("D648/D649 host authority adapter and topology", () => {
 		const adapter = attachKeyedRateLimitAuthority(g, requests, {
 			consume() {
 				consumes += 1;
+				return undefined;
 			},
 		});
 		let release = () => {};
 		release = adapter.status.subscribe((incoming) => {
 			for (const msg of incoming) {
-				if (msg[0] === "DATA" && msg[1].state === "requested") release();
+				if (
+					msg[0] === "DATA" &&
+					(msg[1] as KeyedRateLimitAuthorityAdapterStatus).state === "requested"
+				)
+					release();
 			}
 		});
 
@@ -693,6 +707,7 @@ describe("D648/D649 host authority adapter and topology", () => {
 		const adapter = attachKeyedRateLimitAuthority(g, requests, {
 			consume(req, complete) {
 				complete(outcome(req, "allowed"));
+				return undefined;
 			},
 		});
 		const release = adapter.outcomes.subscribe((incoming) => {
@@ -720,6 +735,7 @@ describe("D648/D649 host authority adapter and topology", () => {
 				} catch {
 					// A hostile host must not be able to erase Graph delivery failure.
 				}
+				return undefined;
 			},
 		});
 		const release = adapter.outcomes.subscribe((incoming) => {
@@ -747,6 +763,7 @@ describe("D648/D649 host authority adapter and topology", () => {
 					decisions.set(req.requestId, decided);
 				}
 				complete(decided);
+				return undefined;
 			},
 		};
 		const adapter = attachKeyedRateLimitAuthority(g, requests, authority);

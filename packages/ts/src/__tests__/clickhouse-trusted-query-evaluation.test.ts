@@ -10,6 +10,7 @@ import {
 	requestToolProviderAdapterRun,
 	toolProviderRunAdmissionProjector,
 } from "../orchestration/index.js";
+import type { Wave } from "../protocol/messages.js";
 import {
 	CLICKHOUSE_TRUSTED_QUERY_ADAPTER_ID,
 	CLICKHOUSE_TRUSTED_QUERY_EVALUATION_CONTRACT_VERSION,
@@ -20,6 +21,7 @@ import {
 	type ClickHouseTrustedQueryCancellationRequested,
 	type ClickHouseTrustedQueryEvaluationProfile,
 	type ClickHouseTrustedQueryHostExecutionRequest,
+	type ClickHouseTrustedQueryHostSettlement,
 	clickHouseTrustedQueryRuntime,
 	createClickHouseTrustedQueryAdapterInput,
 	createClickHouseTrustedQueryCampaignRevision,
@@ -27,6 +29,9 @@ import {
 	createClickHouseTrustedQueryScenarioResultFromOutcome,
 	isClickHouseTrustedQueryCandidate,
 } from "../solutions/clickhouse-trusted-query-evaluation.js";
+
+type ClickHouseOutcome = ExecutorOutcome<ClickHouseTrustedQueryHostSettlement>;
+
 import type { ProductionCandidatePins } from "../solutions/production-evaluation-authority.js";
 
 const ref = (id: string, revision = "r1") => ({ id, revision });
@@ -97,9 +102,10 @@ const adapterInput = (mode: "auto" | "require" | "never" = "require") =>
 		approval: { policyId: "clickhouse-evaluation-approval", mode },
 	});
 
-function collect<T>(node: {
-	subscribe(callback: (message: readonly [string, unknown]) => void): () => void;
-}): { readonly values: T[]; readonly unsubscribe: () => void } {
+function collect<T>(node: { subscribe(callback: (messages: Wave) => void): () => void }): {
+	readonly values: T[];
+	readonly unsubscribe: () => void;
+} {
 	const values: T[] = [];
 	const unsubscribe = node.subscribe((incoming) => {
 		for (const message of incoming) {
@@ -462,7 +468,7 @@ describe("ClickHouse trusted-query evaluation contracts (D628)", () => {
 		const afterRuntime = g.topology();
 		expect(afterRuntime.nodes.length - beforeRuntime.nodes.length).toBe(7);
 		expect(afterRuntime.edges.length - beforeRuntime.edges.length).toBe(0);
-		const seen = collect<ExecutorOutcome>(runtime.outcomes);
+		const seen = collect<ClickHouseOutcome>(runtime.outcomes);
 		const runtimeIssues = collect<{ code: string }>(runtime.issues);
 		const input = adapterInput();
 		const candidateRun = requestToolProviderAdapterRun(input, {
@@ -533,7 +539,7 @@ describe("ClickHouse trusted-query evaluation contracts (D628)", () => {
 			}),
 		).toThrow("settlement-metadata-mismatch");
 		const { result: _ignoredResult, ...outcomeBase } = seen.values[0] as Extract<
-			ExecutorOutcome,
+			ClickHouseOutcome,
 			{ kind: "result" }
 		>;
 		expect(() =>
@@ -581,7 +587,7 @@ describe("ClickHouse trusted-query evaluation contracts (D628)", () => {
 				},
 			},
 		});
-		const outcomes = collect<ExecutorOutcome>(runtime.outcomes);
+		const outcomes = collect<ClickHouseOutcome>(runtime.outcomes);
 		const input = adapterInput();
 		inputs.set(input);
 		const candidateRun = requestToolProviderAdapterRun(input, {
@@ -646,7 +652,7 @@ describe("ClickHouse trusted-query evaluation contracts (D628)", () => {
 				},
 			},
 		});
-		const outcomes = collect<ExecutorOutcome>(runtime.outcomes);
+		const outcomes = collect<ClickHouseOutcome>(runtime.outcomes);
 		const proposals = collect<{ proposalId: string; sourceRefs?: readonly unknown[] }>(
 			runtime.cancellationProposals,
 		);
@@ -767,7 +773,7 @@ describe("ClickHouse trusted-query evaluation contracts (D628)", () => {
 				},
 			},
 		});
-		const outcomes = collect<ExecutorOutcome>(runtime.outcomes);
+		const outcomes = collect<ClickHouseOutcome>(runtime.outcomes);
 		const input = adapterInput("auto");
 		inputs.set(input);
 		candidates.set(
@@ -813,7 +819,7 @@ describe("ClickHouse trusted-query evaluation contracts (D628)", () => {
 				},
 			},
 		});
-		const outcomes = collect<ExecutorOutcome>(runtime.outcomes);
+		const outcomes = collect<ClickHouseOutcome>(runtime.outcomes);
 		const input = adapterInput("auto");
 		inputs.set(input);
 		candidates.set(
@@ -830,7 +836,7 @@ describe("ClickHouse trusted-query evaluation contracts (D628)", () => {
 			}),
 		]);
 		expect(JSON.stringify(outcomes.values)).not.toContain("host-private");
-		const failure = outcomes.values[0] as Extract<ExecutorOutcome, { kind: "failure" }>;
+		const failure = outcomes.values[0] as Extract<ClickHouseOutcome, { kind: "failure" }>;
 		const { error: _error, retryable: _retryable, ...failureBase } = failure;
 		expect(() =>
 			createClickHouseTrustedQueryScenarioResultFromOutcome({
@@ -843,7 +849,7 @@ describe("ClickHouse trusted-query evaluation contracts (D628)", () => {
 			createClickHouseTrustedQueryScenarioResultFromOutcome({
 				arguments: executionArguments(),
 				resultId: "future-terminal-result",
-				outcome: { ...failureBase, kind: "future-terminal" } as unknown as ExecutorOutcome,
+				outcome: { ...failureBase, kind: "future-terminal" } as unknown as ClickHouseOutcome,
 			}),
 		).toThrow("terminal-shape-invalid");
 		outcomes.unsubscribe();

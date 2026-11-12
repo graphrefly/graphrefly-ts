@@ -1,8 +1,12 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
 import { graph } from "../graph/graph.js";
 import type {
+	KnowledgeGraphEntity,
+	KnowledgeGraphRelation,
+	KnowledgeGraphTopic,
 	MemoryAnswer,
 	MemoryRetrievalError,
+	MemoryRetrievalQuery,
 	MemoryRetrievalStatus,
 } from "../patterns/index.js";
 import {
@@ -24,7 +28,7 @@ import {
 	validateMemoryFragment,
 } from "../patterns/index.js";
 import { cosineSimilarity } from "../patterns/semantic-memory.js";
-import type { Message } from "../protocol/messages.js";
+import type { Message, Wave } from "../protocol/messages.js";
 
 const fragment = (patch: Partial<MemoryFragment<string>> = {}): MemoryFragment<string> => ({
 	id: "fact-1",
@@ -36,10 +40,15 @@ const fragment = (patch: Partial<MemoryFragment<string>> = {}): MemoryFragment<s
 	...patch,
 });
 
+const tenantFragment = (tenant: string): MemoryFragment<{ tenant: string }> => ({
+	...fragment(),
+	payload: { tenant },
+});
+
 const data = <T>(messages: Message[]): T[] =>
 	messages.filter((m) => m[0] === "DATA").map((m) => (m as readonly ["DATA", T])[1]);
 
-function collect(node: { subscribe(sink: (messages: Message) => void): () => void }) {
+function collect(node: { subscribe(sink: (messages: Wave) => void): () => void }) {
 	const messages: Message[] = [];
 	const unsubscribe = node.subscribe((incoming) => {
 		for (const message of incoming) {
@@ -163,14 +172,14 @@ describe("semantic memory passive vocabulary (D158)", () => {
 			tenants: ["acme", "globex", "acme"],
 		});
 		expect(strict.shardCount).toBe(3);
-		expect(strict.shardBy(fragment({ payload: { tenant: "acme" } }))).toBe(0);
-		expect(strict.shardBy(fragment({ payload: { tenant: "other" } }))).toBe(2);
+		expect(strict.shardBy(tenantFragment("acme"))).toBe(0);
+		expect(strict.shardBy(tenantFragment("other"))).toBe(2);
 
 		const soft = shardByTenant((f: MemoryFragment<{ tenant: string }>) => f.payload.tenant, {
 			shardCount: 0,
 		});
 		expect(soft.shardCount).toBe(1);
-		expect(soft.shardBy(fragment({ payload: { tenant: "acme" } }))).toBe("acme");
+		expect(soft.shardBy(tenantFragment("acme"))).toBe("acme");
 
 		const invalidShardCount = shardByTenant(
 			(f: MemoryFragment<{ tenant: string }>) => f.payload.tenant,
@@ -216,7 +225,10 @@ describe("memoryRetrievalBundle graph pattern (D158)", () => {
 			],
 			{ name: "fragments" },
 		);
-		const query = g.state({ tags: ["policy"], vector: [1, 0], limit: 2 }, { name: "query" });
+		const query = g.state<MemoryRetrievalQuery>(
+			{ tags: ["policy"], vector: [1, 0], limit: 2 },
+			{ name: "query" },
+		);
 		const bundle = memoryRetrievalBundle<string>(g, { name: "memory", fragments, query });
 		const ranked = collect(bundle.ranked);
 		const status = collect(bundle.status);
@@ -516,17 +528,17 @@ describe("knowledgeGraphReducerBundle graph pattern (D170)", () => {
 			"knowledgeGraphReducerSnapshot",
 		);
 		expect(
-			data(entities.messages)
+			data<readonly KnowledgeGraphEntity[]>(entities.messages)
 				.at(-1)
 				?.map((entity) => entity.id),
 		).toEqual(["person:ada", "project:graphrefly"]);
 		expect(
-			data(relations.messages)
+			data<readonly KnowledgeGraphRelation[]>(relations.messages)
 				.at(-1)
 				?.map((relation) => relation.assertionId),
 		).toEqual(["a1", "a2"]);
 		expect(
-			data(topics.messages)
+			data<readonly KnowledgeGraphTopic[]>(topics.messages)
 				.at(-1)
 				?.map((topic) => topic.predicate),
 		).toEqual(["prefers", "works_on"]);

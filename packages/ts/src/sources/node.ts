@@ -74,7 +74,8 @@ export interface ProcessResult {
 	readonly stdout: string;
 	readonly stderr: string;
 	readonly exitCode: number | null;
-	readonly signal: NodeJS.Signals | null;
+	/** The terminating signal's name, as the environment driver's ProcessResult reports it. */
+	readonly signal: string | null;
 }
 
 export type GitHookType = "post-commit" | "post-merge" | "post-checkout" | "post-rewrite";

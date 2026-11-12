@@ -86,7 +86,11 @@ const bytesToHex = (bytes: Uint8Array) =>
 	[...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 
 const _sha256Hex = async (bytes: Uint8Array) =>
-	bytesToHex(new Uint8Array(await globalThis.crypto.subtle.digest("SHA-256", bytes)));
+	bytesToHex(
+		new Uint8Array(
+			await globalThis.crypto.subtle.digest("SHA-256", bytes as Uint8Array<ArrayBuffer>),
+		),
+	);
 
 describe("D82 storage substrate helpers — part 2", () => {
 	it("sqliteBackend exposes D108 versioned get/set-if-match when node:sqlite is available", async () => {
@@ -103,8 +107,8 @@ describe("D82 storage substrate helpers — part 2", () => {
 			await backend.put("bad\u0000key", new Uint8Array([1]));
 			expect(await backend.get("bad\u0000key")).toEqual(new Uint8Array([1]));
 			expect(() => backend.get(1 as unknown as string)).toThrow(/key must be a string/);
-			expect(await backend.list("bad\u0000")).toEqual(["bad\u0000key"]);
-			expect(() => backend.list(1 as unknown as string)).toThrow(/list prefix must be a string/);
+			expect(await backend.list!("bad\u0000")).toEqual(["bad\u0000key"]);
+			expect(() => backend.list!(1 as unknown as string)).toThrow(/list prefix must be a string/);
 			expect(
 				await versioned.setIfMatch("bad\u0000key", new Uint8Array([2]), Object.freeze({})),
 			).toBe(false);
@@ -137,8 +141,8 @@ describe("D82 storage substrate helpers — part 2", () => {
 				try {
 					await root.put("root", new Uint8Array([9]));
 					await namespaced.put("scoped", new Uint8Array([8]));
-					expect(await root.list()).toEqual(["root"]);
-					expect(await namespaced.list()).toEqual(["scoped"]);
+					expect(await root.list!()).toEqual(["root"]);
+					expect(await namespaced.list!()).toEqual(["scoped"]);
 				} finally {
 					root.close();
 					namespaced.close();
@@ -162,7 +166,7 @@ describe("D82 storage substrate helpers — part 2", () => {
 
 			const missBeforeCycle = await versioned.getVersioned("cycle");
 			await backend.put("cycle", new Uint8Array([5]));
-			await backend.delete("cycle");
+			await backend.delete!("cycle");
 			expect(
 				await versioned.setIfMatch("cycle", new Uint8Array([6]), missBeforeCycle.generation),
 			).toBe(false);
@@ -212,7 +216,7 @@ describe("D82 storage substrate helpers — part 2", () => {
 		const backend = memoryBackend();
 		const input = Buffer.from([1, 2, 3]);
 
-		expect(await backend.putIfAbsent("buf", input)).toBe(true);
+		expect(await backend.putIfAbsent!("buf", input)).toBe(true);
 		input[0] = 9;
 		const stored = await backend.get("buf");
 		expect([...stored!]).toEqual([1, 2, 3]);
@@ -508,6 +512,7 @@ describe("D82 storage substrate helpers — part 2", () => {
 		expect(() => codec.decode(strictJsonCodec.encode({ ...frame, restore: true }))).toThrow(
 			/unknown field restore/,
 		);
+		// @ts-expect-error a stale checkpoint field must be rejected at run time
 		await expect(verifyWalFrameChecksum({ ...frame, checkpoint: { nodes: [] } })).rejects.toThrow(
 			/unknown field checkpoint/,
 		);
@@ -826,7 +831,8 @@ describe("D82 storage substrate helpers — part 2", () => {
 	it("append-log reads are serialized before later mutations", async () => {
 		const entries = new Map<string, { value: string }>();
 		let holdNextList = false;
-		let releaseList: (() => void) | null = null;
+		// Assigned inside the fake list, which control-flow narrowing cannot see.
+		let releaseList = null as (() => void) | null;
 		const kv: KvStorageTier<{ value: string }> = {
 			get: (key) => Promise.resolve(entries.get(key)),
 			set: (key, value) => {
@@ -894,8 +900,8 @@ describe("D82 storage substrate helpers — part 2", () => {
 
 	it("readObserveEventLogPage returns ordered observe frames without projection", async () => {
 		const log = memoryAppendLog<ObserveEventFrame<number>>("observe-page");
-		await log.append(observeEventFrame({ path: "count", msg: ["DATA", 1], tier: 3, seq: 1 }, 1));
-		await log.append(observeEventFrame({ path: "count", msg: ["DATA", 2], tier: 3, seq: 2 }, 2));
+		await log.append(observeEventFrame({ path: "count", seq: 1 }, 1));
+		await log.append(observeEventFrame({ path: "count", seq: 2 }, 2));
 
 		const page = await readObserveEventLogPage(log, { limit: 1 });
 		expect(page.entries.map((entry) => entry.value.change)).toEqual([1]);
@@ -909,18 +915,9 @@ describe("D82 storage substrate helpers — part 2", () => {
 
 	it("readObserveEventLogPage orders by append sequence, not graph projection semantics", async () => {
 		const entries = new Map<string, ObserveEventFrame<number>>([
-			[
-				appendLogKey("observe-unordered", 10),
-				observeEventFrame({ path: "count", msg: ["DATA", 3], tier: 3, seq: 7 }, 3),
-			],
-			[
-				appendLogKey("observe-unordered", 0),
-				observeEventFrame({ path: "count", msg: ["DATA", 1], tier: 3, seq: 10 }, 1),
-			],
-			[
-				appendLogKey("observe-unordered", 2),
-				observeEventFrame({ path: "count", msg: ["DATA", 2], tier: 3, seq: 5 }, 2),
-			],
+			[appendLogKey("observe-unordered", 10), observeEventFrame({ path: "count", seq: 7 }, 3)],
+			[appendLogKey("observe-unordered", 0), observeEventFrame({ path: "count", seq: 10 }, 1)],
+			[appendLogKey("observe-unordered", 2), observeEventFrame({ path: "count", seq: 5 }, 2)],
 		]);
 		const kv: KvStorageTier<ObserveEventFrame<number>> = {
 			get: (key) => Promise.resolve(entries.get(key)),
@@ -961,7 +958,7 @@ describe("D82 storage substrate helpers — part 2", () => {
 		const malformed = memoryKv<ObserveEventFrame<number>>();
 		await malformed.set(
 			"observe-bad/not-a-sequence",
-			observeEventFrame({ path: "count", msg: ["DATA", 1], tier: 3, seq: 1 }, 1),
+			observeEventFrame({ path: "count", seq: 1 }, 1),
 		);
 		const malformedLog = appendLogStorage({ kv: malformed, prefix: "observe-bad" });
 

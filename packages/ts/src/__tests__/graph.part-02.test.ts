@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { depLatest } from "../ctx/types.js";
 import { releaseGraphNodes } from "../graph/graph.js";
-import type { Message, TopologyEvent } from "../index.js";
+import type { Message, TopologyEvent, Wave } from "../index.js";
 import {
 	Dispatcher,
 	defaultRestoreRegistry,
@@ -20,7 +20,7 @@ import { buildBeside } from "../node/node.js";
 import { asState } from "./helpers/as-state.js";
 import { rewireOwnedNode } from "./helpers/owned-rewire.js";
 
-function collect(n: { subscribe(s: (m: Message) => void): () => void }) {
+function collect(n: { subscribe(s: (msgs: Wave) => void): () => void }) {
 	const msgs: Message[] = [];
 	n.subscribe((incoming) => {
 		for (const m of incoming) {
@@ -44,7 +44,7 @@ describe("Graph.observeTopology — read-only topology egress (D145)", () => {
 		const unsub = g.observeTopology().subscribe((event) => events.push(event));
 
 		const source = g.state(1, { name: "source" });
-		g.derived([source], (n) => n + 1, { name: "derived" });
+		g.derived([source], (n) => n! + 1, { name: "derived" });
 
 		unsub();
 		expect(events).toEqual([
@@ -239,7 +239,7 @@ describe("Graph.observeTopology — read-only topology egress (D145)", () => {
 		const g = graph();
 		const source = g.state(1, { name: "source" });
 		const group = g.topologyGroup({ name: "view" });
-		const derived = group.derived([source], (n) => n + 1, { name: "derived" });
+		const derived = group.derived([source], (n) => n! + 1, { name: "derived" });
 		const events: TopologyEvent[] = [];
 		const unsub = g.observeTopology("derived").subscribe((event) => events.push(event));
 
@@ -265,8 +265,8 @@ describe("Graph.observeTopology — read-only topology egress (D145)", () => {
 		const g = graph();
 		const source = g.state(1, { name: "source" });
 		const group = g.topologyGroup({ name: "view" });
-		const derived = group.derived([source], (n) => n + 1, { name: "derived" });
-		g.derived([derived], (n) => n + 1, { name: "consumer" });
+		const derived = group.derived([source], (n) => n! + 1, { name: "derived" });
+		g.derived([derived], (n) => n! + 1, { name: "consumer" });
 		const events: TopologyEvent[] = [];
 		const unsub = g.observeTopology().subscribe((event) => events.push(event));
 
@@ -328,8 +328,8 @@ describe("Graph.topologyGroup — graph-owned dynamic topology release (D152/D15
 		const unsub = g.observeTopology().subscribe((event) => events.push(event));
 		const group = g.topologyGroup({ name: "view" });
 
-		const delta = group.derived([source], (n) => n + 1, { name: "view.delta" });
-		const snapshot = group.derived([delta], (n) => n * 2, { name: "view.snapshot" });
+		const delta = group.derived([source], (n) => n! + 1, { name: "view.delta" });
+		const snapshot = group.derived([delta], (n) => n! * 2, { name: "view.snapshot" });
 
 		expect(g.find("view.delta")).toBe(delta);
 		expect(g.find("view.snapshot")).toBe(snapshot);
@@ -424,7 +424,7 @@ describe("Graph.checkpoint — data shape (R-checkpoint / D802, TS layout D178)"
 	it("returns a strict-JSON checkpoint with topology, values, lifetimes and mounts", () => {
 		const parent = graph({ name: "parent" });
 		const count = parent.state(0, { name: "count" });
-		const doubled = parent.derived([count], (n) => n * 2, { name: "doubled" });
+		const doubled = parent.derived([count], (n) => n! * 2, { name: "doubled" });
 		collect(doubled);
 		count.set(5);
 		const child = graph({ name: "child" });
@@ -671,9 +671,9 @@ describe("Graph release-local subscriber accounting — D122/D124", () => {
 		const group = g.topologyGroup({ name: "diamond" });
 		const a = group.state(2, { name: "a" });
 		const b = group.state(3, { name: "b" });
-		const left = group.derived([a, b], (x, y) => x + y, { name: "left" });
-		const right = group.derived([a, b], (x, y) => x * y, { name: "right" });
-		const join = group.derived([left, right], (x, y) => x + y, { name: "join" });
+		const left = group.derived([a, b], (x, y) => x! + y!, { name: "left" });
+		const right = group.derived([a, b], (x, y) => x! * y!, { name: "right" });
+		const join = group.derived([left, right], (x, y) => x! + y!, { name: "join" });
 		const messages: Message[] = [];
 		const disconnect = join.subscribe((incoming) => {
 			for (const m of incoming) {

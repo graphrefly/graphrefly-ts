@@ -328,7 +328,7 @@ describe("toolProviderRunAdmissionProjector (D419)", () => {
 		});
 		const conflicting = {
 			...candidate,
-			sourceRefs: [...candidate.sourceRefs, { kind: "policy", id: "different-authority" }],
+			sourceRefs: [...(candidate.sourceRefs ?? []), { kind: "policy", id: "different-authority" }],
 		} satisfies ToolProviderAdapterRunRequested;
 
 		harness.inputs.set(input);

@@ -18,7 +18,12 @@ import {
 import { createRequire } from "node:module";
 import { basename, dirname, join } from "node:path";
 import { type AppendLogStorageTier, appendLogStorage } from "./append-log.js";
-import type { StorageBackend, StorageGeneration, StorageNamespaceOptions } from "./backend.js";
+import type {
+	ListableStorageBackend,
+	StorageBackend,
+	StorageGeneration,
+	StorageNamespaceOptions,
+} from "./backend.js";
 import type { Codec } from "./codec.js";
 import { type KvStorageTier, kvStorage } from "./kv.js";
 import { decodeStoragePhysicalKey, storagePhysicalKey } from "./physical-key.js";
@@ -242,7 +247,7 @@ function loadSqliteDatabaseSync(): SqliteDatabaseConstructor {
  * import { fileBackend } from "@graphrefly/ts/storage/node";
  * ```
  */
-export function fileBackend(dir: string, opts: FileBackendOptions = {}): StorageBackend {
+export function fileBackend(dir: string, opts: FileBackendOptions = {}): ListableStorageBackend {
 	const extension = validateExtension(opts.extension ?? ".bin");
 	const namespace =
 		opts.namespace === undefined ? "" : validateNamespace("fileBackend", opts.namespace);

@@ -8,6 +8,7 @@ import {
 	type ProcessEffectOutcome,
 	processBundle,
 	processEffectRunner,
+	type ResilienceEvent,
 	retryPolicy,
 	retryStatusBundle,
 } from "../orchestration/index.js";
@@ -27,11 +28,7 @@ describe("graph-visible resilience bundles (D132)", () => {
 
 	it("projects retry and breaker status from graph-visible event facts", () => {
 		const g = graph();
-		const events = g.node<{
-			kind: "attempt" | "failure" | "success";
-			attempt?: number;
-			error?: unknown;
-		}>([], null, { name: "resilience/events" });
+		const events = g.node<ResilienceEvent>([], null, { name: "resilience/events" });
 		const retry = retryStatusBundle(g, events, {
 			name: "retry",
 			policy: retryPolicy(2, { kind: "constant", delayMs: 25 }),

@@ -9,19 +9,11 @@
  */
 
 import { describe, expect, it } from "vitest";
-import type { Message, NodeFn } from "../index.js";
+import type { NodeFn } from "../index.js";
 import { depBatch, depCount, graph } from "../index.js";
+import { collect } from "./helpers/collect.js";
 
 const _flush = () => new Promise((r) => setTimeout(r, 0));
-function collect(n: { subscribe(s: (m: Message) => void): () => void }) {
-	const msgs: Message[] = [];
-	const unsub = n.subscribe((incoming) => {
-		for (const m of incoming) {
-			msgs.push(m);
-		}
-	});
-	return { msgs, unsub };
-}
 
 // C-15 (R-terminal-settles-dirty / B35): a dep's terminal (COMPLETE/ERROR) releases its
 // outstanding in-wave PENDING contribution — the exactly-one-settle invariant — exactly as

@@ -596,7 +596,7 @@ export interface ManagedCloudPostgresqlWssFactory {
 	listen(
 		accept: (socket: ManagedCloudPostgresqlWssSocket, text: string) => void,
 		disconnect: (socket: ManagedCloudPostgresqlWssSocket) => void,
-	): void | PromiseLike<() => void | PromiseLike<void>>;
+	): void | PromiseLike<void | (() => void | PromiseLike<void>)>;
 }
 export interface ManagedCloudPostgresqlWssVerifier {
 	verify(socket: ManagedCloudPostgresqlWssSocket): boolean | PromiseLike<boolean>;

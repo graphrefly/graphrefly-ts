@@ -65,6 +65,20 @@ export interface StorageBackend {
 	list?(prefix?: string): readonly string[] | PromiseLike<readonly string[]>;
 }
 
+/** A backend whose reads are synchronous and that always lists and deletes (web storage). */
+export interface SyncStorageBackend extends StorageBackend {
+	get(key: string): undefined | Uint8Array;
+	put(key: string, value: Uint8Array): void;
+	delete(key: string): void;
+	list(prefix?: string): readonly string[];
+}
+
+/** A backend that always lists and deletes (a file backend). */
+export interface ListableStorageBackend extends StorageBackend {
+	delete(key: string): void | PromiseLike<void>;
+	list(prefix?: string): readonly string[] | PromiseLike<readonly string[]>;
+}
+
 /** Passive D85 conditional-create capability for multi-writer storage helpers. */
 export interface PutIfAbsentStorageBackend extends StorageBackend {
 	putIfAbsent(key: string, value: Uint8Array): boolean | PromiseLike<boolean>;
@@ -233,7 +247,7 @@ function listByPrefix(namespace: string, prefix: string, raw: readonly unknown[]
 export function webStorageBackend(
 	storage: WebStorageLike,
 	opts: StorageNamespaceOptions = {},
-): StorageBackend {
+): SyncStorageBackend {
 	const namespace =
 		opts.namespace === undefined ? "" : validateNamespace("webStorageBackend", opts.namespace);
 	return {

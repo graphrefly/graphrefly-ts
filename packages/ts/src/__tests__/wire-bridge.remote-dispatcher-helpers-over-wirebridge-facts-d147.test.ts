@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+	type RemoteCallRequest,
+	type RemoteCallResponse,
 	remoteCall,
 	remoteResponder,
 	remoteResponderHandler,
@@ -11,17 +13,10 @@ import { graph } from "../graph/graph.js";
 describe("remote dispatcher helpers over wireBridge facts (D147)", () => {
 	it("remoteCall emits request facts and projects later response/status/error facts", () => {
 		const g = graph();
-		const bridge = wireBridge<
-			{ operation: string; requestId: string; payload: string },
-			{
-				kind: "result" | "error" | "status";
-				operation: string;
-				requestId: string;
-				payload?: string;
-				error?: string;
-				status?: string;
-			}
-		>(g, { name: "bridge", sessionId: "session-a" });
+		const bridge = wireBridge<RemoteCallRequest<string>, RemoteCallResponse<string>>(g, {
+			name: "bridge",
+			sessionId: "session-a",
+		});
 		const remote = remoteCall<string, string>(g, bridge, { name: "rpc" });
 		const outbound: unknown[] = [];
 		const results: unknown[] = [];
@@ -113,15 +108,10 @@ describe("remote dispatcher helpers over wireBridge facts (D147)", () => {
 
 	it("remoteCall ignores unknown responses instead of buffering them for future calls", () => {
 		const g = graph();
-		const bridge = wireBridge<
-			{ operation: string; requestId: string; payload: string },
-			{
-				kind: "result";
-				operation: string;
-				requestId: string;
-				payload: string;
-			}
-		>(g, { name: "bridge", sessionId: "session-a" });
+		const bridge = wireBridge<RemoteCallRequest<string>, RemoteCallResponse<string>>(g, {
+			name: "bridge",
+			sessionId: "session-a",
+		});
 		const remote = remoteCall<string, string>(g, bridge, { name: "rpc" });
 		const results: unknown[] = [];
 		const errors: unknown[] = [];
@@ -209,15 +199,10 @@ describe("remote dispatcher helpers over wireBridge facts (D147)", () => {
 
 	it("remoteCall ignores same-wave stale responses that precede a new outbound request", () => {
 		const g = graph();
-		const bridge = wireBridge<
-			{ operation: string; requestId: string; payload: string },
-			{
-				kind: "result";
-				operation: string;
-				requestId: string;
-				payload: string;
-			}
-		>(g, { name: "bridge", sessionId: "session-a" });
+		const bridge = wireBridge<RemoteCallRequest<string>, RemoteCallResponse<string>>(g, {
+			name: "bridge",
+			sessionId: "session-a",
+		});
 		const remote = remoteCall<string, string>(g, bridge, { name: "rpc" });
 		const results: unknown[] = [];
 		const errors: unknown[] = [];
@@ -309,16 +294,10 @@ describe("remote dispatcher helpers over wireBridge facts (D147)", () => {
 
 	it("remoteCall requires operation correlation and keeps status responses non-terminal", () => {
 		const g = graph();
-		const bridge = wireBridge<
-			{ operation: string; requestId: string; payload: string },
-			{
-				kind: "result" | "status";
-				operation: string;
-				requestId: string;
-				payload?: string;
-				status?: string;
-			}
-		>(g, { name: "bridge", sessionId: "session-a" });
+		const bridge = wireBridge<RemoteCallRequest<string>, RemoteCallResponse<string>>(g, {
+			name: "bridge",
+			sessionId: "session-a",
+		});
 		const remote = remoteCall<string, string>(g, bridge, { name: "rpc" });
 		const results: unknown[] = [];
 		const responses: unknown[] = [];
@@ -445,10 +424,10 @@ describe("remote dispatcher helpers over wireBridge facts (D147)", () => {
 
 	it("remoteCall rejects duplicate in-flight request ids instead of replacing pending state", () => {
 		const g = graph();
-		const bridge = wireBridge<
-			{ operation: string; requestId: string; payload: string },
-			{ kind: "result"; operation: string; requestId: string; payload: string }
-		>(g, { name: "bridge", sessionId: "session-a" });
+		const bridge = wireBridge<RemoteCallRequest<string>, RemoteCallResponse<string>>(g, {
+			name: "bridge",
+			sessionId: "session-a",
+		});
 		const remote = remoteCall<string, string>(g, bridge, { name: "rpc" });
 		const results: unknown[] = [];
 		const errors: unknown[] = [];
@@ -524,10 +503,10 @@ describe("remote dispatcher helpers over wireBridge facts (D147)", () => {
 
 	it("remoteCall duplicate request NACK does not clear the original pending request", () => {
 		const g = graph();
-		const bridge = wireBridge<
-			{ operation: string; requestId: string; payload: string },
-			{ kind: "result"; operation: string; requestId: string; payload: string }
-		>(g, { name: "bridge", sessionId: "session-a" });
+		const bridge = wireBridge<RemoteCallRequest<string>, RemoteCallResponse<string>>(g, {
+			name: "bridge",
+			sessionId: "session-a",
+		});
 		const remote = remoteCall<string, string>(g, bridge, { name: "rpc" });
 		const results: unknown[] = [];
 		const errors: unknown[] = [];
@@ -593,17 +572,10 @@ describe("remote dispatcher helpers over wireBridge facts (D147)", () => {
 
 	it("remoteResponder dispatches sync handlers through bridge command facts", () => {
 		const g = graph();
-		const bridge = wireBridge<
-			{
-				kind: "result" | "error" | "status";
-				operation: string;
-				requestId: string;
-				payload?: string;
-				error?: string;
-				status?: string;
-			},
-			{ operation: string; requestId: string; payload: string }
-		>(g, { name: "bridge", sessionId: "session-a" });
+		const bridge = wireBridge<RemoteCallResponse<string>, RemoteCallRequest<string>>(g, {
+			name: "bridge",
+			sessionId: "session-a",
+		});
 		const responder = remoteResponder<string, string>(g, bridge, {
 			name: "responder",
 			handlers: [remoteResponderHandler("upper", (request) => request.payload.toUpperCase())],
@@ -678,10 +650,10 @@ describe("remote dispatcher helpers over wireBridge facts (D147)", () => {
 
 	it("remoteResponder release detaches responseCommands from a long-lived bridge", () => {
 		const g = graph();
-		const bridge = wireBridge<
-			{ kind: "result" | "error"; operation: string; requestId: string; payload?: string },
-			{ operation: string; requestId: string; payload: string }
-		>(g, { name: "bridge", sessionId: "session-a" });
+		const bridge = wireBridge<RemoteCallResponse<string>, RemoteCallRequest<string>>(g, {
+			name: "bridge",
+			sessionId: "session-a",
+		});
 		const responder = remoteResponder<string, string>(g, bridge, {
 			name: "responder",
 			handlers: [remoteResponderHandler("upper", (request) => request.payload.toUpperCase())],
@@ -718,10 +690,10 @@ describe("remote dispatcher helpers over wireBridge facts (D147)", () => {
 
 	it("remoteResponder release is retryable when external subscribers block topology release", () => {
 		const g = graph();
-		const bridge = wireBridge<
-			{ kind: "result" | "error"; operation: string; requestId: string; payload?: string },
-			{ operation: string; requestId: string; payload: string }
-		>(g, { name: "bridge", sessionId: "session-a" });
+		const bridge = wireBridge<RemoteCallResponse<string>, RemoteCallRequest<string>>(g, {
+			name: "bridge",
+			sessionId: "session-a",
+		});
 		const responder = remoteResponder<string, string>(g, bridge, {
 			name: "responder",
 			handlers: [remoteResponderHandler("upper", (request) => request.payload.toUpperCase())],
@@ -757,10 +729,10 @@ describe("remote dispatcher helpers over wireBridge facts (D147)", () => {
 
 	it("remoteResponder rejects wrong-session inbound requests before handler dispatch", () => {
 		const g = graph();
-		const bridge = wireBridge<
-			{ kind: "result" | "error"; operation: string; requestId: string; payload?: string },
-			{ operation: string; requestId: string; payload: string }
-		>(g, { name: "bridge", sessionId: "session-a" });
+		const bridge = wireBridge<RemoteCallResponse<string>, RemoteCallRequest<string>>(g, {
+			name: "bridge",
+			sessionId: "session-a",
+		});
 		const handled: string[] = [];
 		const responder = remoteResponder<string, string>(g, bridge, {
 			name: "responder",
@@ -809,10 +781,11 @@ describe("remote dispatcher helpers over wireBridge facts (D147)", () => {
 
 	it("remoteCall surfaces malformed response payloads as visible errors", () => {
 		const g = graph();
-		const bridge = wireBridge<{ operation: string; requestId: string; payload: string }, unknown>(
-			g,
-			{ name: "bridge", sessionId: "session-a" },
-		);
+		const bridge = wireBridge<RemoteCallRequest<string>, unknown>(g, {
+			name: "bridge",
+			sessionId: "session-a",
+		});
+		// @ts-expect-error: the inbound wire is deliberately untyped so malformed responses can arrive
 		const remote = remoteCall<string, string>(g, bridge, { name: "rpc" });
 		const errors: unknown[] = [];
 		const results: unknown[] = [];
@@ -872,10 +845,11 @@ describe("remote dispatcher helpers over wireBridge facts (D147)", () => {
 
 	it("remoteCall keeps malformed orphan responses out of call-level errors", () => {
 		const g = graph();
-		const bridge = wireBridge<{ operation: string; requestId: string; payload: string }, unknown>(
-			g,
-			{ name: "bridge", sessionId: "session-a" },
-		);
+		const bridge = wireBridge<RemoteCallRequest<string>, unknown>(g, {
+			name: "bridge",
+			sessionId: "session-a",
+		});
+		// @ts-expect-error: the inbound wire is deliberately untyped so malformed responses can arrive
 		const remote = remoteCall<string, string>(g, bridge, { name: "rpc" });
 		const errors: unknown[] = [];
 		const results: unknown[] = [];
@@ -953,11 +927,12 @@ describe("remote dispatcher helpers over wireBridge facts (D147)", () => {
 
 	it("remoteResponder rejects malformed request payloads before handler dispatch", () => {
 		const g = graph();
-		const bridge = wireBridge<
-			{ kind: "result" | "error"; operation: string; requestId: string; payload?: string },
-			unknown
-		>(g, { name: "bridge", sessionId: "session-a" });
+		const bridge = wireBridge<RemoteCallResponse<string>, unknown>(g, {
+			name: "bridge",
+			sessionId: "session-a",
+		});
 		const handled: string[] = [];
+		// @ts-expect-error: the inbound wire is deliberately untyped so malformed requests can arrive
 		const responder = remoteResponder<string, string>(g, bridge, {
 			name: "responder",
 			handlers: [
@@ -993,10 +968,10 @@ describe("remote dispatcher helpers over wireBridge facts (D147)", () => {
 
 	it("remoteResponder rejects async handler results in the sync first slice", () => {
 		const g = graph();
-		const bridge = wireBridge<
-			{ kind: "result" | "error"; operation: string; requestId: string; payload?: string },
-			{ operation: string; requestId: string; payload: string }
-		>(g, { name: "bridge", sessionId: "session-a" });
+		const bridge = wireBridge<RemoteCallResponse<unknown>, RemoteCallRequest<string>>(g, {
+			name: "bridge",
+			sessionId: "session-a",
+		});
 		const responder = remoteResponder<string, unknown>(g, bridge, {
 			name: "responder",
 			handlers: [

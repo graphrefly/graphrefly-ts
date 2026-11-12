@@ -6,7 +6,7 @@ describe("patterns inspection helpers (B62 / D125)", () => {
 	it("profileSummary rolls up graph-local profile counters", () => {
 		const g = graph({ dispatcher: new Dispatcher(), profile: true });
 		const count = g.state(0, { name: "count" });
-		const doubled = g.derived([count], (n) => n * 2, { name: "doubled" });
+		const doubled = g.derived([count], (n) => n! * 2, { name: "doubled" });
 		doubled.subscribe(() => {});
 		count.set(1);
 		count.set(2);

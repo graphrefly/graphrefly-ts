@@ -48,6 +48,7 @@ export type {
 	ToolProviderAdapterRunBundle,
 	ToolProviderAdapterRunReason,
 	ToolProviderAdapterRunRequested,
+	ToolProviderAdapterRunResult,
 	ToolProviderAdapterRunStatus,
 	ToolProviderApprovalPolicy,
 	ToolProviderArtifactPolicy,

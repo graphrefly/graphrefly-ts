@@ -19,7 +19,7 @@ import { webStorageBackend } from "@graphrefly/ts/storage";
 function webStorageBackend(
 	storage: WebStorageLike,
 	opts: StorageNamespaceOptions = {},
-): StorageBackend
+): SyncStorageBackend
 ```
 
 ## Parameters

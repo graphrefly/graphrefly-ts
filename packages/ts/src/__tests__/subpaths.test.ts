@@ -145,9 +145,7 @@ import * as semanticMemory from "../memory/semantic/index.js";
 import * as messaging from "../messaging/index.js";
 import type { Node } from "../node/node.js";
 import * as operators from "../operators/index.js";
-// TODO(review-2.21): ToolProviderAdapterRunResult is used by public adapter signatures but no public
-// module exports it, so the surface check reads it from its defining module.
-import type { ToolProviderAdapterRunResult } from "../orchestration/agent-runtime-types-tool.js";
+import type { ToolProviderAdapterRunResult } from "../orchestration/agent-runtime.js";
 import type {
 	ExecutorArtifactMaterial,
 	ScheduledReadinessBundle,

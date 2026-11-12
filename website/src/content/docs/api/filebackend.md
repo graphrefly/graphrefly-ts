@@ -19,7 +19,7 @@ import { fileBackend } from "@graphrefly/ts/storage/node";
 function fileBackend(
 	dir: string,
 	opts: FileBackendOptions = {},
-): StorageBackend
+): ListableStorageBackend
 ```
 
 ## Parameters

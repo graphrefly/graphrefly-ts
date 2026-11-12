@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import type { DataIssue } from "../data/index.js";
 import type {
 	ToolProviderAdapterBinding,
+	ToolProviderAdapterRunResult,
 	ToolProviderAdapterRuntimeStatus,
 } from "../executors/tool-provider-runtime.js";
 import { attachToolProviderAdapterRuntime } from "../executors/tool-provider-runtime.js";
@@ -23,7 +24,6 @@ import {
 	type SourceRef,
 	type ToolProviderAdapterInput,
 	type ToolProviderAdapterRunRequested,
-	type ToolProviderAdapterRunResult,
 	type ToolProviderAdapterRunStatus,
 	toolProviderAdapterInputProjector,
 } from "../orchestration/agent-runtime.js";
@@ -130,13 +130,6 @@ function routeFor(
 	};
 }
 
-function effectRunStatusForOutcome(outcome: ExecutorOutcome): EffectRunResult["status"] {
-	if (outcome.kind === "result") return "completed";
-	if (outcome.kind === "failure") return "failed";
-	if (outcome.kind === "blocked") return "blocked";
-	return outcome.kind;
-}
-
 function terminalRequestStatusForOutcome(outcome: ExecutorOutcome): AgentRequestStatus {
 	if (outcome.kind === "result") return "completed";
 	if (outcome.kind === "failure") return "failed";
@@ -181,7 +174,6 @@ function visibleOutcomeResultCandidates(
 				kind: "effect-run-result",
 				resultId: `${status.effectRunId}:${outcome.outcomeId}:result`,
 				effectRunId: status.effectRunId,
-				status: effectRunStatusForOutcome(outcome),
 				operationId: outcome.operationId,
 				subjectRefs: [{ kind: "work-item", id: "wi-dogfood" }],
 				sourceRefs: uniqueRefs([
@@ -202,17 +194,20 @@ function visibleOutcomeResultCandidates(
 				]),
 				completedAtMs: outcome.occurredAtMs,
 				metadata: { outcomeId: outcome.outcomeId, requestStatus: status.status },
-			} satisfies Omit<EffectRunResult, "output" | "error" | "needs" | "reason" | "timeoutMs">;
-			const result =
+			} satisfies Omit<
+				EffectRunResult,
+				"status" | "output" | "error" | "needs" | "reason" | "timeoutMs"
+			>;
+			const result: EffectRunResult =
 				outcome.kind === "result"
-					? ({ ...base, output: outcome.result } satisfies EffectRunResult)
+					? { ...base, status: "completed", output: outcome.result }
 					: outcome.kind === "failure"
-						? ({ ...base, error: outcome.error } satisfies EffectRunResult)
+						? { ...base, status: "failed", error: outcome.error }
 						: outcome.kind === "blocked"
-							? ({ ...base, needs: outcome.needs } satisfies EffectRunResult)
+							? { ...base, status: "blocked", needs: outcome.needs }
 							: outcome.kind === "timeout"
-								? ({ ...base, timeoutMs: outcome.timeoutMs } satisfies EffectRunResult)
-								: ({ ...base, reason: outcome.reason } satisfies EffectRunResult);
+								? { ...base, status: "timeout", timeoutMs: outcome.timeoutMs }
+								: { ...base, status: outcome.kind, reason: outcome.reason };
 			state.emitted.add(outcome.outcomeId);
 			candidates.set(result);
 		}
@@ -394,52 +389,52 @@ function createDogfoodHarness(
 	const unsubscribes = [
 		adapterInputs.inputs.subscribe((incoming) => {
 			for (const msg of incoming) {
-				msg[0] === "DATA" && seen.inputs.push(msg[1]);
+				msg[0] === "DATA" && seen.inputs.push(msg[1] as ToolProviderAdapterInput);
 			}
 		}),
 		runtime.outcomes.subscribe((incoming) => {
 			for (const msg of incoming) {
-				msg[0] === "DATA" && seen.outcomes.push(msg[1]);
+				msg[0] === "DATA" && seen.outcomes.push(msg[1] as ExecutorOutcome);
 			}
 		}),
 		runtime.status.subscribe((incoming) => {
 			for (const msg of incoming) {
-				msg[0] === "DATA" && seen.agentStatus.push(msg[1]);
+				msg[0] === "DATA" && seen.agentStatus.push(msg[1] as AgentRequestStatusChanged);
 			}
 		}),
 		runtime.runStatus.subscribe((incoming) => {
 			for (const msg of incoming) {
-				msg[0] === "DATA" && seen.runStatus.push(msg[1]);
+				msg[0] === "DATA" && seen.runStatus.push(msg[1] as ToolProviderAdapterRunStatus);
 			}
 		}),
 		runtime.runtimeStatus.subscribe((incoming) => {
 			for (const msg of incoming) {
-				msg[0] === "DATA" && seen.runtimeStatus.push(msg[1]);
+				msg[0] === "DATA" && seen.runtimeStatus.push(msg[1] as ToolProviderAdapterRuntimeStatus);
 			}
 		}),
 		runtime.issues.subscribe((incoming) => {
 			for (const msg of incoming) {
-				msg[0] === "DATA" && seen.issues.push(msg[1]);
+				msg[0] === "DATA" && seen.issues.push(msg[1] as DataIssue);
 			}
 		}),
 		runtime.audit.subscribe((incoming) => {
 			for (const msg of incoming) {
-				msg[0] === "DATA" && seen.audit.push(msg[1]);
+				msg[0] === "DATA" && seen.audit.push(msg[1] as AgentRuntimeAuditRecord);
 			}
 		}),
 		resultCandidates.candidates.subscribe((incoming) => {
 			for (const msg of incoming) {
-				msg[0] === "DATA" && seen.resultCandidates.push(msg[1]);
+				msg[0] === "DATA" && seen.resultCandidates.push(msg[1] as EffectRunResult);
 			}
 		}),
 		completion.results.subscribe((incoming) => {
 			for (const msg of incoming) {
-				msg[0] === "DATA" && seen.results.push(msg[1]);
+				msg[0] === "DATA" && seen.results.push(msg[1] as EffectRunResult);
 			}
 		}),
 		evidenceMapper.evidence.subscribe((incoming) => {
 			for (const msg of incoming) {
-				msg[0] === "DATA" && seen.evidence.push(msg[1]);
+				msg[0] === "DATA" && seen.evidence.push(msg[1] as WorkItemEvidenceRecorded);
 			}
 		}),
 		evidenceMapper.views.subscribe(() => {}),

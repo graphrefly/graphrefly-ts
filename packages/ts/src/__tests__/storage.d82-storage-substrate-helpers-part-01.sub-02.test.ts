@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import type { KvStorageTier } from "../index.js";
+import type { KvStorageTier, StorageBackend } from "../index.js";
 import {
 	hasStoragePutIfAbsent,
 	hasStorageVersioned,
@@ -54,6 +54,21 @@ const createStorage = (): TestStorage => {
 
 const makeTempDir = () => mkdtempSync(join(tmpdir(), "graphrefly-ts-storage-"));
 
+// Checks that a backend lists, deletes and answers synchronously, as the tests below rely on.
+type ListingStorageBackend = StorageBackend & Required<Pick<StorageBackend, "list" | "delete">>;
+
+const listing = (backend: StorageBackend): ListingStorageBackend => {
+	if (typeof backend.list !== "function" || typeof backend.delete !== "function")
+		throw new Error("expected a backend with list and delete");
+	return backend as ListingStorageBackend;
+};
+
+const syncResult = <T>(value: T | PromiseLike<T>): T => {
+	if (typeof (value as { then?: unknown } | undefined)?.then === "function")
+		throw new Error("expected a synchronous result");
+	return value as T;
+};
+
 const _flushMicrotasks = async (turns = 1) => {
 	for (let i = 0; i < turns; i += 1) await Promise.resolve();
 };
@@ -66,7 +81,7 @@ const _awaitDone = (run: (done: () => void) => void) =>
 const bytesToHex = (bytes: Uint8Array) =>
 	[...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 
-const _sha256Hex = async (bytes: Uint8Array) =>
+const _sha256Hex = async (bytes: Uint8Array<ArrayBuffer>) =>
 	bytesToHex(new Uint8Array(await globalThis.crypto.subtle.digest("SHA-256", bytes)));
 
 describe("D82 storage substrate helpers — sub 2", () => {
@@ -251,11 +266,12 @@ describe("D82 storage substrate helpers — sub 2", () => {
 		const second = new Uint8Array([9, 9, 9]);
 
 		expect(hasStoragePutIfAbsent(backend)).toBe(true);
-		expect(requireStoragePutIfAbsent(backend)).toBe(backend);
-		expect(await backend.putIfAbsent("k", first)).toBe(true);
+		const atomic = requireStoragePutIfAbsent(backend);
+		expect(atomic).toBe(backend);
+		expect(await atomic.putIfAbsent("k", first)).toBe(true);
 		first[0] = 7;
 
-		expect(await backend.putIfAbsent("k", second)).toBe(false);
+		expect(await atomic.putIfAbsent("k", second)).toBe(false);
 		second[1] = 8;
 		const stored = await backend.get("k");
 		expect([...stored!]).toEqual([1, 2, 3]);
@@ -264,7 +280,8 @@ describe("D82 storage substrate helpers — sub 2", () => {
 	});
 
 	it("memoryBackend supports D108 versioned present and absent observations", async () => {
-		const backend = requireStorageVersioned(memoryBackend());
+		const memory = memoryBackend();
+		const backend = requireStorageVersioned(memory);
 
 		expect(hasStorageVersioned(backend)).toBe(true);
 		const absent = await backend.getVersioned("k");
@@ -287,20 +304,20 @@ describe("D82 storage substrate helpers — sub 2", () => {
 		expect(await backend.setIfMatch("k", new Uint8Array([4]), fresh.generation)).toBe(true);
 		expect(await backend.get("k")).toEqual(new Uint8Array([4]));
 
-		backend.clear();
+		memory.clear();
 		expect(await backend.setIfMatch("k", new Uint8Array([5]), fresh.generation)).toBe(false);
 	});
 
 	it("webStorageBackend stores hex bytes deterministically, lists by namespace, and rejects malformed data", () => {
 		const storage = createStorage();
-		const backend = webStorageBackend(storage, { namespace: "web" });
+		const backend = listing(webStorageBackend(storage, { namespace: "web" }));
 
 		const raw = new Uint8Array([8, 9, 10]);
 		backend.put("cache/key", raw);
 		raw[0] = 1;
 
 		expect(storage.entries[storagePhysicalKey("web", "cache/key")]).toBe("08090a");
-		expect([...(backend.get("cache/key") ?? new Uint8Array())]).toEqual([8, 9, 10]);
+		expect([...(syncResult(backend.get("cache/key")) ?? new Uint8Array())]).toEqual([8, 9, 10]);
 		expect(backend.list("cache")).toEqual(["cache/key"]);
 		expect(backend.list("other")).toEqual([]);
 
@@ -319,11 +336,11 @@ describe("D82 storage substrate helpers — sub 2", () => {
 			/namespace/,
 		);
 
-		const backend = webStorageBackend(storage, { namespace: "ns" });
-		const root = webStorageBackend(storage);
+		const backend = listing(webStorageBackend(storage, { namespace: "ns" }));
+		const root = listing(webStorageBackend(storage));
 		root.put("root", new Uint8Array([9]));
 		backend.put("bad\u0000key", new Uint8Array([1]));
-		expect([...(backend.get("bad\u0000key") ?? new Uint8Array())]).toEqual([1]);
+		expect([...(syncResult(backend.get("bad\u0000key")) ?? new Uint8Array())]).toEqual([1]);
 		expect(() => backend.get(1 as unknown as string)).toThrow(/key must be a string/);
 		expect(backend.list("bad\u0000")).toEqual(["bad\u0000key"]);
 		expect(root.list()).toEqual(["root"]);
@@ -337,8 +354,8 @@ describe("D82 storage substrate helpers — sub 2", () => {
 	it("fileBackend persists bytes, lists logical keys, and supports putIfAbsent", async () => {
 		const dir = makeTempDir();
 		try {
-			const backend = fileBackend(dir, { namespace: "ns" });
-			const root = fileBackend(dir);
+			const backend = listing(fileBackend(dir, { namespace: "ns" }));
+			const root = listing(fileBackend(dir));
 			await root.put("root", new Uint8Array([9]));
 			await backend.put("", new Uint8Array([0]));
 			await backend.put("a", new Uint8Array([1, 2, 3]));
@@ -376,7 +393,7 @@ describe("D82 storage substrate helpers — sub 2", () => {
 		try {
 			expect(() => fileBackend(dir, { namespace: null as unknown as string })).toThrow(/namespace/);
 
-			const backend = fileBackend(dir, { namespace: "ns" });
+			const backend = listing(fileBackend(dir, { namespace: "ns" }));
 			await backend.put("bad\u0000key", new Uint8Array([1]));
 			expect(await backend.get("bad\u0000key")).toEqual(new Uint8Array([1]));
 			expect(() => backend.get(1 as unknown as string)).toThrow(/key must be a string/);

@@ -4,15 +4,19 @@ import {
 	explainPath,
 	graph,
 	reachable,
+	type Status,
 	validateNoIslands,
 } from "../index.js";
+
+/** R-node@2 status of a synthetic node that holds nothing. */
+const EMPTY: Status = { cache: "empty", output: "open", lifecycle: "inactive" };
 
 describe("graph diagnostics over DescribeSnapshot (D39/R-describe)", () => {
 	it("reachable walks upstream, downstream, and max-depth frontiers deterministically", () => {
 		const g = graph();
 		const a = g.state(1, { name: "a" });
-		const b = g.derived([a], (x) => x + 1, { name: "b" });
-		g.derived([b], (x) => x + 1, { name: "c" });
+		const b = g.derived([a], (x) => x! + 1, { name: "b" });
+		g.derived([b], (x) => x! + 1, { name: "c" });
 		const sink = g.effect([a], () => {}, { name: "sink" });
 		sink.subscribe(() => {});
 
@@ -40,8 +44,8 @@ describe("graph diagnostics over DescribeSnapshot (D39/R-describe)", () => {
 	it("explainPath returns a rich shortest causal chain without changing describe shape", () => {
 		const g = graph();
 		const a = g.state(1, { name: "a" });
-		const b = g.derived([a], (x) => x + 1, { name: "b" });
-		g.derived([b], (x) => x + 1, { name: "c" });
+		const b = g.derived([a], (x) => x! + 1, { name: "b" });
+		g.derived([b], (x) => x! + 1, { name: "c" });
 
 		const snap = g.describe();
 		const chain = explainPath(snap, "a", "c");
@@ -79,8 +83,8 @@ describe("graph diagnostics over DescribeSnapshot (D39/R-describe)", () => {
 	it("diagnostics also accept synthetic snapshots without requiring a Graph instance", () => {
 		const snap: DescribeSnapshot = {
 			nodes: [
-				{ id: "x", factory: "state", status: "sentinel", deps: [] },
-				{ id: "y", factory: "derived", status: "sentinel", deps: [] },
+				{ id: "x", factory: "state", status: EMPTY, deps: [] },
+				{ id: "y", factory: "derived", status: EMPTY, deps: [] },
 			],
 			edges: [{ from: "x", to: "y" }],
 		};
@@ -90,8 +94,8 @@ describe("graph diagnostics over DescribeSnapshot (D39/R-describe)", () => {
 
 		const dangling: DescribeSnapshot = {
 			nodes: [
-				{ id: "x", factory: "state", status: "sentinel", deps: ["missing"] },
-				{ id: "y", factory: "derived", status: "sentinel", deps: [] },
+				{ id: "x", factory: "state", status: EMPTY, deps: ["missing"] },
+				{ id: "y", factory: "derived", status: EMPTY, deps: [] },
 			],
 			edges: [
 				{ from: "x", to: "missing" },
@@ -105,8 +109,8 @@ describe("graph diagnostics over DescribeSnapshot (D39/R-describe)", () => {
 	it("explainPath findCycle searches for a non-trivial self path in synthetic snapshots", () => {
 		const snap: DescribeSnapshot = {
 			nodes: [
-				{ id: "a", factory: "node", status: "sentinel", deps: ["b"] },
-				{ id: "b", factory: "node", status: "sentinel", deps: ["a"] },
+				{ id: "a", factory: "node", status: EMPTY, deps: ["b"] },
+				{ id: "b", factory: "node", status: EMPTY, deps: ["a"] },
 			],
 			edges: [
 				{ from: "b", to: "a" },
@@ -123,7 +127,7 @@ describe("graph diagnostics over DescribeSnapshot (D39/R-describe)", () => {
 		);
 
 		const selfLoop: DescribeSnapshot = {
-			nodes: [{ id: "a", factory: "node", status: "sentinel", deps: ["a"] }],
+			nodes: [{ id: "a", factory: "node", status: EMPTY, deps: ["a"] }],
 			edges: [{ from: "a", to: "a" }],
 		};
 		expect(explainPath(selfLoop, "a", "a", { findCycle: true, maxDepth: 0 }).reason).toBe(

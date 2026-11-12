@@ -30,6 +30,7 @@ import {
 import { postgresqlToolProviderInputFromIntent } from "../executors/postgresql-tool-provider.js";
 import { graph } from "../graph/graph.js";
 import { compoundTupleKey } from "../identity.js";
+import type { Node } from "../node/node.js";
 import type { ExecutorOutcome, ToolProviderAdapterRunRequested } from "../orchestration/index.js";
 
 const manifest = (
@@ -307,7 +308,10 @@ class Store implements ManagedCloudPostgresqlControlStoreDriver {
 	readonly schemaRevision = MANAGED_CLOUD_POSTGRESQL_SCHEMA_REVISION;
 	calls: string[] = [];
 	envelope?: Parameters<ManagedCloudPostgresqlControlStoreDriver["admit"]>[0];
-	async admit(envelope: Parameters<ManagedCloudPostgresqlControlStoreDriver["admit"]>[0]) {
+	async admit(
+		envelope: Parameters<ManagedCloudPostgresqlControlStoreDriver["admit"]>[0],
+		_nowMs?: number,
+	) {
 		this.calls.push("admit");
 		this.envelope = envelope;
 		return { accepted: true, code: "admitted", lifecycle: lifecycle("queued") };
@@ -376,6 +380,13 @@ class Store implements ManagedCloudPostgresqlControlStoreDriver {
 			},
 			evidenceRefs: input.outcomeRefs,
 		};
+		const failureError = {
+			kind: "issue" as const,
+			code: "managed-cloud-worker-failure",
+			message: "Managed-cloud worker reported failure.",
+			severity: "error" as const,
+			sourceRefs: input.issueRefs,
+		};
 		const outcome: ExecutorOutcome =
 			input.outcome === "succeeded"
 				? {
@@ -390,13 +401,10 @@ class Store implements ManagedCloudPostgresqlControlStoreDriver {
 					? {
 							...base,
 							kind: "failure",
-							error: {
-								kind: "issue",
-								code: "managed-cloud-worker-failure",
-								message: "Managed-cloud worker reported failure.",
-								severity: "error",
-								sourceRefs: input.issueRefs,
-							},
+							// TODO(review-2.21): the runtime accepts `error.sourceRefs` on a failure
+							// envelope (snapshotOutcome), but ExecutorOutcome's error type (DataIssue)
+							// has no sourceRefs, so the object is built outside the literal.
+							error: failureError,
 							retryable: false,
 						}
 					: { ...base, kind: "canceled", reason: "admitted-managed-cloud-cancellation" };
@@ -436,9 +444,7 @@ class Transport implements ManagedCloudPostgresqlTransportDriver {
 	}
 	async close() {}
 }
-const collect = <T>(node: {
-	subscribe(cb: (m: readonly [string, unknown]) => void): () => void;
-}) => {
+const collect = <T>(node: Node<T>) => {
 	const values: T[] = [];
 	node.subscribe((incoming) => {
 		for (const m of incoming) {
@@ -1298,7 +1304,7 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 				credentialBindingRevision: "credential-binding:1",
 				deploymentRevision: "deployment:1",
 				workerRevision: "worker-runtime:1",
-				workload: input().toolCall!.arguments,
+				workload: input().toolCall!.arguments!,
 				sourceRefs: admissionSourceRefs,
 			},
 			10,
@@ -1350,7 +1356,7 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 				credentialBindingRevision: "credential-binding:1",
 				deploymentRevision: "deployment:1",
 				workerRevision: "worker-runtime:1",
-				workload: input().toolCall!.arguments,
+				workload: input().toolCall!.arguments!,
 				sourceRefs: admissionSourceRefs,
 			},
 			10,
@@ -1436,7 +1442,7 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 				credentialBindingRevision: "credential-binding:1",
 				deploymentRevision: "deployment:1",
 				workerRevision: "worker-runtime:1",
-				workload: input().toolCall!.arguments,
+				workload: input().toolCall!.arguments!,
 				sourceRefs: admissionSourceRefs,
 			},
 			10,
@@ -1534,6 +1540,13 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 			string,
 			ManagedCloudPostgresqlAuthorizationRecheckDriver["authorizeCredentialIssuance"],
 		][]) {
+			const authorizationDriver: ManagedCloudPostgresqlAuthorizationRecheckDriver = {
+				compatibility: MANAGED_CLOUD_POSTGRESQL_COMPATIBILITY,
+				async authorizeClaim() {
+					throw new Error("claim recheck is not used by worker helper");
+				},
+				authorizeCredentialIssuance,
+			};
 			const store = new Store();
 			await store.admit(
 				{
@@ -1554,7 +1567,7 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 					credentialBindingRevision: "credential-binding:1",
 					deploymentRevision: "deployment:1",
 					workerRevision: "worker-runtime:1",
-					workload: input().toolCall!.arguments,
+					workload: input().toolCall!.arguments!,
 					sourceRefs: admissionSourceRefs,
 				},
 				10,
@@ -1575,13 +1588,7 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 				new AbortController().signal,
 				() => 10,
 				readyCredentialDriver(() => calls.push("credential-driver")),
-				{
-					compatibility: MANAGED_CLOUD_POSTGRESQL_COMPATIBILITY,
-					async authorizeClaim() {
-						throw new Error("claim recheck is not used by worker helper");
-					},
-					authorizeCredentialIssuance,
-				},
+				authorizationDriver,
 			);
 			expect(calls).toEqual([]);
 			expect(settlement).toMatchObject({
@@ -1663,7 +1670,7 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 				credentialBindingRevision: "credential-binding:1",
 				deploymentRevision: "deployment:1",
 				workerRevision: "worker-runtime:1",
-				workload: input().toolCall!.arguments,
+				workload: input().toolCall!.arguments!,
 				sourceRefs: admissionSourceRefs,
 			},
 			10,
@@ -1715,7 +1722,7 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 				credentialBindingRevision: "credential-binding:1",
 				deploymentRevision: "deployment:1",
 				workerRevision: "worker-runtime:1",
-				workload: input().toolCall!.arguments,
+				workload: input().toolCall!.arguments!,
 				sourceRefs: admissionSourceRefs,
 			},
 			10,
@@ -1773,7 +1780,7 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 				credentialBindingRevision: "credential-binding:1",
 				deploymentRevision: "deployment:1",
 				workerRevision: "worker-runtime:1",
-				workload: input().toolCall!.arguments,
+				workload: input().toolCall!.arguments!,
 				sourceRefs: admissionSourceRefs,
 			},
 			10,
@@ -1835,7 +1842,7 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 				credentialBindingRevision: "credential-binding:1",
 				deploymentRevision: "deployment:1",
 				workerRevision: "worker-runtime:1",
-				workload: input().toolCall!.arguments,
+				workload: input().toolCall!.arguments!,
 				sourceRefs: admissionSourceRefs,
 			},
 			10,
@@ -2050,7 +2057,7 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 				credentialBindingRevision: "credential-binding:1",
 				deploymentRevision: "deployment:1",
 				workerRevision: "worker-runtime:1",
-				workload: input().toolCall!.arguments,
+				workload: input().toolCall!.arguments!,
 				sourceRefs: admissionSourceRefs,
 			},
 			10,
@@ -2181,7 +2188,7 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 				credentialBindingRevision: "credential-binding:1",
 				deploymentRevision: "deployment:1",
 				workerRevision: "worker-runtime:1",
-				workload: input().toolCall!.arguments,
+				workload: input().toolCall!.arguments!,
 				sourceRefs: admissionSourceRefs,
 			},
 			10,
@@ -2400,6 +2407,7 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 		store.claim = async () => ({
 			accepted: true,
 			code: "claimed",
+			lifecycle: lifecycle("claimed"),
 			lease: {
 				...lease,
 				envelope: { ...store.envelope!, admissionId: "admission:attacker" },
@@ -2470,7 +2478,7 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 			credentialBindingRevision: "credential-binding:1",
 			deploymentRevision: "deployment:1",
 			workerRevision: "worker-runtime:1",
-			workload: input().toolCall!.arguments,
+			workload: input().toolCall!.arguments!,
 			sourceRefs: admissionSourceRefs,
 		} as const;
 		await adapter.admit(envelope, 10);
@@ -2507,7 +2515,7 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 		const sent: string[] = [];
 		const transport = authenticatedWssManagedCloudTransport(
 			{
-				async listen(onAccept, onDisconnect) {
+				listen(onAccept, onDisconnect) {
 					accept = onAccept as never;
 					disconnect = onDisconnect as never;
 				},
@@ -2605,7 +2613,7 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 		let deniedClosed = 0;
 		const denied = authenticatedWssManagedCloudTransport(
 			{
-				async listen(onAccept) {
+				listen(onAccept) {
 					deniedAccept = onAccept as never;
 				},
 			},
@@ -2634,7 +2642,7 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 		let realDisconnect: ((socket: never) => void) | undefined;
 		const reconnectTransport = authenticatedWssManagedCloudTransport(
 			{
-				async listen(onAccept, onDisconnect) {
+				listen(onAccept, onDisconnect) {
 					reconnectAccept = onAccept as never;
 					realDisconnect = onDisconnect as never;
 				},
@@ -2716,7 +2724,7 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 					) => {
 						if (sql.startsWith("INSERT")) {
 							queued.push(JSON.parse(String(values[2])));
-							return { rows: [{ result: { accepted: true, code: "admitted" } } as R] };
+							return { rows: [{ result: { accepted: true, code: "admitted" } } as unknown as R] };
 						}
 						if (sql.includes("FOR UPDATE SKIP LOCKED")) {
 							const envelope = queued.shift()!;
@@ -2742,12 +2750,14 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 												attempt: envelope.attempt as number,
 											},
 										},
-									} as R,
+									} as unknown as R,
 								],
 							};
 						}
 						if (sql.includes("SET cancellation=$1::jsonb"))
-							return { rows: [{ result: { accepted: true, code: "cancel-persisted" } } as R] };
+							return {
+								rows: [{ result: { accepted: true, code: "cancel-persisted" } } as unknown as R],
+							};
 						if (sql.includes("SET state='expired'")) {
 							const lifecycleFact = {
 								...lifecycle("expired"),
@@ -2756,7 +2766,7 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 								fencingToken: 2,
 							};
 							current = undefined;
-							return { rows: [{ lifecycle: lifecycleFact } as R] };
+							return { rows: [{ lifecycle: lifecycleFact } as unknown as R] };
 						}
 						if (sql.includes("SET state='lost'")) {
 							const lifecycleFact = {
@@ -2766,7 +2776,7 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 								fencingToken: 2,
 							};
 							current = undefined;
-							return { rows: [{ lifecycle: lifecycleFact } as R] };
+							return { rows: [{ lifecycle: lifecycleFact } as unknown as R] };
 						}
 						if (sql.includes("SET state='settled'")) {
 							const envelope = current!.envelope as Record<string, unknown>;
@@ -2798,7 +2808,7 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 												},
 											},
 										},
-									} as R,
+									} as unknown as R,
 								],
 							};
 						}

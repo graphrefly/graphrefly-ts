@@ -12,6 +12,15 @@ import {
 } from "../graph/environment.js";
 import { graph } from "../graph/graph.js";
 import { retryPolicy } from "../graph/resilience.js";
+import type { Message } from "../protocol/messages.js";
+
+/**
+ * webSocketSession drives a driver through connectSession only. LocalWebSocketDriver still
+ * requires connect, so the session-only test drivers carry one that is never called.
+ */
+const sessionOnlyConnect = (): never => {
+	throw new Error("webSocketSession does not call connect");
+};
 
 describe("environment outbound adapters (D130/D132)", () => {
 	it("routes outbound HTTP attempts and results through graph-visible nodes", () => {
@@ -35,8 +44,8 @@ describe("environment outbound adapters (D130/D132)", () => {
 		const bundle = toHttp(g, source, (value) => ({ method: "POST", url: "/events", body: value }), {
 			name: "egress",
 		});
-		const events: unknown[] = [];
-		const statuses: unknown[] = [];
+		const events: Message[] = [];
+		const statuses: Message[] = [];
 		bundle.events.subscribe((incoming) => {
 			for (const msg of incoming) {
 				events.push(msg);
@@ -82,8 +91,8 @@ describe("environment outbound adapters (D130/D132)", () => {
 		const bundle = toHttp(g, source, (value) => ({ method: "POST", url: "/events", body: value }), {
 			name: "egress",
 		});
-		const events: unknown[] = [];
-		const statuses: unknown[] = [];
+		const events: Message[] = [];
+		const statuses: Message[] = [];
 		bundle.events.subscribe((incoming) => {
 			for (const msg of incoming) {
 				events.push(msg);
@@ -122,7 +131,7 @@ describe("environment outbound adapters (D130/D132)", () => {
 					result: { ok: true; value: HttpResponse } | { ok: false; error: unknown },
 				) => void,
 			) {
-				callback({ ok: true, value: { status: 204, headers: [] } });
+				callback({ ok: true, value: { status: 204, headers: [], body: new Uint8Array() } });
 				return () => {
 					canceled++;
 				};
@@ -158,6 +167,7 @@ describe("environment session adapters (D133)", () => {
 		let canceled = 0;
 		const closes: Array<{ code?: number; reason?: string }> = [];
 		const websocket = {
+			connect: sessionOnlyConnect,
 			connectSession(request: WebSocketRequest, callback: (event: WebSocketDriverEvent) => void) {
 				connects.push({ request, callback });
 				const handle: WebSocketSessionHandle = {
@@ -177,12 +187,12 @@ describe("environment session adapters (D133)", () => {
 		};
 		const g = graph({ environment: new EnvironmentDrivers({ websocket }) });
 		const bundle = webSocketSession(g, { url: "ws://example.test/socket" }, { name: "session" });
-		const inbound: unknown[] = [];
-		const lifecycle: unknown[] = [];
-		const outbound: unknown[] = [];
-		const statuses: unknown[] = [];
-		const attempts: unknown[] = [];
-		const errors: unknown[] = [];
+		const inbound: Message[] = [];
+		const lifecycle: Message[] = [];
+		const outbound: Message[] = [];
+		const statuses: Message[] = [];
+		const attempts: Message[] = [];
+		const errors: Message[] = [];
 		bundle.inbound.subscribe((incoming) => {
 			for (const msg of incoming) {
 				inbound.push(msg);
@@ -273,6 +283,7 @@ describe("environment session adapters (D133)", () => {
 	it("keeps convenience start/send/close as command fact publishers", () => {
 		const connects: WebSocketRequest[] = [];
 		const websocket = {
+			connect: sessionOnlyConnect,
 			connectSession(request: WebSocketRequest, _callback: (event: WebSocketDriverEvent) => void) {
 				connects.push(request);
 				return {
@@ -286,7 +297,7 @@ describe("environment session adapters (D133)", () => {
 		};
 		const g = graph({ environment: new EnvironmentDrivers({ websocket }) });
 		const bundle = webSocketSession(g, { url: "ws://example.test/socket" }, { name: "session" });
-		const commands: unknown[] = [];
+		const commands: Message[] = [];
 		bundle.command.subscribe((incoming) => {
 			for (const msg of incoming) {
 				if (msg[0] === "DATA") commands.push(msg);
@@ -308,6 +319,7 @@ describe("environment session adapters (D133)", () => {
 	it("rejects send-before-open by default through errors and outbound facts", () => {
 		const sends: WebSocketSend[] = [];
 		const websocket = {
+			connect: sessionOnlyConnect,
 			connectSession(_request: WebSocketRequest, _callback: (event: WebSocketDriverEvent) => void) {
 				return {
 					send(message, sendCallback) {
@@ -322,9 +334,9 @@ describe("environment session adapters (D133)", () => {
 		};
 		const g = graph({ environment: new EnvironmentDrivers({ websocket }) });
 		const bundle = webSocketSession(g, { url: "ws://example.test/socket" }, { name: "session" });
-		const outbound: unknown[] = [];
-		const errors: unknown[] = [];
-		const statuses: unknown[] = [];
+		const outbound: Message[] = [];
+		const errors: Message[] = [];
+		const statuses: Message[] = [];
 		bundle.outbound.subscribe((incoming) => {
 			for (const msg of incoming) {
 				outbound.push(msg);
@@ -376,6 +388,7 @@ describe("environment session adapters (D133)", () => {
 		}> = [];
 		let connectCallback: ((event: WebSocketDriverEvent) => void) | undefined;
 		const websocket = {
+			connect: sessionOnlyConnect,
 			connectSession(_request: WebSocketRequest, callback: (event: WebSocketDriverEvent) => void) {
 				connectCallback = callback;
 				return {
@@ -394,7 +407,7 @@ describe("environment session adapters (D133)", () => {
 			{ url: "ws://example.test/socket" },
 			{ name: "session", sendPolicy: { kind: "buffer", maxPending: 2 } },
 		);
-		const outbound: unknown[] = [];
+		const outbound: Message[] = [];
 		bundle.outbound.subscribe((incoming) => {
 			for (const msg of incoming) {
 				outbound.push(msg);
@@ -428,8 +441,12 @@ describe("environment session adapters (D133)", () => {
 		expect(outbound).toContainEqual(["DATA", { kind: "sending", seq: 1, message: { data: "b" } }]);
 		expect(outbound).toContainEqual(["DATA", { kind: "sent", seq: 0, message: { data: "a" } }]);
 		expect(outbound).toContainEqual(["DATA", { kind: "sent", seq: 1, message: { data: "b" } }]);
-		expect(outbound.some((msg) => msg[0] === "DATA" && msg[1]?.kind === "ack")).toBe(false);
-		expect(outbound.some((msg) => msg[0] === "DATA" && msg[1]?.kind === "nack")).toBe(false);
+		expect(
+			outbound.some((msg) => msg[0] === "DATA" && (msg[1] as { kind?: unknown }).kind === "ack"),
+		).toBe(false);
+		expect(
+			outbound.some((msg) => msg[0] === "DATA" && (msg[1] as { kind?: unknown }).kind === "nack"),
+		).toBe(false);
 	});
 
 	it("surfaces bounded reconnect attempts, status, and errors", () => {
@@ -438,6 +455,7 @@ describe("environment session adapters (D133)", () => {
 			const boom = new Error("boom");
 			const connects: Array<(event: WebSocketDriverEvent) => void> = [];
 			const websocket = {
+				connect: sessionOnlyConnect,
 				connectSession(
 					_request: WebSocketRequest,
 					callback: (event: WebSocketDriverEvent) => void,
@@ -460,9 +478,9 @@ describe("environment session adapters (D133)", () => {
 				{ url: "ws://example.test/socket" },
 				{ name: "session", retry: retryPolicy(2, { kind: "constant", delayMs: 0 }) },
 			);
-			const attempts: unknown[] = [];
-			const statuses: unknown[] = [];
-			const errors: unknown[] = [];
+			const attempts: Message[] = [];
+			const statuses: Message[] = [];
+			const errors: Message[] = [];
 			bundle.attempts.subscribe((incoming) => {
 				for (const msg of incoming) {
 					attempts.push(msg);
@@ -522,6 +540,7 @@ describe("environment session adapters (D133)", () => {
 			| ((result: { ok: true; value: WebSocketSendResult } | { ok: false; error: unknown }) => void)
 			| undefined;
 		const websocket = {
+			connect: sessionOnlyConnect,
 			connectSession(_request: WebSocketRequest, callback: (event: WebSocketDriverEvent) => void) {
 				callback({ kind: "event", event: { kind: "open" } });
 				return {
@@ -536,9 +555,9 @@ describe("environment session adapters (D133)", () => {
 		};
 		const g = graph({ environment: new EnvironmentDrivers({ websocket }) });
 		const bundle = webSocketSession(g, { url: "ws://example.test/socket" }, { name: "session" });
-		const lifecycle: unknown[] = [];
-		const outbound: unknown[] = [];
-		const statuses: unknown[] = [];
+		const lifecycle: Message[] = [];
+		const outbound: Message[] = [];
+		const statuses: Message[] = [];
 		bundle.lifecycle.subscribe((incoming) => {
 			for (const msg of incoming) {
 				lifecycle.push(msg);
@@ -596,6 +615,7 @@ describe("environment session adapters (D133)", () => {
 		let canceled = 0;
 		let connectCallback: ((event: WebSocketDriverEvent) => void) | undefined;
 		const websocket = {
+			connect: sessionOnlyConnect,
 			connectSession(_request: WebSocketRequest, callback: (event: WebSocketDriverEvent) => void) {
 				connectCallback = callback;
 				return {
@@ -611,8 +631,8 @@ describe("environment session adapters (D133)", () => {
 		};
 		const g = graph({ environment: new EnvironmentDrivers({ websocket }) });
 		const bundle = webSocketSession(g, { url: "ws://example.test/socket" }, { name: "session" });
-		const statuses: unknown[] = [];
-		const errors: unknown[] = [];
+		const statuses: Message[] = [];
+		const errors: Message[] = [];
 		bundle.status.subscribe((incoming) => {
 			for (const msg of incoming) {
 				statuses.push(msg);
@@ -649,6 +669,7 @@ describe("environment session adapters (D133)", () => {
 		try {
 			const connects: Array<(event: WebSocketDriverEvent) => void> = [];
 			const websocket = {
+				connect: sessionOnlyConnect,
 				connectSession(
 					_request: WebSocketRequest,
 					callback: (event: WebSocketDriverEvent) => void,
@@ -670,7 +691,7 @@ describe("environment session adapters (D133)", () => {
 				{ url: "ws://example.test/socket" },
 				{ name: "session", retry: retryPolicy(2, { kind: "constant", delayMs: 10 }) },
 			);
-			const attempts: unknown[] = [];
+			const attempts: Message[] = [];
 			bundle.attempts.subscribe((incoming) => {
 				for (const msg of incoming) {
 					attempts.push(msg);

@@ -1724,7 +1724,7 @@ describe("Node-local Docker Engine API v0 certifier entry (D624)", () => {
 		vi.spyOn(controller.signal, "addEventListener").mockImplementation(
 			(
 				type: string,
-				listener: EventListenerOrEventListenerObject | null,
+				listener: EventListenerOrEventListenerObject,
 				options?: boolean | AddEventListenerOptions,
 			) => {
 				addEventListener(type, listener, options);

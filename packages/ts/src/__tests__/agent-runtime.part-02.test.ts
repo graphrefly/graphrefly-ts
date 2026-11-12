@@ -15,12 +15,14 @@ import {
 	resolveToolProviderExecutionPolicies,
 	type SourceRef,
 	type ToolProviderAdapterInput,
-	type ToolProviderAdapterRunResult,
 	type ToolProviderCatalog,
 	type ToolProviderExecutionPolicy,
 } from "../orchestration/agent-runtime.js";
 import { attachToolProviderAdapterRuntime } from "../orchestration/agent-runtime-adapter-runtime.js";
-import type { ToolProviderAdapterBinding } from "../orchestration/agent-runtime-types-tool.js";
+import type {
+	ToolProviderAdapterBinding,
+	ToolProviderAdapterRunResult,
+} from "../orchestration/agent-runtime-types-tool.js";
 import type {
 	WorkItemDomainActionAdmissionDecision,
 	WorkItemDomainActionProposal,

@@ -56,7 +56,7 @@ function busFixture() {
 	return { graph, bus, a, b, publish };
 }
 function pending(bus: ReturnType<typeof messageBus>) {
-	(bus.commands.deps[0] as StateNode<MessageBusCommand>).set({ kind: "declareTopic", topic: "t" });
+	(bus.commands.deps[0] as StateNode<MessageBusCommand>).set({ kind: "ensure-topic", topic: "t" });
 }
 
 describe("D167 issued runtime identity and lifecycle", () => {
@@ -107,7 +107,7 @@ describe("D167 issued runtime identity and lifecycle", () => {
 		releaseRuntimeOfNode(n);
 		expect(checkpointBackendStateOfNode(n, "backend")).toBeUndefined();
 		expect(observations).toEqual([true, false]);
-		expect(() => registerBackendStateContributor(n, idle)).toThrow("unknown node");
+		expect(() => registerBackendStateContributor(n, () => undefined)).toThrow("unknown node");
 	});
 	it("retains failure locators while closing all access without retry", () => {
 		const dispatcher = new CountingDispatcher();
@@ -167,7 +167,7 @@ describe("D167 known cold acquisitions", () => {
 			state: () => g.state(2, opts),
 			producer: () => g.producer(idle, opts),
 			derived: () => g.derived([existing], () => 2, opts),
-			effect: () => g.effect([existing], idle, opts),
+			effect: () => g.effect([existing], () => {}, opts),
 			initNode: () =>
 				g.initNode(
 					map((v: unknown) => v),
@@ -216,11 +216,16 @@ describe("D167 known cold acquisitions", () => {
 		const original = NodeCore.prototype.createSlot;
 		let core: NodeCore | undefined;
 		let id: Parameters<NodeCore["get"]>[0] | undefined;
-		vi.spyOn(NodeCore.prototype, "createSlot").mockImplementation(function (slot, state, acquired) {
+		vi.spyOn(NodeCore.prototype, "createSlot").mockImplementation(function (
+			this: NodeCore,
+			slot,
+			state,
+			acquired,
+		) {
 			core = this;
 			const bad = {
 				...state,
-				get wave() {
+				get wave(): never {
 					id = acquired!.slot;
 					throw new Error("partial slot");
 				},
@@ -303,7 +308,7 @@ describe("D167 known cold acquisitions", () => {
 		let reads = 0;
 		let winner: Node<unknown> | undefined;
 		const deps = [input];
-		deps[Symbol.iterator] = function* () {
+		deps[Symbol.iterator] = function* (): Generator<StateNode<number>, undefined> {
 			if (entryRead && winner === undefined) winner = g.state(9, { name: "same" });
 			yield input;
 		};
@@ -352,7 +357,7 @@ describe("D167 exact command binding and existing D110 batch fate", () => {
 					if (m[0] === "DATA") seen.push(m[1]);
 				}
 			});
-			const command: MessageBusCommand = { kind: "declareTopic", topic: "later" };
+			const command: MessageBusCommand = { kind: "ensure-topic", topic: "later" };
 			f.b.set(command);
 			expect(seen).toContainEqual(command);
 			unsubscribe();
@@ -361,7 +366,7 @@ describe("D167 exact command binding and existing D110 batch fate", () => {
 	it("queued add followed by remove runs both FIFO operations", () => {
 		const f = busFixture();
 		const activations: string[] = [];
-		const a = f.graph.producer(
+		const a = f.graph.producer<MessageBusCommand>(
 			(ctx) => {
 				activations.push("add");
 				ctx.signal.addEventListener(
@@ -422,7 +427,10 @@ describe("D167 exact command binding and existing D110 batch fate", () => {
 		const subscribe = vi.spyOn(source, "subscribe");
 		// The actual owned subscription seam throws after structural commit.
 		const original = nodeRuntimeHost(source)._subscribeOwned;
-		vi.spyOn(nodeRuntimeHost(source), "_subscribeOwned").mockImplementation(function (...args) {
+		vi.spyOn(nodeRuntimeHost(source), "_subscribeOwned").mockImplementation(function (
+			this: unknown,
+			...args
+		) {
 			original.apply(this, args);
 			throw new Error("activation");
 		});

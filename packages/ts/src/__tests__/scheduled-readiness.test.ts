@@ -100,7 +100,7 @@ describe("scheduledReadinessProjector (D424)", () => {
 			kind: "scheduled-readiness-requested",
 			scheduleId: "bad-schedule",
 			sourceRefs: [{ kind: "source", id: "bad" }],
-		} as ScheduledReadinessRequested);
+		} as unknown as ScheduledReadinessRequested);
 		harness.clocks.set(clock(100));
 
 		expect(harness.seen.ready).toEqual([]);
@@ -295,7 +295,7 @@ function clock(nowMs: number, clockId = "test-clock"): ScheduledReadinessClock {
 }
 
 function collectData<T>(node: {
-	subscribe(sink: (msg: readonly [string, unknown?]) => void): unknown;
+	subscribe(sink: (msgs: readonly (readonly [string, unknown?])[]) => void): unknown;
 }): T[] {
 	const out: T[] = [];
 	node.subscribe((incoming) => {

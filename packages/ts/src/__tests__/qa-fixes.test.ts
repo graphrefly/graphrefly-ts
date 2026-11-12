@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { Ctx, Message } from "../index.js";
 import { depLatest, graph } from "../index.js";
+import type { Subscribable } from "./helpers/collect.js";
 
-function collect(n: { subscribe(s: (m: Message) => void): () => void }) {
+function collect(n: Subscribable) {
 	const msgs: Message[] = [];
 	const unsub = n.subscribe((incoming) => {
 		for (const m of incoming) {
@@ -36,15 +37,19 @@ describe("QA fixes", () => {
 		expect(String(rejected)).toMatch(/kernel/);
 	});
 
-	it("BH6: INVALIDATE clears the replay buffer (no stale replay)", () => {
+	it("BH6: INVALIDATE clears the retained value (no stale push-on-subscribe)", () => {
+		// The node's retained value is the only thing a late subscriber is sent (R-push-subscribe);
+		// there is no separate replay buffer.
 		const g = graph();
-		const s = g.node<number>([], null, { replayBuffer: 3 });
+		const s = g.node<number>([], null);
 		collect(s);
 		s.set(1);
 		s.set(2);
+		expect(collect(s).msgs).toEqual([["START"], ["DATA", 2]]); // retained before INVALIDATE
 		s.invalidate();
+		expect(s.cache).toBeUndefined();
 		const { msgs } = collect(s); // late subscriber
-		expect(types(msgs)).toEqual(["START"]); // no stale DATA replayed
+		expect(types(msgs)).toEqual(["START"]); // no stale DATA sent
 	});
 
 	it("WEDGE: a passthrough over a RESOLVED-only dep balances its PENDING (R-resolved-undirty / D49)", () => {

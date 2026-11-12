@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import type { Ctx, Message } from "../index.js";
+import type { Ctx, Message, Wave } from "../index.js";
 import { depLatest, graph } from "../index.js";
 
-function collect(n: { subscribe(s: (m: Message) => void): () => void }) {
+function collect(n: { subscribe(s: (msgs: Wave) => void): () => void }) {
 	const msgs: Message[] = [];
 	const unsub = n.subscribe((incoming) => {
 		for (const m of incoming) {

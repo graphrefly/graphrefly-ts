@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import * as storageBrowser from "../storage/browser.js";
 import { hasStorageVersioned, requireStorageVersioned } from "../storage/index.js";
 
+/** A fake IndexedDB request or transaction: the DOM marks result/error read-only. */
+type FakeRequest<T> = { -readonly [K in keyof T]?: T[K] };
+
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 const withIndexedDbUnavailable = async (fn: () => Promise<void>) => {
@@ -72,7 +75,7 @@ describe("storage/browser (D103/D106)", () => {
 		let openedVersion: number | undefined;
 		const fakeStore = {
 			get() {
-				const req: Partial<IDBRequest> = {};
+				const req: FakeRequest<IDBRequest> = {};
 				queueMicrotask(() => {
 					req.result = undefined;
 					req.onsuccess?.call(req as IDBRequest, new Event("success"));
@@ -89,14 +92,14 @@ describe("storage/browser (D103/D106)", () => {
 		const fakeIndexedDb = {
 			open(_name: string, version?: number) {
 				openedVersion = version;
-				const req: Partial<IDBOpenDBRequest> = {};
+				const req: FakeRequest<IDBOpenDBRequest> = {};
 				queueMicrotask(() => {
-					req.result = fakeDb as IDBDatabase;
+					req.result = fakeDb as unknown as IDBDatabase;
 					req.onsuccess?.call(req as IDBOpenDBRequest, new Event("success"));
 				});
 				return req as IDBOpenDBRequest;
 			},
-		} as IDBFactory;
+		} as unknown as IDBFactory;
 
 		await withIndexedDbMock(fakeIndexedDb, async () => {
 			const backend = storageBrowser.indexedDbBackend({ dbName: "gft-db", storeName: "kv" });
@@ -110,7 +113,7 @@ describe("storage/browser (D103/D106)", () => {
 		let opens = 0;
 		const fakeStore = {
 			get() {
-				const req: Partial<IDBRequest> = {};
+				const req: FakeRequest<IDBRequest> = {};
 				queueMicrotask(() => {
 					req.result = undefined;
 					req.onsuccess?.call(req as IDBRequest, new Event("success"));
@@ -127,19 +130,19 @@ describe("storage/browser (D103/D106)", () => {
 		const fakeIndexedDb = {
 			open() {
 				opens += 1;
-				const req: Partial<IDBOpenDBRequest> = {};
+				const req: FakeRequest<IDBOpenDBRequest> = {};
 				queueMicrotask(() => {
 					if (opens === 1) {
 						req.error = new Error("transient open failure") as DOMException;
 						req.onerror?.call(req as IDBOpenDBRequest, new Event("error"));
 						return;
 					}
-					req.result = fakeDb as IDBDatabase;
+					req.result = fakeDb as unknown as IDBDatabase;
 					req.onsuccess?.call(req as IDBOpenDBRequest, new Event("success"));
 				});
 				return req as IDBOpenDBRequest;
 			},
-		} as IDBFactory;
+		} as unknown as IDBFactory;
 
 		await withIndexedDbMock(fakeIndexedDb, async () => {
 			const backend = storageBrowser.indexedDbBackend({ dbName: "gft-db", storeName: "kv" });
@@ -157,14 +160,14 @@ describe("storage/browser (D103/D106)", () => {
 		expect(() => backend.putIfAbsent?.(1 as unknown as string, new Uint8Array([1]))).toThrow(
 			/key must be a string/,
 		);
-		expect(() => backend.delete(1 as unknown as string)).toThrow(/key must be a string/);
-		expect(() => backend.list(1 as unknown as string)).toThrow(/list prefix must be a string/);
+		expect(() => backend.delete?.(1 as unknown as string)).toThrow(/key must be a string/);
+		expect(() => backend.list?.(1 as unknown as string)).toThrow(/list prefix must be a string/);
 	});
 
 	it("rejects malformed IndexedDB stored values as corruption", async () => {
 		const fakeStore = {
 			get() {
-				const req: Partial<IDBRequest> = {};
+				const req: FakeRequest<IDBRequest> = {};
 				queueMicrotask(() => {
 					req.result = { bytes: [1, 2, 3] };
 					req.onsuccess?.call(req as IDBRequest, new Event("success"));
@@ -180,14 +183,14 @@ describe("storage/browser (D103/D106)", () => {
 		};
 		const fakeIndexedDb = {
 			open() {
-				const req: Partial<IDBOpenDBRequest> = {};
+				const req: FakeRequest<IDBOpenDBRequest> = {};
 				queueMicrotask(() => {
-					req.result = fakeDb as IDBDatabase;
+					req.result = fakeDb as unknown as IDBDatabase;
 					req.onsuccess?.call(req as IDBOpenDBRequest, new Event("success"));
 				});
 				return req as IDBOpenDBRequest;
 			},
-		} as IDBFactory;
+		} as unknown as IDBFactory;
 
 		await withIndexedDbMock(fakeIndexedDb, async () => {
 			const backend = storageBrowser.indexedDbBackend({ dbName: "gft-db", storeName: "kv" });
@@ -198,7 +201,7 @@ describe("storage/browser (D103/D106)", () => {
 	it("rejects non-string IndexedDB list keys without String projection", async () => {
 		const fakeStore = {
 			getAllKeys() {
-				const req: Partial<IDBRequest> = {};
+				const req: FakeRequest<IDBRequest> = {};
 				queueMicrotask(() => {
 					req.result = ["cache/1", 2, "cache/3"];
 					req.onsuccess?.call(req as IDBRequest, new Event("success"));
@@ -214,25 +217,25 @@ describe("storage/browser (D103/D106)", () => {
 		};
 		const fakeIndexedDb = {
 			open() {
-				const req: Partial<IDBOpenDBRequest> = {};
+				const req: FakeRequest<IDBOpenDBRequest> = {};
 				queueMicrotask(() => {
-					req.result = fakeDb as IDBDatabase;
+					req.result = fakeDb as unknown as IDBDatabase;
 					req.onsuccess?.call(req as IDBOpenDBRequest, new Event("success"));
 				});
 				return req as IDBOpenDBRequest;
 			},
-		} as IDBFactory;
+		} as unknown as IDBFactory;
 
 		await withIndexedDbMock(fakeIndexedDb, async () => {
 			const backend = storageBrowser.indexedDbBackend({ dbName: "gft-db", storeName: "kv" });
-			await expect(backend.list("cache/")).rejects.toThrow(/stored key must be a string/);
+			await expect(backend.list?.("cache/")).rejects.toThrow(/stored key must be a string/);
 		});
 	});
 
 	it("sorts IndexedDB list results deterministically without prefix projection", async () => {
 		const fakeStore = {
 			getAllKeys() {
-				const req: Partial<IDBRequest> = {};
+				const req: FakeRequest<IDBRequest> = {};
 				queueMicrotask(() => {
 					req.result = ["cache/2", "other/0", "cache/10", "cache/1"];
 					req.onsuccess?.call(req as IDBRequest, new Event("success"));
@@ -248,18 +251,18 @@ describe("storage/browser (D103/D106)", () => {
 		};
 		const fakeIndexedDb = {
 			open() {
-				const req: Partial<IDBOpenDBRequest> = {};
+				const req: FakeRequest<IDBOpenDBRequest> = {};
 				queueMicrotask(() => {
-					req.result = fakeDb as IDBDatabase;
+					req.result = fakeDb as unknown as IDBDatabase;
 					req.onsuccess?.call(req as IDBOpenDBRequest, new Event("success"));
 				});
 				return req as IDBOpenDBRequest;
 			},
-		} as IDBFactory;
+		} as unknown as IDBFactory;
 
 		await withIndexedDbMock(fakeIndexedDb, async () => {
 			const backend = storageBrowser.indexedDbBackend({ dbName: "gft-db", storeName: "kv" });
-			await expect(backend.list("cache/")).resolves.toEqual(["cache/1", "cache/10", "cache/2"]);
+			await expect(backend.list?.("cache/")).resolves.toEqual(["cache/1", "cache/10", "cache/2"]);
 		});
 	});
 
@@ -273,18 +276,21 @@ describe("storage/browser (D103/D106)", () => {
 		};
 		const fakeIndexedDb = {
 			open(_name: string, version?: number) {
-				const req: Partial<IDBOpenDBRequest> = {};
+				const req: FakeRequest<IDBOpenDBRequest> = {};
 				queueMicrotask(() => {
 					if (version === undefined) {
-						req.result = existingDb as IDBDatabase;
+						req.result = existingDb as unknown as IDBDatabase;
 						req.onsuccess?.call(req as IDBOpenDBRequest, new Event("success"));
 						return;
 					}
-					req.onblocked?.call(req as IDBOpenDBRequest, new Event("blocked"));
+					req.onblocked?.call(
+						req as IDBOpenDBRequest,
+						new Event("blocked") as IDBVersionChangeEvent,
+					);
 				});
 				return req as IDBOpenDBRequest;
 			},
-		} as IDBFactory;
+		} as unknown as IDBFactory;
 
 		await withIndexedDbMock(fakeIndexedDb, async () => {
 			const backend = storageBrowser.indexedDbBackend({ dbName: "gft-db", storeName: "kv" });
@@ -297,7 +303,7 @@ describe("storage/browser (D103/D106)", () => {
 	it("rejects putIfAbsent for non-conflict IndexedDB write failures", async () => {
 		const fakeStore = {
 			add() {
-				const req: Partial<IDBRequest> = {};
+				const req: FakeRequest<IDBRequest> = {};
 				queueMicrotask(() => {
 					req.error = new DOMException("bad key", "DataError");
 					req.onerror?.call(req as IDBRequest, new Event("error"));
@@ -308,7 +314,7 @@ describe("storage/browser (D103/D106)", () => {
 		const fakeDb = {
 			objectStoreNames: { contains: () => true },
 			transaction: () => {
-				const tx: Partial<IDBTransaction> = {
+				const tx: FakeRequest<IDBTransaction> = {
 					objectStore: () => fakeStore as unknown as IDBObjectStore,
 				};
 				queueMicrotask(() => {
@@ -320,14 +326,14 @@ describe("storage/browser (D103/D106)", () => {
 		};
 		const fakeIndexedDb = {
 			open() {
-				const req: Partial<IDBOpenDBRequest> = {};
+				const req: FakeRequest<IDBOpenDBRequest> = {};
 				queueMicrotask(() => {
-					req.result = fakeDb as IDBDatabase;
+					req.result = fakeDb as unknown as IDBDatabase;
 					req.onsuccess?.call(req as IDBOpenDBRequest, new Event("success"));
 				});
 				return req as IDBOpenDBRequest;
 			},
-		} as IDBFactory;
+		} as unknown as IDBFactory;
 
 		await withIndexedDbMock(fakeIndexedDb, async () => {
 			const backend = storageBrowser.indexedDbBackend({ dbName: "gft-db", storeName: "kv" });
@@ -339,10 +345,10 @@ describe("storage/browser (D103/D106)", () => {
 
 	it("resolves putIfAbsent success only after the transaction commits", async () => {
 		let settled = false;
-		let tx: Partial<IDBTransaction> | undefined;
+		let tx: FakeRequest<IDBTransaction> | undefined;
 		const fakeStore = {
 			add() {
-				const req: Partial<IDBRequest> = {};
+				const req: FakeRequest<IDBRequest> = {};
 				queueMicrotask(() => {
 					req.onsuccess?.call(req as IDBRequest, new Event("success"));
 				});
@@ -360,21 +366,23 @@ describe("storage/browser (D103/D106)", () => {
 		};
 		const fakeIndexedDb = {
 			open() {
-				const req: Partial<IDBOpenDBRequest> = {};
+				const req: FakeRequest<IDBOpenDBRequest> = {};
 				queueMicrotask(() => {
-					req.result = fakeDb as IDBDatabase;
+					req.result = fakeDb as unknown as IDBDatabase;
 					req.onsuccess?.call(req as IDBOpenDBRequest, new Event("success"));
 				});
 				return req as IDBOpenDBRequest;
 			},
-		} as IDBFactory;
+		} as unknown as IDBFactory;
 
 		await withIndexedDbMock(fakeIndexedDb, async () => {
 			const backend = storageBrowser.indexedDbBackend({ dbName: "gft-db", storeName: "kv" });
-			const result = backend.putIfAbsent?.("k", new Uint8Array([1])).then((value) => {
-				settled = true;
-				return value;
-			});
+			const result = Promise.resolve(backend.putIfAbsent?.("k", new Uint8Array([1]))).then(
+				(value) => {
+					settled = true;
+					return value;
+				},
+			);
 			await flush();
 			expect(settled).toBe(false);
 

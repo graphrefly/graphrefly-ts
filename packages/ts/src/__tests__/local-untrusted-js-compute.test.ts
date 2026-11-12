@@ -17,6 +17,7 @@ import {
 	localUntrustedJsComputeRuntime,
 	runLocalUntrustedJsComputeAttempt,
 } from "../executors/local-untrusted-js-compute.js";
+import type { DescribeSnapshot } from "../graph/describe.js";
 import { Graph } from "../graph/graph.js";
 import { strictCanonicalJsonBytes } from "../json/codec.js";
 import type {
@@ -171,7 +172,7 @@ const runAdmission = (): ToolProviderRunAdmission => ({
 
 const successfulDriver = (): LocalUntrustedJsComputeDriver => ({
 	compatibility: LOCAL_UNTRUSTED_JS_COMPUTE_COMPATIBILITY,
-	execute: vi.fn((_context, request) => ({
+	execute: vi.fn<LocalUntrustedJsComputeDriver["execute"]>((_context, request) => ({
 		outcome: "succeeded",
 		cleanup: "succeeded",
 		result: {
@@ -206,7 +207,9 @@ const successfulDriver = (): LocalUntrustedJsComputeDriver => ({
 					},
 				],
 				edges: [{ from: "question", to: "answer" }],
-			},
+				// TODO(review-2.21): the runtime's describe validator (describeNode) still accepts only
+				// the retired string statuses, while DescribeNode.status is the R-node@2 object.
+			} as unknown as DescribeSnapshot,
 			provenance: {
 				sourceRevision: request.sourceRevision,
 				sourceDigest: request.sourceDigest,
@@ -452,7 +455,7 @@ describe("D667 local untrusted JS compute contract", () => {
 			{
 				adapterInput: {
 					...adapterInput(),
-					toolCall: { ...adapterInput().toolCall, arguments: { ...args(), epoch: "epoch:2" } },
+					toolCall: { ...adapterInput().toolCall!, arguments: { ...args(), epoch: "epoch:2" } },
 				},
 			},
 		]) {
@@ -559,7 +562,8 @@ describe("D667 local untrusted JS compute contract", () => {
 			vi.mocked(driver.execute).mockImplementationOnce(async (...call) => {
 				const good = await successfulDriver().execute(...call);
 				if (good.outcome !== "succeeded") return good;
-				return { ...good, result: invalidResult(good) };
+				// Deliberately malformed evidence: the runtime must reject it.
+				return { ...good, result: invalidResult(good) as unknown as typeof good.result };
 			});
 			await expect(runLocalUntrustedJsComputeAttempt(attemptOptions(driver))).rejects.toThrow(
 				TypeError,
@@ -668,17 +672,17 @@ describe("D667 local untrusted JS compute Graph-visible runtime", () => {
 		const unsubscribes = [
 			fixture.runtime.runStatus.subscribe((incoming) => {
 				for (const message of incoming) {
-					if (message[0] === "DATA") statuses.push(message[1]);
+					if (message[0] === "DATA") statuses.push(message[1] as ToolProviderAdapterRunStatus);
 				}
 			}),
 			fixture.runtime.outcomes.subscribe((incoming) => {
 				for (const message of incoming) {
-					if (message[0] === "DATA") outcomesSeen.push(message[1]);
+					if (message[0] === "DATA") outcomesSeen.push(message[1] as ExecutorOutcome);
 				}
 			}),
 			fixture.runtime.lifecycle.subscribe((incoming) => {
 				for (const message of incoming) {
-					if (message[0] === "DATA") lifecycleStates.push(message[1].state);
+					if (message[0] === "DATA") lifecycleStates.push((message[1] as { state: string }).state);
 				}
 			}),
 			fixture.runtime.usage.subscribe((incoming) => {
@@ -693,7 +697,7 @@ describe("D667 local untrusted JS compute Graph-visible runtime", () => {
 			}),
 			fixture.runtime.audit.subscribe((incoming) => {
 				for (const message of incoming) {
-					if (message[0] === "DATA") audits.push(message[1]);
+					if (message[0] === "DATA") audits.push(message[1] as AgentRuntimeAuditRecord);
 				}
 			}),
 		];
@@ -754,7 +758,7 @@ describe("D667 local untrusted JS compute Graph-visible runtime", () => {
 	it("rejects coordinate drift and delivers only an exact admitted cancellation", async () => {
 		const driver: LocalUntrustedJsComputeDriver = {
 			compatibility: LOCAL_UNTRUSTED_JS_COMPUTE_COMPATIBILITY,
-			execute: vi.fn(
+			execute: vi.fn<LocalUntrustedJsComputeDriver["execute"]>(
 				(context) =>
 					new Promise((resolve) => {
 						context.signal.addEventListener(
@@ -778,12 +782,12 @@ describe("D667 local untrusted JS compute Graph-visible runtime", () => {
 		const unsubscribes = [
 			fixture.runtime.runStatus.subscribe((incoming) => {
 				for (const message of incoming) {
-					if (message[0] === "DATA") statuses.push(message[1]);
+					if (message[0] === "DATA") statuses.push(message[1] as ToolProviderAdapterRunStatus);
 				}
 			}),
 			fixture.runtime.outcomes.subscribe((incoming) => {
 				for (const message of incoming) {
-					if (message[0] === "DATA") outcomesSeen.push(message[1]);
+					if (message[0] === "DATA") outcomesSeen.push(message[1] as ExecutorOutcome);
 				}
 			}),
 			fixture.runtime.cancellations.subscribe((incoming) => {
@@ -793,7 +797,7 @@ describe("D667 local untrusted JS compute Graph-visible runtime", () => {
 			}),
 			fixture.runtime.issues.subscribe((incoming) => {
 				for (const message of incoming) {
-					if (message[0] === "DATA") issuesSeen.push(message[1].code);
+					if (message[0] === "DATA") issuesSeen.push((message[1] as { code: string }).code);
 				}
 			}),
 		];
@@ -851,7 +855,7 @@ describe("D667 local untrusted JS compute Graph-visible runtime", () => {
 		});
 		const driver: LocalUntrustedJsComputeDriver = {
 			compatibility: LOCAL_UNTRUSTED_JS_COMPUTE_COMPATIBILITY,
-			execute: vi.fn((context) => {
+			execute: vi.fn<LocalUntrustedJsComputeDriver["execute"]>((context) => {
 				markDriverEntered();
 				return new Promise((resolve) => {
 					context.signal.addEventListener(
@@ -875,7 +879,7 @@ describe("D667 local untrusted JS compute Graph-visible runtime", () => {
 		const statuses: ToolProviderAdapterRunStatus[] = [];
 		const unsubscribe = fixture.runtime.runStatus.subscribe((incoming) => {
 			for (const message of incoming) {
-				if (message[0] === "DATA") statuses.push(message[1]);
+				if (message[0] === "DATA") statuses.push(message[1] as ToolProviderAdapterRunStatus);
 			}
 		});
 		fixture.publishAuthority();

@@ -13,7 +13,13 @@ import {
 	describeToPretty,
 	graph,
 	mermaidLiveUrl,
+	type Status,
 } from "../index.js";
+
+// TODO(review-2.21): describeToPretty and describeToAscii interpolate `node.status` into text, but a
+// describe status is a Status object since R-node@2, so a real snapshot renders "[object Object]".
+// These hand-built snapshots keep the legacy status label the renderers were written for.
+const legacyStatus = (label: "settled" | "sentinel"): Status => label as unknown as Status;
 
 describe("describe renderers (D39/D40)", () => {
 	const renderSmokeOutputs = (snap: DescribeSnapshot) => ({
@@ -27,7 +33,7 @@ describe("describe renderers (D39/D40)", () => {
 	it("renders Mermaid from a flat + mounted describe snapshot", () => {
 		const parent = graph({ name: "demo" });
 		const count = parent.state(0, { name: "count" });
-		const doubled = parent.derived([count], (n) => n * 2, { name: "doubled" });
+		const doubled = parent.derived([count], (n) => n! * 2, { name: "doubled" });
 		doubled.subscribe(() => {});
 		count.set(5);
 
@@ -50,8 +56,8 @@ describe("describe renderers (D39/D40)", () => {
 	it("renders D2 with deterministic ids and direction mapping", () => {
 		const snap: DescribeSnapshot = {
 			nodes: [
-				{ id: "b", factory: "derived", status: "sentinel", deps: ["a"] },
-				{ id: "a", factory: "state", status: "settled", deps: [], value: 1 },
+				{ id: "b", factory: "derived", status: legacyStatus("sentinel"), deps: ["a"] },
+				{ id: "a", factory: "state", status: legacyStatus("settled"), deps: [], value: 1 },
 			],
 			edges: [{ from: "a", to: "b" }],
 		};
@@ -65,8 +71,14 @@ describe("describe renderers (D39/D40)", () => {
 		const snap: DescribeSnapshot = {
 			name: "pretty",
 			nodes: [
-				{ id: "source", factory: "state", status: "settled", deps: [], value: { ok: true } },
-				{ id: "quiet", factory: "filter", status: "sentinel", deps: ["source"] },
+				{
+					id: "source",
+					factory: "state",
+					status: legacyStatus("settled"),
+					deps: [],
+					value: { ok: true },
+				},
+				{ id: "quiet", factory: "filter", status: legacyStatus("sentinel"), deps: ["source"] },
 			],
 			edges: [{ from: "source", to: "quiet" }],
 		};
@@ -89,9 +101,9 @@ describe("describe renderers (D39/D40)", () => {
 		const snap: DescribeSnapshot = {
 			name: "ascii",
 			nodes: [
-				{ id: "b", factory: "derived", status: "sentinel", deps: ["a"] },
-				{ id: "a", factory: "state", status: "settled", deps: [], value: 1 },
-				{ id: "c", factory: "effect", status: "sentinel", deps: [] },
+				{ id: "b", factory: "derived", status: legacyStatus("sentinel"), deps: ["a"] },
+				{ id: "a", factory: "state", status: legacyStatus("settled"), deps: [], value: 1 },
+				{ id: "c", factory: "effect", status: legacyStatus("sentinel"), deps: [] },
 			],
 			edges: [{ from: "a", to: "b" }],
 		};
@@ -112,7 +124,7 @@ describe("describe renderers (D39/D40)", () => {
 				{
 					id: "z",
 					factory: "node",
-					status: "settled",
+					status: legacyStatus("settled"),
 					deps: [],
 					meta: { b: 2, a: 1 },
 					value: { y: 2, x: 1 },
@@ -129,9 +141,9 @@ describe("describe renderers (D39/D40)", () => {
 	it("sorts labels deterministically without locale collation", () => {
 		const snap: DescribeSnapshot = {
 			nodes: [
-				{ id: "a", factory: "state", status: "sentinel", deps: [] },
-				{ id: "A", factory: "state", status: "sentinel", deps: [] },
-				{ id: "á", factory: "state", status: "sentinel", deps: [] },
+				{ id: "a", factory: "state", status: legacyStatus("sentinel"), deps: [] },
+				{ id: "A", factory: "state", status: legacyStatus("sentinel"), deps: [] },
+				{ id: "á", factory: "state", status: legacyStatus("sentinel"), deps: [] },
 			],
 			edges: [],
 		};
@@ -148,7 +160,14 @@ describe("describe renderers (D39/D40)", () => {
 
 	it("escapes diagram labels without introducing physical control-character lines", () => {
 		const snap: DescribeSnapshot = {
-			nodes: [{ id: 'line\nbreak "quoted"', factory: "state", status: "sentinel", deps: [] }],
+			nodes: [
+				{
+					id: 'line\nbreak "quoted"',
+					factory: "state",
+					status: legacyStatus("sentinel"),
+					deps: [],
+				},
+			],
 			edges: [],
 		};
 
@@ -164,7 +183,7 @@ describe("describe renderers (D39/D40)", () => {
 				{
 					id: "cyclic",
 					factory: "state",
-					status: "settled",
+					status: legacyStatus("settled"),
 					deps: [],
 					value: { circular, id: 1n },
 				},
@@ -181,8 +200,8 @@ describe("describe renderers (D39/D40)", () => {
 		const snap: DescribeSnapshot = {
 			name: "duplicate edges",
 			nodes: [
-				{ id: "sink", factory: "derived", status: "sentinel", deps: ["source"] },
-				{ id: "source", factory: "state", status: "settled", deps: [], value: 1 },
+				{ id: "sink", factory: "derived", status: legacyStatus("sentinel"), deps: ["source"] },
+				{ id: "source", factory: "state", status: legacyStatus("settled"), deps: [], value: 1 },
 			],
 			edges: [
 				{ from: "source", to: "sink" },
@@ -217,8 +236,8 @@ describe("describe renderers (D39/D40)", () => {
 		const snap: DescribeSnapshot = {
 			name: "missing endpoints",
 			nodes: [
-				{ id: "a", factory: "state", status: "settled", deps: [], value: "ready" },
-				{ id: "b", factory: "effect", status: "sentinel", deps: ["ghost"] },
+				{ id: "a", factory: "state", status: legacyStatus("settled"), deps: [], value: "ready" },
+				{ id: "b", factory: "effect", status: legacyStatus("sentinel"), deps: ["ghost"] },
 			],
 			edges: [
 				{ from: "ghost", to: "b" },
@@ -253,8 +272,8 @@ describe("describe renderers (D39/D40)", () => {
 		const snap: DescribeSnapshot = {
 			name: "back edge",
 			nodes: [
-				{ id: "tail", factory: "node", status: "settled", deps: ["head"], value: 2 },
-				{ id: "head", factory: "node", status: "settled", deps: ["tail"], value: 1 },
+				{ id: "tail", factory: "node", status: legacyStatus("settled"), deps: ["head"], value: 2 },
+				{ id: "head", factory: "node", status: legacyStatus("settled"), deps: ["tail"], value: 1 },
 			],
 			edges: [
 				{ from: "tail", to: "head" },
@@ -298,7 +317,9 @@ describe("describe renderers (D39/D40)", () => {
 		);
 
 		const snap: DescribeSnapshot = {
-			nodes: [{ id: "你好", factory: "state", status: "settled", deps: [], value: 1 }],
+			nodes: [
+				{ id: "你好", factory: "state", status: legacyStatus("settled"), deps: [], value: 1 },
+			],
 			edges: [],
 		};
 		const url = describeToMermaidUrl(snap, { direction: "TD", theme: "forest" });

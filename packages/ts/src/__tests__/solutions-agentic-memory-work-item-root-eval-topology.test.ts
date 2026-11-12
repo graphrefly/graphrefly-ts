@@ -40,6 +40,7 @@ import {
 	ROOT_EVAL_RETRY_SETTLEMENT_BOUND_MS,
 	ROOT_EVAL_TOOL_SETTLEMENT_BOUND_MS,
 	ROOT_EVAL_TOPOLOGY_REVISION,
+	requireCompletedRootEval,
 	rootEvalMaximumObservationOccurrences,
 	rootEvalMaximumProviderAttempts,
 	rootEvalScheduleFeasibility,
@@ -105,7 +106,7 @@ import { asState } from "./helpers/as-state.js";
 import { addOwnedNodeDep, injectOwnedNodeInput } from "./helpers/owned-rewire.js";
 
 const createTopology = (
-	options: Omit<Parameters<typeof createRootEvalTopology>[0], "profileInput"> = {},
+	options: Partial<Omit<Parameters<typeof createRootEvalTopology>[0], "profileInput">> = {},
 ) =>
 	createRootEvalTopology({
 		profileInput: createCurrentExactModelHarnessProfileInput(),
@@ -720,12 +721,12 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 		});
 		const stopProgress = topology.nodes.progressLease.subscribe((incoming) => {
 			for (const message of incoming) {
-				if (message[0] === "DATA") progress.push(message[1]);
+				if (message[0] === "DATA") progress.push(message[1] as EvalProgressLeaseState);
 			}
 		});
 		const stopAdmissions = topology.nodes.providerAdmissions.subscribe((incoming) => {
 			for (const message of incoming) {
-				if (message[0] === "DATA") admissions.push(message[1]);
+				if (message[0] === "DATA") admissions.push(message[1] as EvalAdmittedEffect);
 			}
 		});
 		const result = await runRootEval(topology, twoPhaseExecutor());
@@ -760,7 +761,7 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 				leaseMs: admissions[0]!.timeoutMs,
 			}),
 		);
-		expect(result.finding.stoppingReason).toBe("campaign-complete");
+		expect(result.finding?.stoppingReason).toBe("campaign-complete");
 		stopFeasibility();
 		stopProgress();
 		stopAdmissions();
@@ -777,7 +778,7 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 		const progress: EvalProgressLeaseState[] = [];
 		const stop = topology.nodes.progressAdmissionLease.subscribe((incoming) => {
 			for (const message of incoming) {
-				if (message[0] === "DATA") progress.push(message[1]);
+				if (message[0] === "DATA") progress.push(message[1] as EvalProgressLeaseState);
 			}
 		});
 		try {
@@ -933,7 +934,7 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 		releaseProvider();
 		const result = await run;
 		expect(result.finding).toBeNull();
-		expect(result.terminal).toMatchObject({
+		expect(result.finding === null ? result.terminal : undefined).toMatchObject({
 			status: "stopped",
 			stoppingReason: "progress-stalled",
 			finding: null,
@@ -1027,7 +1028,7 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 				await vi.advanceTimersToNextTimerAsync();
 			expect(settled).toBe(true);
 			const result = await resultPromise;
-			expect(result.finding.stoppingReason).toBe("campaign-complete");
+			expect(result.finding?.stoppingReason).toBe("campaign-complete");
 			expect(vi.getTimerCount()).toBe(0);
 		} finally {
 			vi.useRealTimers();
@@ -1051,7 +1052,7 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 			for (let turn = 0; turn < 256 && !settled; turn += 1)
 				await vi.advanceTimersToNextTimerAsync();
 			expect(settled).toBe(true);
-			expect((await resultPromise).finding.stoppingReason).toBe("campaign-complete");
+			expect((await resultPromise).finding?.stoppingReason).toBe("campaign-complete");
 			expect(vi.getTimerCount()).toBe(0);
 		} finally {
 			vi.useRealTimers();
@@ -1824,7 +1825,7 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 				},
 			}),
 		);
-		expect(result.finding.providerOutcomeReasonCounts).toMatchObject({
+		expect(result.finding?.providerOutcomeReasonCounts).toMatchObject({
 			"http-capacity-retryable": 0,
 			"http-availability-retryable": 1,
 		});
@@ -2021,18 +2022,19 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 					limits: { maxRequests: 1, maxSteps: 1, timeoutMs: 1_234 },
 				},
 			],
-		} as never;
+		};
 		const proposal = {
 			workItemId,
+			workItemRole: "target" as const,
 			workItemPlanId: `${workItemId}/plan`,
-			workItemPlanDigest: evalWorkItemPlanAuthorityDigest(plan),
+			workItemPlanDigest: evalWorkItemPlanAuthorityDigest(plan as never),
 			timeoutMs: 1_234,
 		};
-		expect(() => validateEvalEffectProposalAgainstWorkItemPlan(proposal, plan)).not.toThrow();
-		const changedPlan = structuredClone(plan) as {
-			members: [{ limits: { timeoutMs: number } }];
-		};
-		changedPlan.members[0].limits.timeoutMs = 1_233;
+		expect(() =>
+			validateEvalEffectProposalAgainstWorkItemPlan(proposal, plan as never),
+		).not.toThrow();
+		const changedPlan = structuredClone(plan);
+		changedPlan.members[0]!.limits.timeoutMs = 1_233;
 		expect(() =>
 			validateEvalEffectProposalAgainstWorkItemPlan(proposal, changedPlan as never),
 		).toThrow(/Work Item plan authority/u);
@@ -2437,7 +2439,7 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 		);
 		expect(result.executedAdmissionIds).toHaveLength(35);
 		expect(result.peakConcurrentEffects).toBe(1);
-		expect(result.finding.providerOutcomeReasonCounts).toMatchObject({
+		expect(result.finding?.providerOutcomeReasonCounts).toMatchObject({
 			"tool-proposed": 30,
 			"executor-failed": 5,
 		});
@@ -2560,7 +2562,7 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 		expect(inactiveBeforeDelay).toEqual([]);
 		expect(inactiveAfterDelay).toEqual([]);
 		expect([...latestByKind.values()].every((effects) => effects.size === 0)).toBe(true);
-		expect(result.finding.admittedAttempts).toBe(36);
+		expect(result.finding?.admittedAttempts).toBe(36);
 		expect(Math.max(...admittedRetryAttempts)).toBe(1);
 		const firstAdmittedRetry = admittedRetryAttempts.indexOf(1);
 		expect(firstAdmittedRetry).toBeGreaterThanOrEqual(0);
@@ -2706,7 +2708,8 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 						if (effect.workItemRole === "source")
 							return providerOutcome(effect, { costMicrousd: 0 });
 						const ordinal =
-							(effect.replicate - 1) * HARNESS_ARMS.length + HARNESS_ARMS.indexOf(effect.arm);
+							(effect.replicate - 1) * HARNESS_ARMS.length +
+							(HARNESS_ARMS as readonly string[]).indexOf(effect.arm);
 						return providerOutcome(effect, {
 							costMicrousd: ordinal < 24 ? 2_843 : 2_842,
 							pricingRoundingAllowanceMicrousd: ordinal < certifiedOutcomes ? 1 : 0,
@@ -2890,8 +2893,8 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 
 		expect(result.executedAdmissionIds).toHaveLength(36);
 		expect(result.executedAdmissionIds.filter((id) => id.includes("/cold/")).length).toBe(6);
-		expect(result.finding.completedWorkItems).toBe(30);
-		expect(result.finding.providerOutcomeReasonCounts).toMatchObject({
+		expect(result.finding?.completedWorkItems).toBe(30);
+		expect(result.finding?.providerOutcomeReasonCounts).toMatchObject({
 			"tool-proposed": 35,
 			"http-capacity-retryable": 1,
 		});
@@ -2944,7 +2947,7 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 		);
 
 		expect(result.executedAdmissionIds).toHaveLength(36);
-		expect(result.finding.providerOutcomeReasonCounts).toMatchObject({
+		expect(result.finding?.providerOutcomeReasonCounts).toMatchObject({
 			"http-capacity-retryable": 1,
 			"tool-proposed": 35,
 		});
@@ -2952,7 +2955,7 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 			if (event.msg[0] !== "DATA") continue;
 			const observation = event.msg[1] as EvalObservation;
 			expect(
-				() => assertRootEvalObservationRuntimeShape(observation),
+				() => assertRootEvalObservationRuntimeShape(observation, `observations[${index}]`),
 				`observation ${index} retryable=${observation.providerOutcomeReasonCounts["http-capacity-retryable"]} admittedRetry=${observation.admittedRetryAttempts} activeRetry=${observation.activeRetryEffects}`,
 			).not.toThrow();
 			const retryableReasonTotal =
@@ -2981,7 +2984,7 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 				},
 			}),
 		);
-		expect(result.finding.providerOutcomeReasonCounts).toMatchObject({
+		expect(result.finding?.providerOutcomeReasonCounts).toMatchObject({
 			"transport-availability-retryable": 1,
 			"transport-availability-exhausted": 1,
 		});
@@ -3013,9 +3016,9 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 		});
 
 		expect(result.executedAdmissionIds).toHaveLength(41);
-		expect(result.finding.completedWorkItems).toBe(30);
-		expect(result.finding.admittedAttempts).toBe(41);
-		expect(result.finding.providerOutcomeReasonCounts).toMatchObject({
+		expect(result.finding?.completedWorkItems).toBe(30);
+		expect(result.finding?.admittedAttempts).toBe(41);
+		expect(result.finding?.providerOutcomeReasonCounts).toMatchObject({
 			"http-capacity-retryable": 6,
 			"tool-proposed": 35,
 		});
@@ -3119,11 +3122,11 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 		expect(executed.filter((effect) => effect.kind === "eval-admitted-retry-delay")).toHaveLength(
 			3,
 		);
-		expect(result.finding.providerOutcomeReasonCounts).toMatchObject({
+		expect(result.finding?.providerOutcomeReasonCounts).toMatchObject({
 			"http-capacity-retryable": 3,
 			"http-capacity-exhausted": 1,
 		});
-		expect(result.finding.excludedTechnicalReplicates).toContain(1);
+		expect(result.finding?.excludedTechnicalReplicates).toContain(1);
 	});
 
 	it("fails closed in the Graph when valid Retry-After exceeds the recovery envelope", async () => {
@@ -3152,11 +3155,11 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 		expect(executed.filter((effect) => effect.kind === "eval-admitted-retry-delay")).toHaveLength(
 			0,
 		);
-		expect(result.finding.providerOutcomeReasonCounts).toMatchObject({
+		expect(result.finding?.providerOutcomeReasonCounts).toMatchObject({
 			"http-capacity-retryable": 0,
 			"http-capacity-exhausted": 1,
 		});
-		expect(result.finding.excludedTechnicalReplicates).toContain(1);
+		expect(result.finding?.excludedTechnicalReplicates).toContain(1);
 	});
 
 	it("fails closed when Graph-visible cooldown readiness fails", async () => {
@@ -3271,14 +3274,14 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 		expect(
 			executed
 				.filter(
-					(effect) =>
+					(effect): effect is EvalAdmittedEffect =>
 						effect.kind === "eval-admitted-effect" &&
 						effect.replicate === 1 &&
 						effect.arm === "cold",
 				)
 				.map((effect) => effect.dispatchOrdinal),
 		).toEqual([1, 2, 3, 4]);
-		expect(result.finding.providerOutcomeReasonCounts).toMatchObject({
+		expect(result.finding?.providerOutcomeReasonCounts).toMatchObject({
 			"http-capacity-retryable": 3,
 			"http-capacity-exhausted": 1,
 		});
@@ -3290,7 +3293,8 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 				createTopology(),
 				twoPhaseExecutor({
 					async onTool(effect) {
-						const armIndex = effect.arm === "source" ? 0 : HARNESS_ARMS.indexOf(effect.arm);
+						const armIndex =
+							effect.arm === "source" ? 0 : (HARNESS_ARMS as readonly string[]).indexOf(effect.arm);
 						await new Promise<void>((resolve) =>
 							setTimeout(resolve, reverse ? HARNESS_ARMS.length - armIndex : armIndex),
 						);
@@ -3303,7 +3307,7 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 			);
 		const [forward, reverse] = await Promise.all([run(false), run(true)]);
 		expect(forward.finding).toEqual(reverse.finding);
-		expect(forward.finding.completedWorkItems).toBe(30);
+		expect(forward.finding?.completedWorkItems).toBe(30);
 	}, 15_000);
 
 	it("reaches a terminal finding when every provider response exhausts its output ceiling", async () => {
@@ -3440,7 +3444,7 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 				},
 			}),
 		);
-		expect(providerFailure.finding.verificationDiagnostics).toMatchObject({
+		expect(providerFailure.finding?.verificationDiagnostics).toMatchObject({
 			stageCounts: { "relevant-applied": { exactToolAdmitted: 0, passed: 0 } },
 			terminalReasonCounts: { "relevant-applied": { "provider-failed": 5 } },
 		});
@@ -3457,7 +3461,7 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 				},
 			}),
 		);
-		expect(successLookingExactToolFailure.finding.verificationDiagnostics).toMatchObject({
+		expect(successLookingExactToolFailure.finding?.verificationDiagnostics).toMatchObject({
 			stageCounts: {
 				"relevant-applied": {
 					exactToolAdmitted: 5,
@@ -3485,7 +3489,7 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 				},
 			}),
 		);
-		expect(exactToolFailurePrecedesNoChange.finding.verificationDiagnostics).toMatchObject({
+		expect(exactToolFailurePrecedesNoChange.finding?.verificationDiagnostics).toMatchObject({
 			terminalReasonCounts: {
 				"relevant-applied": { "exact-tool-failed": 5, "no-change": 0 },
 			},
@@ -3516,7 +3520,7 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 				},
 			}),
 		);
-		expect(wrongScope.finding.verificationDiagnostics).toMatchObject({
+		expect(wrongScope.finding?.verificationDiagnostics).toMatchObject({
 			stageCounts: { "relevant-applied": { scopedChange: 0, passed: 0 } },
 			terminalReasonCounts: { "relevant-applied": { "wrong-scope": 5 } },
 		});
@@ -3540,7 +3544,7 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 				},
 			}),
 		);
-		expect(wrongScopePrecedesPublicSemantic.finding.verificationDiagnostics).toMatchObject({
+		expect(wrongScopePrecedesPublicSemantic.finding?.verificationDiagnostics).toMatchObject({
 			terminalReasonCounts: {
 				"relevant-applied": {
 					"wrong-scope": 5,
@@ -3568,7 +3572,7 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 				},
 			}),
 		);
-		expect(publicSemanticPrecedesHiddenVerifier.finding.verificationDiagnostics).toMatchObject({
+		expect(publicSemanticPrecedesHiddenVerifier.finding?.verificationDiagnostics).toMatchObject({
 			terminalReasonCounts: {
 				"relevant-applied": {
 					"public-semantic-failed": 5,
@@ -3592,7 +3596,7 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 				},
 			}),
 		);
-		expect(cleanupPrecedence.finding.verificationDiagnostics).toMatchObject({
+		expect(cleanupPrecedence.finding?.verificationDiagnostics).toMatchObject({
 			stageCounts: {
 				"relevant-applied": {
 					scopedChange: 4,
@@ -3665,7 +3669,7 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 	}, 15_000);
 
 	it("continues unaffected replicates after a source technical exclusion without simulating target cleanup", async () => {
-		const targetEffects: EvalExecutableEffect[] = [];
+		const targetEffects: EvalAdmittedEffect[] = [];
 		const topology = createTopology();
 
 		const result = await topology.runAdmittedEffects(
@@ -3695,7 +3699,7 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 			finding: "operationally-inconclusive",
 		});
 		for (const arm of HARNESS_ARMS)
-			expect(result.finding.verificationDiagnostics.stageCounts[arm].completedWorkItems).toBe(3);
+			expect(result.finding?.verificationDiagnostics.stageCounts[arm].completedWorkItems).toBe(3);
 	});
 
 	it("keeps the entire target verification lifecycle quiet when every source is technically excluded", async () => {
@@ -3987,7 +3991,9 @@ describe("D140-qualified D122 one-root verification diagnostics", () => {
 	});
 
 	it("persists idempotently and rejects replay/state drift through the atomic store boundary", async () => {
-		const result = await runRootEval(createTopology(), twoPhaseExecutor());
+		const result = requireCompletedRootEval(
+			await runRootEval(createTopology(), twoPhaseExecutor()),
+		);
 		const records = new Map<string, Awaited<ReturnType<typeof persistRootEvalRunAtomically>>>();
 		const store = {
 			read: async (key: string) => records.get(key),
@@ -4234,8 +4240,8 @@ describe("D154 adaptive route settlement and coherent terminal QA", () => {
 					policyRef: ROOT_EVAL_NONBILLABLE_POLICY,
 					admissionId: effect.admissionId,
 					admissionReceiptDigest: effect.receiptDigest,
-					requestDigest: empiricalSha256("D154 synthetic admitted request"),
-					responseDigest: empiricalSha256("D154 synthetic 429 before observer fault"),
+					requestDigest: empiricalSha256(Buffer.from("D154 synthetic admitted request")),
+					responseDigest: empiricalSha256(Buffer.from("D154 synthetic 429 before observer fault")),
 				});
 				return providerOutcome(effect, {
 					status: "failed",
@@ -4290,8 +4296,8 @@ describe("D154 adaptive route settlement and coherent terminal QA", () => {
 								policyRef: ROOT_EVAL_NONBILLABLE_POLICY,
 								admissionId: effect.admissionId,
 								admissionReceiptDigest: effect.receiptDigest,
-								requestDigest: empiricalSha256("D154 admitted synthetic request"),
-								responseDigest: empiricalSha256("D154 first response"),
+								requestDigest: empiricalSha256(Buffer.from("D154 admitted synthetic request")),
+								responseDigest: empiricalSha256(Buffer.from("D154 first response")),
 							});
 							return {
 								...capacityOutcome(effect),
@@ -4299,7 +4305,7 @@ describe("D154 adaptive route settlement and coherent terminal QA", () => {
 								costEvidence: "policy-qualified-nonbillable",
 								nonbillableEvidence: proof,
 								resultDigest: nonbillableHttpResultDigest(
-									empiricalSha256("D154 different response"),
+									empiricalSha256(Buffer.from("D154 different response")),
 								),
 							};
 						},
@@ -4482,7 +4488,7 @@ describe("D154 adaptive route settlement and coherent terminal QA", () => {
 				() =>
 					asState(input).set({
 						...candidate!,
-						resultDigest: empiricalSha256("contradictory response"),
+						resultDigest: empiricalSha256(Buffer.from("contradictory response")),
 					}),
 				/replay|conflict/u,
 			);
@@ -4642,7 +4648,7 @@ describe("D154 adaptive route settlement and coherent terminal QA", () => {
 			releaseBilling!();
 			const result = await running;
 			expect(result.finding).toBeNull();
-			expect(result.terminal).toMatchObject({
+			expect(result.finding === null ? result.terminal : undefined).toMatchObject({
 				status: "stopped",
 				stoppingReason: "progress-stalled",
 				finding: null,

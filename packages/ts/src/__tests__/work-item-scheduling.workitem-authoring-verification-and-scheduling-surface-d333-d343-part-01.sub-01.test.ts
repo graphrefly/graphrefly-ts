@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { graph } from "../graph/graph.js";
+import type { Node } from "../node/node.js";
 import type {
 	WorkItemEffectRequested,
 	WorkItemEvidenceRecorded,
@@ -32,9 +33,7 @@ import {
 	workItemVerificationResultMapper,
 } from "../solutions/work-item/scheduling.js";
 
-function collectData<T>(node: {
-	subscribe(sink: (msg: readonly [string, unknown?]) => void): unknown;
-}): T[] {
+function collectData<T>(node: Node<T>): T[] {
 	const out: T[] = [];
 	node.subscribe((incoming) => {
 		for (const msg of incoming) {
@@ -489,27 +488,25 @@ describe("WorkItem authoring, verification, and scheduling surface (D333-D343) â
 		const capacityHints = { lane: "ci", expectedMs: 2500 };
 
 		facts.set(
-			workItemCreatedFromDraft(
-				"wi-1",
-				draft({
-					verificationPlan: {
-						planId: "plan-rich",
-						steps: [
-							{
-								stepId: "step-rich",
-								mode: "auto",
-								effectKind: "verification",
-								verifiesCriteriaIds: ["ac-1"],
-								goal: { kind: "verification", summary: "Run rich verification" },
-								input: { target: "release" },
-								contextRefs,
-								requirements: ["node-20", "pnpm"],
-								capacityHints,
-							},
-						],
-					},
-				}),
-			),
+			workItemCreatedFromDraft<{ target: string }>("wi-1", {
+				...draft(),
+				verificationPlan: {
+					planId: "plan-rich",
+					steps: [
+						{
+							stepId: "step-rich",
+							mode: "auto",
+							effectKind: "verification",
+							verifiesCriteriaIds: ["ac-1"],
+							goal: { kind: "verification", summary: "Run rich verification" },
+							input: { target: "release" },
+							contextRefs,
+							requirements: ["node-20", "pnpm"],
+							capacityHints,
+						},
+					],
+				},
+			}),
 		);
 
 		expect(requests.at(-1)).toMatchObject({

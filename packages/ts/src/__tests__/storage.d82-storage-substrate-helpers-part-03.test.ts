@@ -29,6 +29,7 @@ import {
 	multiWriterAppendLogStorage,
 	nonNegativeDecimalStringToBigInt,
 	nowNs,
+	type ObserveEvent,
 	observeEventFrame,
 	observeEventFrameCodec,
 	readAppendLogPage,
@@ -102,7 +103,7 @@ const _awaitDone = (run: (done: () => void) => void) =>
 const bytesToHex = (bytes: Uint8Array) =>
 	[...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 
-const _sha256Hex = async (bytes: Uint8Array) =>
+const _sha256Hex = async (bytes: Uint8Array<ArrayBuffer>) =>
 	bytesToHex(new Uint8Array(await globalThis.crypto.subtle.digest("SHA-256", bytes)));
 
 describe("D82 storage substrate helpers — part 3", () => {
@@ -139,11 +140,8 @@ describe("D82 storage substrate helpers — part 3", () => {
 			),
 		).toThrow(/canonical/);
 
-		const frame = observeEventFrame(
-			{ path: "count", msg: ["DATA", 1], tier: 3, seq: 7 },
-			{ value: 1 },
-			{ stream: "audit" },
-		);
+		const observed: ObserveEvent = { path: "count", msg: ["DATA", 1], tier: 3, seq: 7 };
+		const frame = observeEventFrame(observed, { value: 1 }, { stream: "audit" });
 		const frameCodec = observeEventFrameCodec<{ value: number }>();
 		expect(frame).toMatchObject({
 			structure: "observe-event",

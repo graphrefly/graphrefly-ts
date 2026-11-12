@@ -227,16 +227,19 @@ for (const target of ["hostGuard", "runEndReady"] as const) {
 		const { inputs } = inputsFor(graph);
 		const before = graph.describe();
 		const original = ConstructionScope.prototype.node;
-		const spy = vi
-			.spyOn(ConstructionScope.prototype, "node")
-			.mockImplementation(function (deps, fn, options) {
-				allocating = options?.name ?? "";
-				try {
-					return original.call(this, deps, fn, options);
-				} finally {
-					allocating = "";
-				}
-			});
+		const spy = vi.spyOn(ConstructionScope.prototype, "node").mockImplementation(function (
+			this: ConstructionScope,
+			deps,
+			fn,
+			options,
+		) {
+			allocating = options?.name ?? "";
+			try {
+				return original.call(this, deps, fn, options);
+			} finally {
+				allocating = "";
+			}
+		});
 		let caught: unknown;
 		try {
 			composeOfflineSpending(

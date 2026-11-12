@@ -13,15 +13,15 @@ import {
 	GRAPH_BLUEPRINT_VERSION,
 	graph,
 	graphBlueprintDiagnostics,
-	type Node,
 	normalizeTopology,
 	strictCanonicalJsonBytes,
 	withBlueprintHash,
 	withBlueprintProvenance,
 } from "../index.js";
+import type { Wave } from "../protocol/messages.js";
 import { rewireOwnedNode } from "./helpers/owned-rewire.js";
 
-function collect(n: { subscribe(s: (m: Message) => void): () => void }) {
+function collect(n: { subscribe(s: (m: Wave) => void): () => void }) {
 	const msgs: Message[] = [];
 	n.subscribe((incoming) => {
 		for (const m of incoming) {
@@ -39,7 +39,7 @@ describe("Graph — 8-verb sugar (CSP-2)", () => {
 	it("state + derived: value-level fn computes from dep values (D27)", () => {
 		const g = graph();
 		const count = g.state(0);
-		const doubled = g.derived([count], (n) => n * 2);
+		const doubled = g.derived([count], (n) => n! * 2);
 		collect(doubled);
 		expect(doubled.cache).toBe(0);
 		count.set(5);
@@ -50,7 +50,7 @@ describe("Graph — 8-verb sugar (CSP-2)", () => {
 		const g = graph();
 		const a = g.state(2);
 		const b = g.state(3);
-		const sum = g.derived([a, b], (x, y) => x + y);
+		const sum = g.derived([a, b], (x, y) => x! + y!);
 		collect(sum);
 		expect(sum.cache).toBe(5);
 		b.set(10);
@@ -63,7 +63,7 @@ describe("Graph — 8-verb sugar (CSP-2)", () => {
 		const seen: number[] = [];
 		let cleaned = 0;
 		const e = g.effect([s], (n) => {
-			seen.push(n);
+			seen.push(n!);
 			return () => {
 				cleaned++;
 			};
@@ -80,7 +80,7 @@ describe("Graph — 8-verb sugar (CSP-2)", () => {
 		const g = graph();
 		const s = g.state(1);
 		const bad = g.derived([s], (n) => {
-			if (n > 0) throw new Error("boom");
+			if (n! > 0) throw new Error("boom");
 			return n;
 		});
 		const msgs = collect(bad);
@@ -105,7 +105,7 @@ describe("Graph.describe — snapshot shape (R-describe / D39)", () => {
 	it("emits a flat snapshot with ids, factory names, status, value, deps, edges", () => {
 		const g = graph({ name: "demo" });
 		const count = g.state(0, { name: "count" });
-		const doubled = g.derived([count], (n) => n * 2, { name: "doubled" });
+		const doubled = g.derived([count], (n) => n! * 2, { name: "doubled" });
 		collect(doubled);
 		count.set(5);
 
@@ -133,8 +133,8 @@ describe("Graph.describe — snapshot shape (R-describe / D39)", () => {
 	it("explain mode filters to the causal chain from→to", () => {
 		const g = graph();
 		const a = g.state(1, { name: "a" });
-		const b = g.derived([a], (x) => x + 1, { name: "b" });
-		const c = g.derived([b], (x) => x + 1, { name: "c" });
+		const b = g.derived([a], (x) => x! + 1, { name: "b" });
+		const c = g.derived([b], (x) => x! + 1, { name: "c" });
 		const side = g.state(9, { name: "side" }); // off the a→c chain
 		collect(c);
 		collect(g.derived([side], (x) => x, { name: "sideD" }));
@@ -168,7 +168,7 @@ describe("Graph.topology — pure structure snapshot (D173)", () => {
 	it("projects describe's live truth source without runtime status/value/version", () => {
 		const g = graph({ name: "demo" });
 		const count = g.state(0, { name: "count", meta: { role: { kind: "input" } } });
-		const doubled = g.derived([count], (n) => n * 2, { name: "doubled" });
+		const doubled = g.derived([count], (n) => n! * 2, { name: "doubled" });
 		collect(doubled);
 		count.set(5);
 
@@ -254,7 +254,7 @@ describe("Graph.blueprint — sync audit envelope (D173/D177)", () => {
 	it("returns a versioned normalized topology envelope without describe runtime fields", () => {
 		const parent = graph({ name: "parent" });
 		const count = parent.state(0, { name: "count", meta: { role: "input" } });
-		const doubled = parent.derived([count], (n) => n * 2, { name: "doubled" });
+		const doubled = parent.derived([count], (n) => n! * 2, { name: "doubled" });
 		const child = graph({ name: "child" });
 		child.state(1, { name: "leaf" });
 		parent.mount(child, { at: "sub" });
@@ -292,12 +292,12 @@ describe("Graph.blueprint — sync audit envelope (D173/D177)", () => {
 		const left = graph();
 		const leftB = left.state(2, { name: "b" });
 		const leftA = left.state(1, { name: "a" });
-		left.derived([leftB, leftA], (b, a) => a + b, { name: "sum" });
+		left.derived([leftB, leftA], (b, a) => a! + b!, { name: "sum" });
 
 		const right = graph();
 		const rightA = right.state(1, { name: "a" });
 		const rightB = right.state(2, { name: "b" });
-		right.derived([rightB, rightA], (b, a) => a + b, { name: "sum" });
+		right.derived([rightB, rightA], (b, a) => a! + b!, { name: "sum" });
 
 		expect(left.blueprint().topology.nodes.map((node) => node.id)).toEqual(["a", "b", "sum"]);
 		expect(left.blueprint().topology.edges).toEqual([
@@ -314,7 +314,7 @@ describe("Graph.blueprint — sync audit envelope (D173/D177)", () => {
 		const g = graph();
 		const b = g.state(2, { name: "b" });
 		const a = g.state(1, { name: "a" });
-		g.derived([b, a], (right, left) => left + right, { name: "sum" });
+		g.derived([b, a], (right, left) => left! + right!, { name: "sum" });
 
 		const bytes = canonicalTopologyBytes(g.topology());
 
@@ -325,7 +325,7 @@ describe("Graph.blueprint — sync audit envelope (D173/D177)", () => {
 	it("adds helper-only topology hash metadata without hashing provenance", async () => {
 		const g = graph();
 		const count = g.state(1, { name: "count" });
-		g.derived([count], (n) => n + 1, { name: "next" });
+		g.derived([count], (n) => n! + 1, { name: "next" });
 
 		const base = g.blueprint();
 		const withFirstProvenance = withBlueprintProvenance(base, {

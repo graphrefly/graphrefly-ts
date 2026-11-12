@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { graph } from "../graph/graph.js";
+import type { Node } from "../node/node.js";
 import {
 	decideWorkspaceProposalAdmission,
 	isWorkspaceProposalProjectionReleaseMaterial,
@@ -52,6 +53,7 @@ import {
 	type WorkspaceProposalProjectionReleaseDiagnostic,
 	type WorkspaceProposalReadyRequest,
 	type WorkspaceProposalRecorded,
+	type WorkspaceProposalRecordedIssue,
 	type WorkspaceProposalRepairActionDescriptor,
 	type WorkspaceProposalRepairActionDisplayPolicyAdvisory,
 	type WorkspaceProposalRepairActionIntent,
@@ -84,6 +86,7 @@ import {
 	workspaceProposalWorkItemLinkApplicationProjector,
 	workspaceProposalWorkItemSpawnApplicationProjector,
 } from "../solutions/work-item/scheduling.js";
+import type { Subscribable } from "./helpers/collect.js";
 
 const actorRef = { kind: "actor", id: "actor-1" } as const;
 const capabilityRef = { kind: "capability", id: "work-item-write" } as const;
@@ -140,14 +143,15 @@ describe("Workspace proposal family application helpers (D430)", () => {
 	it("clamps generic applied overrides when validation has issues or missing family refs", () => {
 		const record = proposalRecord("work-item-link", linkDraft());
 		const decision = admittedDecision(record);
-		const ref = workspaceProposalApplicationFamilyRef("work-item-link", {
+		const linkedOverride = {
 			kind: "work-item-linked",
 			eventId: "event-override",
 			linkId: "link-1",
 			fromWorkItemId: "wi-1",
 			toWorkItemId: "wi-2",
 			linkKind: "blocks",
-		} satisfies WorkItemLinked);
+		} satisfies WorkItemLinked;
+		const ref = workspaceProposalApplicationFamilyRef("work-item-link", linkedOverride);
 
 		const issueful = projectWorkspaceProposalApplicationStatus(
 			record,
@@ -302,7 +306,7 @@ describe("Workspace proposal family application helpers (D430)", () => {
 
 		const unlinkRecord = proposalRecord("work-item-link", {
 			...linkDraft(),
-			action: "unlink",
+			action: "unlink" as const,
 		});
 		const unlinked = projectWorkspaceProposalWorkItemLinkApplication(
 			unlinkRecord,
@@ -336,6 +340,7 @@ describe("Workspace proposal family application helpers (D430)", () => {
 			kind: "work-item-link-proposal",
 		});
 		const malformed = projectWorkspaceProposalWorkItemLinkApplication(
+			// @ts-expect-error -- a deliberately malformed link draft (no linkId) must be blocked at run time
 			malformedRecord,
 			admittedDecision(malformedRecord),
 			{ applicationId: "application-malformed-link" },
@@ -856,6 +861,7 @@ describe("Workspace proposal family application helpers (D430)", () => {
 			proposalId: "proposal-1",
 		});
 
+		// @ts-expect-error -- a deliberately wrong required-input draft must be blocked at run time
 		records.set(record);
 		decisions.set(admittedDecision(record));
 		contexts.set({
@@ -3388,10 +3394,10 @@ describe("Workspace proposal family application helpers (D430)", () => {
 			diagnostics: [expect.objectContaining({ code: "conflicting-repair-action-intent" })],
 		});
 
-		const cyclicIntent = { ...intentA, intentId: "repair-action-intent:cyclic" } as Record<
-			string,
-			unknown
-		>;
+		const cyclicIntent: WorkspaceProposalRepairActionIntent & { self?: unknown } = {
+			...intentA,
+			intentId: "repair-action-intent:cyclic",
+		};
 		cyclicIntent.self = cyclicIntent;
 		expect(() => intents.set(cyclicIntent)).not.toThrow();
 		expect(results.at(-1)).toMatchObject({
@@ -3922,6 +3928,7 @@ describe("Workspace proposal family application helpers (D430)", () => {
 
 		const incomplete = projectWorkspaceProposalFamilyApplicationReadModels({
 			queries: [
+				// @ts-expect-error -- a deliberately incomplete query (no decisionId) must be rejected at run time
 				{
 					kind: "workspace-proposal-family-application-read-model-query",
 					queryId: "query-incomplete",
@@ -3932,7 +3939,7 @@ describe("Workspace proposal family application helpers (D430)", () => {
 					proposalFamily: coordinates.proposalFamily,
 					page: { offset: -10, limit: 999 },
 					sourceRefs: [sourceRef],
-				} as WorkspaceProposalFamilyApplicationReadModelQuery,
+				},
 			],
 			diagnostics: [diagnostic],
 			repairReviewStatuses: [repairStatus],
@@ -4073,8 +4080,10 @@ describe("Workspace proposal family application helpers (D430)", () => {
 			queries: [
 				readModelQuery("query-invalid-closed-filters", coordinates, {
 					filters: {
-						outcomeKinds: ["not-an-outcome-kind"] as readonly never[],
-						repairStates: ["retry-now"] as readonly never[],
+						// @ts-expect-error -- an unknown closed-filter value must be rejected at run time
+						outcomeKinds: ["not-an-outcome-kind"],
+						// @ts-expect-error -- an unknown closed-filter value must be rejected at run time
+						repairStates: ["retry-now"],
 					},
 				}),
 			],
@@ -5613,7 +5622,7 @@ describe("Workspace proposal family application helpers (D430)", () => {
 			reviewDecisionId: "review-from-descriptor",
 			repairRequestId: fixture.request.repairRequestId,
 			intent: "resolved",
-			sourceRefs: expect.arrayContaining(reviewDescriptor.sourceRefs),
+			sourceRefs: expect.arrayContaining([...reviewDescriptor.sourceRefs]),
 			metadata: reviewDescriptor.metadata,
 		});
 	});
@@ -5943,10 +5952,7 @@ function workItem(id: string): WorkItemProjection {
 
 function workItemDraft(summary: string): WorkItemDraft {
 	return {
-		title: summary,
 		summary,
-		workKind: "task",
-		status: "open",
 	};
 }
 
@@ -6080,6 +6086,8 @@ function repairActionIntent(
 	options: {
 		readonly actionKind: WorkspaceProposalRepairActionIntent["actionKind"];
 		readonly expectedCurrentState?: WorkspaceProposalRepairActionIntent["expectedCurrentState"];
+		readonly sourceRefs?: WorkspaceProposalRepairActionIntent["sourceRefs"];
+		readonly metadata?: Record<string, unknown>;
 	},
 ): WorkspaceProposalRepairActionIntent {
 	return {
@@ -6096,13 +6104,13 @@ function repairActionIntent(
 		reviewerRef: { kind: "actor", id: "reviewer:d459" },
 		capabilityRefs: [{ kind: "capability", id: `repair-action:${options.actionKind}` }],
 		policyRefs: [{ kind: "policy", id: "repair-action:intake-policy" }],
-		sourceRefs: descriptor.sourceRefs,
+		sourceRefs: options.sourceRefs ?? descriptor.sourceRefs,
 		audit: {
 			auditId: `audit:${options.actionKind}`,
 			actorId: "reviewer:d459",
 			sourceRefs: descriptor.sourceRefs,
 		},
-		metadata: { descriptorRoute: descriptor.metadata?.route },
+		metadata: { descriptorRoute: descriptor.metadata?.route, ...options.metadata },
 		expectedCurrentState: options.expectedCurrentState,
 	};
 }
@@ -6201,9 +6209,7 @@ function d430ApplicationRefs(
 	] as const;
 }
 
-function collectData<T>(node: {
-	subscribe(sink: (msg: readonly [string, unknown?]) => void): unknown;
-}): T[] {
+function collectData<T>(node: Node<T>): T[] {
 	const out: T[] = [];
 	node.subscribe((incoming) => {
 		for (const msg of incoming) {
@@ -6213,16 +6219,12 @@ function collectData<T>(node: {
 	return out;
 }
 
-function collectDataFromNodes<T>(
-	...nodes: {
-		subscribe(sink: (msg: readonly [string, unknown?]) => void): unknown;
-	}[]
-): T[] {
-	const out: T[] = [];
+function collectDataFromNodes(...nodes: Subscribable[]): unknown[] {
+	const out: unknown[] = [];
 	for (const node of nodes) {
 		node.subscribe((incoming) => {
 			for (const msg of incoming) {
-				if (msg[0] === "DATA") out.push(msg[1] as T);
+				if (msg[0] === "DATA") out.push(msg[1]);
 			}
 		});
 	}

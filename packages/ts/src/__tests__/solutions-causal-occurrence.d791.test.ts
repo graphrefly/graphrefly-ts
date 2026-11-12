@@ -6,7 +6,7 @@ import { constructionOf } from "../graph/construction-scope.js";
 import { Graph } from "../graph/graph.js";
 import { stableJsonString } from "../json/codec.js";
 import type { Node } from "../node/node.js";
-import type { Message } from "../protocol/messages.js";
+import type { Message, Wave } from "../protocol/messages.js";
 import {
 	assertCausalOccurrenceTopology,
 	CAUSAL_OCCURRENCE_SCHEMA_REVISION,
@@ -154,7 +154,7 @@ function fixture(
 			const values: Message[] = [];
 			messages.set(name, values);
 			stops.push(
-				node.subscribe((incoming) => {
+				node.subscribe((incoming: Wave) => {
 					for (const message of incoming) {
 						values.push(message);
 					}

@@ -35,7 +35,7 @@ for (const closingEdge of ["receipt-to-guard", "authority-to-receipt"] as const)
 		if (closingEdge === "receipt-to-guard") rewireOwnedNode(authority, [input, receipt], fn);
 		let failure: unknown;
 		try {
-			if (closingEdge === "receipt-to-guard") rewireOwnedNode(receipt, [guard], null);
+			if (closingEdge === "receipt-to-guard") rewireOwnedNode(receipt, [guard]);
 			else rewireOwnedNode(authority, [input, receipt], fn);
 		} catch (error) {
 			failure = error;

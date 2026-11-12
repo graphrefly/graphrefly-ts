@@ -4,6 +4,7 @@ import { basename, join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { toolProviderExecutionRecipe } from "../executors/tool-provider.js";
 import {
+	type HttpToolArguments,
 	type HttpToolProviderDriver,
 	httpToolProviderCatalog,
 	httpToolProviderRuntime,
@@ -15,6 +16,7 @@ import {
 } from "../executors/tool-provider-adapters.js";
 import { graph } from "../graph/graph.js";
 import { compoundTupleKey } from "../identity.js";
+import type { Node } from "../node/node.js";
 import type {
 	AgentRequestFact,
 	AgentRequestIssued,
@@ -359,7 +361,9 @@ describe("tool-provider concrete adapters (D283/D359-D362)", () => {
 
 	it("http runtime executes through visible run requests without async bindings", () => {
 		const g = graph();
-		const inputs = g.node<ToolProviderAdapterInput>([], null, { name: "httpInputs" });
+		const inputs = g.node<ToolProviderAdapterInput<HttpToolArguments>>([], null, {
+			name: "httpInputs",
+		});
 		const driver: HttpToolProviderDriver = {
 			fetch(request) {
 				return Promise.resolve({
@@ -421,7 +425,9 @@ describe("tool-provider concrete adapters (D283/D359-D362)", () => {
 
 	it("http runtime denies non-allowlisted origins and approval-required runs fail closed", () => {
 		const g = graph();
-		const inputs = g.node<ToolProviderAdapterInput>([], null, { name: "httpDeniedInputs" });
+		const inputs = g.node<ToolProviderAdapterInput<HttpToolArguments>>([], null, {
+			name: "httpDeniedInputs",
+		});
 		const runtime = httpToolProviderRuntime(g, {
 			inputs,
 			providerId: "http-test",
@@ -473,7 +479,9 @@ describe("tool-provider concrete adapters (D283/D359-D362)", () => {
 
 	it("http runtime consumes D419-admitted run requests instead of auto-running explicit candidates", () => {
 		const g = graph();
-		const inputs = g.node<ToolProviderAdapterInput>([], null, { name: "httpAdmissionInputs" });
+		const inputs = g.node<ToolProviderAdapterInput<HttpToolArguments>>([], null, {
+			name: "httpAdmissionInputs",
+		});
 		const candidateRuns = g.node<ToolProviderAdapterRunRequested>([], null, {
 			name: "httpAdmissionCandidateRuns",
 		});
@@ -506,7 +514,7 @@ describe("tool-provider concrete adapters (D283/D359-D362)", () => {
 		});
 		const outcomes = collectData(runtime.outcomes);
 		const input = approvalInput(
-			readyInput("http-test", "http.fetch", {
+			readyInput<HttpToolArguments>("http-test", "http.fetch", {
 				url: "https://api.example.test/admitted",
 			}),
 			"require",
@@ -552,7 +560,9 @@ describe("tool-provider concrete adapters (D283/D359-D362)", () => {
 
 	it("default http driver disables automatic redirect following", () => {
 		const g = graph();
-		const inputs = g.node<ToolProviderAdapterInput>([], null, { name: "httpRedirectInputs" });
+		const inputs = g.node<ToolProviderAdapterInput<HttpToolArguments>>([], null, {
+			name: "httpRedirectInputs",
+		});
 		const originalFetch = globalThis.fetch;
 		let seenInit: RequestInit | undefined;
 		globalThis.fetch = ((_url: URL | RequestInfo, init?: RequestInit) => {
@@ -587,7 +597,9 @@ describe("tool-provider concrete adapters (D283/D359-D362)", () => {
 
 	it("http runtime keeps ref-only bodies as ref artifacts instead of empty inline content", () => {
 		const g = graph();
-		const inputs = g.node<ToolProviderAdapterInput>([], null, { name: "httpRefInputs" });
+		const inputs = g.node<ToolProviderAdapterInput<HttpToolArguments>>([], null, {
+			name: "httpRefInputs",
+		});
 		const bodyRef = { kind: "artifact", id: "http-body-ref" };
 		const runtime = httpToolProviderRuntime(g, {
 			inputs,
@@ -848,11 +860,12 @@ function route(
 	};
 }
 
-function readyInput(
+/** A ready input; its arguments are whatever the test passes, malformed ones included. */
+function readyInput<TArgs = unknown>(
 	providerId: string,
 	toolName: string,
 	args?: unknown,
-): ToolProviderAdapterInput {
+): ToolProviderAdapterInput<TArgs> {
 	return {
 		kind: "tool-provider-adapter-input",
 		adapterInputId: `${providerId}:${toolName}:input`,
@@ -870,13 +883,13 @@ function readyInput(
 			toolName,
 			...(args === undefined ? {} : { arguments: args }),
 		},
-	};
+	} as ToolProviderAdapterInput<TArgs>;
 }
 
-function approvalInput(
-	input: ToolProviderAdapterInput,
+function approvalInput<TArgs>(
+	input: ToolProviderAdapterInput<TArgs>,
 	mode: "auto" | "require" | "never",
-): ToolProviderAdapterInput {
+): ToolProviderAdapterInput<TArgs> {
 	const policyId = `${input.providerId}:approval-policy:${mode}`;
 	return {
 		...input,
@@ -893,16 +906,10 @@ function approvalInput(
 }
 
 function processInput(args: ProcessToolArguments): ToolProviderAdapterInput<ProcessToolArguments> {
-	return readyInput(
-		"process",
-		"process.execFile",
-		args,
-	) as ToolProviderAdapterInput<ProcessToolArguments>;
+	return readyInput("process", "process.execFile", args);
 }
 
-function collectData<T>(node: {
-	subscribe(sink: (msg: readonly [string, unknown?]) => void): unknown;
-}): T[] {
+function collectData<T>(node: Node<T>): T[] {
 	const out: T[] = [];
 	node.subscribe((incoming) => {
 		for (const msg of incoming) {

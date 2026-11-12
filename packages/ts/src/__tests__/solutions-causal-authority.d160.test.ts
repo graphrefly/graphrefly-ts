@@ -76,7 +76,10 @@ describe("D160 private authority responsibility boundaries", () => {
 	it("identity admission alone cannot fabricate a release, terminal, effect or evidence", () => {
 		const { state } = transitionCausalAuthority<number>(undefined, [], opts);
 		const outputs: AuthorityFact<number>[] = [];
-		receiveAdmissions({ state, opts, outputs }, { lane: "admissions", values: [admission] });
+		receiveAdmissions(
+			{ state, opts, outputs, committedViewChanged: false },
+			{ lane: "admissions", values: [admission] },
+		);
 		expect(state.admissions.size).toBe(1);
 		expect(state.byRevision.size).toBe(0);
 		expect(state.effects.size).toBe(0);
@@ -91,7 +94,7 @@ describe("D160 private authority responsibility boundaries", () => {
 
 		for (const evidenceId of ["first", "overflow"])
 			receiveEvidence(
-				{ state, opts, outputs },
+				{ state, opts, outputs, committedViewChanged: false },
 				{
 					lane: "evidence",
 					values: [

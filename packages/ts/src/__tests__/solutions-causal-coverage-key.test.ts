@@ -42,9 +42,11 @@ it("keeps exact reference filtering, record order, gap precedence and repeated o
 	const second = record("second");
 	const gap = record("gap", ref, "retention-gap");
 	state.evidence.set("1", first);
+	// Source refs carry extra data fields beyond kind/id; the reference key compares them exactly.
+	const wrongMetadataSourceRefs = [{ kind: "input", id: "one", detail: { b: 3, a: 1 } }];
 	state.evidence.set(
 		"wrong-metadata",
-		record("wrong", { ...ref, sourceRefs: [{ kind: "input", id: "one", detail: { b: 3, a: 1 } }] }),
+		record("wrong", { ...ref, sourceRefs: wrongMetadataSourceRefs }),
 	);
 	state.evidence.set("2", second);
 	state.coverageGaps.set("gap", gap);
@@ -54,8 +56,8 @@ it("keeps exact reference filtering, record order, gap precedence and repeated o
 		...ref,
 		sourceRefs: [{ kind: "input", id: "one", detail: { a: 1, b: 2 } }],
 	});
-	emitCoverage({ state, opts, outputs }, query);
-	emitCoverage({ state, opts, outputs }, query);
+	emitCoverage({ state, opts, outputs, committedViewChanged: false }, query);
+	emitCoverage({ state, opts, outputs, committedViewChanged: false }, query);
 	expect(outputs).toEqual(
 		[0, 1].map(() => ({
 			kind: "coverage",
@@ -75,6 +77,8 @@ it("preserves the empty scan without encoding the unused query", () => {
 	const state = transitionCausalAuthority(undefined, [], opts).state;
 	const outputs: AuthorityFact<unknown>[] = [];
 	const query = { ...ref, sourceRefs: undefined } as unknown as CausalOccurrenceRef;
-	expect(() => emitCoverage({ state, opts, outputs }, query)).not.toThrow();
+	expect(() =>
+		emitCoverage({ state, opts, outputs, committedViewChanged: false }, query),
+	).not.toThrow();
 	expect(outputs).toHaveLength(1);
 });

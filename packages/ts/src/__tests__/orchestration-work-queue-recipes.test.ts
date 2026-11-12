@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { graph } from "../graph/graph.js";
+import type { Node } from "../node/node.js";
 import type { ProcessEffectRequest } from "../orchestration/index.js";
 import {
 	type OrchestrationQueuedEffectPayload,
@@ -82,9 +83,7 @@ describe("orchestration workQueue recipe (D349/D353)", () => {
 	});
 });
 
-function collectData<T>(node: {
-	subscribe(sink: (msg: readonly [string, unknown?]) => void): unknown;
-}): T[] {
+function collectData<T>(node: Node<T>): T[] {
 	const out: T[] = [];
 	node.subscribe((incoming) => {
 		for (const msg of incoming) {

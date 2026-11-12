@@ -6,7 +6,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import type { Message, Node } from "../index.js";
+import type { Message, Node, Status } from "../index.js";
 import {
 	type DescribeSnapshot,
 	filter,
@@ -17,11 +17,12 @@ import {
 	stratifyBranch,
 	topologyDiff,
 } from "../index.js";
+import type { Wave } from "../protocol/messages.js";
 
 const data = <T>(msgs: Message[]): T[] =>
 	msgs.filter((x) => x[0] === "DATA").map((x) => (x as readonly ["DATA", T])[1]);
 
-function collect(n: { subscribe(s: (m: Message) => void): () => void }) {
+function collect(n: { subscribe(s: (m: Wave) => void): () => void }) {
 	const msgs: Message[] = [];
 	const unsub = n.subscribe((incoming) => {
 		for (const m of incoming) {
@@ -31,19 +32,23 @@ function collect(n: { subscribe(s: (m: Message) => void): () => void }) {
 	return { msgs, unsub };
 }
 
+// Describe statuses for hand-built snapshots (R-node@2: a status is an object, not a label).
+const SETTLED: Status = { cache: "ready", output: "open", lifecycle: "active" };
+const SENTINEL: Status = { cache: "empty", output: "open", lifecycle: "active" };
+
 describe("topologyDiff (D56)", () => {
 	it("diffs D39 describe snapshots without old-core deps", () => {
 		const prev: DescribeSnapshot = {
 			nodes: [
-				{ id: "a", factory: "state", status: "settled", deps: [], meta: { role: "old" } },
-				{ id: "b", factory: "map", status: "sentinel", deps: ["a"] },
+				{ id: "a", factory: "state", status: SETTLED, deps: [], meta: { role: "old" } },
+				{ id: "b", factory: "map", status: SENTINEL, deps: ["a"] },
 			],
 			edges: [{ from: "a", to: "b" }],
 		};
 		const next: DescribeSnapshot = {
 			nodes: [
-				{ id: "a", factory: "state", status: "settled", deps: [], meta: { role: "new" } },
-				{ id: "c", factory: "filter", status: "sentinel", deps: ["a"] },
+				{ id: "a", factory: "state", status: SETTLED, deps: [], meta: { role: "new" } },
+				{ id: "c", factory: "filter", status: SENTINEL, deps: ["a"] },
 			],
 			edges: [{ from: "a", to: "c" }],
 		};
@@ -63,7 +68,7 @@ describe("topologyDiff (D56)", () => {
 			nodes: [],
 			edges: [],
 			subgraphs: [
-				{ nodes: [{ id: "child::x", factory: "state", status: "settled", deps: [] }], edges: [] },
+				{ nodes: [{ id: "child::x", factory: "state", status: SETTLED, deps: [] }], edges: [] },
 			],
 		};
 		expect(topologyDiff(prev, next).events[0]).toEqual({
@@ -79,7 +84,7 @@ describe("topologyDiff (D56)", () => {
 			edges: [],
 			subgraphs: [
 				{
-					nodes: [{ id: "parent::child::x", factory: "state", status: "settled", deps: [] }],
+					nodes: [{ id: "parent::child::x", factory: "state", status: SETTLED, deps: [] }],
 					edges: [],
 				},
 			],

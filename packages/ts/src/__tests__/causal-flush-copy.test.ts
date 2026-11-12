@@ -67,6 +67,8 @@ it("also separates nested retention-gap projections after eviction", () => {
 	expect(fact.value.gapRef).not.toBe(retained.gapRef);
 	expect(fact.value.gapRef!.evidenceRef).not.toBe(retained.gapRef!.evidenceRef);
 	const before = structuredClone(retained);
-	Object.assign(fact.value.gapRef!.evidenceRef, { id: "consumer-mutation" });
+	const evidenceRef = fact.value.gapRef?.evidenceRef;
+	if (evidenceRef === undefined) throw Error("missing gap evidence");
+	Object.assign(evidenceRef, { id: "consumer-mutation" });
 	expect(retained).toEqual(before);
 });

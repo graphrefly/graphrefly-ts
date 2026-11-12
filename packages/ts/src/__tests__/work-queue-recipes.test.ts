@@ -55,6 +55,7 @@ describe("workQueue recipes (D327/D328/D331)", () => {
 			effectKind: "verify",
 			idempotencyKey: "idem-1",
 			sourceRefs: [{ kind: "work-item", id: "wi-1" }],
+			goal: { kind: "verify" },
 		} satisfies WorkItemEffectRequested);
 
 		expect(submits.at(-1)).toEqual(
@@ -198,7 +199,7 @@ describe("workQueue recipes (D327/D328/D331)", () => {
 			],
 		} satisfies WorkItemEffectPlanProposed);
 		const submit = submits.at(-1);
-		if (submit === undefined) throw new Error("expected submit command");
+		if (submit?.kind !== "submit") throw new Error("expected submit command");
 
 		expect(submit.payload).toMatchObject({
 			workItemId: "wi-1",
@@ -550,7 +551,7 @@ describe("workQueue recipes (D327/D328/D331)", () => {
 type ExecutorPayload = ExecutorQueuedDispatchPayload;
 
 function collectData<T>(node: {
-	subscribe(sink: (msg: readonly [string, unknown?]) => void): unknown;
+	subscribe(sink: (msgs: readonly (readonly [string, unknown?])[]) => void): unknown;
 }): T[] {
 	const out: T[] = [];
 	node.subscribe((incoming) => {

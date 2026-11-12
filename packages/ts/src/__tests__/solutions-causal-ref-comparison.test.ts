@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import type { CausalOccurrenceRef } from "../solutions/causal-occurrence/contracts.js";
+import type {
+	CausalOccurrenceRef,
+	CausalSourceRef,
+} from "../solutions/causal-occurrence/contracts.js";
 import {
 	canonicalSnapshot,
 	dataKey,
@@ -38,7 +41,7 @@ describe("D160 exact reference canonical equality", () => {
 					{
 						...a,
 						sourceRefs: [
-							{ ...a.sourceRefs[0]!, extra: { a: [true, null], b: i } },
+							{ ...a.sourceRefs[0]!, extra: { a: [true, null], b: i } } as CausalSourceRef,
 							a.sourceRefs[1]!,
 						],
 					},
@@ -48,7 +51,7 @@ describe("D160 exact reference canonical equality", () => {
 					{
 						...a,
 						sourceRefs: [
-							{ ...a.sourceRefs[0]!, extra: { a: [true, null], b: i + 1 } },
+							{ ...a.sourceRefs[0]!, extra: { a: [true, null], b: i + 1 } } as CausalSourceRef,
 							a.sourceRefs[1]!,
 						],
 					},

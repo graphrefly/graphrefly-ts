@@ -155,15 +155,18 @@ describe("Podman native Libpod API v0 rootless PostgreSQL contract (D645)", () =
 			manifestFingerprint: manifest().fingerprint,
 			signal: new AbortController().signal,
 		};
-		const created = await driver.create(context, {
-			kind: "postgresql-query-tool-arguments",
-			sourceBindingId: "source:1",
-			statement: "SELECT 1",
+		const args = {
+			contractVersion: "1" as const,
+			source: { id: "source:1", revision: "r:1" },
+			sourceProfile: { id: "profile:source", revision: "r:1" },
+			queryPlan: { id: "plan:1", revision: "r:1" },
+			executorProfile: { id: "profile:executor", revision: "r:1" },
+			schemaRef: "schema:1",
 			parameters: [],
-			readOnly: true,
-			maxRows: 1,
-		});
+		};
+		const created = await driver.create(context, args);
 		expect(created).toBe(binding);
+		expect(host.createRunContainer).toHaveBeenCalledWith({ imageRef, args, context });
 		await driver.remove(created, context);
 		expect(host.removeRunContainer).toHaveBeenCalledOnce();
 	});

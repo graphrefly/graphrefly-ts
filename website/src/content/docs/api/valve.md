@@ -21,7 +21,7 @@ import { valve } from "@graphrefly/ts/operators";
 ## Signature
 
 ```ts
-function valve(opts?: ValveOpts): Operator<S, S>
+function valve(opts?: ValveOpts): Operator<unknown, S>
 ```
 
 ## Parameters

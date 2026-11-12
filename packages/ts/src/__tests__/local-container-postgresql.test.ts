@@ -16,6 +16,7 @@ import {
 import { postgresqlToolProviderInputFromIntent } from "../executors/postgresql-tool-provider.js";
 import { graph } from "../graph/graph.js";
 import type { ToolProviderAdapterRunRequested } from "../orchestration/index.js";
+import type { Wave } from "../protocol/messages.js";
 
 const digest = `sha256:${"a".repeat(64)}`;
 const d613DockerEngineApiV0ProofRefs = [
@@ -195,9 +196,7 @@ const run = (): ToolProviderAdapterRunRequested => ({
 		executionManifestFingerprint: "fingerprint:pg:1",
 	},
 });
-const collect = <T>(node: {
-	subscribe(cb: (m: readonly [string, unknown]) => void): () => void;
-}) => {
+const collect = <T>(node: { subscribe(cb: (messages: Wave) => void): () => void }) => {
 	const values: T[] = [];
 	node.subscribe((incoming) => {
 		for (const m of incoming) {

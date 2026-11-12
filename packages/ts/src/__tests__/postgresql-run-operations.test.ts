@@ -271,11 +271,14 @@ describe("D607 PostgreSQL run operations", () => {
 			postgresqlRunOperationBodyFingerprint({
 				...request(),
 				action: "destroy",
-			} as PostgresqlRunOperationRequest),
+			} as unknown as PostgresqlRunOperationRequest),
 		).toThrow("invalid-recovery-action");
 		for (const hostile of [123, { id: "x" }, Symbol("x")])
 			expect(() =>
-				postgresqlRunOperationBodyFingerprint({ ...request(), recoveryId: hostile as string }),
+				postgresqlRunOperationBodyFingerprint({
+					...request(),
+					recoveryId: hostile as unknown as string,
+				}),
 			).toThrow("invalid-identity-string");
 		for (const marker of [
 			"credential:password",
@@ -428,7 +431,7 @@ describe("D607 PostgreSQL run operations", () => {
 		const client: PostgresqlRunOperationsSqlClient = {
 			transaction: async (work) =>
 				work({
-					query: async (sql, values) => {
+					query: mockQuery(async (sql, values) => {
 						calls.push({ sql, values });
 						if (sql.includes("SELECT request FROM inserted")) return { rows: [{ request: r }] };
 						if (sql.includes("'code','admitted'"))
@@ -483,7 +486,7 @@ describe("D607 PostgreSQL run operations", () => {
 								],
 							};
 						return { rows: [{ result: { accepted: true, code: "ok" } }] };
-					},
+					}),
 				}),
 			close: vi.fn(),
 		};
@@ -581,7 +584,7 @@ describe("D607 PostgreSQL run operations", () => {
 		const client: PostgresqlRunOperationsSqlClient = {
 			transaction: async (work) =>
 				work({
-					query: async (sql) => {
+					query: mockQuery(async (sql) => {
 						if (sql.includes("SELECT request FROM inserted")) return { rows: [] };
 						if (sql.includes("SELECT recovery_id,body_fingerprint"))
 							return mode === "identity"
@@ -599,7 +602,7 @@ describe("D607 PostgreSQL run operations", () => {
 							return { rows: [{ body_fingerprint: fp }] };
 						if (mode === "zero") return { rows: [] };
 						throw new Error(`unexpected SQL: ${sql}`);
-					},
+					}),
 				}),
 			close: vi.fn(),
 		};
@@ -628,7 +631,7 @@ describe("D607 PostgreSQL run operations", () => {
 		const client: PostgresqlRunOperationsSqlClient = {
 			transaction: async (work) =>
 				work({
-					query: async () => ({
+					query: mockQuery(async () => ({
 						rows: [
 							{
 								result:
@@ -663,7 +666,7 @@ describe("D607 PostgreSQL run operations", () => {
 											},
 							},
 						],
-					}),
+					})),
 				}),
 			close: vi.fn(),
 		};
@@ -680,7 +683,7 @@ describe("D607 PostgreSQL run operations", () => {
 		const client: PostgresqlRunOperationsSqlClient = {
 			transaction: async (work) =>
 				work({
-					query: async () => ({
+					query: mockQuery(async () => ({
 						rows: [
 							{
 								result: {
@@ -698,7 +701,7 @@ describe("D607 PostgreSQL run operations", () => {
 								},
 							},
 						],
-					}),
+					})),
 				}),
 			close: vi.fn(),
 		};
@@ -714,7 +717,7 @@ describe("D607 PostgreSQL run operations", () => {
 		const client: PostgresqlRunOperationsSqlClient = {
 			transaction: async (work) =>
 				work({
-					query: async (sql) => {
+					query: mockQuery(async (sql) => {
 						expect(sql).toContain("WHERE recovery_id=$1 FOR UPDATE");
 						return {
 							rows: stored
@@ -728,7 +731,7 @@ describe("D607 PostgreSQL run operations", () => {
 									]
 								: [],
 						};
-					},
+					}),
 				}),
 			close: vi.fn(),
 		};
@@ -749,3 +752,16 @@ describe("D607 PostgreSQL run operations", () => {
 		});
 	});
 });
+
+type SqlRow = Record<string, unknown>;
+
+/** A canned SQL answer as the store's query: that query is generic in its row type, which a mock cannot prove. */
+function mockQuery(
+	answer: (
+		sql: string,
+		values: readonly unknown[],
+	) => Promise<{ readonly rows: readonly SqlRow[] }>,
+): <R extends SqlRow>(sql: string, values: readonly unknown[]) => Promise<{ rows: readonly R[] }> {
+	return async <R extends SqlRow>(sql: string, values: readonly unknown[]) =>
+		(await answer(sql, values)) as { rows: readonly R[] };
+}

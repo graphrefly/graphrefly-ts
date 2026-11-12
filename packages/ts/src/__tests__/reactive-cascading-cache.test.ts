@@ -6,11 +6,11 @@ import {
 	reactiveCascadingCache,
 	requireKvVersioned,
 } from "../index.js";
-import type { Wave } from "../protocol/messages.js";
+import type { Node } from "../node/node.js";
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
-function dataOf<T>(node: { subscribe: (sink: (msgs: Wave) => void) => () => void }): T[] {
+function dataOf<T>(node: Node<T>): T[] {
 	const out: T[] = [];
 	node.subscribe((msgs) => {
 		for (const msg of msgs) if (msg[0] === "DATA") out.push(msg[1] as T);

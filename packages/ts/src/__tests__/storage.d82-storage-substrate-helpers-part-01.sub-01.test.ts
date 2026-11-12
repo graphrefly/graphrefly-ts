@@ -86,7 +86,9 @@ const bytesToHex = (bytes: Uint8Array) =>
 	[...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 
 const sha256Hex = async (bytes: Uint8Array) =>
-	bytesToHex(new Uint8Array(await globalThis.crypto.subtle.digest("SHA-256", bytes)));
+	bytesToHex(
+		new Uint8Array(await globalThis.crypto.subtle.digest("SHA-256", new Uint8Array(bytes))),
+	);
 
 describe("D82 storage substrate helpers — sub 1", () => {
 	it("stableJsonString sorts object keys deterministically", () => {
@@ -342,7 +344,7 @@ describe("D82 storage substrate helpers — sub 1", () => {
 		expect(clone).toEqual({ a: "ok", z: [{ a: null, b: true }] });
 		expect(Object.isFrozen(clone)).toBe(true);
 		expect(Object.isFrozen(clone.z)).toBe(true);
-		expect(Object.isFrozen(clone.z[0])).toBe(true);
+		expect(Object.isFrozen((clone.z as readonly unknown[])[0])).toBe(true);
 
 		const protoKey = {};
 		Object.defineProperty(protoKey, "__proto__", {

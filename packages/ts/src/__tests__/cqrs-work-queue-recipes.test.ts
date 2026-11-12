@@ -7,6 +7,7 @@ import {
 	cqrsWorkQueueRecipe,
 } from "../cqrs/work-queue.js";
 import { graph } from "../graph/graph.js";
+import type { Node } from "../node/node.js";
 import type { WorkQueueRecord } from "../work-queue/index.js";
 
 describe("CQRS workQueue recipe (D350/D352/D353)", () => {
@@ -203,9 +204,7 @@ describe("CQRS workQueue recipe (D350/D352/D353)", () => {
 	});
 });
 
-function collectData<T>(node: {
-	subscribe(sink: (msg: readonly [string, unknown?]) => void): unknown;
-}): T[] {
+function collectData<T>(node: Node<T>): T[] {
 	const out: T[] = [];
 	node.subscribe((incoming) => {
 		for (const msg of incoming) {

@@ -15,6 +15,7 @@ import {
 	type TopicMessage,
 	toTopic,
 } from "../messaging/index.js";
+import type { Message } from "../protocol/messages.js";
 import { asState } from "./helpers/as-state.js";
 
 /** The bus's host input: its command node's first declared dependency. */
@@ -115,7 +116,7 @@ describe("messageBus clean-slate retained topic log (D279/D282/D284/D285/D325)",
 	it("dedupes publish commands by idempotencyKey", () => {
 		const g = graph();
 		const bus = messageBus(g, { topics: ["orders"], name: "bus", now: () => 27 });
-		const messages: unknown[] = [];
+		const messages: Message[] = [];
 		const status: unknown[] = [];
 		bus.messages.subscribe((incoming) => {
 			for (const msg of incoming) {

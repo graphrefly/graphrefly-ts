@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { toolProviderExecutionRecipe } from "../executors/tool-provider.js";
 import type { ToolProviderAdapterBinding } from "../executors/tool-provider-runtime.js";
 import { graph } from "../graph/graph.js";
+import type { Node } from "../node/node.js";
 import {
 	type AgentRequestFact,
 	type AgentRequestIssued,
@@ -15,7 +16,7 @@ describe("tool provider execution recipe (D283/D359-D362)", () => {
 		const g = graph();
 		const requestFacts = g.node<AgentRequestFact>([], null, { name: "agentRequestFacts" });
 		const routes = g.node<ExecutorRoute>([], null, { name: "executorRoutes" });
-		const calls: readonly string[] = [];
+		const calls: string[] = [];
 		const binding: ToolProviderAdapterBinding = {
 			providerId: "local-builtin",
 			run(input, ctx) {
@@ -136,9 +137,7 @@ function route(): ExecutorRoute {
 	};
 }
 
-function collectData<T>(node: {
-	subscribe(sink: (msg: readonly [string, unknown?]) => void): unknown;
-}): T[] {
+function collectData<T>(node: Node<T>): T[] {
 	const out: T[] = [];
 	node.subscribe((incoming) => {
 		for (const msg of incoming) {

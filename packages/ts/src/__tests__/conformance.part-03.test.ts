@@ -9,14 +9,14 @@
  */
 
 import { describe, expect, it } from "vitest";
-import type { Ctx, Message } from "../index.js";
+import type { Ctx, Message, Wave } from "../index.js";
 import { depLatest, fromPromise, graph } from "../index.js";
 
 const types = (msgs: Message[]) => msgs.map((m) => m[0]);
 const _data = (msgs: Message[]) =>
 	msgs.filter((m) => m[0] === "DATA").map((m) => (m as ["DATA", unknown])[1]);
 const flush = () => new Promise((r) => setTimeout(r, 0));
-function collect(n: { subscribe(s: (m: Message) => void): () => void }) {
+function collect(n: { subscribe(s: (msgs: Wave) => void): () => void }) {
 	const msgs: Message[] = [];
 	const unsub = n.subscribe((incoming) => {
 		for (const m of incoming) {
