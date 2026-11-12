@@ -10,6 +10,7 @@
 import { depBatch } from "../ctx/types.js";
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
+import { declaredLedger } from "../graph/ledger.js";
 import { canonicalTupleKey } from "../identity.js";
 import type { EventMessage, MessageEnvelope } from "../messaging/index.js";
 import { eventMessageIssue } from "../messaging/index.js";
@@ -133,10 +134,27 @@ type EventFlowRuntimeFact<T = unknown> =
 	| { readonly kind: "audit"; readonly audit: EventFlowAuditRecord }
 	| { readonly kind: "high-water"; readonly highWater: EventFlowHighWater };
 
+/** The flow's ledger (strict JSON): sequences and each source's last recorded message. */
 interface EventFlowRuntimeState {
 	recordSeq: number;
 	auditSeq: number;
-	highWater: Map<string, EventFlowSourceHighWater>;
+	highWater: EventFlowSourceHighWater[];
+}
+
+function initialFlowState(): EventFlowRuntimeState {
+	return { recordSeq: 0, auditSeq: 0, highWater: [] };
+}
+
+/** Replace the entry for this source (and topic) or add one. */
+function setSourceHighWater(
+	entries: EventFlowSourceHighWater[],
+	entry: EventFlowSourceHighWater,
+): void {
+	const at = entries.findIndex(
+		(e) => e.source === entry.source && (e.topic ?? "") === (entry.topic ?? ""),
+	);
+	if (at >= 0) entries[at] = entry;
+	else entries.push(entry);
 }
 
 /**
@@ -159,16 +177,17 @@ export function eventFlow<T = unknown>(
 	const flowId = opts.flowId ?? name;
 	const now = opts.now ?? Date.now;
 	const sources = normalizeSources(opts.sources);
+	// The user's Q13 (graphrefly-ts:D180): the sequences and high water are the flow's ledger, a
+	// state the runtime declares, so a resubscribe goes on from them instead of restarting at 1.
+	const { ledger, setup } = declaredLedger(graph, {
+		name: `${name}/ledger`,
+		factory: "eventFlowLedger",
+		initial: initialFlowState,
+	});
 	const runtime = graph.node<EventFlowRuntimeFact<T>>(
-		sources.map((source) => source.node),
+		[...sources.map((source) => source.node), ledger as Node<unknown>],
 		(ctx) => {
-			const state =
-				ctx.state.get<EventFlowRuntimeState>() ??
-				({
-					recordSeq: 0,
-					auditSeq: 0,
-					highWater: new Map(),
-				} satisfies EventFlowRuntimeState);
+			const state = ctx.state.get<EventFlowRuntimeState>() as EventFlowRuntimeState;
 			// A run's facts go out as one array, so a first subscriber's snapshot holds them all
 			// (R-subscription).
 			const out: Message[] = [];
@@ -187,6 +206,7 @@ export function eventFlow<T = unknown>(
 			name: `${name}/runtime`,
 			factory: "eventFlowRuntime",
 			meta: { flowId, sources: sources.map((source) => source.source) },
+			setup: setup(sources.length),
 			partial: true,
 			complete: "manual",
 			error: "manual",
@@ -229,28 +249,33 @@ export function eventFlowProjection<TState, TPayload = unknown>(
 	const name = opts.name ?? opts.projectionId ?? "eventFlowProjection";
 	const projectionId = opts.projectionId ?? name;
 	const now = opts.now ?? Date.now;
+	type ProjectionState = {
+		value: TState;
+		highWater: EventFlowHighWater;
+		sources: EventFlowSourceHighWater[];
+	};
+	// The user's Q13: the fold and its high water are the projection's ledger.
+	const { ledger, setup } = declaredLedger<ProjectionState>(graph, {
+		name: `${name}/ledger`,
+		factory: "eventFlowProjectionLedger",
+		initial: () => ({ value: opts.initial, highWater: emptyHighWater(projectionId), sources: [] }),
+	});
 	const runtime = graph.node<
 		| { readonly kind: "frame"; readonly frame: EventFlowProjectionFrame<TState> }
 		| { readonly kind: "status"; readonly status: EventFlowProjectionStatus }
 		| { readonly kind: "issue"; readonly issue: DataIssue }
 		| { readonly kind: "high-water"; readonly highWater: EventFlowHighWater }
 	>(
-		[records],
+		[records, ledger as Node<unknown>],
 		oneArrayPerRun((ctx) => {
-			const state = ctx.state.get<{
-				value: TState;
-				highWater: EventFlowHighWater;
-				sourceHighWater: Map<string, EventFlowSourceHighWater>;
-			}>() ?? {
-				value: opts.initial,
-				highWater: emptyHighWater(projectionId),
-				sourceHighWater: new Map(),
-			};
+			const state = ctx.state.get<ProjectionState>() as ProjectionState;
 			for (const raw of depBatch(ctx, 0) ?? []) {
 				const record = raw as EventFlowRecord<TPayload>;
+				// A new lifetime receives the records' snapshot again; a folded record is not folded twice.
+				if (record.recordSeq <= state.highWater.recordSeq) continue;
 				try {
 					state.value = opts.reduce(state.value, record);
-					state.highWater = projectionHighWater(projectionId, record, state.sourceHighWater);
+					state.highWater = projectionHighWater(projectionId, record, state.sources);
 					ctx.down([
 						["DATA", { kind: "frame", frame: { state: state.value, highWater: state.highWater } }],
 						[
@@ -297,6 +322,7 @@ export function eventFlowProjection<TState, TPayload = unknown>(
 			name: `${name}/runtime`,
 			factory: "eventFlowProjectionRuntime",
 			meta: { projectionId },
+			setup: setup(1),
 			complete: "manual",
 			error: "manual",
 		},
@@ -369,6 +395,19 @@ function reduceEventSource<T>(
 		return;
 	}
 
+	// A new lifetime receives each source's snapshot again; the last message a source recorded is
+	// not recorded twice.
+	const last = state.highWater.find(
+		(e) =>
+			e.source === normalized.source.source && (e.topic ?? "") === (normalized.source.topic ?? ""),
+	);
+	if (
+		last !== undefined &&
+		normalized.event.id !== undefined &&
+		last.messageId === normalized.event.id &&
+		last.seq === normalized.source.seq
+	)
+		return;
 	const recordSeq = ++state.recordSeq;
 	const record: EventFlowRecord<T> = {
 		recordSeq,
@@ -383,7 +422,7 @@ function reduceEventSource<T>(
 			? {}
 			: { causationId: normalized.event.causationId }),
 	};
-	state.highWater.set(sourceKey(normalized.source), {
+	setSourceHighWater(state.highWater, {
 		source: normalized.source.source,
 		...(normalized.source.topic === undefined ? {} : { topic: normalized.source.topic }),
 		...(normalized.source.seq === undefined ? {} : { seq: normalized.source.seq }),
@@ -555,7 +594,7 @@ function highWaterSnapshot(flowId: string, state: EventFlowRuntimeState): EventF
 		flowId,
 		recordSeq: state.recordSeq,
 		auditSeq: state.auditSeq,
-		sources: [...state.highWater.values()].sort(
+		sources: [...state.highWater].sort(
 			(a, b) => a.source.localeCompare(b.source) || (a.topic ?? "").localeCompare(b.topic ?? ""),
 		),
 	};
@@ -568,9 +607,9 @@ function emptyHighWater(flowId: string): EventFlowHighWater {
 function projectionHighWater(
 	flowId: string,
 	record: EventFlowRecord,
-	sourceHighWater: Map<string, EventFlowSourceHighWater>,
+	sourceHighWater: EventFlowSourceHighWater[],
 ): EventFlowHighWater {
-	sourceHighWater.set(sourceKey(record.source), {
+	setSourceHighWater(sourceHighWater, {
 		source: record.source.source,
 		...(record.source.topic === undefined ? {} : { topic: record.source.topic }),
 		...(record.source.seq === undefined ? {} : { seq: record.source.seq }),
@@ -581,14 +620,10 @@ function projectionHighWater(
 		flowId,
 		recordSeq: record.recordSeq,
 		auditSeq: 0,
-		sources: [...sourceHighWater.values()].sort(
+		sources: [...sourceHighWater].sort(
 			(a, b) => a.source.localeCompare(b.source) || (a.topic ?? "").localeCompare(b.topic ?? ""),
 		),
 	};
-}
-
-function sourceKey(source: EventFlowSourceRef): string {
-	return canonicalTupleKey([source.source, source.topic ?? ""]);
 }
 
 function eventIdOf(value: unknown): string | undefined {

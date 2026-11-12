@@ -5,10 +5,10 @@ import {
 	wireBridgeEnvelope,
 	wireBridgeIdempotencyKey,
 } from "../adapters/index.js";
-import { depBatch } from "../ctx/types.js";
 import { graph } from "../graph/graph.js";
 import { retryPolicy } from "../graph/resilience.js";
 import { canonicalTupleKey } from "../identity.js";
+import type { Message } from "../protocol/messages.js";
 
 describe("wire bridge envelopes (D134)", () => {
 	it("creates ordered, idempotent envelope metadata", () => {
@@ -190,7 +190,7 @@ describe("wire bridge envelopes (D134)", () => {
 	it("emits close without an undefined reason payload", () => {
 		const g = graph();
 		const bridge = wireBridge(g, { name: "bridge", sessionId: "session-a" });
-		const outbound: unknown[] = [];
+		const outbound: Message[] = [];
 		const errors: unknown[] = [];
 		bridge.outbound.subscribe((incoming) => {
 			for (const msg of incoming) {
@@ -219,7 +219,7 @@ describe("wire bridge envelopes (D134)", () => {
 		const g = graph();
 		const bridge = wireBridge(g, { name: "bridge", sessionId: "session-a" });
 		const errors: unknown[] = [];
-		const outbound: unknown[] = [];
+		const outbound: Message[] = [];
 		bridge.errors.subscribe((incoming) => {
 			for (const msg of incoming) {
 				errors.push(msg);
@@ -250,9 +250,9 @@ describe("wire bridge envelopes (D134)", () => {
 			name: "bridge",
 			sessionId: "session-a",
 		});
-		const outbound: unknown[] = [];
+		const outbound: Message[] = [];
 		const acks: unknown[] = [];
-		const cursor: unknown[] = [];
+		const cursor: Message[] = [];
 		const status: unknown[] = [];
 		bridge.outbound.subscribe((incoming) => {
 			for (const msg of incoming) {
@@ -355,7 +355,7 @@ describe("wire bridge envelopes (D134)", () => {
 	it("keeps convenience start/send/ack/nack/close as command fact publishers", () => {
 		const g = graph();
 		const bridge = wireBridge(g, { name: "bridge", sessionId: "session-a" });
-		const commands: unknown[] = [];
+		const commands: Message[] = [];
 		bridge.command.subscribe((incoming) => {
 			for (const msg of incoming) {
 				if (msg[0] === "DATA") commands.push(msg);
@@ -396,7 +396,7 @@ describe("wire bridge envelopes (D134)", () => {
 				retry: retryPolicy(2, { kind: "constant", delayMs: 10 }),
 				now: () => 1000,
 			});
-			const outbound: unknown[] = [];
+			const outbound: Message[] = [];
 			const errors: unknown[] = [];
 			const status: unknown[] = [];
 			bridge.outbound.subscribe((incoming) => {
@@ -437,7 +437,7 @@ describe("wire bridge envelopes (D134)", () => {
 			retry: retryPolicy(2, { kind: "constant", delayMs: 10 }),
 			now: () => 1000,
 		});
-		const outbound: unknown[] = [];
+		const outbound: Message[] = [];
 		const events: unknown[] = [];
 		const status: unknown[] = [];
 		bridge.outbound.subscribe((incoming) => {
@@ -507,7 +507,7 @@ describe("wire bridge envelopes (D134)", () => {
 			sessionId: "session-a",
 			retry: retryPolicy(2, { kind: "constant", delayMs: 10 }),
 		});
-		const outbound: unknown[] = [];
+		const outbound: Message[] = [];
 		const events: unknown[] = [];
 		bridge.outbound.subscribe((incoming) => {
 			for (const msg of incoming) {
@@ -609,8 +609,8 @@ describe("wire bridge envelopes (D134)", () => {
 			retry: retryPolicy(2, { kind: "constant", delayMs: 10 }),
 		});
 		const driver = wireBridgeAckDriver(g, bridge, { name: "ackDriver", clock, timeoutMs: 5 });
-		const commands: unknown[] = [];
-		const outbound: unknown[] = [];
+		const commands: Message[] = [];
+		const outbound: Message[] = [];
 		const driverStatus: unknown[] = [];
 		driver.commands.subscribe((incoming) => {
 			for (const msg of incoming) {
@@ -679,8 +679,8 @@ describe("wire bridge envelopes (D134)", () => {
 			retry: retryPolicy(2, { kind: "constant", delayMs: 10 }),
 		});
 		const driver = wireBridgeAckDriver(g, bridge, { name: "ackDriver", clock, timeoutMs: 5 });
-		const commands: unknown[] = [];
-		const outbound: unknown[] = [];
+		const commands: Message[] = [];
+		const outbound: Message[] = [];
 		driver.commands.subscribe((incoming) => {
 			for (const msg of incoming) {
 				commands.push(msg);
@@ -725,8 +725,8 @@ describe("wire bridge envelopes (D134)", () => {
 			retry: retryPolicy(2, { kind: "constant", delayMs: 10 }),
 		});
 		const driver = wireBridgeAckDriver(g, bridge, { name: "ackDriver", clock, timeoutMs: 5 });
-		const outbound: unknown[] = [];
-		const commands: unknown[] = [];
+		const outbound: Message[] = [];
+		const commands: Message[] = [];
 		const unsubscribe = driver.commands.subscribe((incoming) => {
 			for (const msg of incoming) {
 				commands.push(msg);
@@ -810,7 +810,7 @@ describe("wire bridge envelopes (D134)", () => {
 		const g = graph();
 		const bridge = wireBridge(g, { name: "bridge", sessionId: "session-a" });
 		const errors: unknown[] = [];
-		const cursor: unknown[] = [];
+		const cursor: Message[] = [];
 		const status: unknown[] = [];
 		bridge.errors.subscribe((incoming) => {
 			for (const msg of incoming) {
@@ -870,7 +870,7 @@ describe("wire bridge envelopes (D134)", () => {
 		const g = graph();
 		const bridge = wireBridge(g, { name: "bridge", sessionId: "session-a" });
 		const errors: unknown[] = [];
-		const cursor: unknown[] = [];
+		const cursor: Message[] = [];
 		bridge.errors.subscribe((incoming) => {
 			for (const msg of incoming) {
 				errors.push(msg);
@@ -914,7 +914,7 @@ describe("wire bridge envelopes (D134)", () => {
 		const g = graph();
 		const bridge = wireBridge(g, { name: "bridge", sessionId: "session-a" });
 		const errors: unknown[] = [];
-		const cursor: unknown[] = [];
+		const cursor: Message[] = [];
 		bridge.errors.subscribe((incoming) => {
 			for (const msg of incoming) {
 				errors.push(msg);
@@ -1009,7 +1009,7 @@ describe("wire bridge envelopes (D134)", () => {
 		const g = graph();
 		const bridge = wireBridge<string, unknown>(g, { name: "bridge", sessionId: "session-a" });
 		const errors: unknown[] = [];
-		const cursor: unknown[] = [];
+		const cursor: Message[] = [];
 		bridge.errors.subscribe((incoming) => {
 			for (const msg of incoming) {
 				errors.push(msg);
@@ -1051,7 +1051,7 @@ describe("wire bridge envelopes (D134)", () => {
 		const bridge = wireBridge<string, string>(g, { name: "bridge", sessionId: "session-a" });
 		const events: unknown[] = [];
 		const acks: unknown[] = [];
-		const cursor: unknown[] = [];
+		const cursor: Message[] = [];
 		const status: unknown[] = [];
 		bridge.events.subscribe((incoming) => {
 			for (const msg of incoming) {
@@ -1111,7 +1111,7 @@ describe("wire bridge envelopes (D134)", () => {
 					((msg as unknown[])[1] as { kind?: string }).kind === "duplicate",
 			),
 		).toEqual([]);
-		expect(cursor.filter((msg) => (msg as unknown[])[0] === "DATA")).toEqual([
+		expect(cursor.filter((msg) => msg[0] === "DATA")).toEqual([
 			["DATA", 1],
 			["DATA", 2],
 			["DATA", 3],
@@ -1138,7 +1138,7 @@ describe("wire bridge envelopes (D134)", () => {
 		const g = graph();
 		const bridge = wireBridge(g, { name: "bridge", sessionId: "session-a" });
 		const errors: unknown[] = [];
-		const cursor: unknown[] = [];
+		const cursor: Message[] = [];
 		bridge.errors.subscribe((incoming) => {
 			for (const msg of incoming) {
 				errors.push(msg);
@@ -1220,7 +1220,7 @@ describe("wire bridge envelopes (D134)", () => {
 	it("surfaces malformed command facts without treating them as close", () => {
 		const g = graph();
 		const bridge = wireBridge(g, { name: "bridge", sessionId: "session-a" });
-		const outbound: unknown[] = [];
+		const outbound: Message[] = [];
 		const errors: unknown[] = [];
 		bridge.outbound.subscribe((incoming) => {
 			for (const msg of incoming) {
@@ -1267,5 +1267,21 @@ describe("wire bridge envelopes (D134)", () => {
 				},
 			],
 		]);
+	});
+
+	it("handles every command sent while nothing subscribes (Q13)", () => {
+		const g = graph();
+		const bridge = wireBridge<string, unknown>(g, { name: "bridge", sessionId: "session-a" });
+		bridge.send("first");
+		bridge.send("second");
+		const outbound: unknown[] = [];
+		bridge.outbound.subscribe((incoming) => {
+			for (const m of incoming) if (m[0] === "DATA") outbound.push(m[1]);
+		});
+		// The snapshot is the last envelope; it is the second, so the first was handled too.
+		expect(outbound.at(-1)).toMatchObject({
+			payload: { kind: "data", value: "second" },
+			metadata: { seq: 2 },
+		});
 	});
 });

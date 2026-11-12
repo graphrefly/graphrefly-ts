@@ -196,4 +196,49 @@ describe("eventFlow pattern (D326/D329/D331)", () => {
 			],
 		});
 	});
+
+	it("keeps its sequences and fold across a resubscribe (Q13, graphrefly-ts:D180)", () => {
+		const g = graph();
+		const source = g.state<unknown>(eventMessage("order.created", {}, { id: "evt-1" }), {
+			name: "events",
+		});
+		const flow = eventFlow(g, {
+			flowId: "orders",
+			sources: [{ source: "direct", node: source }],
+			now: () => 1,
+		});
+		const projection = eventFlowProjection(g, flow, {
+			projectionId: "count",
+			initial: 0,
+			reduce: (n) => n + 1,
+			now: () => 1,
+		});
+		const first: EventFlowRecord[] = [];
+		const counts: number[] = [];
+		const stopRecords = flow.records.subscribe((m) => {
+			for (const x of m) if (x[0] === "DATA") first.push(x[1] as EventFlowRecord);
+		});
+		const stopCounts = projection.snapshot.subscribe((m) => {
+			for (const x of m) if (x[0] === "DATA") counts.push(x[1] as number);
+		});
+		source.set(eventMessage("order.created", {}, { id: "evt-2" }));
+		expect(first.map((r) => r.recordSeq)).toEqual([1, 2]);
+		expect(counts.at(-1)).toBe(2);
+		stopRecords();
+		stopCounts();
+
+		// A new lifetime goes on from the ledger: the last recorded message is not recorded again.
+		const later: EventFlowRecord[] = [];
+		flow.records.subscribe((m) => {
+			if (m[0]?.[0] === "START") return;
+			for (const x of m) if (x[0] === "DATA") later.push(x[1] as EventFlowRecord);
+		});
+		const laterCounts: number[] = [];
+		projection.snapshot.subscribe((m) => {
+			for (const x of m) if (x[0] === "DATA") laterCounts.push(x[1] as number);
+		});
+		source.set(eventMessage("order.created", {}, { id: "evt-3" }));
+		expect(later.map((r) => [r.recordSeq, r.event.id])).toEqual([[3, "evt-3"]]);
+		expect(laterCounts.at(-1)).toBe(3);
+	});
 });
