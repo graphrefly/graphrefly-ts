@@ -2,7 +2,6 @@ export {
 	buffer,
 	bufferCount,
 	combine,
-	combineLatest,
 	concat,
 	race,
 	sample,
@@ -13,7 +12,6 @@ export {
 export {
 	concatMap,
 	exhaustMap,
-	flatMap,
 	type MergeMapOptions,
 	mergeMap,
 	type Project,
@@ -21,7 +19,6 @@ export {
 	switchMap,
 } from "../graph/higher-order.js";
 export {
-	catchError,
 	type DefineOpts,
 	type Definition,
 	define,
@@ -48,7 +45,6 @@ export {
 	take,
 	takeWhile,
 	tap,
-	tapFirst,
 	type ValveOpts,
 	valve,
 } from "../graph/operators.js";
@@ -57,9 +53,7 @@ export {
 	auditTime,
 	bufferTime,
 	debounce,
-	debounceTime,
 	delay,
 	throttle,
-	throttleTime,
 	timeout,
 } from "../graph/time.js";

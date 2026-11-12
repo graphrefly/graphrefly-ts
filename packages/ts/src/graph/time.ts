@@ -11,12 +11,12 @@
  *   - debounce(Time) = switchMap(v → timer(ms)→v) (cancel-and-restart; emit the latest after quiet ms)
  *   - throttle(Time) = exhaustMap(v → [v now, alive ms]) (leading edge: emit v, ignore for ms)
  *
- * Behavior on source COMPLETE (per-operator, NOT a uniform DROP): debounce/debounceTime EMIT their
+ * Behavior on source COMPLETE (per-operator, NOT a uniform DROP): debounce EMITs its
  * pending trailing value — switchMap does not cancel the in-flight inner on source COMPLETE (only a
  * superseding source value cancels it via rewire away→onDeactivation→clearTimeout), so the timer still
  * fires at `ms`, emits the debounced value, and only THEN does the operator COMPLETE (RxJS
  * debounceTime parity). delay emits every still-pending delayed value then COMPLETEs (mergeMap keeps
- * all inners). throttle/throttleTime have NO trailing value (leading-edge only, RxJS default
+ * all inners). throttle has NO trailing value (leading-edge only, RxJS default
  * trailing:false) — an open window inner is dropped when the operator completes.
  *
  * B41 tail (landed 2026-05-31, the two shapes reflect WHEN the clock arms):
@@ -88,7 +88,7 @@ export function delay<S>(ms: number): Operator<S, S> {
 }
 
 /**
- * debounce (alias `debounceTime`): emit the latest value only after `ms` of quiet. `switchMap`
+ * debounce: emit the latest value only after `ms` of quiet. `switchMap`
  * cancels the prior timer (its onDeactivation clearTimeout) on each new source value and restarts —
  * the declarative debounce.
  *
@@ -110,21 +110,8 @@ export function debounce<S>(ms: number): Operator<S, S> {
 	return { ...switchMap<S, S>((v) => delayedValue(v, ms)), factory: "debounce" };
 }
 
-/** debounceTime: RxJS-named alias of {@link debounce}.
- * @param ms - Duration or timestamp in milliseconds.
- * @returns A `Operator<S, S>` value.
- * @category operators
- * @example
- * ```ts
- * import { debounceTime } from "@graphrefly/ts/operators";
- * ```
- */
-export function debounceTime<S>(ms: number): Operator<S, S> {
-	return { ...switchMap<S, S>((v) => delayedValue(v, ms)), factory: "debounceTime" };
-}
-
 /**
- * throttle (alias `throttleTime`): leading-edge — emit a value immediately, then ignore the source
+ * throttle: leading-edge — emit a value immediately, then ignore the source
  * for `ms`. `exhaustMap` drops new source values while the current window inner is alive; the
  * window emits v at its leading edge and stays alive `ms`.
  *
@@ -141,19 +128,6 @@ export function debounceTime<S>(ms: number): Operator<S, S> {
  */
 export function throttle<S>(ms: number): Operator<S, S> {
 	return { ...exhaustMap<S, S>((v) => throttleWindow(v, ms)), factory: "throttle" };
-}
-
-/** throttleTime: RxJS-named alias of {@link throttle}.
- * @param ms - Duration or timestamp in milliseconds.
- * @returns A `Operator<S, S>` value.
- * @category operators
- * @example
- * ```ts
- * import { throttleTime } from "@graphrefly/ts/operators";
- * ```
- */
-export function throttleTime<S>(ms: number): Operator<S, S> {
-	return { ...exhaustMap<S, S>((v) => throttleWindow(v, ms)), factory: "throttleTime" };
 }
 
 // ── B41 tail: value-triggered (audit) + subscribe-armed (timeout/bufferTime) ──

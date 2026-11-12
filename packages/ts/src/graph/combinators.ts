@@ -28,7 +28,7 @@ import { eachInputArray } from "./each-input-array.js";
 import type { Operator } from "./operators.js";
 
 /**
- * combine (alias `combineLatest`): emit a tuple of every dep's latest value whenever ANY dep
+ * combine: emit a tuple of every dep's latest value whenever ANY dep
  * delivers, once ALL deps have delivered at least one value. the all-delivered gate
  * is `ctx.deps[i].value !== undefined` per dep. Completes when ALL deps complete (default
  * the auto COMPLETE policy); any dep ERROR propagates (the auto ERROR policy). Emits a fresh
@@ -52,9 +52,6 @@ export function combine<T extends readonly unknown[]>(): Operator<unknown, T> {
 		},
 	};
 }
-
-/** combineLatest: RxJS-named alias of {@link combine}. */
-export const combineLatest = combine;
 
 /**
  * withLatestFrom: on each PRIMARY (dep 0) value, emit `[primary, latestSecondary]`; a secondary-only

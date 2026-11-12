@@ -7,16 +7,7 @@
 
 import { describe, expect, it } from "vitest";
 import type { Ctx, Graph, Message, Wave } from "../index.js";
-import {
-	concatMap,
-	Dispatcher,
-	exhaustMap,
-	flatMap,
-	graph,
-	mergeMap,
-	repeat,
-	switchMap,
-} from "../index.js";
+import { concatMap, Dispatcher, exhaustMap, graph, mergeMap, repeat, switchMap } from "../index.js";
 
 function collect(n: { subscribe(s: (msgs: Wave) => void): () => void }) {
 	const msgs: Message[] = [];
@@ -239,20 +230,6 @@ describe("mergeMap (D47 / R-rewire-deferred)", () => {
 		y.complete(); // remove y — only correct if inners stayed aligned (else x's stale slot is hit)
 		expect(x.isDeactivated()).toBe(true);
 		expect(y.isDeactivated()).toBe(true); // WITHOUT the dedup guard this stays false (wrong slot removed)
-	});
-
-	it("flatMap is an alias of mergeMap", () => {
-		const g = graph();
-		const a = subject(g);
-		const s = g.node([], null);
-		const op = g.initNode(
-			flatMap((_v: number) => a.node),
-			[s],
-		);
-		const { msgs } = collect(op);
-		s.set(1);
-		a.next(7);
-		expect(data(msgs)).toEqual([7]);
 	});
 
 	it("COMPLETEs when the source is done AND every inner has completed", () => {

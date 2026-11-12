@@ -4,14 +4,12 @@ import {
 	auditTime,
 	bufferTime,
 	debounce,
-	debounceTime,
 	delay,
 	graph,
 	inspectToAscii,
 	type Message,
 	map,
 	throttle,
-	throttleTime,
 	timeout,
 } from "../index.js";
 import { asState } from "./helpers/as-state.js";
@@ -63,14 +61,6 @@ describe("Slice 4 — wall-clock time operators (D52, *Map + timer)", () => {
 		expect(data(msgs)).toEqual([2]);
 	});
 
-	it("debounceTime is the debounce alias (real factory name in describe)", () => {
-		const g = graph();
-		const s = g.node<number>([], null, { name: "s" });
-		g.initNode(debounceTime<number>(50), [s], { name: "db" });
-		const byId = Object.fromEntries(g.inspect().nodes.map((n) => [n.id, n]));
-		expect(byId.db.factory).toBe("debounceTime");
-	});
-
 	it("throttle emits the leading value, then ignores the source for ms (exhaustMap + window)", () => {
 		const g = graph();
 		const s = g.node<number>([], null);
@@ -87,14 +77,6 @@ describe("Slice 4 — wall-clock time operators (D52, *Map + timer)", () => {
 		vi.advanceTimersByTime(100); // window closes
 		s.set(3); // new window → emit 3
 		expect(data(msgs)).toEqual([1, 3]);
-	});
-
-	it("throttleTime is the throttle alias (real factory name)", () => {
-		const g = graph();
-		const s = g.node<number>([], null, { name: "s" });
-		g.initNode(throttleTime<number>(50), [s], { name: "th" });
-		const byId = Object.fromEntries(g.inspect().nodes.map((n) => [n.id, n]));
-		expect(byId.th.factory).toBe("throttleTime");
 	});
 });
 

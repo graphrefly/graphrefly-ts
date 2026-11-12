@@ -12,7 +12,6 @@ import {
 	buffer,
 	bufferCount,
 	combine,
-	combineLatest,
 	concat,
 	defaultRestoreRegistry,
 	elementAt,
@@ -150,8 +149,8 @@ describe("operators carry recipes and restore (R-checkpoint@1)", () => {
 });
 
 describe("combinators carry recipes and restore (R-checkpoint@1)", () => {
-	it("combine (and its alias combineLatest) restore with the latest tuple", () => {
-		for (const make of [combine, combineLatest]) {
+	it("combine restores with the latest tuple", () => {
+		for (const make of [combine]) {
 			const { checkpoint, original } = continuesLike(
 				(g) =>
 					g.initNode(make<[number, number]>(), [g.state(1, { name: "a" }), unset(g, "b")], {

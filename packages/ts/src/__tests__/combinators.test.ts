@@ -3,7 +3,6 @@ import {
 	buffer,
 	bufferCount,
 	combine,
-	combineLatest,
 	concat,
 	fromIter,
 	graph,
@@ -41,10 +40,6 @@ describe("Slice 2 — multi-source combinators (CSP-2.7 / D45)", () => {
 			[2, "x"],
 			[2, "y"],
 		]);
-	});
-
-	it("combineLatest is the combine alias", () => {
-		expect(combineLatest).toBe(combine);
 	});
 
 	it("withLatestFrom pairs primary with the latest secondary (initial pair not dropped)", () => {

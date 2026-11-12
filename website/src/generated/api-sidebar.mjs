@@ -209,10 +209,6 @@ export const apiSidebar = [
 				"link": "/api/mergemap"
 			},
 			{
-				"label": "flatMap()",
-				"link": "/api/flatmap"
-			},
-			{
 				"label": "concatMap()",
 				"link": "/api/concatmap"
 			},
@@ -317,16 +313,8 @@ export const apiSidebar = [
 				"link": "/api/debounce"
 			},
 			{
-				"label": "debounceTime()",
-				"link": "/api/debouncetime"
-			},
-			{
 				"label": "throttle()",
 				"link": "/api/throttle"
-			},
-			{
-				"label": "throttleTime()",
-				"link": "/api/throttletime"
 			},
 			{
 				"label": "audit()",

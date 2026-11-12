@@ -1,5 +1,5 @@
 /**
- * Higher-order operators — switchMap / mergeMap / concatMap / exhaustMap / flatMap
+ * Higher-order operators — switchMap / mergeMap / concatMap / exhaustMap
  * (D47 / R-rewire-deferred / CSP-2.7; per-language sugar, D6/D24, never in parity).
  *
  * Each projects every outer value to an INNER source and flattens the inners' emissions. The
@@ -294,7 +294,7 @@ export function switchMap<TIn, TOut>(project: Project<TIn, TOut>): Operator<TIn,
 }
 
 /**
- * mergeMap (a.k.a. flatMap): project each source value to an inner and keep ALL inners live,
+ * mergeMap: project each source value to an inner and keep ALL inners live,
  * interleaving their emissions. A completed inner is removed (memory bounding). On source/inner
  * ERROR or projector failure, every live inner is removed before the operator emits ERROR (D81).
  * @param project - project value used by the helper.
@@ -311,23 +311,6 @@ export function mergeMap<TIn, TOut>(
 	opts: MergeMapOptions = {},
 ): Operator<TIn, TOut> {
 	return mapOperator("mergeMap", project, "merge", opts);
-}
-
-/** flatMap: alias of {@link mergeMap} (RxJS naming parity).
- * @param project - project value used by the helper.
- * @param opts - Options that configure the helper.
- * @returns A `Operator<TIn, TOut>` value.
- * @category operators
- * @example
- * ```ts
- * import { flatMap } from "@graphrefly/ts/operators";
- * ```
- */
-export function flatMap<TIn, TOut>(
-	project: Project<TIn, TOut>,
-	opts: MergeMapOptions = {},
-): Operator<TIn, TOut> {
-	return mapOperator("flatMap", project, "merge", opts);
 }
 
 /**

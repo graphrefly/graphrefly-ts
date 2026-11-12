@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { Message, Node } from "../index.js";
 import {
-	catchError,
 	distinctUntilChanged,
 	elementAt,
 	filter,
@@ -22,7 +21,6 @@ import {
 	take,
 	takeWhile,
 	tap,
-	tapFirst,
 	valve,
 } from "../index.js";
 
@@ -740,14 +738,6 @@ describe("Slice 3 — error-handling control (CSP-2.7)", () => {
 		});
 		expect(data(msgs)).toEqual([1, 2]);
 		expect(lastType(msgs)).toBe("COMPLETE");
-	});
-
-	it("catchError is the rescue alias", () => {
-		expect(catchError).toBe(rescue);
-	});
-
-	it("tapFirst is the onFirstData alias", () => {
-		expect(tapFirst).toBe(onFirstData);
 	});
 
 	it("valve gates DATA on a boolean control, re-emits on gate open", () => {

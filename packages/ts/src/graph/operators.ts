@@ -774,7 +774,7 @@ export function tap<S>(fnOrObserver: ((v: S) => void) | TapObserver<S>): Operato
 }
 
 /**
- * onFirstData (alias `tapFirst`): invoke `fn` exactly once on the first qualifying value (default
+ * onFirstData: invoke `fn` exactly once on the first qualifying value (default
  * `where: v => v != null` — null/undefined pass through without counting as "first"), then pass all
  * values through unchanged. The one-shot guard is per-node `ctx.state` (NOT a factory closure, so a
  * second instantiation of the same factory re-arms — R-ctx-state).
@@ -807,9 +807,6 @@ export function onFirstData<S>(
 		},
 	};
 }
-
-/** tapFirst: alias of {@link onFirstData} (the one-shot companion to {@link tap}). */
-export const tapFirst = onFirstData;
 
 /** Options for {@link settle}. */
 export interface SettleOpts<S> {
@@ -889,14 +886,14 @@ export function settle<S>(opts: SettleOpts<S>): Operator<S, S> {
 }
 
 // ── Slice 3 — error-handling control (CSP-2.7, D40) ──
-// rescue/catchError ABSORB the source ERROR (the manual ERROR policy) and read the error payload
+// rescue ABSORBs the source ERROR (the manual ERROR policy) and read the error payload
 // from `ctx.deps[0].terminal` (R-deps-terminal). They set the manual COMPLETE policy so a
 // normal source COMPLETE is forwarded explicitly — which ALSO sidesteps B40 (the
 // completeWhenDepsComplete:true × absorbed-errored-dep auto-complete gap): there is no auto-complete
 // to block. valve is a [source, control] gate (state-verb-legitimate control input).
 
 /**
- * rescue (alias `catchError`): replace an upstream ERROR with a recovered value. On source DATA →
+ * rescue: replace an upstream ERROR with a recovered value. On source DATA →
  * forward; on source ERROR → emit `recover(err)` as DATA (if `recover` throws, forward THAT as
  * ERROR); on source COMPLETE → COMPLETE. After recovery the source is terminal-errored (dead) so no
  * further values flow — the recovered value is the final cached value (matches the frozen pure-ts
@@ -934,9 +931,6 @@ export function rescue<S>(recover: (err: unknown) => S): Operator<S, S> {
 		},
 	};
 }
-
-/** catchError: RxJS-named alias of {@link rescue}. */
-export const catchError = rescue;
 
 /** Options for {@link valve}. */
 export interface ValveOpts {
