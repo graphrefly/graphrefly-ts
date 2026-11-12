@@ -6,7 +6,11 @@ import { isTerminal, SENTINEL } from "../protocol/messages.js";
 import type { Subscriber } from "./core.js";
 import type { Node } from "./node.js";
 import { CORE, LIFECYCLE, RELEASED, SLOT, VALUE, WAVE } from "./node-keys.js";
-import { nodeCloseLifetime, nodeResetDepState } from "./node-lifecycle-runtime.js";
+import {
+	nodeAssertNotReleased,
+	nodeCloseLifetime,
+	nodeResetDepState,
+} from "./node-lifecycle-runtime.js";
 import { validateDownPayloads } from "./protocol-guards.js";
 
 /**
@@ -345,6 +349,13 @@ export function nodeMarkBatchedWave<T>(self: Node<T>, wave: Wave): void {
 	if (!wave.some(isMarking) || self[WAVE].emittedDirtyThisWave) return;
 	self[WAVE].emittedDirtyThisWave = true;
 	nodeMarkDependents(self);
+}
+
+/** Validate every host target before any staged updater can run. */
+export function nodeAssertBatchTarget<T>(self: Node<T>): void {
+	nodeAssertNotReleased(self, "batch");
+	if (self[VALUE].terminal !== undefined)
+		throw new Error("batch: this node has ended (R-terminals)");
 }
 
 /** R-request-order: compute the function writes a batch staged (set(fn)), in staged order. */

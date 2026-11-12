@@ -8,8 +8,9 @@
  * {@link exitWave} on that graph's domain; nested calls only count, and the outermost exit runs
  * what was queued, in request order, each as a wave of its own.
  *
- * Every request goes on the one queue. Work queued while a batch's commit is delivered is tagged
- * with that batch, and a commit that fails drops it (C-25 / D110). With nothing queued, the drain
+ * Every request goes on the one queue. Quiet run output queued while a batch's commit is delivered
+ * is tagged with that batch and dropped if the commit fails. Ordinary requests stay independent
+ * (R-request-order@3 / D808). With nothing queued, the drain
  * is one check per outermost wave.
  */
 

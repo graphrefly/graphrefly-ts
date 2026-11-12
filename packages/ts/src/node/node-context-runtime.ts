@@ -1,9 +1,4 @@
-import {
-	currentBatch,
-	currentBoundaryBatchToken,
-	noteBatchLifetime,
-	request,
-} from "../batch/batch.js";
+import { currentBoundaryBatchToken, request } from "../batch/batch.js";
 import { deferRequest } from "../batch/boundary.js";
 import {
 	CTX_NODE_BINDING,
@@ -32,7 +27,7 @@ export function nodeBuildCtx<T>(self: Node<T>): { ctx: Ctx; close(): void } {
 		if (!active) throw new Error("ctx.deps is only available during setup or function invocation");
 	};
 	return {
-		ctx: nodeMakeCtx(self, check),
+		ctx: nodeMakeCtx(self, check, () => active),
 		close: () => {
 			active = false;
 		},
@@ -90,7 +85,7 @@ function makeDepView<T>(self: Node<T>, index: number, check: () => void): CtxDep
 	};
 }
 
-function nodeMakeCtx<T>(self: Node<T>, check: () => void): Ctx {
+function nodeMakeCtx<T>(self: Node<T>, check: () => void, invocationOpen: () => boolean): Ctx {
 	// R-lifetime: every ctx belongs to exactly one lifetime; output through a ctx whose lifetime has
 	// closed is dropped.
 	const signal = nodeLifetimeSignal(self);
@@ -107,10 +102,9 @@ function nodeMakeCtx<T>(self: Node<T>, check: () => void): Ctx {
 			validateNodeOutput(msgs);
 			// R-failure: an invalid array throws from ctx.down, before anything is accepted.
 			const arrays = prepareArrays(msgs);
-			noteBatchLifetime(self[CORE], self, signal);
 			// R-wave: during the node's run its arrays are its run's output, published after it returns.
-			// Inside a batch body they are staged for the commit (R-request-order).
-			if (self[WAVE].insideRunWave || currentBatch(self[CORE])) {
+			// A later call is a request, even inside a batch body (R-request-order@3).
+			if (invocationOpen() && self[WAVE].insideRunWave) {
 				nodeDown(self, msgs);
 				return;
 			}
@@ -139,8 +133,7 @@ function nodeMakeCtx<T>(self: Node<T>, check: () => void): Ctx {
 			rewireDiffNow: (add, remove) => nodeApplyRewireDiff(self, signal, add, remove),
 		},
 	};
-	// The live flags of each dependency's arrays: the node's live inputs, which a reused ctx
-	// reads as its views do, so it needs no refresh.
+	// Internal wrappers read origin flags during this supplying invocation.
 	setCtxDepWaveOrigin(ctx, { live: (depIndex) => self[DEP].inputs[depIndex]?.waveLive });
 	return ctx;
 }

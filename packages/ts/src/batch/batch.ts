@@ -11,6 +11,7 @@
 import type { NodeCore } from "../node/core.js";
 import type { Node } from "../node/node.js";
 import {
+	nodeAssertBatchTarget,
 	nodeCommitBatchedWave,
 	nodeDeferBoundary,
 	nodeMarkBatchedWave,
@@ -41,9 +42,7 @@ interface ActiveBatch {
 	order: BatchTarget[];
 	/** Each node's staged array, owned by the batch and appended to in place. */
 	deferred: Map<BatchTarget, Message[]>;
-	/** The lifetime that staged a node's output; a commit drops what a closed lifetime staged. */
-	lifetimes: Map<BatchTarget, AbortSignal>;
-	/** Topology requests the body made; they run after the commit (R-request-order). */
+	/** Requests the body made; they run after the commit (R-request-order). */
 	requests: Array<() => void>;
 	committed: boolean;
 }
@@ -87,11 +86,6 @@ export function stageToBatch(
 	}
 	for (const m of msgs) staged.push(m);
 	return true;
-}
-
-/** R-request-order: output staged through this lifetime is dropped if it closes before the commit. */
-export function noteBatchLifetime(core: NodeCore, target: BatchTarget, signal: AbortSignal): void {
-	activeOf(core)?.lifetimes.set(target, signal);
 }
 
 /**
@@ -145,11 +139,14 @@ function commit(core: NodeCore, b: ActiveBatch): void {
 	// and also when a function write fails the commit.
 	deferFirst(core, b.requests);
 	try {
+		// An earlier request may have ended a target since the body staged it. Refuse
+		// the entire commit before running any updater or publishing any other target.
+		for (const target of b.order) nodeAssertBatchTarget(target);
 		// A function write sees the writes staged before it; a throw commits nothing.
 		const staged: Array<[BatchTarget, Wave]> = [];
 		for (const target of b.order) {
 			const wave = b.deferred.get(target);
-			if (wave === undefined || b.lifetimes.get(target)?.aborted === true) continue;
+			if (wave === undefined) continue;
 			const resolved = nodeResolveBatchedWave(target, wave);
 			if (resolved.length > 0) staged.push([target, resolved]);
 		}
@@ -192,7 +189,6 @@ export function batchIn<R>(core: NodeCore, fn: () => R): R {
 	const b: ActiveBatch = {
 		order: [],
 		deferred: new Map(),
-		lifetimes: new Map(),
 		requests: [],
 		committed: false,
 	};
