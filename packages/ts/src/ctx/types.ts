@@ -151,7 +151,41 @@ export interface Ctx {
  * note (R-checkpoint@1: a restored node's first run sees only its changed dependencies).
  */
 export function ctxWithDeps(ctx: Ctx, deps: readonly CtxDep[]): Ctx {
-	const out: Ctx = { ...ctx, deps };
+	const guarded = deps.map(
+		(dep): CtxDep => ({
+			get id() {
+				void ctx.deps;
+				return dep.id;
+			},
+			get waves() {
+				void ctx.deps;
+				return dep.waves;
+			},
+			get terminal() {
+				void ctx.deps;
+				return dep.terminal;
+			},
+			get value() {
+				void ctx.deps;
+				return dep.value;
+			},
+			get has() {
+				void ctx.deps;
+				return dep.has;
+			},
+			get invalidated() {
+				void ctx.deps;
+				return dep.invalidated;
+			},
+		}),
+	);
+	const out: Ctx = {
+		...ctx,
+		get deps() {
+			void ctx.deps;
+			return guarded;
+		},
+	};
 	const origin = ctxDepWaveOrigins.get(ctx);
 	if (origin !== undefined) ctxDepWaveOrigins.set(out, origin);
 	return out;

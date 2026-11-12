@@ -575,24 +575,36 @@ describe("an empty ctx.down sends nothing (R-wave, as in Rust and Python)", () =
 	});
 });
 
-describe("a ctx kept past its run reads the node's current inputs (D185, graphrefly-ts:D187)", () => {
-	it("ctx.deps on a kept ctx shows the latest input, not the first run's copy", () => {
+describe("dependency reads belong to one invocation (D808, R-invocation@3)", () => {
+	it("saved ctx and dependency views expire permanently, while captured data remains usable", () => {
 		const g = graph();
 		const a = g.state(1, { name: "a" });
 		let kept: Ctx | undefined;
+		let view: Ctx["deps"][number] | undefined;
+		let captured: unknown;
+		const message = "ctx.deps is only available during setup or function invocation";
 		const n = g.node<number>(
 			[a],
 			(ctx) => {
+				if (kept !== undefined) {
+					expect(() => kept!.deps).toThrow(message);
+					expect(() => view!.value).toThrow(message);
+				}
 				kept ??= ctx;
+				view ??= ctx.deps[0];
+				captured ??= ctx.deps[0].waves.map((wave) => [...wave]);
 				ctx.down([["DATA", ctx.deps[0].value as number]]);
 			},
 			{ name: "n" },
 		);
 		n.subscribe(() => undefined);
 		const first = kept as Ctx;
-		expect(first.deps[0].value).toBe(1);
+		expect(() => first.deps).toThrow(message);
+		for (const key of ["id", "waves", "terminal", "value", "has", "invalidated"] as const)
+			expect(() => view![key]).toThrow(message);
 		a.set(2);
-		expect(first.deps[0].value).toBe(2);
+		expect(() => first.deps).toThrow(message);
+		expect(captured).toEqual([[1]]);
 		expect(n.cache).toBe(2);
 	});
 });

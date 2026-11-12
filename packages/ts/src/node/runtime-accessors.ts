@@ -4,15 +4,7 @@ import type { EnvironmentDrivers } from "../graph/environment.js";
 import type { NodeCore } from "./core.js";
 import type { Node } from "./node.js";
 import { nodeRestoreState } from "./node-checkpoint-runtime.js";
-import {
-	LIFECYCLE,
-	PRIVATE_STATE,
-	RELEASED,
-	SEED_NOTE,
-	SLOT,
-	SYNC_CTX,
-	VALUE,
-} from "./node-keys.js";
+import { LIFECYCLE, PRIVATE_STATE, RELEASED, SEED_NOTE, SLOT, VALUE } from "./node-keys.js";
 import {
 	nodeIsRuntimeQuiescentForRelease,
 	nodeReleaseRuntime,
@@ -250,7 +242,6 @@ export function wrapFnOfNode(n: Node<unknown>, wrap: (fn: NodeFn) => NodeFn): vo
 	n[SLOT].handle = n[SLOT].dispatcher.register(wrapped);
 	if (old !== null) n[SLOT].dispatcher.unregister(old);
 	n[SLOT].fn = wrapped;
-	n[SYNC_CTX].value = null;
 }
 
 /** @internal D122 graph-owned ephemeral lifecycle release. */

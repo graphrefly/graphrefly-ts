@@ -300,7 +300,8 @@ function quietSettleTail(self: Node<unknown>, rest: Message[][] | undefined): vo
 function nodeInvoke<T>(self: Node<T>): Message[][] {
 	// R-invocation@2: a running function is never reentered. Every way back into this node during
 	// its run (a host input, a late ctx.down, a subscribe) is a request that waits for the wave.
-	const ctx = nodeBuildCtx(self);
+	const invocation = nodeBuildCtx(self);
+	const ctx = invocation.ctx;
 	// R-subscription@3: only the seeded instance's first run receives the seed's note.
 	(ctx as { seed: unknown }).seed = self[SEED_NOTE];
 	self[SEED_NOTE] = undefined;
@@ -324,6 +325,7 @@ function nodeInvoke<T>(self: Node<T>): Message[][] {
 	} catch (error) {
 		thrown = { error };
 	} finally {
+		invocation.close();
 		self[WAVE].insideRunWave = false;
 	}
 	const out: Message[][] = self[WAVE].runOutput.map((a) => [...a]);

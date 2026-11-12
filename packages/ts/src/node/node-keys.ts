@@ -15,7 +15,6 @@ export const LIFECYCLE: unique symbol = Symbol("graphrefly.node.lifecycle");
 export const PRIVATE_STATE: unique symbol = Symbol("graphrefly.node.privateState");
 export const LIFETIME: unique symbol = Symbol("graphrefly.node.lifetime");
 /** The ctx reused run after run in one lifetime (`.value`; null until the next run builds one). */
-export const SYNC_CTX: unique symbol = Symbol("graphrefly.node.syncCtx");
 /** R-subscription@3: the seed's note, until the seeded instance's first run takes it. */
 export const SEED_NOTE: unique symbol = Symbol("graphrefly.node.seedNote");
 export const RELEASED: unique symbol = Symbol("graphrefly.node.released");

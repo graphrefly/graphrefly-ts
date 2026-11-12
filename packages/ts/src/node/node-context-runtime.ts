@@ -15,7 +15,7 @@ import {
 } from "../ctx/types.js";
 import { type Message, SENTINEL } from "../protocol/messages.js";
 import type { Node } from "./node.js";
-import { CORE, DEP, LIFETIME, PRIVATE_STATE, RELEASED, SLOT, SYNC_CTX, WAVE } from "./node-keys.js";
+import { CORE, DEP, LIFETIME, PRIVATE_STATE, RELEASED, SLOT, WAVE } from "./node-keys.js";
 import { nodeDown, nodePublish, prepareArrays } from "./node-output-runtime.js";
 import {
 	nodeApplyRewireDiff,
@@ -25,17 +25,18 @@ import {
 import { validateNodeOutput } from "./protocol-guards.js";
 import { graphNodeIdOf, withEnvironmentDrivers, withNodeCore } from "./runtime-accessors.js";
 
-/**
- * The ctx a run is given (graphrefly:D807: one kind of run, no pool kinds). One ctx per lifetime,
- * reused run after run; its dependency views read the node's live inputs, so a read during a run
- * is that run's view (R-invocation@2). A function that keeps its ctx past the run uses it for
- * output (`ctx.down`, a later wave, R-wave@2) and its lifetime's state and signal.
- */
-export function nodeBuildCtx<T>(self: Node<T>): Ctx {
-	const kept = self[SYNC_CTX];
-	if (kept.value === null) kept.value = nodeMakeCtx(self);
-	nodeRefreshCtx(self, kept.value);
-	return kept.value;
+/** R-invocation: one ctx per setup/function invocation; retained output/state keep the lifetime. */
+export function nodeBuildCtx<T>(self: Node<T>): { ctx: Ctx; close(): void } {
+	let active = true;
+	const check = () => {
+		if (!active) throw new Error("ctx.deps is only available during setup or function invocation");
+	};
+	return {
+		ctx: nodeMakeCtx(self, check),
+		close: () => {
+			active = false;
+		},
+	};
 }
 
 const COMPLETE: DepTerminal = Object.freeze({ kind: "complete" });
@@ -47,14 +48,14 @@ function depTerminalOf(t: unknown): DepTerminal | undefined {
 }
 
 /**
- * One dependency's view (R-invocation@2): an array keeps its boundary; markers are not values.
- * It reads the node's live inputs, so a reused ctx needs no refresh.
+ * One dependency view reads inputs only while its own invocation is open.
  */
-function makeDepView<T>(self: Node<T>, index: number): CtxDep {
+function makeDepView<T>(self: Node<T>, index: number, check: () => void): CtxDep {
 	let idNode: Node<unknown> | undefined;
 	let id = "";
 	return {
 		get id() {
+			check();
 			const dep = self[SLOT].deps[index] as Node<unknown>;
 			if (dep !== idNode) {
 				idNode = dep;
@@ -63,20 +64,25 @@ function makeDepView<T>(self: Node<T>, index: number): CtxDep {
 			return id;
 		},
 		get waves() {
+			check();
 			const arrays = self[DEP].inputs[index]?.waveData;
 			if (arrays === undefined || arrays.length === 0) return NO_WAVES;
 			return arrays.map((a) => (a.includes(SENTINEL) ? a.filter((v) => v !== SENTINEL) : a));
 		},
 		get terminal() {
+			check();
 			return depTerminalOf(self[DEP].inputs[index]?.terminalInput);
 		},
 		get value() {
+			check();
 			return self[DEP].inputs[index]?.prev;
 		},
 		get has() {
+			check();
 			return self[DEP].inputs[index]?.hasData === true;
 		},
 		get invalidated() {
+			check();
 			return (
 				self[SLOT].invalidatePolicy === "manual" && self[DEP].inputs[index]?.invalidated === true
 			);
@@ -84,15 +90,11 @@ function makeDepView<T>(self: Node<T>, index: number): CtxDep {
 	};
 }
 
-/** The dependency views of a ctx, one per current dependency. */
-function makeDepViews<T>(self: Node<T>): CtxDep[] {
-	return self[SLOT].deps.map((_, i) => makeDepView(self, i));
-}
-
-export function nodeMakeCtx<T>(self: Node<T>): Ctx {
+function nodeMakeCtx<T>(self: Node<T>, check: () => void): Ctx {
 	// R-lifetime: every ctx belongs to exactly one lifetime; output through a ctx whose lifetime has
 	// closed is dropped.
 	const signal = nodeLifetimeSignal(self);
+	const deps = self[SLOT].deps.map((_, i) => makeDepView(self, i, check));
 	const ctx: Ctx = {
 		// Wave-owner boundary (D47): an emit during the run nests under the public entry that
 		// drove it (cheap inc/dec, no early drain); a function that kept its ctx re-enters here
@@ -118,7 +120,10 @@ export function nodeMakeCtx<T>(self: Node<T>): Ctx {
 		emit: (...values) => {
 			ctx.down(values.map((v) => ["DATA", v] as const));
 		},
-		deps: makeDepViews(self),
+		get deps() {
+			check();
+			return deps;
+		},
 		state: nodeMakeState(self, signal),
 		seed: undefined,
 		signal,
@@ -144,12 +149,6 @@ export function nodeMakeCtx<T>(self: Node<T>): Ctx {
 export function nodeLifetimeSignal<T>(self: Node<T>): AbortSignal {
 	self[LIFETIME].controller ??= new AbortController();
 	return self[LIFETIME].controller.signal;
-}
-
-export function nodeRefreshCtx<T>(self: Node<T>, ctx: Ctx): void {
-	// The views read the node's live inputs; only a rewire changes how many there are.
-	if (ctx.deps.length !== self[SLOT].deps.length)
-		(ctx as { deps: readonly CtxDep[] }).deps = makeDepViews(self);
 }
 
 /** R-lifetime: whether `signal` is the node's current lifetime (also while its cleanup runs). */

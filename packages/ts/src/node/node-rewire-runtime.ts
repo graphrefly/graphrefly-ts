@@ -12,7 +12,6 @@ import {
 	RELEASED,
 	SEED_NOTE,
 	SLOT,
-	SYNC_CTX,
 	VALUE,
 	WAVE,
 } from "./node-keys.js";
@@ -182,7 +181,6 @@ export function nodeRewire<T>(self: Node<T>, newDeps: Node<unknown>[]): boolean 
 		}
 		self[SLOT].deps = newDeps;
 		self[DEP].inputs = inputs;
-		self[SYNC_CTX].value = null;
 
 		// Subscribe added deps — push-on-subscribe (R-subscription) delivers a cached
 		// dep's DATA here, which drives nodeMaybeRun; a SENTINEL dep delivers START only.
@@ -313,7 +311,6 @@ function nodeApplyReplace<T>(
 	self[WAVE].pending = 0;
 	self[WAVE].emittedDirtyThisWave = false;
 	self[SEED_NOTE] = undefined;
-	self[SYNC_CTX].value = null;
 	if (active) {
 		self[WAVE].activating = true;
 		try {

@@ -114,7 +114,7 @@ describe("C-33: a closed lifetime revokes old ctx, and cleanup failures stay iso
 		expect(signals).toHaveLength(2);
 		expect(signals[1]).not.toBe(signals[0]);
 		expect(signals[1]?.aborted).toBe(false);
-		expect(ctxs.at(-1)).not.toBe(oldCtx);
+		expect(ctxs.at(-1) === oldCtx).toBe(false);
 		expect(n.cache).toBe(20);
 	});
 

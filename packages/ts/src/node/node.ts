@@ -28,7 +28,6 @@ import {
 	type NodeSlot,
 	type PrivateState,
 	type Subscriber,
-	type SyncCtxState,
 	type ValueState,
 	type WaveState,
 } from "./core.js";
@@ -42,7 +41,6 @@ import {
 	RELEASED,
 	SEED_NOTE,
 	SLOT,
-	SYNC_CTX,
 	VALUE,
 	WAVE,
 } from "./node-keys.js";
@@ -119,7 +117,6 @@ export class Node<T = unknown> {
 	private readonly [LIFECYCLE]: LifecycleState;
 	private readonly [PRIVATE_STATE]: PrivateState;
 	private readonly [LIFETIME]: LifetimeState;
-	private readonly [SYNC_CTX]: SyncCtxState;
 	private [SEED_NOTE]: unknown = undefined;
 	private [RELEASED] = false;
 
@@ -211,7 +208,6 @@ export class Node<T = unknown> {
 						closing: false,
 						closingSignal: null,
 					},
-					syncCtx: { value: null },
 				},
 				acquisition,
 			);
@@ -226,7 +222,6 @@ export class Node<T = unknown> {
 			this[LIFECYCLE] = this[CORE].getLifecycle(this[ID]);
 			this[PRIVATE_STATE] = this[CORE].getPrivateState(this[ID]);
 			this[LIFETIME] = this[CORE].getLifetime(this[ID]);
-			this[SYNC_CTX] = this[CORE].getSyncCtx(this[ID]);
 			issueNodeRegistration(this as Node<unknown>);
 			acquisition.node = this as Node<unknown>;
 		} catch (cause) {

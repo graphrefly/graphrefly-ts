@@ -427,7 +427,7 @@ describe("C-37: a closed lifetime revokes old work while the node remains", () =
 		first.down([["DATA", 10]]);
 		expect(log).toHaveLength(count);
 		expect(n.deps).toEqual([a]);
-		expect(ctxs.at(-1)).not.toBe(first);
+		expect(ctxs.at(-1) === first).toBe(false);
 	});
 });
 

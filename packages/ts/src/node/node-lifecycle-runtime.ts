@@ -13,7 +13,6 @@ import {
 	RELEASED,
 	SEED_NOTE,
 	SLOT,
-	SYNC_CTX,
 	VALUE,
 	WAVE,
 } from "./node-keys.js";
@@ -323,7 +322,6 @@ function beginTeardown(
 	lifetime.controller = null;
 	lifetime.cleanup = undefined;
 	lifetime.setupDone = false;
-	self[SYNC_CTX].value = null;
 	// R-subscription@3: only the seeded instance's first run, in its first lifetime, gets the note.
 	self[SEED_NOTE] = undefined;
 	if (controller !== null) {
@@ -526,7 +524,6 @@ export function nodeReleaseRuntime<T>(self: Node<T>): void {
 	self[VALUE].terminal = undefined;
 	self[VALUE].lastArray = [];
 	self[PRIVATE_STATE].value = SENTINEL;
-	self[SYNC_CTX].value = null;
 	nodeResetDepState(self);
 	self[SEED_NOTE] = undefined;
 	closeNodeRegistration(node);

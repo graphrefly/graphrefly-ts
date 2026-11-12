@@ -1,5 +1,5 @@
 import type { Node } from "./node.js";
-import { LIFECYCLE, PRIVATE_STATE, SEED_NOTE, SLOT, SYNC_CTX, VALUE, WAVE } from "./node-keys.js";
+import { LIFECYCLE, PRIVATE_STATE, SEED_NOTE, SLOT, VALUE, WAVE } from "./node-keys.js";
 import { nodeAssertNotReleased, nodeResetDepState } from "./node-lifecycle-runtime.js";
 import { nodeRewire } from "./node-rewire-runtime.js";
 import type { NodeSeed } from "./types.js";
@@ -26,7 +26,6 @@ export function nodeRestoreState(self: Node, seed: NodeSeed): void {
 	self[WAVE].inDepMutation = false;
 	self[WAVE].rewireRunPending = false;
 	self[PRIVATE_STATE].value = seed.privateState;
-	self[SYNC_CTX].value = null;
 	nodeResetDepState(self);
 	// A seeded graph has no subscribers, and a seeded node receives no waves before its first
 	// activation.

@@ -4,7 +4,7 @@ import type { Dispatcher, Handle } from "../dispatcher/index.js";
 import type { EnvironmentDrivers } from "../graph/environment.js";
 import type { Wave } from "../protocol/messages.js";
 import { SENTINEL } from "../protocol/messages.js";
-import type { Node, Status } from "./node.js";
+import type { Node } from "./node.js";
 import type { NodeAcquisition } from "./owned-acquisition.js";
 
 export type NodeId = number & { readonly __nodeId: unique symbol };
@@ -80,10 +80,6 @@ export interface LifetimeState {
 	setupDone: boolean;
 }
 
-export interface SyncCtxState {
-	value: Ctx | null;
-}
-
 /** A subscriber: an external sink gets each array, a dependent each delivery's arrays at once. */
 export type Subscriber =
 	| { readonly kind: "sink"; readonly fn: Sink }
@@ -111,7 +107,8 @@ export interface NodeSlot<_T> {
 	invalidatePolicy: "auto" | "manual";
 	quiet: boolean;
 	/** R-lifetime: runs once per lifetime, before its first run; may return the lifetime's cleanup. */
-	setup: ((ctx: Ctx) => (() => void) | undefined | void) | undefined;
+	// biome-ignore lint/suspicious/noConfusingVoidType: setup may return no cleanup.
+	setup: ((ctx: Ctx) => (() => void) | void) | undefined;
 	name?: string;
 	factory?: string;
 }
@@ -123,7 +120,6 @@ export interface NodeState<T> {
 	wave: WaveState;
 	privateState: PrivateState;
 	lifetime: LifetimeState;
-	syncCtx: SyncCtxState;
 }
 
 export class NodeCore {
@@ -137,7 +133,6 @@ export class NodeCore {
 	private readonly depStates: Array<DepBookkeeping | undefined> = [];
 	private readonly privateStates: Array<PrivateState | undefined> = [];
 	private readonly lifetimes: Array<LifetimeState | undefined> = [];
-	private readonly syncCtxs: Array<SyncCtxState | undefined> = [];
 	/** R-graph-domain@3: this graph's own wave, request queue and batch. */
 	readonly domain: WaveDomain = makeWaveDomain();
 
@@ -159,7 +154,6 @@ export class NodeCore {
 		this.waves[id] = state.wave;
 		this.privateStates[id] = state.privateState;
 		this.lifetimes[id] = state.lifetime;
-		this.syncCtxs[id] = state.syncCtx;
 		return { id, slot: full };
 	}
 
@@ -205,12 +199,6 @@ export class NodeCore {
 		return lifetime;
 	}
 
-	getSyncCtx(id: NodeId): SyncCtxState {
-		const state = this.syncCtxs[id];
-		if (state === undefined) throw new Error("NodeCore: unknown node ctx state");
-		return state;
-	}
-
 	/** @internal D122: release graph-owned ephemeral node runtime state from core retention. */
 	releaseSlot(id: NodeId): void {
 		this.slots[id] = undefined;
@@ -220,7 +208,6 @@ export class NodeCore {
 		this.waves[id] = undefined;
 		this.privateStates[id] = undefined;
 		this.lifetimes[id] = undefined;
-		this.syncCtxs[id] = undefined;
 	}
 }
 
