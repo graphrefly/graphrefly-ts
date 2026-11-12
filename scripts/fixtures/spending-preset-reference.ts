@@ -330,7 +330,6 @@ export function buildReferencePreset(
 			{
 				name: `spending/reference/${name}`,
 				factory: `spendingReference/${name}`,
-				partial: true,
 			},
 		);
 		nodes.set(name, node);

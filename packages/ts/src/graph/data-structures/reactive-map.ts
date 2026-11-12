@@ -586,7 +586,7 @@ function createReactiveMap<K, V>(
 	const applyOp: Operator<unknown, MapChange<K, V>> = {
 		factory: "reactiveMap.apply",
 		body: applyBody,
-		opts: { partial: true, setup: folders.setup },
+		opts: { setup: folders.setup },
 	};
 	apply = graph.initNode(applyOp, policyInputs.deps as readonly Node<unknown>[], {
 		name: name ? `${name}.apply` : undefined,
@@ -617,7 +617,6 @@ function createReactiveMap<K, V>(
 		},
 		opts: {
 			quiet: true,
-			partial: true,
 		},
 	};
 	const snapshotPrep = graph.initNode(
@@ -639,7 +638,7 @@ function createReactiveMap<K, V>(
 				for (const change of (prep as SnapshotPrep<K, V>).expired) ctx.down([["DATA", change]]);
 			}
 		}),
-		opts: { partial: true },
+		opts: {},
 	};
 	const delta = graph.initNode(deltaOp, [apply as Node<unknown>, snapshotPrep as Node<unknown>], {
 		name: name ? `${name}.delta` : undefined,
@@ -653,7 +652,7 @@ function createReactiveMap<K, V>(
 				ctx.down([["DATA", (prep as SnapshotPrep<K, V>).snapshot]]);
 			}
 		}),
-		opts: { partial: true },
+		opts: {},
 	};
 	const snapshot = graph.initNode(snapshotOp, [snapshotPrep as Node<unknown>], {
 		name: name ? `${name}.snapshot` : undefined,

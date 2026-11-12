@@ -102,13 +102,14 @@ describe("C-4 a sync leg and an async leg: the async result is a later wave, not
 				cOut.push(m);
 			}
 		});
-		const d = g.node<number>([b, c], (ctx: Ctx) => {
+		// C-4: waiting for both legs is sugar (a gate), not kernel behaviour; derived holds it
+		// (graphrefly-ts:D184), so its function first runs once c has a value.
+		const d = g.derived([b, c], (bv, cv) => {
 			dRuns++;
-			ctx.down([["DATA", (depLatest(ctx, 0) as number) + (depLatest(ctx, 1) as number)]]);
+			return (bv as number) + (cv as number);
 		});
 
 		const { msgs } = collect(d);
-		// The first-run gate (TS sugar, not protocol) holds d until c has a value.
 		expect(dRuns).toBe(0);
 		(cctx as Ctx).down([["DATA", 21]]);
 		expect(dRuns).toBe(1);

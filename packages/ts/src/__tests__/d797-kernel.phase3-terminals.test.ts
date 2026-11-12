@@ -42,6 +42,8 @@ describe("C-3: INVALIDATE through a diamond: one INVALIDATE out, private state k
 					ctx.down([["INVALIDATE"]]);
 					return;
 				}
+				// graphrefly-ts:D184: the activation run brings no input; count only runs that do.
+				if (!ctx.waveData.some((w) => w.length > 0)) return;
 				const count = (ctx.state.get<number>() ?? 0) + 1;
 				ctx.state.set(count);
 				ctx.down([["DATA", count]]);
@@ -90,15 +92,15 @@ describe("C-15: a dependency's terminal settles its pending mark", () => {
 		const g = graph();
 		const a = g.node<number>([], null);
 		const a2 = g.node<number>([], null);
-		const b = g.node<number>([a], forward, { partial: true });
-		const c = g.node<number>([a2], forward, { partial: true });
+		const b = g.node<number>([a], forward, {});
+		const c = g.node<number>([a2], forward, {});
 		const runs: { terminal: unknown[]; waves: unknown[][][] }[] = [];
 		const d = g.node<number>(
 			[b, c],
 			(ctx) => {
 				runs.push({ terminal: [...ctx.terminal], waves: cloneWaves(ctx) });
 			},
-			{ partial: true, complete: "manual", error: "manual" },
+			{ complete: "manual", error: "manual" },
 		);
 		const sink = arrays();
 		d.subscribe(sink.sink);
@@ -149,7 +151,7 @@ describe("C-17: an ended dependency counts toward auto COMPLETE, in any order", 
 			(ctx) => {
 				runs.push({ terminal: [...ctx.terminal], waves: cloneWaves(ctx) });
 			},
-			{ partial: true, error: "manual" },
+			{ error: "manual" },
 		);
 		let ctrlRuns = 0;
 		const dctrl = g.node<number>(
@@ -157,7 +159,7 @@ describe("C-17: an ended dependency counts toward auto COMPLETE, in any order", 
 			() => {
 				ctrlRuns++;
 			},
-			{ partial: true },
+			{},
 		);
 		const ds = arrays();
 		const cs = arrays();
@@ -214,16 +216,15 @@ describe("C-34: terminal fanout, the ended node's lifetime closing, and acquirin
 			[t],
 			(ctx) => {
 				runs++;
-				ctx.signal.addEventListener(
-					"abort",
-					() => {
-						cleanups++;
-					},
-					{ once: true },
-				);
 				if (depLatest(ctx, 0) === 1) ctx.down([["DATA", 1], ["COMPLETE"]]);
 			},
-			{ name: "s" },
+			{
+				name: "s",
+				// The lifetime's cleanup; the function also runs on activation (graphrefly-ts:D184).
+				setup: () => () => {
+					cleanups++;
+				},
+			},
 		);
 		const x: Wave[] = [];
 		const y: Wave[] = [];
@@ -269,7 +270,7 @@ describe("C-36: input arrays and terminal admission in one invocation", () => {
 			(ctx) => {
 				seen.push({ waves: cloneWaves(ctx), terminal: [...ctx.terminal] });
 			},
-			{ partial: true, complete: "manual" },
+			{ complete: "manual" },
 		);
 		d.subscribe(() => {});
 		seen.length = 0;
@@ -304,7 +305,8 @@ describe("C-36: input arrays and terminal admission in one invocation", () => {
 		let runs = 0;
 		const d = g.node<number>([a], (ctx) => {
 			runs++;
-			ctx.down([["DATA", depLatest(ctx, 0) as number]]);
+			const v = depLatest(ctx, 0) as number | undefined;
+			if (v !== undefined) ctx.down([["DATA", v]]);
 		});
 		const as = arrays();
 		const ds = arrays();
@@ -423,9 +425,11 @@ describe("C-44: a wave of terminals or INVALIDATEs holds a fan-in", () => {
 		const g = graph();
 		const a = g.node<number>([], null, { initial: 1 });
 		const q = g.node<number>([a], forward, { quiet: true });
-		const d = g.node<number>([a, q], (ctx) => ctx.down([["DATA", depLatest(ctx, 0) as number]]), {
-			partial: true,
-		});
+		const d = g.node<number>(
+			[a, q],
+			(ctx) => ctx.down([["DATA", depLatest(ctx, 0) as number]]),
+			{},
+		);
 		const qs = arrays();
 		const ds = arrays();
 		q.subscribe(qs.sink);

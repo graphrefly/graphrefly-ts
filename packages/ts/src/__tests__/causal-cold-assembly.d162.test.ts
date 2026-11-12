@@ -174,6 +174,8 @@ function combined(inject?: (scope: ConstructionScope) => void, empty = false) {
 			[a],
 			(ctx) => {
 				calls++;
+				// graphrefly-ts:D184: a kernel node runs on activation, before its input has a value.
+				if (depLatest(ctx, 0) === undefined) return;
 				ctx.down([["DATA", Number(depLatest(ctx, 0)) * 2]]);
 			},
 			{ name: "run/left" },
@@ -182,6 +184,7 @@ function combined(inject?: (scope: ConstructionScope) => void, empty = false) {
 			[a, b],
 			(ctx) => {
 				calls++;
+				if (depLatest(ctx, 0) === undefined || depLatest(ctx, 1) === undefined) return;
 				ctx.down([["DATA", Number(depLatest(ctx, 0)) + Number(depLatest(ctx, 1))]]);
 			},
 			{ name: "run/right" },
@@ -208,12 +211,18 @@ function combined(inject?: (scope: ConstructionScope) => void, empty = false) {
 		const value = scope.node([built.ports.released], null, { name: "run/value" });
 		const count = scope.node<number>(
 			[built.ports.released],
-			(ctx) => ctx.down([["DATA", (depLatest(ctx, 0) as CausalOccurrence<string>).value.length]]),
+			(ctx) => {
+				const released = depLatest(ctx, 0) as CausalOccurrence<string> | undefined;
+				if (released !== undefined) ctx.down([["DATA", released.value.length]]);
+			},
 			{ name: "run/count" },
 		);
 		const final = scope.node(
 			[value, count],
-			(ctx) => ctx.down([["DATA", [depLatest(ctx, 0), depLatest(ctx, 1)]]]),
+			(ctx) => {
+				if (depLatest(ctx, 0) === undefined || depLatest(ctx, 1) === undefined) return;
+				ctx.down([["DATA", [depLatest(ctx, 0), depLatest(ctx, 1)]]]);
+			},
 			{ name: "run/final" },
 		);
 		return {

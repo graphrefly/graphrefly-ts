@@ -53,7 +53,7 @@ describe("C-23 raw ctx waveData is the only dep-value input (R-fn-contract / R-c
 					hasDepRecords: "depRecords" in ctx,
 				};
 			},
-			{ partial: true },
+			{},
 		);
 		collect(n);
 
@@ -76,7 +76,7 @@ describe("C-23 raw ctx waveData is the only dep-value input (R-fn-contract / R-c
 			(ctx) => {
 				captures.push(cloneWaveData(ctx));
 			},
-			{ partial: true },
+			{},
 		);
 		collect(n);
 
@@ -113,7 +113,7 @@ describe("C-23 raw ctx waveData is the only dep-value input (R-fn-contract / R-c
 			(ctx) => {
 				captures.push(cloneWaveData(ctx));
 			},
-			{ partial: true },
+			{},
 		);
 		collect(n);
 		src.set(1);
@@ -132,7 +132,6 @@ describe("C-23 raw ctx waveData is the only dep-value input (R-fn-contract / R-c
 				terminals.push([...ctx.terminal]);
 			},
 			{
-				partial: true,
 				complete: "manual",
 				error: "manual",
 			},
@@ -152,7 +151,6 @@ describe("C-23 raw ctx waveData is the only dep-value input (R-fn-contract / R-c
 				terminals.push([...ctx.terminal]);
 			},
 			{
-				partial: true,
 				complete: "manual",
 				error: "manual",
 			},
@@ -170,7 +168,6 @@ describe("C-23 raw ctx waveData is the only dep-value input (R-fn-contract / R-c
 				terminals.push([...ctx.terminal]);
 			},
 			{
-				partial: true,
 				complete: "manual",
 				error: "manual",
 			},
@@ -195,7 +192,6 @@ describe("C-23 raw ctx waveData is the only dep-value input (R-fn-contract / R-c
 				});
 			},
 			{
-				partial: true,
 				complete: "manual",
 			},
 		);
@@ -256,7 +252,7 @@ describe("C-23 raw ctx waveData is the only dep-value input (R-fn-contract / R-c
 				if (ctx.waveData[1]?.length) return;
 				ctx.down([["DATA", ctx.track?.(0) as number]]);
 			},
-			{ partial: true, dynamic: true },
+			{ dynamic: true },
 		);
 		const { msgs } = collect(d);
 		msgs.length = 0;

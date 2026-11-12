@@ -103,7 +103,7 @@ export function toolProviderRunRetryProjector(
 			ctx.down([["DATA", { kind: "views", views: buildRetryViews(state) }]]);
 			ctx.state.set(state);
 		},
-		{ name: `${name}/runtime`, factory: "toolProviderRunRetryProjector", partial: true },
+		{ name: `${name}/runtime`, factory: "toolProviderRunRetryProjector" },
 	);
 	return {
 		proposals: projectRuntimeFact(

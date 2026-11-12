@@ -14,7 +14,6 @@ export function nodeRestoreState(self: NodeRuntimeHost, state: NodeRestoreState)
 	self._value.hasData = values.length > 0;
 	self._value.cache = values.length > 0 ? values[values.length - 1] : undefined;
 	self._value.terminal = state.terminal;
-	self._wave.hasCalledFnOnce = state.seed?.ran ?? false;
 	self._wave.emittedDirtyThisWave = false;
 	self._wave.emittedSettleThisWave = false;
 	self._wave.pending = 0;

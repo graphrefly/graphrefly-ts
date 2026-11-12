@@ -275,7 +275,6 @@ export function localHostExecutionGate(
 	const runtime = topology.node<GateFact>(deps, (ctx) => reduceGate(ctx, opts), {
 		name: `${name}/runtime`,
 		factory: "localHostExecutionGateRuntime",
-		partial: true,
 		complete: "manual",
 		error: "manual",
 	});
@@ -669,7 +668,7 @@ function project<T>(
 				if (value !== undefined) ctx.down([["DATA", value]]);
 			}
 		}),
-		{ name, factory, partial: true, complete: "manual", error: "manual" },
+		{ name, factory, complete: "manual", error: "manual" },
 	);
 }
 

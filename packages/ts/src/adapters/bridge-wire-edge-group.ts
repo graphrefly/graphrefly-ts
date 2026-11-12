@@ -184,7 +184,6 @@ export function wireEdgeGroupOut(graph: Graph, opts: WireEdgeGroupOutOptions): N
 			name,
 			factory: "wireEdgeGroupOut",
 			// The first run is the session's first cause, also when an edge has no value yet.
-			partial: true,
 			// The edges' terminals and INVALIDATEs are this node's input, to carry, not to act on.
 			...MANUAL,
 			invalidate: "manual",
@@ -293,7 +292,6 @@ export function wireEdgeGroupIn(graph: Graph, opts: WireEdgeGroupInOptions): Wir
 	const gate = graph.node<WireEdgeGateOutput>([opts.frames], gateFn(group, declared), {
 		name,
 		factory: "wireEdgeGroupGate",
-		partial: true,
 		...MANUAL,
 	});
 	const inbound = new Map<string, Node<Uint8Array>>();
@@ -303,14 +301,12 @@ export function wireEdgeGroupIn(graph: Graph, opts: WireEdgeGroupInOptions): Wir
 			graph.node<Uint8Array>([gate as Node<unknown>], inboundFn(edgeId), {
 				name: `${name}/${edgeId}`,
 				factory: "wireEdgeGroupInbound",
-				partial: true,
 				...MANUAL,
 			}),
 		);
 	const issues = graph.node<WireEdgeGroupIssue>([gate as Node<unknown>], issuesFn, {
 		name: `${name}.issues`,
 		factory: "wireEdgeGroupIssues",
-		partial: true,
 		...MANUAL,
 	});
 	return { gate, inbound, issues };

@@ -433,10 +433,13 @@ export class Graph {
 	): Node<T> {
 		this._assertDepsLocal(deps, `dep of '${opts.name ?? "derived"}'`);
 		const ctxFn: NodeFn = (ctx: Ctx) => {
+			const args = Array.from({ length: depCount(ctx) }, (_, i) =>
+				depLatest(ctx, i),
+			) as DepValues<D>;
+			// graphrefly-ts:D184 (the user's Q1): the value-level gate. The function waits until every
+			// dependency has a value; until then a run sends nothing.
+			if (args.some((value) => value === undefined)) return;
 			try {
-				const args = Array.from({ length: depCount(ctx) }, (_, i) =>
-					depLatest(ctx, i),
-				) as DepValues<D>;
 				const result = fn(...args);
 				if (result !== undefined) ctx.down([["DATA", result]]);
 			} catch (e) {
@@ -464,10 +467,13 @@ export class Graph {
 		// signal, not in private state, which a checkpoint saves as JSON (R-checkpoint@1).
 		const cleanups = new WeakMap<AbortSignal, () => void>();
 		const ctxFn: NodeFn = (ctx: Ctx) => {
+			const args = Array.from({ length: depCount(ctx) }, (_, i) =>
+				depLatest(ctx, i),
+			) as DepValues<D>;
+			// graphrefly-ts:D184 (the user's Q1): the value-level gate. The function waits until every
+			// dependency has a value; until then a run sends nothing.
+			if (args.some((value) => value === undefined)) return;
 			try {
-				const args = Array.from({ length: depCount(ctx) }, (_, i) =>
-					depLatest(ctx, i),
-				) as DepValues<D>;
 				const cleanup = fn(...args);
 				if (typeof cleanup === "function") cleanups.set(ctx.signal, cleanup);
 				else cleanups.delete(ctx.signal);
@@ -1092,7 +1098,6 @@ export class Graph {
 				complete: slot.completePolicy,
 				error: slot.errorPolicy,
 				invalidate: slot.invalidatePolicy,
-				partial: slot.partial,
 				quiet: slot.quiet,
 				dynamic: slot.dynamic,
 				pool: slot.pool,
@@ -1137,7 +1142,6 @@ export class Graph {
 				),
 				terminal: checkpointTerminal(r.terminal, `${id}.lifetime.received[${i}].terminal`),
 			})),
-			ran: state.seed?.ran ?? state.hasCalledFnOnce,
 		};
 		if (state.privateState !== SENTINEL)
 			out.state = toCheckpointJson(state.privateState, `${id}.lifetime.state`);

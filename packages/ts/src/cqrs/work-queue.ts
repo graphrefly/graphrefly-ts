@@ -141,7 +141,6 @@ export function cqrsWorkQueueRecipe<TCommand = unknown>(
 		{
 			name: `${name}/runtime`,
 			factory: "cqrsWorkQueueRuntime",
-			partial: true,
 			complete: "manual",
 			error: "manual",
 		},
@@ -437,7 +436,7 @@ function project<T, TCommand>(
 				if (value !== undefined) ctx.down([["DATA", value]]);
 			}
 		}),
-		{ name, factory, partial: true, complete: "manual", error: "manual" },
+		{ name, factory, complete: "manual", error: "manual" },
 	);
 }
 

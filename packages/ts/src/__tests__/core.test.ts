@@ -146,46 +146,44 @@ describe("diamond (R-diamond, glitch-free join)", () => {
 	});
 });
 
-describe("first-run gate (R-first-run-gate)", () => {
-	it("partial:false holds fn until every dep has settled", () => {
+describe("no first-run gate in the kernel; derived and effect gate on values (graphrefly-ts:D184)", () => {
+	it("a kernel node runs on activation, before every dependency has a value", () => {
 		const g = graph();
-		let fired = false;
 		const a = g.node<number>([], null, { initial: 1 });
-		const b = g.node<number>([], null); // uncached — never settles
-		g.node<number>([a, b], () => {
-			fired = true;
+		const b = g.node<number>([], null); // no value yet
+		const d = g.node<number>([a, b], (ctx: Ctx) => {
+			const bv = depLatest(ctx, 1);
+			ctx.down([["DATA", bv === undefined ? -1 : (bv as number)]]);
 		});
-		collect(g.node<number>([a, b], () => {})); // force-activate a separate gate path
-
-		// Build the gated node explicitly and activate it:
-		fired = false;
-		const gated = g.node<number>([a, b], () => {
-			fired = true;
-		});
-		gated.subscribe(() => {});
-		expect(fired).toBe(false); // b never delivered real DATA -> gate holds
+		d.subscribe(() => {});
+		expect(d.cache).toBe(-1);
 		b.set(9);
-		expect(fired).toBe(true); // now both settled -> fires once
+		expect(d.cache).toBe(9);
 	});
 
-	it("partial:true fires without waiting for all deps", () => {
+	it("derived and effect call their function only once every dependency has a value", () => {
 		const g = graph();
-		let fired = false;
 		const a = g.node<number>([], null, { initial: 1 });
-		const b = g.node<number>([], null); // uncached
-		const d = g.node<number>(
-			[a, b],
-			(ctx: Ctx) => {
-				fired = true;
-				// fn body guards SENTINEL per dep (R-first-run-gate partial contract)
-				const bv = depLatest(ctx, 1);
-				ctx.down([["DATA", bv === undefined ? -1 : (bv as number)]]);
-			},
-			{ partial: true },
-		);
-		d.subscribe(() => {});
-		expect(fired).toBe(true);
-		expect(d.cache).toBe(-1);
+		const b = g.node<number>([], null);
+		const derivedCalls: unknown[][] = [];
+		const effectCalls: unknown[][] = [];
+		const sum = g.derived([a, b], (x, y) => {
+			derivedCalls.push([x, y]);
+			return (x as number) + (y as number);
+		});
+		g.effect([a, b], (x, y) => {
+			effectCalls.push([x, y]);
+		});
+		const values = collect(sum);
+		g.retain(g.describe().at(-1)?.id as string);
+		expect(derivedCalls).toEqual([]);
+		expect(effectCalls).toEqual([]);
+		expect(sum.cache).toBeUndefined();
+		expect(values.msgs.some((m) => m[0] === "DATA")).toBe(false);
+		b.set(9);
+		expect(derivedCalls).toEqual([[1, 9]]);
+		expect(effectCalls).toEqual([[1, 9]]);
+		expect(sum.cache).toBe(10);
 	});
 });
 

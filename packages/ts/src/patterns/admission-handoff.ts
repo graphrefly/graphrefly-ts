@@ -202,7 +202,6 @@ export function admissionHandoff<T, R = unknown>(
 		{
 			name: `${name}/correlation`,
 			factory: "admissionHandoffCorrelation",
-			partial: true,
 			complete: "manual",
 			error: "manual",
 			meta: {
@@ -263,7 +262,6 @@ export function admissionHandoff<T, R = unknown>(
 				extract: (working) => ({ order: [...working.order] }),
 			}),
 			quiet: true,
-			partial: true,
 			complete: "manual",
 			error: "manual",
 			meta: { pattern: "admission-handoff", role: "quiet-causal-boundary" },

@@ -141,7 +141,6 @@ export function processBundle<
 		{
 			name: `${name}/command`,
 			factory: "processCommand",
-			partial: true,
 			complete: "manual",
 			error: "manual",
 			setup: commandSources.setup,
@@ -318,7 +317,6 @@ export function processEffectRunner<TEffect = unknown, TResult = unknown>(
 		{
 			name: `${name}/requests`,
 			factory: "processEffectRunnerRequests",
-			partial: true,
 			complete: "manual",
 			error: "manual",
 		},
@@ -349,7 +347,6 @@ export function processEffectRunner<TEffect = unknown, TResult = unknown>(
 			name: `${name}/runtime`,
 			factory: "processEffectRunner",
 			meta: { process: "effect-runner", d: "D156" },
-			partial: true,
 			complete: "manual",
 			error: "manual",
 		},
@@ -446,7 +443,6 @@ export function processEffectRunner<TEffect = unknown, TResult = unknown>(
 			name: `${name}/status`,
 			factory: "processEffectRunnerStatus",
 			setup: runnerLedger.setup(2),
-			partial: true,
 			complete: "manual",
 			error: "manual",
 		},
@@ -544,7 +540,6 @@ function processEffectRunnerProjection<T, TResult>(
 		{
 			name,
 			factory,
-			partial: true,
 			complete: "manual",
 			error: "manual",
 		},

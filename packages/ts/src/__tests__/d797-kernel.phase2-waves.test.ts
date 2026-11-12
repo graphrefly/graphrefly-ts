@@ -152,7 +152,7 @@ describe("C-23: ctx.waveData, ctx.terminal and the latest value are the function
 					latest: [depLatest(ctx, 0), depLatest(ctx, 1)],
 				});
 			},
-			{ partial: true, complete: "manual", error: "manual" },
+			{ complete: "manual", error: "manual" },
 		);
 		n.subscribe(() => {});
 
@@ -191,12 +191,13 @@ describe("C-28: intact output arrays, kernel-only PENDING prefixes and written o
 		const t = g.state(0, { name: "t" });
 		let send: (ctx: Ctx) => void = () => {};
 		const a = g.node<number>([t], (ctx) => send(ctx), { name: "a" });
-		const b = g.node<number>([a], (ctx) => ctx.down([["DATA", depLatest(ctx, 0) as number]]), {
-			name: "b",
-		});
-		const c = g.node<number>([a], (ctx) => ctx.down([["DATA", depLatest(ctx, 0) as number]]), {
-			name: "c",
-		});
+		// graphrefly-ts:D184: a kernel node runs on activation even before its input has a value.
+		const relay = (ctx: Ctx) => {
+			const v = depLatest(ctx, 0) as number | undefined;
+			if (v !== undefined) ctx.down([["DATA", v]]);
+		};
+		const b = g.node<number>([a], relay, { name: "b" });
+		const c = g.node<number>([a], relay, { name: "c" });
 		const seen: [unknown, unknown][] = [];
 		const d = g.node<number>(
 			[b, c],
@@ -377,7 +378,7 @@ describe("C-44 (value and quiet-node clauses): the kernel adds only the settling
 				dSaw.push([depLatest(ctx, 0), depLatest(ctx, 1)]);
 				ctx.down([["DATA", 0]]);
 			},
-			{ partial: true },
+			{},
 		);
 		const fs = arrays();
 		const qs = arrays();

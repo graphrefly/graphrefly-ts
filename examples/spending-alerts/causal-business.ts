@@ -59,7 +59,6 @@ export function nodeMaker(
 			{
 				name: `${prefix}/${name}`,
 				factory: `spending/${name}`,
-				partial: true,
 			},
 		);
 		edges.set(node, expected);

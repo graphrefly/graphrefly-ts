@@ -69,6 +69,26 @@ describe("Slice 2 — multi-source combinators (CSP-2.7 / D45)", () => {
 		]);
 	});
 
+	it("withLatestFrom holds primary values that arrive before the secondary (graphrefly-ts:D184)", () => {
+		const g = graph();
+		const p = g.state(1);
+		const s = g.node<string>([], null); // no value yet
+		const w = g.initNode(withLatestFrom<number, string>(), [p, s]);
+		const msgs: Message[] = [];
+		w.subscribe((incoming) => {
+			for (const m of incoming) msgs.push(m);
+		});
+		p.set(2);
+		expect(data(msgs)).toEqual([]);
+		s.set("a");
+		expect(data(msgs)).toEqual([
+			[1, "a"],
+			[2, "a"],
+		]);
+		p.set(3);
+		expect(data(msgs).at(-1)).toEqual([3, "a"]);
+	});
+
 	it("withLatestFrom ignores secondary COMPLETE but propagates secondary ERROR", () => {
 		const completeCase = graph();
 		const primary = completeCase.state(1);

@@ -181,7 +181,6 @@ export function lightReactiveView<C, S>(
 			factory: `${factory}.delta`,
 			name: name ? `${name}.delta` : undefined,
 			meta: { kind: "collection_view_delta", factory },
-			partial: true,
 		},
 	);
 	const request = group.node<true>([], null, {
@@ -203,7 +202,6 @@ export function lightReactiveView<C, S>(
 			factory: `${factory}.snapshot`,
 			name: name ? `${name}.snapshot` : undefined,
 			meta: { kind: "collection_view_snapshot", factory },
-			partial: true,
 			quiet: true,
 		},
 	);
@@ -256,7 +254,7 @@ export function collectionCore<S, C>(
 
 	// SNAPSHOT quiet node: deps=[delta, request]. The fn IGNORES the delta value — it reads
 	// `backend.snapshot()` when a live request arrived (D60 #3), and only if the backend changed
-	// since the last delivery. `partial:true`: it must not gate on "all deps settled".
+	// since the last delivery; the kernel has no first-run gate (graphrefly-ts:D184).
 	let deliveredVersion = backend.version;
 	const snapshot = graph.node<S>(
 		[delta as Node<unknown>, request as Node<unknown>],
@@ -268,7 +266,6 @@ export function collectionCore<S, C>(
 		},
 		{
 			quiet: true,
-			partial: true,
 			factory: `${factory}.snapshot`,
 			name: name ? `${name}.snapshot` : undefined,
 			meta: { kind: "collection_snapshot", collection: factory },

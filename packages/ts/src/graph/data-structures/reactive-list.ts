@@ -248,7 +248,7 @@ export function reactiveList<T>(
 		const op: Operator<unknown, ListChange<T>> = {
 			factory: "reactiveList.capacityPolicy",
 			body: applyBody,
-			opts: { partial: true, setup: folders.setup },
+			opts: { setup: folders.setup },
 		};
 		const deps = capacityPolicy ? [capacityPolicy as Node<unknown>] : [];
 		apply = graph.initNode(op, deps, {

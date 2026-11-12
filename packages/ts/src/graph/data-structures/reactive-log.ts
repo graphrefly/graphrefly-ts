@@ -249,14 +249,14 @@ export function reactiveLog<T>(
 			if (hit !== undefined) return hit;
 			// Incremental on the DELTA backbone (D60 #5a): each delta re-reads the backend's current
 			// tail (the backend is this structure's own materialized state, D60 #1 — not a foreign
-			// .cache peek). `partial:true` — the tail does not consume the delta value, it fires on arm.
+			// .cache peek). The tail does not consume the delta value, it fires on arm.
 			const tnode = makeNodeBeside<readonly T[]>(
 				[core.delta as Node<unknown>],
 				(ctx: Ctx) => {
 					const all = backend.snapshot();
 					ctx.down([["DATA", n === 0 ? [] : all.slice(Math.max(0, all.length - n))]]);
 				},
-				{ factory: "reactiveLog.tail", partial: true },
+				{ factory: "reactiveLog.tail" },
 			);
 			tailMemo.set(n, tnode);
 			return tnode;
@@ -279,7 +279,7 @@ export function reactiveLog<T>(
 				(ctx: Ctx) => {
 					ctx.down([["DATA", backend.snapshot().slice(start, stop)]]);
 				},
-				{ factory: "reactiveLog.slice", partial: true },
+				{ factory: "reactiveLog.slice" },
 			);
 			sliceMemo.set(key, snode);
 			return snode;
@@ -334,7 +334,7 @@ export function reactiveLog<T>(
 					ctx.state.set(st);
 					ctx.down([["DATA", st.acc]]);
 				},
-				{ factory: "reactiveLog.scan", partial: true },
+				{ factory: "reactiveLog.scan" },
 			);
 		},
 
@@ -381,7 +381,7 @@ export function mergeReactiveLogs<T>(logs: readonly ReactiveLog<T>[]): Node<LogC
 				if (b) for (const c of b) ctx.down([["DATA", c as LogChange<T>]]);
 			}
 		}),
-		{ factory: "mergeReactiveLogs", partial: true },
+		{ factory: "mergeReactiveLogs" },
 	);
 }
 

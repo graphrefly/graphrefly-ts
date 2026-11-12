@@ -95,7 +95,6 @@ export function orchestrationMessagingRecipe<
 		{
 			name: `${name}/runtime`,
 			factory: "orchestrationMessagingRuntime",
-			partial: true,
 			complete: "manual",
 			error: "manual",
 		},
@@ -234,7 +233,6 @@ export function orchestrationMessageAckCommands(
 		{
 			name: opts.name ?? "orchestrationMessaging/ackCommands",
 			factory: "orchestrationMessagingAckCommands",
-			partial: true,
 			complete: "manual",
 			error: "manual",
 		},
@@ -305,7 +303,7 @@ function project<T, TCommand>(
 				if (value !== undefined) ctx.down([["DATA", value]]);
 			}
 		}),
-		{ name, factory, partial: true, complete: "manual", error: "manual" },
+		{ name, factory, complete: "manual", error: "manual" },
 	);
 }
 

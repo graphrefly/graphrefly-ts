@@ -98,7 +98,7 @@ export function workItemDomainActionAdmissionProjector(
 			evaluateWorkItemDomainActionAdmissions(ctx, state, now());
 			ctx.state.set(state);
 		},
-		{ name: `${name}/runtime`, factory: "workItemDomainActionAdmissionProjector", partial: true },
+		{ name: `${name}/runtime`, factory: "workItemDomainActionAdmissionProjector" },
 	);
 	return {
 		admissions: projectRuntimeFact(

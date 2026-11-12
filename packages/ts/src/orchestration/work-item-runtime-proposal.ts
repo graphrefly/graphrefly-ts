@@ -96,7 +96,7 @@ export function workItemDomainActionProposalProjector(
 			evaluateWorkItemDomainActionProposals(ctx, state, now());
 			ctx.state.set(state);
 		},
-		{ name: `${name}/runtime`, factory: "workItemDomainActionProposalProjector", partial: true },
+		{ name: `${name}/runtime`, factory: "workItemDomainActionProposalProjector" },
 	);
 	return {
 		proposals: projectRuntimeFact(

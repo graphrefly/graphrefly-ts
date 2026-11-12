@@ -580,7 +580,6 @@ export function keyedRateLimitAdmissionBundle(
 			setup: built.setup,
 			// R-checkpoint@1: a module builds its nodes with their recipes, so it can be restored.
 			recipe: { ref: KEYED_RATE_LIMIT_RUNTIME_REF, config },
-			partial: true,
 			complete: "manual",
 			error: "manual",
 		},

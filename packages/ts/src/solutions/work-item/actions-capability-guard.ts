@@ -160,7 +160,6 @@ export function workItemDomainActionCapabilityGuardProjector(
 		{
 			name: `${name}/runtime`,
 			factory: "workItemDomainActionCapabilityGuardProjector",
-			partial: true,
 			complete: "manual",
 			error: "manual",
 		},

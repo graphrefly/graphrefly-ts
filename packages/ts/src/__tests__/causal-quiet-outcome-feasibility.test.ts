@@ -25,13 +25,13 @@ for (const closingEdge of ["receipt-to-guard", "authority-to-receipt"] as const)
 		const fn = () => {
 			invocations++;
 		};
-		const authority = scope.node([input], fn, { name: "authority", partial: true });
+		const authority = scope.node([input], fn, { name: "authority" });
 		const guard = scope.node([authority], fn, { name: "guard" });
 		const receipt = scope.node(closingEdge === "receipt-to-guard" ? [] : [guard], null, {
 			name: "receipt",
 			quiet: true,
 		});
-		scope.node([guard, receipt], fn, { name: "controller", partial: true });
+		scope.node([guard, receipt], fn, { name: "controller" });
 		if (closingEdge === "receipt-to-guard") rewireOwnedNode(authority, [input, receipt], fn);
 		let failure: unknown;
 		try {
@@ -80,7 +80,7 @@ it("delivers a bounded receipt frame through a quiet node in an acyclic cold gra
 		(ctx) => {
 			for (const frame of depBatch(ctx, 1) ?? []) received.push(frame);
 		},
-		{ name: "controller", partial: true },
+		{ name: "controller" },
 	);
 	const owner = scope.seal(startup, [controller]);
 	scope.transferToGraph(owner);

@@ -682,8 +682,6 @@ function prepareNode(node: GraphCheckpointNode, registry: GraphRestoreRegistry):
 			assertArray(rec.values, `${id}.lifetime.received[${i}].values`);
 			restoredTerminal(rec.terminal as GraphCheckpointTerminal, `${id}.lifetime.received[${i}]`);
 		});
-		if (typeof node.lifetime.ran !== "boolean")
-			throw new Error(`restoreGraph: node '${id}' lifetime.ran must be a boolean`);
 	}
 	if (node.kind === "computed" && node.policies === undefined)
 		throw new Error(`restoreGraph: computed node '${id}' has no policies`);
@@ -781,7 +779,6 @@ function policyOptions(p: GraphCheckpointPolicies): Partial<NodeOptions<unknown>
 		complete: p.complete,
 		error: p.error,
 		invalidate: p.invalidate,
-		partial: p.partial,
 		quiet: p.quiet,
 		dynamic: p.dynamic,
 		pool: p.pool,
@@ -871,10 +868,7 @@ function constructPrepared(
 				values: node.values,
 				terminal: item.terminal,
 				privateState: lifetime?.state ?? SENTINEL,
-				seed:
-					lifetime === undefined || received === undefined
-						? undefined
-						: { received, ran: lifetime.ran },
+				seed: lifetime === undefined || received === undefined ? undefined : { received },
 			});
 		}
 	} finally {

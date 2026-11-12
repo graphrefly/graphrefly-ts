@@ -105,7 +105,6 @@ export function attachToolProviderAdapterRuntime<TArguments = unknown, TResult =
 		{
 			name: `${name}/retentionPolicy`,
 			factory: "toolProviderAdapterRuntimeRetentionPolicy",
-			partial: true,
 		},
 	);
 	const {

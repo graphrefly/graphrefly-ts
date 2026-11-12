@@ -299,7 +299,6 @@ function remoteCallResponsesNode<TRequest, TResponse>(
 		{
 			name: `${name}/responses`,
 			factory: "remoteCallResponses",
-			partial: true,
 			complete: "manual",
 			error: "manual",
 		},
@@ -497,7 +496,6 @@ function remoteCallStatusNode<TRequest, TResponse>(
 		{
 			name: `${name}/status`,
 			factory: "remoteCallStatus",
-			partial: true,
 			complete: "manual",
 			error: "manual",
 		},
@@ -651,7 +649,6 @@ function remoteCallErrorsNode<TRequest, TResponse>(
 		{
 			name: `${name}/errors`,
 			factory: "remoteCallErrors",
-			partial: true,
 			complete: "manual",
 			error: "manual",
 		},

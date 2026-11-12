@@ -44,7 +44,6 @@ export function workItemDomainActionProposalIntakeProjector(
 		{
 			name: `${name}/runtime`,
 			factory: "workItemDomainActionProposalIntakeProjector",
-			partial: true,
 			complete: "manual",
 			error: "manual",
 		},

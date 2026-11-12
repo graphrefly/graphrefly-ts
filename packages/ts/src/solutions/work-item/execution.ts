@@ -193,7 +193,6 @@ export function workItemExecutionRecipe<TInput = unknown>(
 		{
 			name: `${name}/requestFacts`,
 			factory: "workItemExecutionRequestFacts",
-			partial: true,
 			complete: "manual",
 			error: "manual",
 		},

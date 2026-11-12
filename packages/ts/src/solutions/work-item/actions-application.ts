@@ -122,7 +122,6 @@ export function workItemDomainActionApplicationProjector<TInput = unknown>(
 		{
 			name: `${name}/runtime`,
 			factory: "workItemDomainActionApplicationProjector",
-			partial: true,
 			complete: "manual",
 			error: "manual",
 		},

@@ -582,7 +582,6 @@ function wireBridgeAckDriverEventsNode<TOutbound, TInbound>(
 		{
 			name: `${name}/events`,
 			factory: "wireBridgeAckDriverEvents",
-			partial: true,
 			complete: "manual",
 			error: "manual",
 		},
@@ -735,7 +734,6 @@ export function wireBridgeProtobuf(
 		{
 			name: `${name}/inboundResults`,
 			factory: "wireBridgeProtobufInboundResults",
-			partial: true,
 			complete: "manual",
 			error: "manual",
 		},
@@ -760,7 +758,6 @@ export function wireBridgeProtobuf(
 		{
 			name: `${name}/outboundResults`,
 			factory: "wireBridgeProtobufOutboundResults",
-			partial: true,
 			complete: "manual",
 			error: "manual",
 		},
@@ -777,7 +774,6 @@ export function wireBridgeProtobuf(
 		{
 			name: `${name}/inboundEvents`,
 			factory: "wireBridgeProtobufInboundEvents",
-			partial: true,
 			complete: "manual",
 			error: "manual",
 		},
@@ -794,7 +790,6 @@ export function wireBridgeProtobuf(
 		{
 			name: `${name}/outboundEvents`,
 			factory: "wireBridgeProtobufOutboundEvents",
-			partial: true,
 			complete: "manual",
 			error: "manual",
 		},
@@ -813,7 +808,6 @@ export function wireBridgeProtobuf(
 		{
 			name: `${name}/inboundDecoded`,
 			factory: "wireBridgeProtobufInboundDecoded",
-			partial: true,
 			complete: "manual",
 			error: "manual",
 		},
@@ -831,7 +825,6 @@ export function wireBridgeProtobuf(
 		{
 			name: `${name}/outboundBytes`,
 			factory: "wireBridgeProtobufOutboundBytes",
-			partial: true,
 			complete: "manual",
 			error: "manual",
 		},
@@ -853,7 +846,6 @@ export function wireBridgeProtobuf(
 		{
 			name: `${name}/issues`,
 			factory: "wireBridgeProtobufIssues",
-			partial: true,
 			complete: "manual",
 			error: "manual",
 		},
@@ -909,7 +901,6 @@ export function wireBridgeProtobuf(
 		{
 			name: `${name}/status`,
 			factory: "wireBridgeProtobufStatus",
-			partial: true,
 			complete: "manual",
 			error: "manual",
 		},
@@ -1182,7 +1173,6 @@ function wireBridgeEventsNode<TOutbound, TInbound>(
 					remoteCursor: state.remoteCursor,
 				}),
 			}),
-			partial: true,
 			complete: "manual",
 			error: "manual",
 		},

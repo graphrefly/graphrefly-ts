@@ -444,7 +444,6 @@ describe("Graph.checkpoint — data shape (R-checkpoint / D802, TS layout D178)"
 		expect(byId.doubled.recipe).toBeUndefined();
 		expect(byId.doubled.lifetime).toEqual({
 			received: [{ values: [5], terminal: { kind: "none" } }],
-			ran: true,
 		});
 		expect(checkpoint.mounts?.[0].at).toBe("child");
 		expect(checkpoint.mounts?.[0].checkpoint.nodes[0]).toMatchObject({ id: "nil", values: [null] });
@@ -457,7 +456,7 @@ describe("Graph.checkpoint — data shape (R-checkpoint / D802, TS layout D178)"
 
 		const node = g.checkpoint().nodes.find((n) => n.id === "quiet");
 		expect(node?.values).toEqual([]);
-		expect(node?.lifetime).toEqual({ received: [], ran: true });
+		expect(node?.lifetime).toEqual({ received: [] });
 	});
 
 	it("keeps no value apart from null and an empty array; an inactive computed node holds nothing", () => {

@@ -4,10 +4,10 @@
  * Holds a fn handle + deps + the wave state machine; ZERO inspection cruft
  * (naming/find/describe are the graph layer, CSP-2). Canonical authority:
  * ~/src/graphrefly/spec/rules.jsonl (R-node-*, R-two-phase, R-diamond, R-resolved-undirty,
- * R-first-run-gate, R-push-subscribe, R-rom-ram, R-fn-contract, R-initial, R-ctx-up).
+ * R-push-subscribe, R-rom-ram, R-fn-contract, R-initial, R-ctx-up).
  *
  * Slice 1 = core wave: state node, compute node, two-phase PENDING->DATA, diamond
- * pending-counter join, first-run gate, substrate-synthesized undirty RESOLVED
+ * pending-counter join, substrate-synthesized undirty RESOLVED
  * (R-resolved-undirty / D49 — no equals-substitution; every occurrence is DATA),
  * push-on-subscribe, lazy activation, ROM/RAM. Lifecycle (terminal/INVALIDATE/cleanup),
  * control (async), batch, and dynamicNode land in later slices.
@@ -47,7 +47,6 @@ import {
 	nodeRefreshCtx,
 } from "./node-context-runtime.js";
 import {
-	nodeAllDepsSettled,
 	nodeMarkDirty,
 	nodeMaybeRun,
 	nodeReceiveFromDep,
@@ -173,7 +172,6 @@ export class Node<T = unknown> {
 		void node._maybeRun;
 		void node._settleRewire;
 		void node._tryRun;
-		void node._allDepsSettled;
 		void node._runWave;
 		void node._buildCtx;
 		void node._makeCtx;
@@ -237,7 +235,6 @@ export class Node<T = unknown> {
 					pool,
 					dispatcher,
 					environment,
-					partial: opts.partial ?? false,
 					completePolicy: opts.complete ?? "auto",
 					errorPolicy: opts.error ?? "auto",
 					invalidatePolicy: opts.invalidate ?? "auto",
@@ -256,7 +253,6 @@ export class Node<T = unknown> {
 					value,
 					wave: {
 						pending: 0,
-						hasCalledFnOnce: false,
 						emittedDirtyThisWave: false,
 						emittedSettleThisWave: false,
 						insideRunWave: false,
@@ -580,10 +576,6 @@ export class Node<T = unknown> {
 
 	private _tryRun(): void {
 		nodeTryRun(nodeRuntimeHost(this));
-	}
-
-	private _allDepsSettled(): boolean {
-		return nodeAllDepsSettled(nodeRuntimeHost(this));
 	}
 
 	/** Settle now, running the function (activation's first run of a depless producer). */

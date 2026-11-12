@@ -291,7 +291,6 @@ function nodeApplyReplace<T>(
 	self._value.hasData = false;
 	self._value.lastArray = [];
 	self._value.terminal = undefined;
-	self._wave.hasCalledFnOnce = false;
 	self._wave.pending = 0;
 	self._wave.emittedDirtyThisWave = false;
 	self._seed = undefined;

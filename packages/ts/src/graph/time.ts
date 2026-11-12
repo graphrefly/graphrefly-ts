@@ -263,7 +263,6 @@ export function audit<S>(durationSelector: (v: S) => NodeInput<unknown>): Operat
 		factory: "audit",
 		body,
 		opts: {
-			partial: true,
 			complete: "manual",
 			error: "manual",
 		},
@@ -367,7 +366,6 @@ export function timeout<S>(source: Node<S>, ms: number): Node<S> {
 			factory: "timeout",
 			body,
 			opts: {
-				partial: true,
 				complete: "manual",
 				error: "manual",
 			},
@@ -425,7 +423,6 @@ export function bufferTime<S>(source: Node<S>, ms: number): Node<S[]> {
 			factory: "bufferTime",
 			body,
 			opts: {
-				partial: true,
 				complete: "manual",
 				error: "manual",
 			},

@@ -102,7 +102,7 @@ function lane<T, K extends Arrival<T>["lane"]>(
 			const values = depBatch(ctx, 0) ?? [];
 			if (values.length > 0) ctx.down([["DATA", { lane: laneName, values } as Arrival<T>]]);
 		},
-		{ name, factory: "causalOccurrenceInputLane", partial: true },
+		{ name, factory: "causalOccurrenceInputLane" },
 	);
 }
 

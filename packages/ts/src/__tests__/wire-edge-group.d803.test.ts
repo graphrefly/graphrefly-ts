@@ -185,7 +185,6 @@ function oneHop(opts: { twoArrays?: boolean } = {}) {
 	const fFn = counted(() => {});
 	const F = r.node([inX, inY], fFn.fn, {
 		name: "F",
-		partial: true,
 		complete: "manual",
 		error: "manual",
 		invalidate: "manual",

@@ -543,7 +543,7 @@ export function toolProviderPolicyResolutionProjector(
 			}
 			ctx.state.set(state);
 		}),
-		{ name: `${name}/runtime`, factory: "toolProviderPolicyResolutionProjector", partial: true },
+		{ name: `${name}/runtime`, factory: "toolProviderPolicyResolutionProjector" },
 	);
 	const resolutions = projectRuntimeFact(
 		graph,

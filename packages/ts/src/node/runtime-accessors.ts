@@ -213,7 +213,6 @@ export function checkpointStateOfNode(n: Node<unknown>): NodeCheckpointState {
 		hasData: self._value.hasData,
 		terminal: self._value.terminal,
 		activated: self._lifecycle.activated,
-		hasCalledFnOnce: self._wave.hasCalledFnOnce,
 		privateState: self._privateState.value,
 		seed: self._seed,
 		handle: self._slot.handle,

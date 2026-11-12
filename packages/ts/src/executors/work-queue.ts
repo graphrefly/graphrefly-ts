@@ -153,7 +153,6 @@ export function executorWorkQueueRecipe(
 		{
 			name: `${name}/runtime`,
 			factory: "executorWorkQueueRuntime",
-			partial: true,
 			complete: "manual",
 			error: "manual",
 		},
@@ -405,7 +404,7 @@ function project<T>(
 				if (selected !== undefined) ctx.down([["DATA", selected]]);
 			}
 		}),
-		{ name, factory, partial: true, complete: "manual", error: "manual" },
+		{ name, factory, complete: "manual", error: "manual" },
 	);
 }
 

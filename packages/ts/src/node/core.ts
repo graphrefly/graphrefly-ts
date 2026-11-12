@@ -36,7 +36,6 @@ export interface ValueState<T> {
 
 export interface WaveState {
 	pending: number;
-	hasCalledFnOnce: boolean;
 	emittedDirtyThisWave: boolean;
 	emittedSettleThisWave: boolean;
 	insideRunWave: boolean;
@@ -96,7 +95,6 @@ export interface NodeSlot<_T> {
 	pool: "sync" | "async";
 	dispatcher: Dispatcher;
 	environment: EnvironmentDrivers;
-	partial: boolean;
 	completePolicy: "auto" | "manual";
 	errorPolicy: "auto" | "manual";
 	invalidatePolicy: "auto" | "manual";

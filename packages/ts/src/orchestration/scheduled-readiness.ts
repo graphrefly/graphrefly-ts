@@ -212,7 +212,7 @@ export function scheduledReadinessProjector(
 			ctx.down([["DATA", { kind: "views", views: buildViews(state) }]]);
 			ctx.state.set(state);
 		},
-		{ name: `${name}/runtime`, factory: "scheduledReadinessProjector", partial: true },
+		{ name: `${name}/runtime`, factory: "scheduledReadinessProjector" },
 	);
 	return {
 		pending: projectRuntimeFact(

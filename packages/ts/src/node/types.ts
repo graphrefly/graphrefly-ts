@@ -22,11 +22,6 @@ export interface NodeOptions<T = unknown> {
 	/** Pre-populate cache; source pushes [DATA, initial] on subscribe (R-initial). `null` is valid. */
 	initial?: T | null;
 	/**
-	 * First-run gate off when true (TS sugar, not protocol): by default the function's first run
-	 * waits until every dependency has a value, or a terminal its policy gives to the function.
-	 */
-	partial?: boolean;
-	/**
 	 * COMPLETE policy (R-terminals). `"auto"` (the default): once every dependency has ended, the
 	 * node completes after the run that sees the last terminal; a node with no dependencies never
 	 * completes automatically. `"manual"`: a dependency's COMPLETE is the function's input
@@ -97,11 +92,10 @@ export interface NodeReceived {
 /**
  * R-checkpoint / R-subscription: a restored computed node's construction seed beyond its values,
  * terminal and private state. Its first activation compares what it had received with what its
- * dependencies hold then. `ran` is the TS first-run gate (sugar) at capture.
+ * dependencies hold then.
  */
 export interface NodeSeed {
 	readonly received: readonly NodeReceived[];
-	readonly ran: boolean;
 }
 
 export interface NodeCheckpointState {
@@ -111,7 +105,6 @@ export interface NodeCheckpointState {
 	readonly hasData: boolean;
 	readonly terminal: true | unknown | undefined;
 	readonly activated: boolean;
-	readonly hasCalledFnOnce: boolean;
 	/** The current lifetime's private state; `undefined` (SENTINEL) when there is none. */
 	readonly privateState: unknown;
 	/** A restored node's seed, until its first activation. */

@@ -172,7 +172,7 @@ export function toolProviderAdapterInputProjector(
 			}
 			ctx.state.set(state);
 		}),
-		{ name: `${name}/runtime`, factory: "toolProviderAdapterInputProjector", partial: true },
+		{ name: `${name}/runtime`, factory: "toolProviderAdapterInputProjector" },
 	);
 	const inputs = projectRuntimeFact(
 		graph,

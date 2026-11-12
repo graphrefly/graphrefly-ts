@@ -92,7 +92,6 @@ export function cqrsMessagingRecipe<TPayload = unknown, TCommand = unknown, TEve
 		{
 			name: `${name}/runtime`,
 			factory: "cqrsMessagingRuntime",
-			partial: true,
 			complete: "manual",
 			error: "manual",
 		},
@@ -221,7 +220,6 @@ export function cqrsMessageAckCommands(
 		{
 			name: opts.name ?? "cqrsMessaging/ackCommands",
 			factory: "cqrsMessagingAckCommands",
-			partial: true,
 			complete: "manual",
 			error: "manual",
 		},
@@ -292,7 +290,7 @@ function project<T, TCommand>(
 				if (value !== undefined) ctx.down([["DATA", value]]);
 			}
 		}),
-		{ name, factory, partial: true, complete: "manual", error: "manual" },
+		{ name, factory, complete: "manual", error: "manual" },
 	);
 }
 

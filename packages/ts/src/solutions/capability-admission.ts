@@ -262,7 +262,7 @@ export function capabilityAdmissionProjector(
 			evaluateCapabilityAdmissions(ctx, state, now());
 			ctx.state.set(state);
 		},
-		{ name: `${name}/runtime`, factory: "capabilityAdmissionProjector", partial: true },
+		{ name: `${name}/runtime`, factory: "capabilityAdmissionProjector" },
 	);
 	return {
 		admissions: projectRuntimeFact(

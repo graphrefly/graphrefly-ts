@@ -148,7 +148,6 @@ export function reactiveCascadingCache<K extends string, V>(
 	const eventOpts: SugarOpts<CascadingCacheEvent<K, V>> = {
 		name: `${baseName}.events`,
 		meta,
-		partial: true,
 		pool: "async",
 		// R-lifetime: closing the lifetime drops every in-flight load's result.
 		setup: (ctx) => () => {
@@ -286,7 +285,6 @@ export function reactiveCascadingCache<K extends string, V>(
 			name: `${baseName}.status`,
 			initial: { kind: "idle" },
 			meta,
-			partial: true,
 		},
 	);
 
@@ -318,7 +316,6 @@ export function reactiveCascadingCache<K extends string, V>(
 		{
 			name: `${baseName}.value`,
 			meta,
-			partial: true,
 		},
 	);
 

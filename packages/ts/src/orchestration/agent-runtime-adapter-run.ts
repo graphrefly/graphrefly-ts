@@ -337,7 +337,7 @@ export function toolProviderAdapterRunProjectorInternal(
 			});
 			ctx.state.set(state);
 		},
-		{ name: `${name}/runtime`, factory: "toolProviderAdapterRunProjector", partial: true },
+		{ name: `${name}/runtime`, factory: "toolProviderAdapterRunProjector" },
 	);
 	return {
 		requests: projectRuntimeFact(

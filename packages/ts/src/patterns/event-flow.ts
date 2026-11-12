@@ -206,7 +206,6 @@ export function eventFlow<T = unknown>(
 			factory: "eventFlowRuntime",
 			meta: { flowId, sources: sources.map((source) => source.source) },
 			setup: setup(sources.length),
-			partial: true,
 			complete: "manual",
 			error: "manual",
 		},

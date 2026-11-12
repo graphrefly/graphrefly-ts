@@ -56,7 +56,7 @@ describe("D806 kernel corrections", () => {
 			() => {
 				joinRuns += 1;
 			},
-			{ name: "j", partial: true, invalidate: "manual" },
+			{ name: "j", invalidate: "manual" },
 		);
 		j.subscribe(() => {});
 		joinRuns = 0;

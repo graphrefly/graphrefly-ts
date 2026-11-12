@@ -55,7 +55,7 @@ export interface Operator<TIn = unknown, TOut = unknown> {
 	readonly factory: string;
 	/** The ctx-body: reads ctx dep slots positionally, emits via `ctx.down`. */
 	readonly body: (ctx: Ctx) => void;
-	/** Behavioral node options the operator needs (e.g. `partial:true` for combine-family). */
+	/** Behavioral node options the operator needs. */
 	readonly opts?: Partial<NodeOptions<TOut>>;
 	/**
 	 * R-node / R-checkpoint: the recipe the operator's node instance carries, a registered factory
@@ -446,7 +446,7 @@ export function distinctUntilChanged<S>(eq: (a: S, b: S) => boolean = Object.is)
 }
 
 /**
- * merge: interleave several sources — emit each DATA from whichever dep fired. `partial:true`
+ * merge: interleave several sources — emit each DATA from whichever dep fired. A kernel node (no first-run gate)
  * (combine-family): fires on any single dep, not gated on all deps settling.
  *
  * @returns An operator that forwards DATA from any dependency.
@@ -462,7 +462,7 @@ export function distinctUntilChanged<S>(eq: (a: S, b: S) => boolean = Object.is)
 export function merge<T>(): Operator<T, T> {
 	return {
 		factory: "merge",
-		opts: { partial: true },
+		opts: {},
 		body: (ctx) => {
 			// The first run of a lifetime sends its dependencies' snapshots as one array, which a first
 			// subscriber receives as the snapshot (R-subscription); later input keeps its arrays.
@@ -958,7 +958,7 @@ export interface ValveOpts {
 
 /**
  * valve: forward the source's DATA only while `control` (dep 1) is truthy; when closed, stay quiet
- * (undirty RESOLVED). `[source, control]` declared deps + `partial:true` (the control wave can fire
+ * (undirty RESOLVED). `[source, control]` declared deps (the control wave can fire
  * before the source ever delivers). the manual COMPLETE policy — closing the gate (control
  * terminating) does NOT complete the valve; only the SOURCE's terminal (read via
  * the manual policy) is forwarded. The `state`-verb control input is a legitimate external
@@ -975,7 +975,7 @@ export function valve<S>(opts?: ValveOpts): Operator<unknown, S> {
 	const abortInFlight = opts?.abortInFlight;
 	return {
 		factory: "valve",
-		opts: { partial: true, complete: "manual" },
+		opts: { complete: "manual" },
 		body: (ctx) => {
 			const srcBatch = depBatch(ctx, 0);
 			const ctlBatch = depBatch(ctx, 1);

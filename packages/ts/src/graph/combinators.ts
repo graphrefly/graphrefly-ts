@@ -4,8 +4,8 @@
  * Per-language sugar (D6/D24, never in parity). Each forms topology ONLY via DECLARED deps (D45) —
  * the frozen pure-ts reference (D41) builds these as a producer that calls `subscribeOr` on each
  * source INSIDE the fn body, which is the D45-banned describe island (an edge `describe` cannot
- * show). Re-derived here as static-dep nodes with `partial:true` (fire on any dep, R-first-run-gate
- * off) + `ctx.state` (queue / phase / winner) — so every edge is a real subscription `describe`
+ * show). Re-derived here as static-dep kernel nodes, which run on any dependency (graphrefly-ts:D184),
+ * with `ctx.state` (queue / phase / winner) — so every edge is a real subscription `describe`
  * shows truthfully (D3 / R-edges-derived). Multi-source completion / error reads
  * `depTerminal(ctx, i)` (R-deps-terminal) via the manual COMPLETE policy.
  *
@@ -38,7 +38,7 @@ import type { Operator } from "./operators.js";
 
 /**
  * combine (alias `combineLatest`): emit a tuple of every dep's latest value whenever ANY dep
- * delivers, once ALL deps have delivered at least one value. `partial:true`; the all-delivered gate
+ * delivers, once ALL deps have delivered at least one value. the all-delivered gate
  * is `depLatest(ctx, i) !== undefined` per dep. Completes when ALL deps complete (default
  * the auto COMPLETE policy); any dep ERROR propagates (the auto ERROR policy). Emits a fresh
  * tuple per wave (D49 — no dedup; compose `distinctUntilChanged` to suppress unchanged tuples).
@@ -52,7 +52,7 @@ import type { Operator } from "./operators.js";
 export function combine<T extends readonly unknown[]>(): Operator<unknown, T> {
 	return {
 		factory: "combine",
-		opts: { partial: true },
+		opts: {},
 		body: (ctx) => {
 			const vals = Array.from({ length: depCount(ctx) }, (_, i) => depLatest(ctx, i));
 			if (vals.some((v) => v === undefined)) return; // not all deps delivered → undirty RESOLVED
@@ -66,13 +66,12 @@ export const combineLatest = combine;
 
 /**
  * withLatestFrom: on each PRIMARY (dep 0) value, emit `[primary, latestSecondary]`; a secondary-only
- * (dep 1) wave updates the cached secondary but emits nothing. Uses the DEFAULT first-run gate
- * (`partial:false`), NOT partial — the frozen reference's Phase 10.5 W1 fix: with `partial:true` the
- * primary's push-on-subscribe fires the fn BEFORE the secondary has delivered, so the initial pair
- * is dropped. The gate holds the first run until BOTH deps settle, then fires once with both
- * populated; subsequent waves are gate-free and fire on primary-alone. Completes when the PRIMARY
- * completes (not the secondary) — the manual COMPLETE policy with a
- * primary-terminal check; a secondary terminal is ignored (its last value persists).
+ * (dep 1) wave updates the cached secondary but emits nothing. Primary values that arrive before the
+ * secondary has any value are held in private state and paired once it arrives, in one array (the
+ * frozen reference's Phase 10.5 W1 fix: the primary's push-on-subscribe must not be dropped). The
+ * kernel has no first-run gate (graphrefly-ts:D184), so this hold is the operator's own. Completes
+ * when the PRIMARY completes (not the secondary) — the manual COMPLETE policy with a primary-terminal
+ * check; a secondary terminal is ignored (its last value persists).
  * @returns A `Operator<unknown, readonly [A, B]>` value.
  * @category operators
  * @example
@@ -85,14 +84,24 @@ export function withLatestFrom<A, B>(): Operator<unknown, readonly [A, B]> {
 		factory: "withLatestFrom",
 		opts: { complete: "manual" },
 		body: (ctx) => {
-			const b0 = depBatch(ctx, 0);
 			const sec = depLatest(ctx, 1) as B | undefined;
-			// Primary values first (a secondary-only wave, or no secondary yet, sends nothing), then the
-			// primary's COMPLETE when it came in the same array.
-			if (b0 && sec !== undefined)
+			if (sec === undefined) {
+				// No secondary yet: hold this run's primary values until it arrives.
+				const held = ctx.state.get<A[]>() ?? [];
+				for (const v of depBatch(ctx, 0) ?? []) held.push(v as A);
+				ctx.state.set(held);
+			} else {
+				const held = ctx.state.get<A[]>();
+				if (held !== undefined && held.length > 0) {
+					ctx.state.set([]);
+					ctx.down(held.map((v) => ["DATA", [v, sec] as readonly [A, B]]));
+				}
+				// Primary values, one array per primary array, then the primary's COMPLETE when it came
+				// in the same array.
 				eachInputArray(ctx, 0, (v, out) => {
 					out.push(["DATA", [v, sec] as readonly [A, B]]);
 				});
+			}
 			if (isTerminalComplete(depTerminal(ctx, 0))) ctx.down([["COMPLETE"]]);
 		},
 	};
@@ -106,8 +115,8 @@ interface ZipState {
 
 /**
  * zip: combine one value from EACH dep, in lockstep, into a tuple — buffering per-dep queues until
- * every dep has at least one queued value, then shifting one from each. `partial:true` +
- * `ctx.state` queues. Completes as soon as ANY dep is terminal AND its queue is empty (no further
+ * every dep has at least one queued value, then shifting one from each, in `ctx.state`
+ * queues. Completes as soon as ANY dep is terminal AND its queue is empty (no further
  * tuple can form) — the manual COMPLETE policy. Any dep ERROR
  * propagates (the auto ERROR policy).
  * @returns A `Operator<unknown, T>` value.
@@ -120,7 +129,7 @@ interface ZipState {
 export function zip<T extends readonly unknown[]>(): Operator<unknown, T> {
 	return {
 		factory: "zip",
-		opts: { partial: true, complete: "manual" },
+		opts: { complete: "manual" },
 		body: (ctx) => {
 			const n = depCount(ctx);
 			if (n === 0) {
@@ -159,7 +168,7 @@ interface ConcatState<S> {
 
 /**
  * concat: play ALL of dep 0, then ALL of dep 1. Dep-1 DATA arriving during phase 0 is buffered and
- * flushed at the handoff (dep 0 COMPLETE). `partial:true` + `ctx.state` phase. Completes when dep 1
+ * flushed at the handoff (dep 0 COMPLETE). `ctx.state` phase. Completes when dep 1
  * completes (or when dep 0 completes and dep 1 already had). the manual COMPLETE policy; any dep ERROR propagates (the auto ERROR policy).
  * @returns A `Operator<S, S>` value.
  * @category operators
@@ -171,7 +180,7 @@ interface ConcatState<S> {
 export function concat<S>(): Operator<S, S> {
 	return {
 		factory: "concat",
-		opts: { partial: true, complete: "manual" },
+		opts: { complete: "manual" },
 		body: (ctx) => {
 			const firstBatch = depBatch(ctx, 0);
 			const secondBatch = depBatch(ctx, 1);
@@ -215,7 +224,7 @@ interface RaceState {
 
 /**
  * race: the FIRST dep to deliver DATA wins; thereafter only the winner's messages flow (losers are
- * dropped, including their terminals). `partial:true` + `ctx.state` winner. the manual ERROR policy
+ * dropped, including their terminals). `ctx.state` winner. the manual ERROR policy
  * (a LOSER's error must not error the race — only the winner's) + the manual COMPLETE policy. If every dep terminates before any DATA, COMPLETE.
  * @returns A `Operator<S, S>` value.
  * @category operators
@@ -228,7 +237,6 @@ export function race<S>(): Operator<S, S> {
 	return {
 		factory: "race",
 		opts: {
-			partial: true,
 			complete: "manual",
 			error: "manual",
 		},
@@ -276,7 +284,7 @@ export function race<S>(): Operator<S, S> {
 
 /**
  * buffer: accumulate dep 0 (source) DATA; flush the buffer as an array each time dep 1 (notifier)
- * delivers DATA. `partial:true` + `ctx.state` buffer. On source COMPLETE, flush any remainder then
+ * delivers DATA. `ctx.state` buffer. On source COMPLETE, flush any remainder then
  * COMPLETE (the manual COMPLETE policy; a notifier terminal is
  * ignored). Source/notifier ERROR propagates (the auto ERROR policy).
  * @returns A `Operator<unknown, S[]>` value.
@@ -289,7 +297,7 @@ export function race<S>(): Operator<S, S> {
 export function buffer<S>(): Operator<unknown, S[]> {
 	return {
 		factory: "buffer",
-		opts: { partial: true, complete: "manual" },
+		opts: { complete: "manual" },
 		body: (ctx) => {
 			const sourceBatch = depBatch(ctx, 0);
 			const notifierBatch = depBatch(ctx, 1);
@@ -361,7 +369,7 @@ interface SampleState<S> {
 
 /**
  * sample: emit the source's (dep 0) most recent value each time the notifier (dep 1) delivers DATA.
- * `partial:true` + `ctx.state`. The notifier completing completes the operator; the source completing
+ * `ctx.state`. The notifier completing completes the operator; the source completing
  * stops sampling (clears the held value); an ERROR from either terminates.
  * the manual COMPLETE and ERROR policies (manual
  * terminal handling). No flush of the held value on source COMPLETE (RxJS sample semantics).
@@ -376,7 +384,6 @@ export function sample<S>(): Operator<unknown, S> {
 	return {
 		factory: "sample",
 		opts: {
-			partial: true,
 			complete: "manual",
 			error: "manual",
 		},
@@ -418,7 +425,7 @@ export function sample<S>(): Operator<unknown, S> {
 
 /**
  * takeUntil: forward dep 0 (source) DATA until dep 1 (notifier) delivers its first DATA, then
- * COMPLETE. `partial:true` + the manual COMPLETE policy: a source
+ * COMPLETE. the manual COMPLETE policy: a source
  * COMPLETE forwards COMPLETE; a notifier DATA triggers COMPLETE. Source/notifier ERROR propagates
  * (the auto ERROR policy).
  * @returns A `Operator<unknown, S>` value.
@@ -431,7 +438,7 @@ export function sample<S>(): Operator<unknown, S> {
 export function takeUntil<S>(): Operator<unknown, S> {
 	return {
 		factory: "takeUntil",
-		opts: { partial: true, complete: "manual" },
+		opts: { complete: "manual" },
 		body: (ctx: Ctx) => {
 			const sourceBatch = depBatch(ctx, 0);
 			const notifierBatch = depBatch(ctx, 1);

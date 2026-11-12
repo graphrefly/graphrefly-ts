@@ -137,7 +137,7 @@ describe("late output and closed lifetimes (D797 review)", () => {
 			(ctx) => {
 				runs.push(ctx.waveData[0]!.map((w) => [...w]));
 			},
-			{ name: "d", partial: true },
+			{ name: "d" },
 		);
 		d.subscribe(() => {});
 		const arrays: unknown[][] = [];

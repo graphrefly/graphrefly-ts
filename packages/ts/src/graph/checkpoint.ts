@@ -33,8 +33,6 @@ export interface GraphCheckpointPolicies {
 	complete: "auto" | "manual";
 	error: "auto" | "manual";
 	invalidate: "auto" | "manual";
-	/** TS first-run gate off (sugar). */
-	partial: boolean;
 	quiet: boolean;
 	dynamic: boolean;
 	pool: "sync" | "async";
@@ -52,8 +50,6 @@ export interface GraphCheckpointLifetime {
 	state?: GraphCheckpointJson;
 	/** One record per dependency of the lifetime, in dependency order. */
 	received: GraphCheckpointReceived[];
-	/** The TS first-run gate had opened (sugar). */
-	ran: boolean;
 	/** The lifetime's dependencies, when a ctx.rewire changed them from the declared ones. */
 	deps?: string[];
 }

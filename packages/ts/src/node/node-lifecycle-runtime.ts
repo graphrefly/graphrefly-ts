@@ -257,7 +257,6 @@ export function nodeDeactivate<T>(self: NodeRuntimeHost<T>): void {
 		self._value.lastArray = [];
 	}
 	self._resetDepState();
-	self._wave.hasCalledFnOnce = false;
 }
 
 export function nodeSubscriberCount<T>(self: NodeRuntimeHost<T>): number {

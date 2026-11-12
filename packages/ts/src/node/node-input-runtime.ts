@@ -121,12 +121,6 @@ export function nodeMaybeRun<T>(self: NodeRuntimeHost<T>): void {
 
 export function nodeSettleRewire<T>(self: NodeRuntimeHost<T>): void {
 	if (self._wave.pending > 0) return;
-	if (
-		self._slot.handle !== null &&
-		!self._wave.hasCalledFnOnce &&
-		!(self._slot.partial || self._allDepsSettled())
-	)
-		return;
 	// R-request-order: the added dependencies' snapshots are one ordinary input wave.
 	nodeSettle(self, false);
 }
@@ -134,21 +128,6 @@ export function nodeSettleRewire<T>(self: NodeRuntimeHost<T>): void {
 export function nodeTryRun<T>(self: NodeRuntimeHost<T>): void {
 	if (self._wave.pending > 0) return;
 	nodeSettle(self, false);
-}
-
-/**
- * The first-run gate (TS sugar, not protocol): before its first run in a lifetime a node waits
- * until every dependency has a value, unless `partial`. A dependency that has ended under a
- * manual policy for its terminal counts, since its terminal is input.
- */
-export function nodeAllDepsSettled<T>(self: NodeRuntimeHost<T>): boolean {
-	for (let i = 0; i < self._slot.deps.length; i++) {
-		if (self._dep.hasData[i]) continue;
-		const t = self._dep.terminal[i];
-		if (t !== undefined && nodeTerminalPolicy(self, t) === "manual") continue;
-		return false;
-	}
-	return true;
 }
 
 function nodeTerminalPolicy<T>(self: NodeRuntimeHost<T>, t: unknown): "auto" | "manual" {
@@ -162,8 +141,7 @@ function nodeTerminalPolicy<T>(self: NodeRuntimeHost<T>, t: unknown): "auto" | "
  *    INVALIDATE that reached it earlier in the wave takes effect first;
  * 2. auto INVALIDATE: an input's INVALIDATE invalidates the node without running its function;
  * 3. the function runs on what remains: values, a terminal under the manual policy, an
- *    INVALIDATE under the manual policy, the first run of a lifetime (`force` for activation
- *    and rewire), or, under auto COMPLETE, the last dependency's terminal even when it is the
+ *    INVALIDATE under the manual policy, a lifetime's first run (`force`, at activation), or, under auto COMPLETE, the last dependency's terminal even when it is the
  *    run's only input (graphrefly:D806 (1), R-terminals@1, C-17);
  * 4. auto COMPLETE: once every dependency has ended, COMPLETE follows the run's output;
  * 5. a node marked pending that sent nothing gets the kernel's one RESOLVED.
@@ -195,14 +173,13 @@ export function nodeSettle<T>(self: NodeRuntimeHost<T>, force: boolean): void {
 
 	let out: Message[][] = [];
 	const allEnded = n > 0 && self._dep.terminal.every((t) => t !== undefined);
-	// The first-run gate holds the function's input until it opens, so the first run sees it all.
-	let gateOpen = true;
 	if (self._slot.handle === null) {
 		// Passthrough wire (deps, no fn): relay dep 0's latest value of the wave.
 		const b = self._dep.batch[0];
 		if (b !== null && b !== undefined && b.length > 0) out = [[["DATA", b[b.length - 1]]]];
 	} else {
-		gateOpen = self._wave.hasCalledFnOnce || self._slot.partial || self._allDepsSettled();
+		// graphrefly-ts:D184 (the user's Q1): the kernel has no first-run gate; a function runs on
+		// activation and on any input, and the value-level sugar keeps its own gate.
 		const manualTerminal = self._dep.terminalInput.some(
 			(t) => t !== undefined && nodeTerminalPolicy(self, t) === "manual",
 		);
@@ -211,16 +188,15 @@ export function nodeSettle<T>(self: NodeRuntimeHost<T>, force: boolean): void {
 			allEnded &&
 			self._dep.terminalInput.some((t) => t !== undefined);
 		const runs =
-			gateOpen &&
-			(force ||
-				!self._wave.hasCalledFnOnce ||
-				self._dep.waveData.some((w) => w.length > 0) ||
-				manualTerminal ||
-				lastTerminal ||
-				(anyInvalidated && self._slot.invalidatePolicy === "manual"));
+			force ||
+			!self._lifetime.setupDone ||
+			self._dep.waveData.some((w) => w.length > 0) ||
+			manualTerminal ||
+			lastTerminal ||
+			(anyInvalidated && self._slot.invalidatePolicy === "manual");
 		if (runs) out = nodeInvoke(self);
 	}
-	if (gateOpen) nodeConsumeInput(self);
+	nodeConsumeInput(self);
 
 	const endsItself = out.some((a) => a.some((m) => isTerminal(m[0])));
 	if (self._slot.completePolicy === "auto" && allEnded && !endsItself) out.push([["COMPLETE"]]);
@@ -264,7 +240,6 @@ function nodeSettleOutput<T>(
 function nodeInvoke<T>(self: NodeRuntimeHost<T>): Message[][] {
 	// R-invocation@2: a running function is never reentered. Every way back into this node during
 	// its run (a host input, a late ctx.down, a subscribe) is a request that waits for the wave.
-	self._wave.hasCalledFnOnce = true;
 	const ctx = self._buildCtx();
 	// R-lifetime: the setup runs once per lifetime, just before the function's first run in it,
 	// with that run's ctx; what it sends is that run's output and a throw in it is the node's ERROR.

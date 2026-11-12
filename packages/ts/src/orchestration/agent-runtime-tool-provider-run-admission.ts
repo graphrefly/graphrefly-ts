@@ -127,7 +127,7 @@ export function toolProviderRunAdmissionProjector(
 			ctx.down([["DATA", { kind: "views", views: buildAdmissionViews(state) }]]);
 			ctx.state.set(state);
 		},
-		{ name: `${name}/runtime`, factory: "toolProviderRunAdmissionProjector", partial: true },
+		{ name: `${name}/runtime`, factory: "toolProviderRunAdmissionProjector" },
 	);
 	const handoffCandidates = projectRuntimeFact(
 		graph,

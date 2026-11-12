@@ -90,7 +90,6 @@ export function workItemVerificationRequestLowerer<TInput = unknown>(
 		{
 			name: `${name}/runtime`,
 			factory: "workItemVerificationRequestLowerer",
-			partial: true,
 			complete: "manual",
 			error: "manual",
 		},
@@ -187,7 +186,6 @@ export function workItemVerificationResultMapper<TInput = unknown>(
 		{
 			name: `${name}/runtime`,
 			factory: "workItemVerificationResultMapper",
-			partial: true,
 			complete: "manual",
 			error: "manual",
 		},

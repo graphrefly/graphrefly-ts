@@ -189,7 +189,6 @@ export function remoteResponderEventsNode<TRequest, TResponse>(
 		{
 			name: `${name}/events`,
 			factory: "remoteResponderEvents",
-			partial: true,
 			complete: "manual",
 			error: "manual",
 		},
@@ -296,7 +295,6 @@ export function remoteResponderStatusNode<TRequest, TResponse>(
 		{
 			name: `${name}/status`,
 			factory: "remoteResponderStatus",
-			partial: true,
 			complete: "manual",
 			error: "manual",
 		},

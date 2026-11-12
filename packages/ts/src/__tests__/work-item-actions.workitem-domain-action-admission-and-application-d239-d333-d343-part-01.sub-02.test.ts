@@ -57,7 +57,7 @@ function setupActions() {
 			for (const raw of depBatch(ctx, 0) ?? []) ctx.down([["DATA", raw]]);
 			for (const raw of depBatch(ctx, 1) ?? []) ctx.down([["DATA", raw]]);
 		},
-		{ name: "admissionUnion", partial: true },
+		{ name: "admissionUnion" },
 	);
 	const application = workItemDomainActionApplicationProjector(g, {
 		proposals: intake.proposals,

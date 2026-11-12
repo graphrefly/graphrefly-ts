@@ -415,7 +415,7 @@ function createReactiveIndex<K, V = unknown>(
 		const op: Operator<unknown, IndexChange<K, V>> = {
 			factory: "reactiveIndex.capacityPolicy",
 			body: applyBody,
-			opts: { partial: true, setup: folders.setup },
+			opts: { setup: folders.setup },
 		};
 		const deps = capacityPolicy ? [capacityPolicy as Node<unknown>] : [];
 		apply = graph.initNode(op, deps, {
@@ -471,7 +471,7 @@ function createReactiveIndex<K, V = unknown>(
 					// structure's own backend, D60 #1 — not a foreign .cache peek).
 					ctx.down([["DATA", backend.toPrimaryMap()]]);
 				},
-				{ factory: "reactiveIndex.byPrimary", partial: true },
+				{ factory: "reactiveIndex.byPrimary" },
 			);
 		}
 		return byPrimaryNode;

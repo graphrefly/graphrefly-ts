@@ -56,7 +56,6 @@ export interface NodeRuntimeHost<T = unknown> {
 	_maybeRun(): void;
 	_settleRewire(): void;
 	_tryRun(): void;
-	_allDepsSettled(): boolean;
 	_runWave(): void;
 	_buildCtx(): Ctx;
 	_makeCtx(snapshot?: {
