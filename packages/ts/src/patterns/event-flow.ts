@@ -11,7 +11,6 @@ import { depBatch } from "../ctx/types.js";
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
 import { declaredLedger } from "../graph/ledger.js";
-import { canonicalTupleKey } from "../identity.js";
 import type { EventMessage, MessageEnvelope } from "../messaging/index.js";
 import { eventMessageIssue } from "../messaging/index.js";
 import type { Node } from "../node/node.js";

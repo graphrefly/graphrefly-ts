@@ -145,6 +145,12 @@ export interface Ctx {
 	 */
 	down(msgs: Wave): void;
 	/**
+	 * The user's Q4: send `values` as DATA, in order, as exactly one array, the same as
+	 * `ctx.down(values.map((v) => ["DATA", v]))`; with no values it sends nothing. Each call is its
+	 * own array: consecutive calls are never merged.
+	 */
+	emit(...values: readonly unknown[]): void;
+	/**
 	 * The single raw dep-value input surface (R-ctx-wave-data / D77): dep -> upstream waves ->
 	 * per-wave DATA payloads and INVALIDATE/SENTINEL markers. `waveData[i] = []` means dep i
 	 * delivered no wave to this invocation; `waveData[i] = [[]]` means RESOLVED-only.

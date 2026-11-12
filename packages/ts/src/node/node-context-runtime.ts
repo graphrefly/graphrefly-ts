@@ -84,6 +84,9 @@ export function nodeMakeCtx<T>(
 				self._down(array);
 			});
 		},
+		emit: (...values) => {
+			if (values.length > 0) ctx.down(values.map((v) => ["DATA", v] as const));
+		},
 		waveData: snapshot?.waveData ?? self._dep.waveData,
 		terminal: snapshot?.terminal ?? self._dep.terminalInput.map(terminalView),
 		invalidated: snapshot?.invalidated ?? nodeInvalidatedView(self),
