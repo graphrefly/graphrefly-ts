@@ -286,3 +286,22 @@ it("admits the union of declared and lifetime dependencies before any callback",
 	);
 	expect(build).not.toHaveBeenCalled();
 });
+
+it("preserves captured initial duplicate deps but rejects duplicates in an explicit saved rewire", () => {
+	const g = graph();
+	const source = g.state(1, { name: "source" });
+	const n = g.node([source, source], () => {}, { name: "n", recipe: { ref: "r" } });
+	const stop = g.retain(n);
+	const cp = g.checkpoint();
+	stop();
+	const build = vi.fn(() => ({ fn: () => {} }));
+	const registry = { r: { ref: "r", build } };
+	const restored = restoreGraph(cp, { registry });
+	expect(restored.describe().find((node) => node.id === "n")!.deps).toEqual(["source", "source"]);
+	build.mockClear();
+	savedNode(cp).lifetime!.deps = ["source", "source"];
+	expect(() => restoreGraph(cp, { registry })).toThrow(
+		"not restorable: n: duplicate lifetime dependency",
+	);
+	expect(build).not.toHaveBeenCalled();
+});

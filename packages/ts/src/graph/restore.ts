@@ -731,10 +731,15 @@ function prepareNode(node: GraphCheckpointNode, registry: GraphRestoreRegistry):
 		if (node.kind !== "computed")
 			throw new Error(`restoreGraph: state node '${id}' cannot have a lifetime`);
 		const lifetimeDeps = node.lifetime.deps ?? node.deps;
-		if (node.lifetime.deps !== undefined)
+		if (node.lifetime.deps !== undefined) {
 			assertArray(node.lifetime.deps, `node '${id}' lifetime.deps`).forEach((dep, i) => {
 				assertString(dep, `${id}.lifetime.deps[${i}]`);
 			});
+			// This explicit field records a rewire, whose dependency list is distinct.
+			// Initial declared dependencies retain their existing multiplicity semantics.
+			if (new Set(node.lifetime.deps).size !== node.lifetime.deps.length)
+				throw notRestorable(id, "duplicate lifetime dependency");
+		}
 		if (!Array.isArray(node.lifetime.received))
 			throw notRestorable(id, CHECKPOINT_REFUSAL.missingReceived);
 		const received = node.lifetime.received;
