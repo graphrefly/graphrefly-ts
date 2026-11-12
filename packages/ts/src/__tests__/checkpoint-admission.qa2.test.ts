@@ -23,6 +23,20 @@ function capture() {
 }
 const savedNode = (cp: GraphCheckpoint) => cp.nodes.find((n) => n.id === "n")!;
 const defects: [string, (node: GraphCheckpointNode) => void][] = [
+	...[true, false].flatMap((error): [string, (node: GraphCheckpointNode) => void][] => [
+		[
+			`boolean node ERROR ${error}`,
+			(n) => {
+				n.terminal = { kind: "ERROR", error };
+			},
+		],
+		[
+			`boolean received ERROR ${error}`,
+			(n) => {
+				n.lifetime!.received[0].terminal = { kind: "ERROR", error };
+			},
+		],
+	]),
 	[
 		"lifetime dependency cycle",
 		(n) => {
@@ -304,4 +318,20 @@ it("preserves captured initial duplicate deps but rejects duplicates in an expli
 		"not restorable: n: duplicate lifetime dependency",
 	);
 	expect(build).not.toHaveBeenCalled();
+});
+
+it.each([
+	null,
+	0,
+	"",
+	"boom",
+	{ code: 1 },
+	["diagnostic"],
+])("preserves a legal nonboolean JSON ERROR diagnostic: %j", (error) => {
+	const cp = capture();
+	savedNode(cp).terminal = { kind: "ERROR", error };
+	const restored = restoreGraph(cp, {
+		registry: { r: { ref: "r", build: () => ({ fn: () => {} }) } },
+	});
+	expect(savedNode(restored.checkpoint()).terminal).toEqual({ kind: "ERROR", error });
 });

@@ -16,7 +16,7 @@ import { strictCanonicalJsonBytes } from "../json/codec.js";
 import type { Node } from "../node/node.js";
 import { restoreStateOfNode, wrapFnOfNode } from "../node/runtime-accessors.js";
 import type { NodeOptions } from "../node/types.js";
-import { SENTINEL } from "../protocol/messages.js";
+import { isInvalidErrorPayload, SENTINEL } from "../protocol/messages.js";
 import {
 	CHECKPOINT_REFUSAL,
 	checkpointJsonOf,
@@ -690,8 +690,11 @@ function restoredTerminal(
 	const keys = Object.keys(value);
 	if (keys.length === 1 && value.kind === "none") return undefined;
 	if (keys.length === 1 && value.kind === "COMPLETE") return true;
-	if (keys.length === 2 && value.kind === "ERROR" && Object.hasOwn(value, "error"))
+	if (keys.length === 2 && value.kind === "ERROR" && Object.hasOwn(value, "error")) {
+		if (isInvalidErrorPayload(value.error))
+			throw new Error(`restoreGraph: ${label} ERROR requires a non-SENTINEL, non-boolean payload`);
 		return value.error;
+	}
 	throw new Error(`restoreGraph: ${label} has an invalid terminal`);
 }
 
