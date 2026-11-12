@@ -389,6 +389,10 @@ describe("C-38 restore keeps the saved state, refreshes once on a changed input,
 		const noReceived = structuredClone(checkpoint);
 		const p = noReceived.nodes.find((n) => n.id === "p");
 		if (p?.lifetime == null) throw new Error("p has no lifetime");
+		for (const malformed of [{}, null, { values: [] }, { terminal: { kind: "none" } }]) {
+			(p.lifetime as { received: unknown[] }).received = [malformed];
+			expect(() => f.restore(noReceived)).toThrow("not restorable: p: missing received records");
+		}
 		delete (p.lifetime as { received?: unknown }).received;
 		expect(() => f.restore(noReceived)).toThrow("not restorable: p: missing received records");
 		delete p.lifetime;

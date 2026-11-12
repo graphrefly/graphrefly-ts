@@ -19,6 +19,7 @@ import type { NodeOptions } from "../node/types.js";
 import { SENTINEL } from "../protocol/messages.js";
 import {
 	CHECKPOINT_REFUSAL,
+	checkpointJsonOf,
 	GRAPH_CHECKPOINT_FORMAT,
 	type GraphCheckpoint,
 	type GraphCheckpointJson,
@@ -722,6 +723,13 @@ function prepareNode(node: GraphCheckpointNode, registry: GraphRestoreRegistry):
 		if (received.length !== lifetimeDeps.length)
 			throw notRestorable(id, CHECKPOINT_REFUSAL.missingReceived);
 		received.forEach((r, i) => {
+			if (
+				r == null ||
+				typeof r !== "object" ||
+				!Array.isArray(r.values) ||
+				r.terminal === undefined
+			)
+				throw notRestorable(id, CHECKPOINT_REFUSAL.missingReceived);
 			const rec = r as { values?: unknown; terminal?: GraphCheckpointTerminal };
 			assertArray(rec.values, `${id}.lifetime.received[${i}].values`);
 			restoredTerminal(rec.terminal as GraphCheckpointTerminal, `${id}.lifetime.received[${i}]`);
@@ -757,6 +765,35 @@ function prepareNode(node: GraphCheckpointNode, registry: GraphRestoreRegistry):
 	return { checkpoint: node, entry, config, terminal, ...(sugar === undefined ? {} : { sugar }) };
 }
 
+function validateCheckpointNodeJson(
+	checkpoint: GraphCheckpoint,
+	seen = new WeakSet<object>(),
+): void {
+	if (checkpoint == null || typeof checkpoint !== "object" || seen.has(checkpoint)) return;
+	seen.add(checkpoint);
+	// Classify known node fields before the package-wide JSON shape check, so a caller-provided
+	// checkpoint gets the same refusal cause as capture.
+	for (const node of Array.isArray(checkpoint.nodes) ? checkpoint.nodes : []) {
+		if (node == null || typeof node.id !== "string") continue;
+		const id = node.id;
+		if (node.values !== undefined) checkpointJsonOf(id, CHECKPOINT_REFUSAL.values, node.values);
+		if (node.recipe?.config !== undefined)
+			checkpointJsonOf(id, CHECKPOINT_REFUSAL.recipeConfig, node.recipe.config);
+		if (node.terminal?.kind === "ERROR")
+			checkpointJsonOf(id, CHECKPOINT_REFUSAL.errorPayload, node.terminal.error);
+		if (node.lifetime?.state !== undefined)
+			checkpointJsonOf(id, CHECKPOINT_REFUSAL.privateState, node.lifetime.state);
+		for (const received of Array.isArray(node.lifetime?.received) ? node.lifetime.received : []) {
+			if (received?.values !== undefined)
+				checkpointJsonOf(id, CHECKPOINT_REFUSAL.receivedValues, received.values);
+			if (received?.terminal?.kind === "ERROR")
+				checkpointJsonOf(id, CHECKPOINT_REFUSAL.errorPayload, received.terminal.error);
+		}
+	}
+	for (const mount of Array.isArray(checkpoint.mounts) ? checkpoint.mounts : [])
+		if (mount?.checkpoint) validateCheckpointNodeJson(mount.checkpoint, seen);
+}
+
 function prepareCheckpoint(
 	checkpoint: GraphCheckpoint,
 	registry: GraphRestoreRegistry,
@@ -769,6 +806,7 @@ function prepareCheckpoint(
 		throw new Error(
 			`restoreGraph: ${path} is not a ${GRAPH_CHECKPOINT_FORMAT} checkpoint (an earlier format lacks what R-checkpoint saves)`,
 		);
+	validateCheckpointNodeJson(checkpoint);
 	toCheckpointJson(checkpoint, path);
 	const nodes = new Map<string, Prepared>();
 	for (const node of assertArray(checkpoint.nodes, `${path}.nodes`) as GraphCheckpointNode[]) {
@@ -785,8 +823,7 @@ function prepareCheckpoint(
 	}
 	for (const { checkpoint: node } of nodes.values()) {
 		for (const dep of [...node.deps, ...(node.lifetime?.deps ?? [])])
-			if (!nodes.has(dep))
-				throw new Error(`restoreGraph: node '${node.id}' has missing dep '${dep}'`);
+			if (!nodes.has(dep)) throw notRestorable(node.id, `missing dep '${dep}'`);
 	}
 	const mountPaths = new Set<string>();
 	const mounts: PreparedCheckpoint["mounts"] = [];
