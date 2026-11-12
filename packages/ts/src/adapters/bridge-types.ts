@@ -71,8 +71,7 @@ export type WireBridgeCommand<TData = unknown> =
 	  }
 	| { readonly kind: "close"; readonly reason?: unknown; readonly idempotencyKey?: string };
 
-/** What a wire bridge event says, before the events node numbers it. */
-export type WireBridgeEventBody<TOutbound = unknown, TInbound = unknown> =
+export type WireBridgeEvent<TOutbound = unknown, TInbound = unknown> =
 	| {
 			readonly kind: "outbound";
 			readonly envelope: WireBridgeEnvelope<TOutbound>;
@@ -116,14 +115,15 @@ export type WireBridgeEventBody<TOutbound = unknown, TInbound = unknown> =
 	| { readonly kind: "invalid"; readonly error: string };
 
 /**
- * One event of a wire bridge's events node. `index` is the bridge's own count of the events it
- * emitted, from 1, for every kind: the high water a projection that folds the events keeps, so a
- * new lifetime does not count again what it already counted (graphrefly-ts:D180).
+ * One event as a wire bridge's events node emits it: `index` is the bridge's own count of the
+ * events it emitted, from 1, for every kind; it is the high water a projection that folds the
+ * events keeps, so a new lifetime does not count again what it already counted
+ * (graphrefly-ts:D180; Rust WireBridgeIndexedEvent).
  */
-export type WireBridgeEvent<TOutbound = unknown, TInbound = unknown> = WireBridgeEventBody<
-	TOutbound,
-	TInbound
-> & { readonly index: number };
+export interface WireBridgeIndexedEvent<TOutbound = unknown, TInbound = unknown> {
+	readonly index: number;
+	readonly event: WireBridgeEvent<TOutbound, TInbound>;
+}
 
 export interface WireBridgeAck {
 	readonly ackForSeq: number;
@@ -168,7 +168,7 @@ export interface WireBridgeBundle<TOutbound = unknown, TInbound = unknown> {
 	readonly command: StateNode<WireBridgeCommand<TOutbound>>;
 	readonly outbound: Node<WireBridgeEnvelope<TOutbound>>;
 	readonly inbound: StateNode<WireBridgeEnvelope<TInbound>>;
-	readonly events: Node<WireBridgeEvent<TOutbound, TInbound>>;
+	readonly events: Node<WireBridgeIndexedEvent<TOutbound, TInbound>>;
 	readonly acks: Node<WireBridgeAck>;
 	readonly nacks: Node<WireBridgeNack>;
 	readonly status: Node<WireBridgeStatus>;

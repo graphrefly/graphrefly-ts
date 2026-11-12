@@ -434,8 +434,9 @@ describe("D498 wireBridgeProtobuf focused helper", () => {
 			}
 		});
 		bridge.events.subscribe((incoming) => {
+			// The events node emits { index, event }; the assertions read the event.
 			for (const msg of incoming) {
-				bridgeEvents.push(msg);
+				bridgeEvents.push(msg[0] === "DATA" ? ["DATA", (msg[1] as { event: unknown }).event] : msg);
 			}
 		});
 		protobuf.issues.subscribe((incoming) => {

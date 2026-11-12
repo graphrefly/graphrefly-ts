@@ -20,6 +20,7 @@ import type {
 	WireBridgeBundle,
 	WireBridgeEnvelope,
 	WireBridgeEvent,
+	WireBridgeIndexedEvent,
 } from "./bridge-types.js";
 import {
 	remoteMalformedResponseOperation,
@@ -232,7 +233,7 @@ function remoteCallResponseMatchesPending<T>(
 
 function remoteCallResponsesNode<TRequest, TResponse>(
 	graph: Graph,
-	events: Node<WireBridgeEvent<RemoteCallRequest<TRequest>, RemoteCallResponse<TResponse>>>,
+	events: Node<WireBridgeIndexedEvent<RemoteCallRequest<TRequest>, RemoteCallResponse<TResponse>>>,
 	timeouts: Node<RemoteCallTimeout>,
 	name: string,
 ): Node<RemoteCallResponse<TResponse>> {
@@ -247,10 +248,9 @@ function remoteCallResponsesNode<TRequest, TResponse>(
 			};
 			const ready: RemoteCallResponse<TResponse>[] = [];
 			for (const raw of ctx.deps[0].waves.flat()) {
-				const event = raw as WireBridgeEvent<
-					RemoteCallRequest<TRequest>,
-					RemoteCallResponse<TResponse>
-				>;
+				const event = (
+					raw as WireBridgeIndexedEvent<RemoteCallRequest<TRequest>, RemoteCallResponse<TResponse>>
+				).event;
 				if (event.kind === "outbound") {
 					const request = pendingRequestFromEnvelope(event.envelope);
 					if (request === undefined) continue;
@@ -334,7 +334,7 @@ function remoteCallResultsNode<TResponse>(
 
 function remoteCallStatusNode<TRequest, TResponse>(
 	graph: Graph,
-	events: Node<WireBridgeEvent<RemoteCallRequest<TRequest>, RemoteCallResponse<TResponse>>>,
+	events: Node<WireBridgeIndexedEvent<RemoteCallRequest<TRequest>, RemoteCallResponse<TResponse>>>,
 	timeouts: Node<RemoteCallTimeout>,
 	name: string,
 ): Node<RemoteCallStatus> {
@@ -349,10 +349,9 @@ function remoteCallStatusNode<TRequest, TResponse>(
 					pending: remotePendingState(),
 				} satisfies State);
 			for (const raw of ctx.deps[0].waves.flat()) {
-				const event = raw as WireBridgeEvent<
-					RemoteCallRequest<TRequest>,
-					RemoteCallResponse<TResponse>
-				>;
+				const event = (
+					raw as WireBridgeIndexedEvent<RemoteCallRequest<TRequest>, RemoteCallResponse<TResponse>>
+				).event;
 				if (event.kind === "outbound") {
 					const request = pendingRequestFromEnvelope(event.envelope);
 					if (request !== undefined) {
@@ -504,7 +503,7 @@ function remoteCallStatusNode<TRequest, TResponse>(
 function remoteCallErrorsNode<TRequest, TResponse>(
 	graph: Graph,
 	timeouts: Node<RemoteCallTimeout>,
-	events: Node<WireBridgeEvent<RemoteCallRequest<TRequest>, RemoteCallResponse<TResponse>>>,
+	events: Node<WireBridgeIndexedEvent<RemoteCallRequest<TRequest>, RemoteCallResponse<TResponse>>>,
 	name: string,
 ): Node<RemoteCallError> {
 	return graph.node<RemoteCallError>(
@@ -522,10 +521,9 @@ function remoteCallErrorsNode<TRequest, TResponse>(
 				]);
 			}
 			for (const raw of ctx.deps[1]?.waves.flat() ?? []) {
-				const event = raw as WireBridgeEvent<
-					RemoteCallRequest<TRequest>,
-					RemoteCallResponse<TResponse>
-				>;
+				const event = (
+					raw as WireBridgeIndexedEvent<RemoteCallRequest<TRequest>, RemoteCallResponse<TResponse>>
+				).event;
 				if (event.kind === "outbound") {
 					const request = pendingRequestFromEnvelope(event.envelope);
 					if (request !== undefined) {

@@ -21,7 +21,9 @@ describe("wireBridge sequence and cursor while retained (D180)", () => {
 		bridge.events.subscribe((msgs) => {
 			for (const m of msgs) {
 				if (m[0] !== "DATA") continue;
-				const event = m[1] as { kind: string; envelope?: { metadata: { seq: number } } };
+				const { event } = m[1] as {
+					event: { kind: string; envelope?: { metadata: { seq: number } } };
+				};
 				kinds.push(event.kind);
 				if (event.kind === "outbound" && event.envelope) seqs.push(event.envelope.metadata.seq);
 			}

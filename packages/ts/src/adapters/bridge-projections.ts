@@ -15,6 +15,7 @@ import type {
 	WireBridgeAttempt,
 	WireBridgeEnvelope,
 	WireBridgeEvent,
+	WireBridgeIndexedEvent,
 	WireBridgeInvalidIngress,
 	WireBridgeNack,
 	WireBridgeStatus,
@@ -23,14 +24,14 @@ import { bridgePayloadError, shouldTrackAck } from "./bridge-validation.js";
 
 export function projectOutbound<TOutbound, TInbound>(
 	graph: Graph,
-	events: Node<WireBridgeEvent<TOutbound, TInbound>>,
+	events: Node<WireBridgeIndexedEvent<TOutbound, TInbound>>,
 	name: string,
 ): Node<WireBridgeEnvelope<TOutbound>> {
 	return graph.node<WireBridgeEnvelope<TOutbound>>(
 		[events],
 		(ctx) => {
 			for (const raw of ctx.deps[0].waves.flat()) {
-				const event = raw as WireBridgeEvent<TOutbound, TInbound>;
+				const event = (raw as WireBridgeIndexedEvent<TOutbound, TInbound>).event;
 				if (event.kind === "outbound") ctx.down([["DATA", event.envelope]]);
 			}
 		},
@@ -40,14 +41,14 @@ export function projectOutbound<TOutbound, TInbound>(
 
 export function projectAcks<TOutbound, TInbound>(
 	graph: Graph,
-	events: Node<WireBridgeEvent<TOutbound, TInbound>>,
+	events: Node<WireBridgeIndexedEvent<TOutbound, TInbound>>,
 	name: string,
 ): Node<WireBridgeAck> {
 	return graph.node<WireBridgeAck>(
 		[events],
 		(ctx) => {
 			for (const raw of ctx.deps[0].waves.flat()) {
-				const event = raw as WireBridgeEvent<TOutbound, TInbound>;
+				const event = (raw as WireBridgeIndexedEvent<TOutbound, TInbound>).event;
 				if (event.kind === "ack") {
 					ctx.down([["DATA", { ackForSeq: event.ackForSeq, envelope: event.envelope }]]);
 				}
@@ -59,14 +60,14 @@ export function projectAcks<TOutbound, TInbound>(
 
 export function projectNacks<TOutbound, TInbound>(
 	graph: Graph,
-	events: Node<WireBridgeEvent<TOutbound, TInbound>>,
+	events: Node<WireBridgeIndexedEvent<TOutbound, TInbound>>,
 	name: string,
 ): Node<WireBridgeNack> {
 	return graph.node<WireBridgeNack>(
 		[events],
 		(ctx) => {
 			for (const raw of ctx.deps[0].waves.flat()) {
-				const event = raw as WireBridgeEvent<TOutbound, TInbound>;
+				const event = (raw as WireBridgeIndexedEvent<TOutbound, TInbound>).event;
 				if (event.kind === "nack") {
 					ctx.down([
 						["DATA", { ackForSeq: event.ackForSeq, envelope: event.envelope, error: event.error }],
@@ -86,7 +87,7 @@ interface WireBridgeStatusLedger {
 
 export function projectStatus<TOutbound, TInbound>(
 	graph: Graph,
-	events: Node<WireBridgeEvent<TOutbound, TInbound>>,
+	events: Node<WireBridgeIndexedEvent<TOutbound, TInbound>>,
 	name: string,
 	sessionId: string,
 ): Node<WireBridgeStatus> {
@@ -118,9 +119,9 @@ export function projectStatus<TOutbound, TInbound>(
 			const working = ctx.state.get<WireBridgeStatusLedger>() as WireBridgeStatusLedger;
 			let next = working.status;
 			for (const raw of ctx.deps[0].waves.flat()) {
-				const event = raw as WireBridgeEvent<TOutbound, TInbound>;
-				if (event.index <= working.highWater) continue;
-				working.highWater = event.index;
+				const { index, event } = raw as WireBridgeIndexedEvent<TOutbound, TInbound>;
+				if (index <= working.highWater) continue;
+				working.highWater = index;
 				if (event.kind === "outbound") {
 					const { seq, attempt } = event.envelope.metadata;
 					const trackAck = shouldTrackAck(event.envelope.type);
@@ -203,14 +204,14 @@ export function projectStatus<TOutbound, TInbound>(
 
 export function projectErrors<TOutbound, TInbound>(
 	graph: Graph,
-	events: Node<WireBridgeEvent<TOutbound, TInbound>>,
+	events: Node<WireBridgeIndexedEvent<TOutbound, TInbound>>,
 	name: string,
 ): Node<unknown> {
 	return graph.node<unknown>(
 		[events],
 		(ctx) => {
 			for (const raw of ctx.deps[0].waves.flat()) {
-				const event = raw as WireBridgeEvent<TOutbound, TInbound>;
+				const event = (raw as WireBridgeIndexedEvent<TOutbound, TInbound>).event;
 				if (event.kind === "nack") ctx.down([["DATA", event.error]]);
 				else if (event.kind === "exhausted") ctx.down([["DATA", event.error]]);
 				else if (event.kind === "out-of-order") {
@@ -247,14 +248,14 @@ export function projectErrors<TOutbound, TInbound>(
 
 export function projectCursor<TOutbound, TInbound>(
 	graph: Graph,
-	events: Node<WireBridgeEvent<TOutbound, TInbound>>,
+	events: Node<WireBridgeIndexedEvent<TOutbound, TInbound>>,
 	name: string,
 ): Node<number> {
 	return graph.node<number>(
 		[events],
 		(ctx) => {
 			for (const raw of ctx.deps[0].waves.flat()) {
-				const event = raw as WireBridgeEvent<TOutbound, TInbound>;
+				const event = (raw as WireBridgeIndexedEvent<TOutbound, TInbound>).event;
 				if (event.kind === "cursor") ctx.down([["DATA", event.cursor]]);
 			}
 		},
@@ -264,14 +265,14 @@ export function projectCursor<TOutbound, TInbound>(
 
 export function projectAttempts<TOutbound, TInbound>(
 	graph: Graph,
-	events: Node<WireBridgeEvent<TOutbound, TInbound>>,
+	events: Node<WireBridgeIndexedEvent<TOutbound, TInbound>>,
 	name: string,
 ): Node<WireBridgeAttempt> {
 	return graph.node<WireBridgeAttempt>(
 		[events],
 		(ctx) => {
 			for (const raw of ctx.deps[0].waves.flat()) {
-				const event = raw as WireBridgeEvent<TOutbound, TInbound>;
+				const event = (raw as WireBridgeIndexedEvent<TOutbound, TInbound>).event;
 				if (event.kind === "outbound" && shouldTrackAck(event.envelope.type)) {
 					ctx.down([
 						[
