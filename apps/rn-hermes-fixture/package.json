@@ -2,7 +2,7 @@
 	"name": "@graphrefly/rn-hermes-fixture",
 	"version": "0.0.27",
 	"private": true,
-	"description": "Periodic on-device RN/Hermes verification for @graphrefly/ts (graphrefly-ts#4). Expo SDK 55 official matrix (RN 0.83.6). Real Hermes VM + RN polyfills, dev + release/bytecode. The per-commit faithful compile gate lives in scripts/hermes-smoke.",
+	"description": "Periodic on-device RN/Hermes verification for @graphrefly/ts (graphrefly-ts#4). Expo SDK 55 official matrix (RN 0.83.6). Real Hermes VM + RN polyfills, dev + release/bytecode. The compile + semantics smoke lives in scripts/hermes-smoke (`pnpm test:hermes`).",
 	"main": "index.ts",
 	"scripts": {
 		"start": "expo start --dev-client",

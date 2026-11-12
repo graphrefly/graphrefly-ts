@@ -5,8 +5,8 @@
  * `expo run:ios --configuration Release` (Hermes bytecode).
  *
  * The two reactive test blocks are kept equivalent to the canonical
- * scripts/hermes-smoke/spike-core.mjs (which gates per-commit via
- * RN's pinned hermesc + Node). If you change the assertions, change
+ * scripts/hermes-smoke/spike-core.mjs (run by `pnpm test:hermes`: RN's
+ * pinned hermesc + Node). If you change the assertions, change
  * both. Renders a PASS/FAIL banner so a single screenshot confirms
  * the run; mirrors to console for device logs.
  */
@@ -24,8 +24,9 @@ const mkDerived = (
 ) => g.derived(deps, (...args) => compute(...args));
 
 const onData = (n: Node<unknown>, cb: (v: unknown) => void) =>
-	n.subscribe((msg) => {
-		if (msg[0] === "DATA") cb(msg[1]);
+	// A sink receives one array of messages per call.
+	n.subscribe((msgs) => {
+		for (const msg of msgs) if (msg[0] === "DATA") cb(msg[1]);
 	});
 
 function runSpike(): { pass: boolean; lines: string[] } {

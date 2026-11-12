@@ -1,5 +1,5 @@
 /**
- * RN/Hermes engine smoke — the ongoing per-commit indicator that
+ * RN/Hermes engine smoke (`pnpm test:hermes`) — the indicator that
  * @graphrefly/ts is compatible with the Hermes engine that
  * React Native 0.85.3 ships (graphrefly-ts#4).
  *
@@ -26,7 +26,7 @@
  * is the honest three-legged signal. See README.md.
  */
 import { execFileSync } from "node:child_process";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -38,7 +38,8 @@ const require = createRequire(import.meta.url);
 
 // ─── Version matrix (bump deliberately; recorded in issue #4) ────────
 const MATRIX = {
-	"@graphrefly/ts": "0.0.1",
+	"@graphrefly/ts": JSON.parse(readFileSync(join(HERE, "../../packages/ts/package.json"), "utf8"))
+		.version,
 	"hermes-compiler (= RN 0.85.3's exact hermesc)": "250829098.0.10",
 	"react-native (rn-hermes-fixture, Expo SDK 55 matrix)": "0.83.6",
 	"expo (rn-hermes-fixture)": "SDK 55 (55.x)",

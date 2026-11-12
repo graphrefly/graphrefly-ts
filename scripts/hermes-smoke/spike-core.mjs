@@ -4,7 +4,7 @@
  * Pure, runtime-agnostic. No `node:*`, no DOM, no RN imports. Consumed
  * by THREE runners so the same reactive assertions gate every target:
  *   - scripts/hermes-smoke/run-node.mjs  — sanity under Node (dev loop)
- *   - scripts/hermes-smoke/run-hermes.*  — real Hermes engine (CI gate)
+ *   - scripts/hermes-smoke/run.mjs       — Hermes bytecode compile + the Node run
  *   - apps/rn-hermes-fixture (Expo)      — periodic on-device RN build
  *
  * The spike uses the clean-slate graph layer: manual source = `g.state(initial)`;
@@ -21,8 +21,9 @@ function mkDerived(g, deps, compute) {
 }
 
 function onData(n, cb) {
-	return n.subscribe((msg) => {
-		if (msg[0] === "DATA") cb(msg[1]);
+	// A sink receives one array of messages per call.
+	return n.subscribe((msgs) => {
+		for (const msg of msgs) if (msg[0] === "DATA") cb(msg[1]);
 	});
 }
 

@@ -4,13 +4,14 @@ The ongoing indicator that **`@graphrefly/ts` stays compatible
 with the Hermes engine React Native ships**. Two tiers, because no
 single cheap check is fully faithful (see "Why three legs" below).
 
-## Tier 1 — engine smoke (per-commit, CI)
+## Tier 1 — engine smoke (on demand)
 
 ```bash
 pnpm test:hermes
 ```
 
-`scripts/hermes-smoke/run.mjs`:
+The root script builds `@graphrefly/ts` (the spike imports the package's built `dist` through the
+workspace) and then runs `scripts/hermes-smoke/run.mjs`:
 
 1. **Bytecode gate** — esbuild-bundles the spike + @graphrefly/ts (modern
    `es2018`, real shipped syntax) and runs it through
@@ -22,9 +23,10 @@ pnpm test:hermes
    (`run-node.mjs`) asserting the two reactive blocks (basic
    propagation + diamond fan-in *dedupe*).
 
-Wired into `.github/workflows/ci.yml` after `pnpm test`. No source
-build, no Xcode — runs anywhere `hermes-compiler` installs (mac /
-linux / win prebuilts ship in the npm package).
+It is not wired into CI today; run it by hand when a change could affect what ships to React
+Native. No Xcode is needed — it runs anywhere `hermes-compiler` installs (mac / linux / win
+prebuilts ship in the npm package). `pnpm --filter @graphrefly/hermes-smoke test:node` runs only
+the Node semantics gate against an existing build.
 
 ## Tier 2 — on-device fixture (periodic, manual)
 
@@ -59,8 +61,8 @@ The reactive assertions are kept equivalent to the canonical
 
 | Concern | Covered by | Tier |
 |---|---|---|
-| @graphrefly/ts's real syntax compiles to RN's optimized Hermes bytecode | RN-pinned `hermesc -O` | 1, per-commit |
-| Reactive protocol math + diamond dedupe are correct | Node execution | 1, per-commit |
+| @graphrefly/ts's real syntax compiles to RN's optimized Hermes bytecode | RN-pinned `hermesc -O` | 1, on demand |
+| Reactive protocol math + diamond dedupe are correct | Node execution | 1, on demand |
 | Full RN/Metro/Babel pipeline emits a valid `.hbc` for an app using @graphrefly/ts | `expo export` (`bundle:check`) | 2, automatable |
 | Real Hermes **VM** execution + RN polyfills on device | `expo run:ios[:release]` | 2, periodic manual |
 
@@ -77,7 +79,7 @@ would not be representative. Hence: faithful *compile* in Tier 1,
 
 | Component | Pinned | Where |
 |---|---|---|
-| `@graphrefly/ts` | 0.0.1 | workspace |
+| `@graphrefly/ts` | the workspace version | `packages/ts/package.json` (read by `run.mjs`) |
 | `hermes-compiler` (RN 0.85.3's exact hermesc) | `250829098.0.10` | root devDep + `run.mjs` MATRIX |
 | React Native (fixture) | 0.83.6 | `apps/rn-hermes-fixture` (Expo SDK 55 matrix) |
 | Expo (fixture) | SDK 55 | `apps/rn-hermes-fixture` |
