@@ -1080,7 +1080,7 @@ export class Graph {
 				quiet: slot.quiet,
 			};
 			const lifetime = helper ? undefined : this._checkpointLifetime(node, id, localId);
-			if (lifetime !== undefined) out.lifetime = lifetime;
+			out.lifetime = lifetime ?? null;
 		}
 		const backendState = checkpointBackendStateOfNode(node, id);
 		if (backendState !== undefined) out.backendState = backendState;
@@ -1117,7 +1117,11 @@ export class Graph {
 		// What it received is part of what it retains; a received ERROR payload is an ERROR payload.
 		const out: GraphCheckpointLifetime = {
 			received: received.map((r) => ({
-				values: checkpointJsonOf(id, CHECKPOINT_REFUSAL.values, r.values) as GraphCheckpointJson[],
+				values: checkpointJsonOf(
+					id,
+					CHECKPOINT_REFUSAL.receivedValues,
+					r.values,
+				) as GraphCheckpointJson[],
 				terminal: checkpointTerminal(r.terminal, id),
 			})),
 		};

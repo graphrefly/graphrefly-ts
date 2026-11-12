@@ -691,7 +691,7 @@ function entryFor(
 ): GraphRecipeFactory | GraphRestoreExtension {
 	const entry = registryGet(registry, ref);
 	if (!isFactory(entry) && !isExtension(entry))
-		throw new Error(`restoreGraph: missing recipe '${ref}' in the registry (node '${id}')`);
+		throw notRestorable(id, CHECKPOINT_REFUSAL.missingRecipe);
 	if (entry.ref !== ref)
 		throw new Error(`restoreGraph: registry entry for '${ref}' reports ref '${entry.ref}'`);
 	return entry;
@@ -709,16 +709,18 @@ function prepareNode(node: GraphCheckpointNode, registry: GraphRestoreRegistry):
 	const terminal = restoredTerminal(node.terminal, `node '${id}'`);
 	if (node.kind === "state" && node.deps.length !== 0)
 		throw new Error(`restoreGraph: state node '${id}' cannot have dependencies`);
-	if (node.lifetime !== undefined) {
+	if (node.kind === "computed" && node.lifetime === undefined)
+		throw notRestorable(id, CHECKPOINT_REFUSAL.missingReceived);
+	if (node.lifetime != null) {
 		if (node.kind !== "computed")
 			throw new Error(`restoreGraph: state node '${id}' cannot have a lifetime`);
 		const lifetimeDeps = node.lifetime.deps ?? node.deps;
 		assertArray(node.lifetime.deps ?? [], `node '${id}' lifetime.deps`);
-		const received = assertArray(node.lifetime.received, `node '${id}' lifetime.received`);
+		if (!Array.isArray(node.lifetime.received))
+			throw notRestorable(id, CHECKPOINT_REFUSAL.missingReceived);
+		const received = node.lifetime.received;
 		if (received.length !== lifetimeDeps.length)
-			throw new Error(
-				`restoreGraph: node '${id}' records what it received from ${received.length} dependencies, not ${lifetimeDeps.length}`,
-			);
+			throw notRestorable(id, CHECKPOINT_REFUSAL.missingReceived);
 		received.forEach((r, i) => {
 			const rec = r as { values?: unknown; terminal?: GraphCheckpointTerminal };
 			assertArray(rec.values, `${id}.lifetime.received[${i}].values`);
@@ -776,7 +778,10 @@ function prepareCheckpoint(
 			throw new Error(
 				`restoreGraph: mounted checkpoint at '${mountAt}' must use child-local node id '${id.slice(`${mountAt}::`.length)}', not '${id}'`,
 			);
-		nodes.set(id, prepareNode(node, registry));
+		nodes.set(
+			id,
+			restoringNode(id, () => prepareNode(node, registry)),
+		);
 	}
 	for (const { checkpoint: node } of nodes.values()) {
 		for (const dep of [...node.deps, ...(node.lifetime?.deps ?? [])])
@@ -798,23 +803,30 @@ function prepareCheckpoint(
 	return { checkpoint, nodes, mounts };
 }
 
+/** Node-specific refusals have one envelope; malformed whole checkpoints remain package errors. */
+function restoringNode<T>(id: string, run: () => T): T {
+	try {
+		return run();
+	} catch (cause) {
+		const message = cause instanceof Error ? cause.message : String(cause);
+		if (message.startsWith("not restorable: ")) throw cause;
+		throw notRestorable(id, message.replace(/^restoreGraph: /, ""), cause);
+	}
+}
+
 function recipeContext(registry: GraphRestoreRegistry, out: Graph, id: string): GraphRecipeContext {
 	const ctx: GraphRecipeContext = {
 		graph: out,
 		id,
 		make(recipe) {
 			const entry = registryGet(registry, recipe.ref);
-			if (!isFactory(entry))
-				throw new Error(
-					`restoreGraph: missing recipe '${recipe.ref}' in the registry (node '${id}')`,
-				);
+			if (!isFactory(entry)) throw notRestorable(id, CHECKPOINT_REFUSAL.missingRecipe);
 			const config = entry.validateConfig ? entry.validateConfig(recipe.config) : recipe.config;
 			return entry.build(config, ctx);
 		},
 		definition<S, T>(ref: string) {
 			const entry = registryGet(registry, ref);
-			if (!isDefinition(entry))
-				throw new Error(`restoreGraph: missing function definition for '${ref}' (node '${id}')`);
+			if (!isDefinition(entry)) throw notRestorable(id, CHECKPOINT_REFUSAL.missingRecipe);
 			return entry as unknown as GraphRestoreDefinition<S, T>;
 		},
 	};
@@ -843,73 +855,74 @@ function constructPrepared(
 		const visiting = new Set<string>();
 		// R-checkpoint: each node is built after its declared dependencies, otherwise in checkpoint
 		// order; no recipe function runs.
-		const buildNode = (id: string): Node<unknown> => {
-			const existing = built.get(id);
-			if (existing) return existing;
-			const item = prepared.nodes.get(id) as Prepared;
-			if (visiting.has(id)) throw new Error(`restoreGraph: dependency cycle at '${id}'`);
-			visiting.add(id);
-			const node = item.checkpoint;
-			const deps = node.deps.map(buildNode);
-			const common = {
-				name: node.name,
-				meta: node.meta,
-				...(node.recipe === undefined ? {} : { recipe: node.recipe }),
-			};
-			let made: Node<unknown>;
-			if (item.entry === undefined) {
-				made = restoreStateNodeInGraph(out, id, common) as Node<unknown>;
-			} else if (isExtension(item.entry)) {
-				made = item.entry.create({
-					graph: out,
-					id,
+		const buildNode = (id: string): Node<unknown> =>
+			restoringNode(id, () => {
+				const existing = built.get(id);
+				if (existing) return existing;
+				const item = prepared.nodes.get(id) as Prepared;
+				if (visiting.has(id)) throw new Error(`restoreGraph: dependency cycle at '${id}'`);
+				visiting.add(id);
+				const node = item.checkpoint;
+				const deps = node.deps.map(buildNode);
+				const common = {
 					name: node.name,
-					deps,
-					config: item.config,
-					checkpoint: node,
-				});
-				if (out.find(id) !== made)
+					meta: node.meta,
+					...(node.recipe === undefined ? {} : { recipe: node.recipe }),
+				};
+				let made: Node<unknown>;
+				if (item.entry === undefined) {
+					made = restoreStateNodeInGraph(out, id, common) as Node<unknown>;
+				} else if (isExtension(item.entry)) {
+					made = item.entry.create({
+						graph: out,
+						id,
+						name: node.name,
+						deps,
+						config: item.config,
+						checkpoint: node,
+					});
+					if (out.find(id) !== made)
+						throw new Error(
+							`restoreGraph: restore extension '${item.entry.ref}' did not register node '${id}'`,
+						);
+				} else if (item.sugar !== undefined) {
+					// R-checkpoint: a sugar node gets only its value-level callback from the registry and
+					// is built with the same sugar and gate; a setup from the registry is refused.
+					const build = item.entry.build(item.config, recipeContext(registry, out, id)) as
+						| GraphRecipeBuild
+						| GraphSugarRecipeBuild;
+					if (build.setup !== undefined)
+						throw notRestorable(
+							id,
+							`its ${item.sugar} recipe '${item.entry.ref}' gives a setup; a ${item.sugar} takes none`,
+						);
+					if (typeof build.fn !== "function")
+						throw notRestorable(
+							id,
+							`its ${item.sugar} recipe '${item.entry.ref}' gives no callback function`,
+						);
+					const parts = sugarNodeParts(item.sugar, build.fn);
+					made = restoreNodeInGraph(out, id, node.factory, deps, parts.fn, {
+						...common,
+						...policyOptions(node.policies as GraphCheckpointPolicies),
+						...(parts.setup === undefined ? {} : { setup: parts.setup }),
+					});
+				} else {
+					const build = item.entry.build(item.config, recipeContext(registry, out, id));
+					made = restoreNodeInGraph(out, id, node.factory, deps, build.fn, {
+						...common,
+						...policyOptions(node.policies as GraphCheckpointPolicies),
+						...(build.setup === undefined ? {} : { setup: build.setup }),
+					});
+				}
+				if (made.deps.length !== deps.length || made.deps.some((dep, i) => dep !== deps[i]))
 					throw new Error(
-						`restoreGraph: restore extension '${item.entry.ref}' did not register node '${id}'`,
+						`restoreGraph: node '${id}' was built with dependencies that do not match the checkpoint`,
 					);
-			} else if (item.sugar !== undefined) {
-				// R-checkpoint: a sugar node gets only its value-level callback from the registry and
-				// is built with the same sugar and gate; a setup from the registry is refused.
-				const build = item.entry.build(item.config, recipeContext(registry, out, id)) as
-					| GraphRecipeBuild
-					| GraphSugarRecipeBuild;
-				if (build.setup !== undefined)
-					throw notRestorable(
-						id,
-						`its ${item.sugar} recipe '${item.entry.ref}' gives a setup; a ${item.sugar} takes none`,
-					);
-				if (typeof build.fn !== "function")
-					throw notRestorable(
-						id,
-						`its ${item.sugar} recipe '${item.entry.ref}' gives no callback function`,
-					);
-				const parts = sugarNodeParts(item.sugar, build.fn);
-				made = restoreNodeInGraph(out, id, node.factory, deps, parts.fn, {
-					...common,
-					...policyOptions(node.policies as GraphCheckpointPolicies),
-					...(parts.setup === undefined ? {} : { setup: parts.setup }),
-				});
-			} else {
-				const build = item.entry.build(item.config, recipeContext(registry, out, id));
-				made = restoreNodeInGraph(out, id, node.factory, deps, build.fn, {
-					...common,
-					...policyOptions(node.policies as GraphCheckpointPolicies),
-					...(build.setup === undefined ? {} : { setup: build.setup }),
-				});
-			}
-			if (made.deps.length !== deps.length || made.deps.some((dep, i) => dep !== deps[i]))
-				throw new Error(
-					`restoreGraph: node '${id}' was built with dependencies that do not match the checkpoint`,
-				);
-			built.set(id, made);
-			visiting.delete(id);
-			return made;
-		};
+				built.set(id, made);
+				visiting.delete(id);
+				return made;
+			});
 		for (const id of prepared.nodes.keys()) buildNode(id);
 
 		for (const mount of prepared.mounts) {

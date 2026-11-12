@@ -76,8 +76,8 @@ export interface GraphCheckpointNode {
 	/** The values of the node's last array. */
 	values: GraphCheckpointJson[];
 	terminal: GraphCheckpointTerminal;
-	/** Computed nodes with a lifetime (or a restored seed not yet activated). */
-	lifetime?: GraphCheckpointLifetime;
+	/** Required for computed nodes: null without a lifetime, otherwise its saved records. */
+	lifetime?: GraphCheckpointLifetime | null;
 	/** TS package extension: a collection's backend, rebuilt by its restore extension. */
 	backendState?: GraphCheckpointJson;
 	meta?: { [key: string]: GraphCheckpointJson };
@@ -119,11 +119,14 @@ export const CHECKPOINT_REFUSAL = {
 	privateState: "its private state is not JSON",
 	recipeConfig: "its recipe config is not JSON",
 	values: "its retained values are not JSON",
+	receivedValues: "its received values are not JSON",
 	errorPayload: "its ERROR payload is not JSON",
 	/** TS package extension: describe metadata saved beside the node. */
 	meta: "its meta is not JSON",
 	/** Restore: a computed node whose instance carries no recipe. */
 	localOnly: "local-only, built or replaced without a recipe",
+	missingRecipe: "missing recipe",
+	missingReceived: "missing received records",
 } as const;
 
 /** Convert a value a capture saves for node `id`, refusing it for `reason` when it is not JSON. */

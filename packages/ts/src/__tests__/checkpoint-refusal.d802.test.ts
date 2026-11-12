@@ -40,6 +40,26 @@ function refusal(run: () => unknown): string {
 const asState = <T>(n: Node<unknown> | undefined) => n as unknown as StateNode<T>;
 
 describe("refusal text: not restorable: <node id>: <reason>", () => {
+	it("a missing recipe and missing lifetime records use the shared reasons (N4/N7)", () => {
+		const g = graph();
+		const fn: NodeFn = (ctx) => ctx.emit(42);
+		const n = g.node([], fn, { name: "n", recipe: { ref: "answer" } });
+		const cold = g.checkpoint();
+		expect(cold.nodes[0]!.lifetime).toBeNull();
+		const registry = { answer: { ref: "answer", build: () => ({ fn }) } };
+		expect(restoreGraph(cold, { registry }).find("n")!.status.lifecycle).toBe("inactive");
+		collect(n);
+		const saved = g.checkpoint();
+		expect(saved.nodes[0]!.lifetime?.received).toEqual([]);
+		expect(refusal(() => restoreGraph(saved, { registry: {} }))).toBe(
+			"not restorable: n: missing recipe",
+		);
+		delete saved.nodes[0]!.lifetime;
+		expect(refusal(() => restoreGraph(saved, { registry }))).toBe(
+			"not restorable: n: missing received records",
+		);
+	});
+
 	it("restore refuses a computed node built without a recipe", () => {
 		const g = graph();
 		const src = g.state(1, { name: "src" });

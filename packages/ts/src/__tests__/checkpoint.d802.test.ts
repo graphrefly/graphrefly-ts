@@ -366,7 +366,7 @@ describe("C-38 restore keeps the saved state, refreshes once on a changed input,
 	it("a missing recipe, a local-only node and a checkpoint without received records fail", () => {
 		const { f, checkpoint } = captured();
 		expect(() => restoreGraph(checkpoint, { registry: defaultRestoreRegistry })).toThrow(
-			/missing recipe 'p'/,
+			"not restorable: p: missing recipe",
 		);
 
 		const local = graph();
@@ -387,9 +387,11 @@ describe("C-38 restore keeps the saved state, refreshes once on a changed input,
 		}
 		const noReceived = structuredClone(checkpoint);
 		const p = noReceived.nodes.find((n) => n.id === "p");
-		if (p?.lifetime === undefined) throw new Error("p has no lifetime");
+		if (p?.lifetime == null) throw new Error("p has no lifetime");
 		delete (p.lifetime as { received?: unknown }).received;
-		expect(() => f.restore(noReceived)).toThrow(/lifetime\.received must be an array/);
+		expect(() => f.restore(noReceived)).toThrow("not restorable: p: missing received records");
+		delete p.lifetime;
+		expect(() => f.restore(noReceived)).toThrow("not restorable: p: missing received records");
 	});
 
 	it("replace: without a recipe local-only, with a recipe and setup that recipe, onto a later dependency", () => {
@@ -515,9 +517,7 @@ describe("checkpoint and restore: ported cases (TS layout, graphrefly-ts:D178)",
 			{ name: "mapped", recipe: { ref: "mapped" } },
 		);
 		const checkpoint = original.checkpoint();
-		expect(checkpoint.nodes.every((n) => n.lifetime === undefined && n.values.length === 0)).toBe(
-			true,
-		);
+		expect(checkpoint.nodes.every((n) => n.lifetime == null && n.values.length === 0)).toBe(true);
 		const restored = restoreGraph(checkpoint, {
 			registry: {
 				coldSource: {
