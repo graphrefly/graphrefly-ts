@@ -63,7 +63,7 @@ for (const arm of ["graph", "plain"] as const) {
 		const capture = (label: string) => {
 			const state =
 				host && graph
-					? checkpointStateOfNode(graph.find("proof/causal/authority")!).privateState
+					? checkpointStateOfNode(graph.find("proof/causal/authority")!).ctxState?.value
 					: plain!.observations();
 			snapshots.push(
 				copy({
@@ -81,7 +81,7 @@ for (const arm of ["graph", "plain"] as const) {
 			lane: "pack" | "arrivals" | "current" | "verification" | "local",
 			value: unknown,
 		) => {
-			if (setup) setup.sources[lane].set(value as never);
+			if (setup) setup.sources[lane].down([["DATA", value as never]]);
 			else plain!.feed(lane, value);
 		};
 		const one = proofEvaluation();
@@ -117,7 +117,7 @@ for (const arm of ["graph", "plain"] as const) {
 				assert.equal(before.records[0].outcome.state, "unknown");
 				const authorityBefore = copy(
 					host && graph
-						? checkpointStateOfNode(graph.find("proof/causal/authority")!).privateState
+						? checkpointStateOfNode(graph.find("proof/causal/authority")!).ctxState?.value
 						: plain!.observations(),
 				);
 				disconnect();
@@ -131,7 +131,7 @@ for (const arm of ["graph", "plain"] as const) {
 				assert.deepEqual(
 					copy(
 						host && graph
-							? checkpointStateOfNode(graph.find("proof/causal/authority")!).privateState
+							? checkpointStateOfNode(graph.find("proof/causal/authority")!).ctxState?.value
 							: plain!.observations(),
 					),
 					authorityBefore,
@@ -145,7 +145,7 @@ for (const arm of ["graph", "plain"] as const) {
 				evaluations,
 				snapshots,
 				writePayloads: writes,
-				topology: graph ? graph.inspect() : null,
+				topology: graph ? graph.describe() : null,
 				scope:
 					caseId === "C3"
 						? "External verification lane withheld. Internal synchronous business branches are NOT paused; no claim of missing internal branch coverage."
@@ -158,7 +158,7 @@ for (const arm of ["graph", "plain"] as const) {
 			if (host && graph) {
 				for (const root of host.owner.roots) root.unsubscribe?.();
 				const group = graph.topologyGroup();
-				for (const node of graph.inspect().nodes) group.add(graph.find(node.id)!);
+				for (const node of graph.describe().nodes) group.add(graph.find(node.id)!);
 				group.release();
 			}
 		}

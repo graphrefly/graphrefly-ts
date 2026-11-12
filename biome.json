@@ -375,6 +375,12 @@
 	},
 	"overrides": [
 		{
+			"includes": ["archive/scripts/**"],
+			"formatter": { "enabled": false },
+			"linter": { "enabled": false },
+			"assist": { "enabled": false }
+		},
+		{
 			"includes": ["archive/packages/ts/**"],
 			"formatter": { "enabled": false },
 			"linter": { "enabled": false },

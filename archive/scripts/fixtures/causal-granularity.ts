@@ -60,19 +60,15 @@ function trace(run: ReturnType<typeof measurementArm>) {
 	assert.ok("graph" in run);
 	const changes: string[] = [];
 	let prior = "";
-	const stop = run.graph.find("spending/causal/authority")!.subscribe((incoming) => {
-		for (const m of incoming) {
-			if (m[0] !== "DATA") {
-				continue;
-			}
-			const text = JSON.stringify({
-				fact: (m[1] as { fact: unknown }).fact,
-				effects: snapshot(run).effects,
-			});
-			if (text !== prior) {
-				changes.push(text);
-				prior = text;
-			}
+	const stop = run.graph.find("spending/causal/authority")!.subscribe((m) => {
+		if (m[0] !== "DATA") return;
+		const text = JSON.stringify({
+			fact: (m[1] as { fact: unknown }).fact,
+			effects: snapshot(run).effects,
+		});
+		if (text !== prior) {
+			changes.push(text);
+			prior = text;
 		}
 	});
 	return { changes, stop };

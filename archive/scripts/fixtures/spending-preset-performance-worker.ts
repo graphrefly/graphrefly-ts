@@ -100,7 +100,7 @@ export function preflight(row: Row, scenario: Scenario) {
 			assert.equal(run.owner.nodes.length, row.mode === "off" ? 53 : 54);
 			assert.equal(run.owner.roots.length, 2);
 			topology[name] = run.graph
-				.inspect()
+				.describe()
 				.nodes.map(({ id, deps, factory }) => ({ id, deps, factory }));
 		}
 		let beforeOccurrences = 0;

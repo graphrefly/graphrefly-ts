@@ -12,6 +12,7 @@ import {
 	prepareLocalSpendingProofResource,
 	prepareSpendingProofResourceWithIO,
 } from "../../examples/spending-alerts/causal-resource.js";
+import { batch } from "../../packages/ts/src/batch/batch.js";
 import { Graph } from "../../packages/ts/src/graph/graph.js";
 import type {
 	CausalQuiescence,
@@ -68,39 +69,31 @@ try {
 	const obligations = new Map<string, CausalQuiescence>();
 	if (host) {
 		subscriptions.push(
-			host.built.publication.causal.committedEffects.subscribe((incoming) => {
-				for (const m of incoming) {
-					if (m[0] === "DATA") effects = (m[1] as CommittedEffectsView).effects;
+			host.built.publication.causal.committedEffects.subscribe((m) => {
+				if (m[0] === "DATA") effects = (m[1] as CommittedEffectsView).effects;
+			}),
+		);
+		subscriptions.push(
+			host.built.publication.causal.ports.quiescence.subscribe((m) => {
+				if (m[0] === "DATA") {
+					const q = m[1] as CausalQuiescence;
+					obligations.set(q.revisionDomain, q);
 				}
 			}),
 		);
 		subscriptions.push(
-			host.built.publication.causal.ports.quiescence.subscribe((incoming) => {
-				for (const m of incoming) {
-					if (m[0] === "DATA") {
-						const q = m[1] as CausalQuiescence;
-						obligations.set(q.revisionDomain, q);
-					}
-				}
+			host.built.business.assessment.subscribe((m) => {
+				if (m[0] === "DATA")
+					for (const row of (m[1] as BusinessFrame<unknown>).rows)
+						business.set(row.evaluation.evaluationRef, row.value);
 			}),
 		);
 		subscriptions.push(
-			host.built.business.assessment.subscribe((incoming) => {
-				for (const m of incoming) {
-					if (m[0] === "DATA")
-						for (const row of (m[1] as BusinessFrame<unknown>).rows)
-							business.set(row.evaluation.evaluationRef, row.value);
-				}
-			}),
-		);
-		subscriptions.push(
-			host.built.materials.requestMaterials.subscribe((incoming) => {
-				for (const m of incoming) {
-					if (m[0] === "DATA")
-						for (const row of (m[1] as BusinessFrame<MaterialResult>).rows)
-							if (row.value.kind === "retained")
-								materials.set(row.evaluation.evaluationRef, row.value.material);
-				}
+			host.built.materials.requestMaterials.subscribe((m) => {
+				if (m[0] === "DATA")
+					for (const row of (m[1] as BusinessFrame<MaterialResult>).rows)
+						if (row.value.kind === "retained")
+							materials.set(row.evaluation.evaluationRef, row.value.material);
 			}),
 		);
 	}
@@ -143,7 +136,7 @@ try {
 					}),
 				};
 			}
-			if (setup && graph) graph.batch(() => setup.sources[step.lane].set(value as never));
+			if (setup) batch(() => setup.sources[step.lane].down([["DATA", value as never]]));
 			else plain!.feed(step.lane, value);
 		} else if (step.kind === "drain") {
 			await drain();
@@ -193,8 +186,8 @@ try {
 			checkpoints,
 			topology: graph
 				? {
-						nodes: graph.inspect().nodes.map((n) => ({ id: n.id, factory: n.factory })),
-						edges: graph.inspect().edges,
+						nodes: graph.describe().nodes.map((n) => ({ id: n.id, factory: n.factory })),
+						edges: graph.describe().edges,
 					}
 				: null,
 			readback: { before: [], after: [...after] },
@@ -206,7 +199,7 @@ try {
 	if (host && graph) {
 		for (const lease of host.owner.roots) lease.unsubscribe?.();
 		const group = graph.topologyGroup();
-		for (const node of graph.inspect().nodes) group.add(graph.find(node.id)!);
+		for (const node of graph.describe().nodes) group.add(graph.find(node.id)!);
 		group.release();
 	}
 	// A pending case remains pending evidence. Forced process teardown is not normal run completion.

@@ -131,7 +131,7 @@ const variants = [
 			replace(
 				s,
 				"const materialArrived = Boolean(depBatch(ctx, 1)?.length);",
-				"const materialArrived = Boolean(depBatch(ctx, 1)?.length);ctx.onDeactivation(()=>{(checkpointStateOfNode(ownerGraph.find(authorityId)!).privateState as {effects:Map<unknown,unknown>})?.effects.clear();});",
+				"const materialArrived = Boolean(depBatch(ctx, 1)?.length);ctx.onDeactivation(()=>{(checkpointStateOfNode(ownerGraph.find(authorityId)!).ctxState?.value as {effects:Map<unknown,unknown>})?.effects.clear();});",
 			),
 	},
 	{
