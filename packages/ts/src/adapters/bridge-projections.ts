@@ -79,6 +79,12 @@ export function projectNacks<TOutbound, TInbound>(
 	);
 }
 
+/** The status ledger: the counters and the index of the last event they counted. */
+interface WireBridgeStatusLedger {
+	status: WireBridgeStatus;
+	highWater: number;
+}
+
 export function projectStatus<TOutbound, TInbound>(
 	graph: Graph,
 	events: Node<WireBridgeEvent<TOutbound, TInbound>>,
@@ -86,28 +92,36 @@ export function projectStatus<TOutbound, TInbound>(
 	sessionId: string,
 ): Node<WireBridgeStatus> {
 	// D180: the status counters are an audit ledger the bundle owns. The status deactivates when
-	// nothing reads it, so the ledger carries them across lifetimes (Rust bridge/statusLedger).
-	const { ledger, setup } = declaredLedger<WireBridgeStatus>(graph, {
+	// nothing reads it, so the ledger carries them across lifetimes (Rust bridge/statusLedger),
+	// with the index of the last event counted: a new lifetime skips what it already counted,
+	// including the retained events node's snapshot replay.
+	const { ledger, setup } = declaredLedger<WireBridgeStatusLedger>(graph, {
 		name: `${name}/statusLedger`,
 		factory: "wireBridgeStatusLedger",
 		initial: () => ({
-			sessionId,
-			state: "idle",
-			cursor: 0,
-			nextSeq: 1,
-			pending: 0,
-			attempts: 0,
-			acked: 0,
-			nacked: 0,
-			errors: 0,
+			status: {
+				sessionId,
+				state: "idle",
+				cursor: 0,
+				nextSeq: 1,
+				pending: 0,
+				attempts: 0,
+				acked: 0,
+				nacked: 0,
+				errors: 0,
+			},
+			highWater: 0,
 		}),
 	});
 	return graph.node<WireBridgeStatus>(
 		[events, ledger],
 		(ctx) => {
-			let next = ctx.state.get<WireBridgeStatus>() as WireBridgeStatus;
+			const working = ctx.state.get<WireBridgeStatusLedger>() as WireBridgeStatusLedger;
+			let next = working.status;
 			for (const raw of depBatch(ctx, 0) ?? []) {
 				const event = raw as WireBridgeEvent<TOutbound, TInbound>;
+				if (event.index <= working.highWater) continue;
+				working.highWater = event.index;
 				if (event.kind === "outbound") {
 					const { seq, attempt } = event.envelope.metadata;
 					const trackAck = shouldTrackAck(event.envelope.type);
@@ -180,7 +194,8 @@ export function projectStatus<TOutbound, TInbound>(
 					next = { ...next, state: "closed", lastSeq: event.envelope.metadata.seq };
 				}
 			}
-			ctx.state.set(next);
+			working.status = next;
+			ctx.state.set(working);
 			ctx.down([["DATA", next]]);
 		},
 		{ name: `${name}/status`, factory: "wireBridgeStatus", setup: setup(1) },

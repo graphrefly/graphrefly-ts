@@ -45,6 +45,7 @@ import type {
 	WireBridgeEnvelope,
 	WireBridgeEnvelopeType,
 	WireBridgeEvent,
+	WireBridgeEventBody,
 	WireBridgeInvalidIngress,
 	WireBridgeMetadata,
 	WireBridgeOptions,
@@ -99,6 +100,7 @@ export type {
 	WireBridgeEnvelope,
 	WireBridgeEnvelopeType,
 	WireBridgeEvent,
+	WireBridgeEventBody,
 	WireBridgeMetadata,
 	WireBridgeNack,
 	WireBridgeOptions,
@@ -1039,8 +1041,9 @@ function wireBridgeEventsNode<TOutbound, TInbound>(
 	const now = opts.now ?? Date.now;
 	return graph.node<WireBridgeEvent<TOutbound, TInbound>>(
 		[command, inbound],
-		(ctx) => {
-			const state = initBridgeState<TOutbound>(ctx);
+		(runCtx) => {
+			const state = initBridgeState<TOutbound>(runCtx);
+			const ctx = numberedEvents(runCtx, state);
 
 			const emitOutbound = (
 				type: WireBridgeEnvelopeType,
@@ -1171,11 +1174,29 @@ function wireBridgeEventsNode<TOutbound, TInbound>(
 	);
 }
 
+/**
+ * The events node's ctx with every DATA it sends numbered: each event gets the bridge's next
+ * `index`, counted in the fold's working copy (WireBridgeEvent.index).
+ */
+function numberedEvents<TPayload>(ctx: Ctx, state: BridgeState<TPayload>): Ctx {
+	const numbered = Object.create(ctx) as Ctx;
+	numbered.down = (msgs) =>
+		ctx.down(
+			msgs.map((m) =>
+				m[0] === "DATA"
+					? (["DATA", { ...(m[1] as object), index: state.nextIndex++ }] as const)
+					: m,
+			),
+		);
+	return numbered;
+}
+
 function initBridgeState<TPayload>(ctx: Ctx): BridgeState<TPayload> {
 	let state = ctx.state.get<BridgeState<TPayload>>();
 	if (state === undefined) {
 		state = {
 			cleanupInstalled: false,
+			nextIndex: 1,
 			nextSeq: 1,
 			cursor: 0,
 			remoteCursor: 0,
@@ -1530,7 +1551,7 @@ function processAckTimeoutCommand<TPayload>(
 				kind: "timeout",
 				seq: current.metadata.seq,
 				attempt: current.metadata.attempt,
-			} satisfies WireBridgeEvent<TPayload, unknown>,
+			} satisfies WireBridgeEventBody<TPayload, unknown>,
 		],
 	]);
 	if (!shouldRetry(policy, current.metadata.attempt)) {
@@ -1544,7 +1565,7 @@ function processAckTimeoutCommand<TPayload>(
 					seq: current.metadata.seq,
 					attempt: current.metadata.attempt,
 					error,
-				} satisfies WireBridgeEvent<TPayload, unknown>,
+				} satisfies WireBridgeEventBody<TPayload, unknown>,
 			],
 		]);
 		return;
@@ -1565,7 +1586,7 @@ function processAckTimeoutCommand<TPayload>(
 				attempt,
 				delayMs,
 				error,
-			} satisfies WireBridgeEvent<TPayload, unknown>,
+			} satisfies WireBridgeEventBody<TPayload, unknown>,
 		],
 	]);
 	if (pending.retryDueAtMs !== undefined) return;
@@ -1596,7 +1617,7 @@ function processInbound<TOutbound, TInbound>(
 					kind: "session-mismatch",
 					expected: sessionId,
 					actual: envelope.sessionId,
-				} satisfies WireBridgeEvent<TOutbound, TInbound>,
+				} satisfies WireBridgeEventBody<TOutbound, TInbound>,
 			],
 		]);
 		return;
@@ -1644,7 +1665,7 @@ function processInbound<TOutbound, TInbound>(
 					ackForSeq: envelope.metadata.ackForSeq,
 					envelope,
 					outbound: pending.envelope,
-				} satisfies WireBridgeEvent<TOutbound, TInbound>,
+				} satisfies WireBridgeEventBody<TOutbound, TInbound>,
 			],
 		]);
 	} else if (envelope.type === "nack" && envelope.metadata.ackForSeq !== undefined) {
@@ -1665,7 +1686,7 @@ function processInbound<TOutbound, TInbound>(
 					envelope,
 					outbound: pending.envelope,
 					error: bridgePayloadError(envelope.payload, "remote nack"),
-				} satisfies WireBridgeEvent<TOutbound, TInbound>,
+				} satisfies WireBridgeEventBody<TOutbound, TInbound>,
 			],
 		]);
 	}

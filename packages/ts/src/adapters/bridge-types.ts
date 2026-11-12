@@ -71,7 +71,8 @@ export type WireBridgeCommand<TData = unknown> =
 	  }
 	| { readonly kind: "close"; readonly reason?: unknown; readonly idempotencyKey?: string };
 
-export type WireBridgeEvent<TOutbound = unknown, TInbound = unknown> =
+/** What a wire bridge event says, before the events node numbers it. */
+export type WireBridgeEventBody<TOutbound = unknown, TInbound = unknown> =
 	| {
 			readonly kind: "outbound";
 			readonly envelope: WireBridgeEnvelope<TOutbound>;
@@ -113,6 +114,16 @@ export type WireBridgeEvent<TOutbound = unknown, TInbound = unknown> =
 	| { readonly kind: "session-mismatch"; readonly expected: string; readonly actual: string }
 	| { readonly kind: "late-receipt"; readonly receipt: "ack" | "nack"; readonly ackForSeq: number }
 	| { readonly kind: "invalid"; readonly error: string };
+
+/**
+ * One event of a wire bridge's events node. `index` is the bridge's own count of the events it
+ * emitted, from 1, for every kind: the high water a projection that folds the events keeps, so a
+ * new lifetime does not count again what it already counted (graphrefly-ts:D180).
+ */
+export type WireBridgeEvent<TOutbound = unknown, TInbound = unknown> = WireBridgeEventBody<
+	TOutbound,
+	TInbound
+> & { readonly index: number };
 
 export interface WireBridgeAck {
 	readonly ackForSeq: number;
@@ -382,6 +393,8 @@ export interface PendingEnvelope<TData> {
 
 export interface BridgeState<TData> {
 	cleanupInstalled: boolean;
+	/** The index the next emitted event gets (WireBridgeEvent.index). */
+	nextIndex: number;
 	nextSeq: number;
 	cursor: number;
 	remoteCursor: number;

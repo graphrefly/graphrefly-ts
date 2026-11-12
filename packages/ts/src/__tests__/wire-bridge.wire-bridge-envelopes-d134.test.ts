@@ -460,20 +460,26 @@ describe("wire bridge envelopes (D134)", () => {
 		bridge.send("payload");
 		bridge.command.set({ kind: "ack-timeout", seq: 1, attempt: 2 });
 		expect(outbound.filter((msg) => msg[0] === "DATA")).toHaveLength(1);
-		expect(events).not.toContainEqual(["DATA", { kind: "timeout", seq: 1, attempt: 2 }]);
+		expect(events).not.toContainEqual([
+			"DATA",
+			expect.objectContaining({ kind: "timeout", seq: 1, attempt: 2 }),
+		]);
 
 		bridge.command.set({ kind: "ack-timeout", seq: 1, attempt: 1 });
 
-		expect(events).toContainEqual(["DATA", { kind: "timeout", seq: 1, attempt: 1 }]);
 		expect(events).toContainEqual([
 			"DATA",
-			{
+			expect.objectContaining({ kind: "timeout", seq: 1, attempt: 1 }),
+		]);
+		expect(events).toContainEqual([
+			"DATA",
+			expect.objectContaining({
 				kind: "retry",
 				seq: 1,
 				attempt: 2,
 				delayMs: 10,
 				error: "session-a: ack timeout for seq 1",
-			},
+			}),
 		]);
 		expect(outbound.filter((msg) => msg[0] === "DATA")).toEqual([
 			[
@@ -533,7 +539,10 @@ describe("wire bridge envelopes (D134)", () => {
 		bridge.command.set({ kind: "ack-timeout", seq: 1, attempt: 1 });
 
 		expect(outbound.filter((msg) => msg[0] === "DATA")).toHaveLength(1);
-		expect(events).not.toContainEqual(["DATA", { kind: "timeout", seq: 1, attempt: 1 }]);
+		expect(events).not.toContainEqual([
+			"DATA",
+			expect.objectContaining({ kind: "timeout", seq: 1, attempt: 1 }),
+		]);
 	});
 
 	it("surfaces malformed ack-timeout commands as invalid facts without protocol terminals (D502)", () => {
@@ -585,7 +594,10 @@ describe("wire bridge envelopes (D134)", () => {
 		bridge.send("payload");
 		bridge.command.set({ kind: "ack-timeout", seq: 1, attempt: 1 });
 
-		expect(events).toContainEqual(["DATA", { kind: "timeout", seq: 1, attempt: 1 }]);
+		expect(events).toContainEqual([
+			"DATA",
+			expect.objectContaining({ kind: "timeout", seq: 1, attempt: 1 }),
+		]);
 		expect(errors).toContainEqual(["DATA", "session-a: ack timeout for seq 1"]);
 		expect(status.at(-1)).toEqual([
 			"DATA",
@@ -985,7 +997,10 @@ describe("wire bridge envelopes (D134)", () => {
 			}),
 		);
 
-		expect(events).toContainEqual(["DATA", { kind: "out-of-order", seq: 2, expected: 1 }]);
+		expect(events).toContainEqual([
+			"DATA",
+			expect.objectContaining({ kind: "out-of-order", seq: 2, expected: 1 }),
+		]);
 		expect(errors).toContainEqual(["DATA", "bridge: inbound seq 2 arrived before expected seq 1"]);
 		expect(errors).toContainEqual(["DATA", "remote failed"]);
 		expect(status.at(-1)).toEqual([
