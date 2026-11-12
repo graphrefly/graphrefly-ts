@@ -13,18 +13,11 @@
  * (R-subscription); activation is lazy (R-lifetime).
  */
 
-import {
-	type BatchTarget,
-	currentBatch,
-	DeferredWrite,
-	deferToBatch,
-	request,
-	stagedBatchWave,
-} from "../batch/batch.js";
+import { currentBatch, DeferredWrite, request, stageToBatch } from "../batch/batch.js";
 import type { Ctx, CtxState, DeliveryMeta, NodeFn, Sink } from "../ctx/types.js";
 import { defaultDispatcher, type Handle } from "../dispatcher/index.js";
 import { EnvironmentDrivers } from "../graph/environment.js";
-import { isTerminal, type Message, SENTINEL, type Wave } from "../protocol/messages.js";
+import { type Message, SENTINEL, type Wave } from "../protocol/messages.js";
 import {
 	type DepBookkeeping,
 	type LifecycleState,
@@ -408,13 +401,12 @@ export class Node<T = unknown> {
 			throw new Error("set: this node has ended (R-terminals)");
 		const deferred = new DeferredWrite(fn as (prev: unknown) => unknown);
 		if (currentBatch(this._core)) {
-			const staged = stagedBatchWave(this._core, this as unknown as Node<unknown>);
-			if (staged?.some((m) => isTerminal(m[0])))
-				throw new Error("set: a terminal must be the last message of its array (R-wave)");
-			deferToBatch(this._core, this as unknown as Node<unknown>, [
-				...(staged ?? []),
-				["DATA", deferred] as Message,
-			]);
+			stageToBatch(
+				this._core,
+				this as unknown as Node<unknown>,
+				[["DATA", deferred] as Message],
+				"set",
+			);
 			return;
 		}
 		request(this._core, () => {

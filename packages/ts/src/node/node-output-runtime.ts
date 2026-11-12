@@ -1,4 +1,4 @@
-import { currentBatch, DeferredWrite, deferToBatch, stagedBatchWave } from "../batch/batch.js";
+import { currentBatch, DeferredWrite, stageToBatch } from "../batch/batch.js";
 import { deferRequest, reportFailure } from "../batch/boundary.js";
 import type { Sink } from "../ctx/types.js";
 import type { Message, Wave } from "../protocol/messages.js";
@@ -62,11 +62,8 @@ export function nodeDown<T>(self: NodeRuntimeHost<T>, msgs: Wave): void {
 	// O3 / R-request-order: a batch body delivers nothing; its writes commit as one array per
 	// node. A terminal already staged must stay last.
 	if (currentBatch(self._core)) {
-		const staged = stagedBatchWave(self._core, self as unknown as Node<unknown>);
-		if (staged?.some((m) => isTerminal(m[0])))
-			throw new Error("down: a terminal must be the last message of its array (R-wave)");
-		const add = arrays.flat();
-		deferToBatch(self._core, self as unknown as Node<unknown>, [...(staged ?? []), ...add]);
+		for (const array of arrays)
+			stageToBatch(self._core, self as unknown as Node<unknown>, array, "down");
 		return;
 	}
 	nodePublish(self, arrays);

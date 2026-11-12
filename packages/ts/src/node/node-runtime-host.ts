@@ -1,4 +1,4 @@
-import type { Ctx, CtxState, DeliveryMeta, NodeFn } from "../ctx/types.js";
+import type { Ctx, CtxState, DeliveryMeta } from "../ctx/types.js";
 import type { Message, Wave } from "../protocol/messages.js";
 import type {
 	DepBookkeeping,

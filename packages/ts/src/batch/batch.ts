@@ -17,7 +17,7 @@ import {
 	nodeResolveBatchedWave,
 } from "../node/node-output-runtime.js";
 import { nodeRuntimeHost } from "../node/node-runtime-host.js";
-import type { Wave } from "../protocol/messages.js";
+import { isTerminal, type Message, type Wave } from "../protocol/messages.js";
 import {
 	deferFirst,
 	deferRequest,
@@ -40,7 +40,8 @@ export class DeferredWrite {
 
 interface ActiveBatch {
 	order: BatchTarget[];
-	deferred: Map<BatchTarget, Wave>;
+	/** Each node's staged array, owned by the batch and appended to in place. */
+	deferred: Map<BatchTarget, Message[]>;
 	/** The lifetime that staged a node's output; a commit drops what a closed lifetime staged. */
 	lifetimes: Map<BatchTarget, AbortSignal>;
 	/** Topology requests the body made; they run after the commit (R-request-order). */
@@ -62,14 +63,30 @@ export function currentBoundaryBatchToken(core: NodeCore): object | undefined {
 }
 
 /**
- * Stage a node's whole array for the commit (the caller passes what is staged so far plus more).
- * Returns false when no batch is open, so the caller sends normally.
+ * Append messages to the array a node stages for the commit (one array per node, R-request-order).
+ * A terminal must stay last, so `op` names the refusal when the staged array already ends with
+ * one. Appends in place: N writes to one node in a batch cost O(N), not O(N^2). Returns false
+ * when no batch is open, so the caller sends normally.
  */
-export function deferToBatch(core: NodeCore, target: BatchTarget, wave: Wave): boolean {
+export function stageToBatch(
+	core: NodeCore,
+	target: BatchTarget,
+	msgs: Iterable<Message>,
+	op: string,
+): boolean {
 	const active = activeOf(core);
 	if (active === null) return false;
-	if (!active.deferred.has(target)) active.order.push(target);
-	active.deferred.set(target, wave);
+	let staged = active.deferred.get(target);
+	if (staged === undefined) {
+		staged = [];
+		active.deferred.set(target, staged);
+		active.order.push(target);
+	} else {
+		const last = staged[staged.length - 1];
+		if (last !== undefined && isTerminal(last[0]))
+			throw new Error(`${op}: a terminal must be the last message of its array (R-wave)`);
+	}
+	for (const m of msgs) staged.push(m);
 	return true;
 }
 
@@ -98,11 +115,6 @@ export function request(core: NodeCore, op: () => void): void {
 	} finally {
 		exitWave(core);
 	}
-}
-
-/** What a node has staged in the open batch, if anything. */
-export function stagedBatchWave(core: NodeCore, target: BatchTarget): Wave | undefined {
-	return activeOf(core)?.deferred.get(target);
 }
 
 /**

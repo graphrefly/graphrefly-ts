@@ -5,7 +5,7 @@ import { type Message, SENTINEL } from "../protocol/messages.js";
 import { makeDepBookkeeping } from "./core.js";
 import type { Node } from "./node.js";
 import { nodeCallSink } from "./node-output-runtime.js";
-import { type NodeRuntimeHost, nodeRuntimeHost } from "./node-runtime-host.js";
+import { type NodeRuntimeHost } from "./node-runtime-host.js";
 import { notifyTopologyDepsChanged } from "./runtime-accessors.js";
 import type { NodeDefinition, ReplaceOptions } from "./types.js";
 
