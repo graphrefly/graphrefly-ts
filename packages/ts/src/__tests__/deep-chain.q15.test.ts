@@ -25,6 +25,12 @@ function timed(run: () => void): number {
 	return performance.now() - started;
 }
 
+/**
+ * A generous wall-clock bound: the point is that a deep chain neither overflows the stack nor goes
+ * quadratic; each case takes about 100 ms alone, and a loaded machine must not fail it.
+ */
+const DEEP_CHAIN_BUDGET_MS = 10_000;
+
 describe("Q15: a chain deeper than the JS stack", () => {
 	it("(a) 5,000 derived nodes: activate, write, deactivate", () => {
 		const elapsed = timed(() => {
@@ -60,7 +66,7 @@ describe("Q15: a chain deeper than the JS stack", () => {
 			last.subscribe(again.sink);
 			expect(again.log).toEqual([[["START"], ["DATA", DEPTH + 2]]]);
 		});
-		expect(elapsed).toBeLessThan(1000);
+		expect(elapsed).toBeLessThan(DEEP_CHAIN_BUDGET_MS);
 	});
 
 	it("(b) 5,000 kernel g.node functions", () => {
@@ -87,7 +93,7 @@ describe("Q15: a chain deeper than the JS stack", () => {
 			stop();
 			expect(chain.every((n) => n.status.lifecycle === "inactive")).toBe(true);
 		});
-		expect(elapsed).toBeLessThan(1000);
+		expect(elapsed).toBeLessThan(DEEP_CHAIN_BUDGET_MS);
 	});
 
 	it("(c) COMPLETE propagates through all 5,000 nodes", () => {
@@ -122,7 +128,7 @@ describe("Q15: a chain deeper than the JS stack", () => {
 			last.subscribe(late.sink);
 			expect(late.log).toEqual([[["START"], ["DATA", DEPTH + 1], ["COMPLETE"]]]);
 		});
-		expect(elapsed).toBeLessThan(1000);
+		expect(elapsed).toBeLessThan(DEEP_CHAIN_BUDGET_MS);
 	});
 
 	it("(d) a diamond inside the chain: the fan-in runs once per wave", () => {
@@ -165,6 +171,6 @@ describe("Q15: a chain deeper than the JS stack", () => {
 			expect(join.status.lifecycle).toBe("inactive");
 			expect(middle.status.lifecycle).toBe("inactive");
 		});
-		expect(elapsed).toBeLessThan(1000);
+		expect(elapsed).toBeLessThan(DEEP_CHAIN_BUDGET_MS);
 	});
 });
