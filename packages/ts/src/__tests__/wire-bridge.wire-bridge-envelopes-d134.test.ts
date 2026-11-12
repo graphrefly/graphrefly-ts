@@ -342,6 +342,7 @@ describe("wire bridge envelopes (D134)", () => {
 			"bridge/errors",
 			"bridge/events",
 			"bridge/inbound",
+			"bridge/ledger",
 			"bridge/nacks",
 			"bridge/outbound",
 			"bridge/status",

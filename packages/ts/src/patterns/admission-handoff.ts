@@ -1,5 +1,6 @@
 import { type Ctx, depBatch } from "../ctx/types.js";
 import type { Graph } from "../graph/graph.js";
+import { declaredLedger } from "../graph/ledger.js";
 import type { Node } from "../node/node.js";
 import { oneArrayPerRun } from "../node/one-array-per-run.js";
 
@@ -121,6 +122,12 @@ interface RecentDecision {
 	readonly candidateId: string;
 }
 
+/** The accepted boundary's dedupe working copy; `order` is its ledger. */
+interface AcceptedDedupe {
+	seen: Set<string>;
+	order: string[];
+}
+
 interface AdmissionHandoffRuntimeState<T, R> {
 	pendingCandidates: Map<string, AdmissionHandoffCandidate<T>>;
 	pendingDecisions: Map<string, AdmissionHandoffDecision<R>>;
@@ -218,13 +225,17 @@ export function admissionHandoff<T, R = unknown>(
 	// items by candidate and decision fingerprint and sends only fresh ones. A quiet node marks
 	// nothing below it pending, and what it sends in a run goes out after the current wave as a
 	// wave of its own (R-wave), so rejected, unmatched and duplicate paths start no downstream wave.
+	// D180: the accepted keys are the bundle's dedupe ledger, a JSON state the boundary declares;
+	// its private state is the working copy, with the set rebuilt from the ordered keys.
+	const acceptedLedger = declaredLedger<{ order: string[] }>(graph, {
+		name: `${name}/accepted/ledger`,
+		factory: "admissionHandoffAcceptedLedger",
+		initial: () => ({ order: [] }),
+	});
 	const accepted = graph.node<AdmissionHandoffAccepted<T, R>>(
-		[admitted],
+		[admitted, acceptedLedger.ledger],
 		(ctx) => {
-			const state = ctx.state.get<{ seen: Set<string>; order: string[] }>() ?? {
-				seen: new Set<string>(),
-				order: [],
-			};
+			const state = ctx.state.get<AcceptedDedupe>() as AcceptedDedupe;
 			const fresh: AdmissionHandoffAccepted<T, R>[] = [];
 			for (const raw of depBatch(ctx, 0) ?? []) {
 				const admittedValue = raw as AdmissionHandoffAccepted<T, R>;
@@ -247,6 +258,10 @@ export function admissionHandoff<T, R = unknown>(
 		{
 			name: `${name}/accepted`,
 			factory: "admissionHandoffAccepted",
+			setup: acceptedLedger.setupWith<AcceptedDedupe>(1, {
+				seed: (ledger) => ({ seen: new Set(ledger.order), order: [...ledger.order] }),
+				extract: (working) => ({ order: [...working.order] }),
+			}),
 			quiet: true,
 			partial: true,
 			complete: "manual",

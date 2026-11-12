@@ -14,11 +14,25 @@ import type { Node, StateNode } from "../node/node.js";
 import { isNodeRuntimeReleased } from "../node/runtime-accessors.js";
 import type { Graph } from "./graph.js";
 
+/**
+ * How a runtime whose private state holds more than its ledger (pending payloads, claims, live
+ * handles) splits it: only the ledger part is kept in the ledger state, the rest stays in the
+ * lifetime (graphrefly-ts:D180; Rust's ledger::write_back with an extract).
+ */
+export interface LedgerParts<W, S> {
+	/** A lifetime's working copy, built from the ledger when the lifetime has none. */
+	seed(ledger: S): W;
+	/** The ledger part of the working copy, written back when the lifetime closes. */
+	extract(working: W): S;
+}
+
 export interface DeclaredLedger<S> {
 	/** The ledger state; declare it as one of the runtime's dependencies. */
 	readonly ledger: StateNode<S>;
-	/** The runtime's setup, given the ledger's index among the runtime's dependencies. */
+	/** The setup of a runtime whose private state is the ledger's working copy itself. */
 	setup(ledgerIndex: number): (ctx: Ctx) => () => void;
+	/** The setup of a runtime whose private state holds the ledger as one part (LedgerParts). */
+	setupWith<W>(ledgerIndex: number, parts: LedgerParts<W, S>): (ctx: Ctx) => () => void;
 }
 
 /** @internal A detached copy, so the ledger's value never aliases the working copy. */
@@ -32,16 +46,22 @@ export function declaredLedger<S>(
 	opts: { readonly name: string; readonly factory: string; readonly initial: () => S },
 ): DeclaredLedger<S> {
 	const ledger = graph.state<S>(opts.initial(), { name: opts.name, factory: opts.factory });
+	const setupWith =
+		<W>(ledgerIndex: number, parts: LedgerParts<W, S>) =>
+		(ctx: Ctx) => {
+			if (ctx.state.get<W>() === undefined)
+				ctx.state.set(
+					parts.seed(copyOf((depLatest(ctx, ledgerIndex) as S | undefined) ?? opts.initial())),
+				);
+			return () => {
+				const working = ctx.state.get<W>();
+				if (working !== undefined && !isNodeRuntimeReleased(ledger as Node<unknown>))
+					ledger.set(copyOf(parts.extract(working)));
+			};
+		};
 	return {
 		ledger,
-		setup: (ledgerIndex) => (ctx) => {
-			if (ctx.state.get<S>() === undefined)
-				ctx.state.set(copyOf((depLatest(ctx, ledgerIndex) as S | undefined) ?? opts.initial()));
-			return () => {
-				const state = ctx.state.get<S>();
-				if (state !== undefined && !isNodeRuntimeReleased(ledger as Node<unknown>))
-					ledger.set(copyOf(state));
-			};
-		},
+		setup: (ledgerIndex) => setupWith<S>(ledgerIndex, { seed: (s) => s, extract: (s) => s }),
+		setupWith,
 	};
 }

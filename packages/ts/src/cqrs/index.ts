@@ -10,6 +10,7 @@
 
 import { depBatch } from "../ctx/types.js";
 import type { Graph } from "../graph/graph.js";
+import { declaredLedger } from "../graph/ledger.js";
 import { compoundTupleKey } from "../identity.js";
 import type { Node } from "../node/node.js";
 import { oneArrayPerRun } from "../node/one-array-per-run.js";
@@ -231,19 +232,24 @@ export function cqrs<TCommand = unknown, TEvent = unknown>(
 		complete: "manual",
 		error: "manual",
 	});
+	// D180: the sequences, counts and dedupe ids are the bundle's ledger, a state the runtime
+	// declares; the runtime's private state is its working copy within a lifetime.
+	const { ledger, setup } = declaredLedger<CqrsRuntimeState>(graph, {
+		name: `${name}/ledger`,
+		factory: "cqrsLedger",
+		initial: () => ({
+			eventSeq: 0,
+			commandCount: 0,
+			errorCount: 0,
+			auditSeq: 0,
+			seenCommandIds: [],
+			seenEventIds: [],
+		}),
+	});
 	const runtime = graph.node<CqrsRuntimeFact<TEvent>>(
-		[command],
+		[command, ledger],
 		(ctx) => {
-			const state =
-				ctx.state.get<CqrsRuntimeState>() ??
-				({
-					eventSeq: 0,
-					commandCount: 0,
-					errorCount: 0,
-					auditSeq: 0,
-					seenCommandIds: [],
-					seenEventIds: [],
-				} satisfies CqrsRuntimeState);
+			const state = ctx.state.get<CqrsRuntimeState>() as CqrsRuntimeState;
 			for (const raw of depBatch(ctx, 0) ?? []) {
 				reduceCommandFact(raw, state, handlers, knownEvents, now, dedupe, (fact) =>
 					ctx.down([["DATA", fact as CqrsRuntimeFact<TEvent>]]),
@@ -254,6 +260,7 @@ export function cqrs<TCommand = unknown, TEvent = unknown>(
 		{
 			name: `${name}/runtime`,
 			factory: "cqrsRuntime",
+			setup: setup(1),
 			meta: {
 				commandTypes: [...handlers.keys()],
 				eventTypes: knownEvents ? [...knownEvents] : "open",

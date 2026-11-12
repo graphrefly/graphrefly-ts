@@ -6,8 +6,9 @@
  * state is surfaced through graph-visible attempts/status/errors nodes.
  */
 
-import { type Ctx, depBatch } from "../ctx/types.js";
+import { type Ctx, depBatch, depLatest } from "../ctx/types.js";
 import type { Graph } from "../graph/graph.js";
+import { declaredLedger } from "../graph/ledger.js";
 import {
 	nextRetryDelayMs,
 	type RetryPolicy,
@@ -1037,8 +1038,16 @@ function wireBridgeEventsNode<TOutbound, TInbound>(
 	policy: RetryPolicy,
 ): Node<WireBridgeEvent<TOutbound, TInbound>> {
 	const now = opts.now ?? Date.now;
+	// D180: the sequence and cursors are the bundle's ledger, a state the event fold declares
+	// (last, so the command and inbound indexes stay); its private state is the lifetime's working
+	// copy. The pending sends carry payloads and are the lifetime's own work, not the ledger's.
+	const { ledger, setupWith } = declaredLedger<BridgeLedger>(graph, {
+		name: `${name}/ledger`,
+		factory: "wireBridgeLedger",
+		initial: () => ({ nextSeq: 1, cursor: 0, remoteCursor: 0 }),
+	});
 	return graph.node<WireBridgeEvent<TOutbound, TInbound>>(
-		[command, inbound],
+		[command, inbound, ledger],
 		(ctx) => {
 			const state = initBridgeState<TOutbound>(ctx);
 
@@ -1165,6 +1174,14 @@ function wireBridgeEventsNode<TOutbound, TInbound>(
 		{
 			name: `${name}/events`,
 			factory: "wireBridgeEvents",
+			setup: setupWith<BridgeState<TOutbound>>(2, {
+				seed: (l) => newBridgeState<TOutbound>(l),
+				extract: (state) => ({
+					nextSeq: state.nextSeq,
+					cursor: state.cursor,
+					remoteCursor: state.remoteCursor,
+				}),
+			}),
 			partial: true,
 			complete: "manual",
 			error: "manual",
@@ -1172,17 +1189,32 @@ function wireBridgeEventsNode<TOutbound, TInbound>(
 	);
 }
 
+/** The wire bridge's ledger (D180): its outbound sequence and inbound cursors, strict JSON. */
+interface BridgeLedger {
+	readonly nextSeq: number;
+	readonly cursor: number;
+	readonly remoteCursor: number;
+}
+
+/** A lifetime's working copy, seeded from the ledger; its pending sends start empty. */
+function newBridgeState<TPayload>(ledger: BridgeLedger): BridgeState<TPayload> {
+	return {
+		cleanupInstalled: false,
+		nextSeq: ledger.nextSeq,
+		cursor: ledger.cursor,
+		remoteCursor: ledger.remoteCursor,
+		terminalReported: false,
+		pending: new Map(),
+	};
+}
+
 function initBridgeState<TPayload>(ctx: Ctx): BridgeState<TPayload> {
 	let state = ctx.state.get<BridgeState<TPayload>>();
 	if (state === undefined) {
-		state = {
-			cleanupInstalled: false,
-			nextSeq: 1,
-			cursor: 0,
-			remoteCursor: 0,
-			terminalReported: false,
-			pending: new Map(),
-		};
+		// The setup seeds the working copy from the ledger (dependency 2); this is a fallback only.
+		state = newBridgeState<TPayload>(
+			(depLatest(ctx, 2) as BridgeLedger | undefined) ?? { nextSeq: 1, cursor: 0, remoteCursor: 0 },
+		);
 		ctx.state.set(state);
 	}
 	if (!state.cleanupInstalled) {

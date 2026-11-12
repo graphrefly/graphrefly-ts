@@ -259,7 +259,7 @@ describe("ProcessBundle — graph-visible facts-plus-reducer orchestration (D136
 		const snap = g.inspect();
 		const byId = Object.fromEntries(snap.nodes.map((node) => [node.id, node]));
 		expect(byId["process/command"].factory).toBe("processCommand");
-		expect(byId["process/runtime"].deps).toEqual(["process/command"]);
+		expect(byId["process/runtime"].deps).toEqual(["process/command", "process/ledger"]);
 		expect(byId["process/state"].deps).toEqual(["process/runtime"]);
 		expect(byId["process/effectRequests"].deps).toEqual(["process/runtime"]);
 		expect(snap.edges).toContainEqual({ from: "process/command", to: "process/runtime" });

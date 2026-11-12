@@ -4,6 +4,7 @@
 
 import { depBatch, depCount, type NodeFn } from "../ctx/types.js";
 import type { Graph, TopologyGroup } from "../graph/graph.js";
+import { declaredLedger } from "../graph/ledger.js";
 import { compoundTupleKey } from "../identity.js";
 import { type AttachableInput, attachableInput } from "../node/attachable-input.js";
 import type { Node } from "../node/node.js";
@@ -147,21 +148,18 @@ export function processBundle<
 		},
 	);
 	commandSources.bind(command as Node<unknown>);
+	// D180: the sequences, counts and dedupe ids are the bundle's ledger, a state the runtime
+	// declares (last, so the command stays dependency 0); the reducer state stays in the lifetime.
+	const processLedger = declaredLedger<ProcessLedger>(graph, {
+		name: `${name}/ledger`,
+		factory: "processLedger",
+		initial: initialProcessLedger,
+	});
+	topology.add(processLedger.ledger);
 	const runtime = topology.node<ProcessRuntimeFact<TState, TEvent, TEffect>>(
-		[command],
+		[command, processLedger.ledger],
 		(ctx) => {
-			let state =
-				ctx.state.get<ProcessRuntimeState<TState>>() ??
-				({
-					eventSeq: 0,
-					effectSeq: 0,
-					commandCount: 0,
-					errorCount: 0,
-					auditSeq: 0,
-					seenEventIds: [],
-					seenEffectIds: [],
-					state: opts.initialState,
-				} satisfies ProcessRuntimeState<TState>);
+			let state = ctx.state.get<ProcessRuntimeState<TState>>() as ProcessRuntimeState<TState>;
 			for (const raw of depBatch(ctx, 0) ?? []) {
 				state = reduceProcessCommandFact(
 					raw,
@@ -176,6 +174,10 @@ export function processBundle<
 		{
 			name: `${name}/runtime`,
 			factory: "processRuntime",
+			setup: processLedger.setupWith<ProcessRuntimeState<TState>>(1, {
+				seed: (ledger) => ({ ...ledger, state: opts.initialState }),
+				extract: ({ state: _state, ...ledger }) => ledger,
+			}),
 			meta: { process: "facts-plus-reducer", d: "D136" },
 			complete: "manual",
 			error: "manual",
@@ -372,12 +374,18 @@ export function processEffectRunner<TEffect = unknown, TResult = unknown>(
 		"processEffectRunnerErrors",
 		(fact) => (fact.kind === "error" ? fact.error : undefined),
 	);
+	// D180: the status counts are the runner's ledger, a state the status node declares (last, so
+	// requests and runtime stay dependencies 0 and 1); its private state is the working copy.
+	const runnerLedger = declaredLedger<ProcessEffectRunnerState>(graph, {
+		name: `${name}/ledger`,
+		factory: "processLedger",
+		initial: () => ({ requested: 0, commanded: 0, rejected: 0 }),
+	});
+	topology.add(runnerLedger.ledger);
 	const status = topology.node<ProcessEffectRunnerStatus>(
-		[requests, runtime],
+		[requests, runtime, runnerLedger.ledger],
 		oneArrayPerRun((ctx) => {
-			let state =
-				ctx.state.get<ProcessEffectRunnerState>() ??
-				({ requested: 0, commanded: 0, rejected: 0 } satisfies ProcessEffectRunnerState);
+			let state = ctx.state.get<ProcessEffectRunnerState>() as ProcessEffectRunnerState;
 			for (const request of depBatch(ctx, 0) ?? []) {
 				state = { ...state, requested: state.requested + 1 };
 				const typedRequest = request as ProcessEffectRequest<TEffect>;
@@ -437,6 +445,7 @@ export function processEffectRunner<TEffect = unknown, TResult = unknown>(
 		{
 			name: `${name}/status`,
 			factory: "processEffectRunnerStatus",
+			setup: runnerLedger.setup(2),
 			partial: true,
 			complete: "manual",
 			error: "manual",
@@ -483,13 +492,15 @@ export function processEffectRunner<TEffect = unknown, TResult = unknown>(
 	};
 }
 
+/** The effect runner status node's private state, all of it ledger (D180): strict JSON. */
 interface ProcessEffectRunnerState {
 	requested: number;
 	commanded: number;
 	rejected: number;
 }
 
-interface ProcessRuntimeState<TState> {
+/** The ledger part of a process runtime's private state (D180): strict JSON. */
+interface ProcessLedger {
 	eventSeq: number;
 	effectSeq: number;
 	commandCount: number;
@@ -497,7 +508,22 @@ interface ProcessRuntimeState<TState> {
 	auditSeq: number;
 	seenEventIds: string[];
 	seenEffectIds: string[];
+}
+
+interface ProcessRuntimeState<TState> extends ProcessLedger {
 	state: TState;
+}
+
+function initialProcessLedger(): ProcessLedger {
+	return {
+		eventSeq: 0,
+		effectSeq: 0,
+		commandCount: 0,
+		errorCount: 0,
+		auditSeq: 0,
+		seenEventIds: [],
+		seenEffectIds: [],
+	};
 }
 
 function processEffectRunnerProjection<T, TResult>(
