@@ -237,8 +237,8 @@ export function wireBridgeEnvelope<TData = unknown>(input: {
 	return {
 		sessionId: input.sessionId,
 		type: input.type,
-		payload,
-		metadata: {
+		...(payload === undefined ? {} : { payload }),
+		metadata: definedFields({
 			seq: input.seq,
 			cursor,
 			idempotencyKey: input.idempotencyKey ?? wireBridgeIdempotencyKey(input.sessionId, input.seq),
@@ -247,7 +247,7 @@ export function wireBridgeEnvelope<TData = unknown>(input: {
 			timestampMs: input.timestampMs,
 			ackForSeq: input.ackForSeq,
 			requestId: input.requestId,
-		},
+		}),
 	};
 }
 
@@ -314,30 +314,39 @@ export function wireBridge<TOutbound = unknown, TInbound = unknown>(
 		cursor,
 		attempts,
 		start: () => command.set({ kind: "start" }),
+		// Commands omit absent options, so the command state stays strict JSON (R-checkpoint@1).
 		send: (payload, sendOpts) =>
-			command.set({
-				kind: "send",
-				payload,
-				idempotencyKey: sendOpts?.idempotencyKey,
-				requestId: sendOpts?.requestId,
-			}),
+			command.set(
+				definedFields({
+					kind: "send",
+					payload,
+					idempotencyKey: sendOpts?.idempotencyKey,
+					requestId: sendOpts?.requestId,
+				}),
+			),
 		ack: (ackForSeq, ackOpts) =>
-			command.set({
-				kind: "ack",
-				ackForSeq,
-				idempotencyKey: ackOpts?.idempotencyKey,
-				requestId: ackOpts?.requestId,
-			}),
+			command.set(
+				definedFields({
+					kind: "ack",
+					ackForSeq,
+					idempotencyKey: ackOpts?.idempotencyKey,
+					requestId: ackOpts?.requestId,
+				}),
+			),
 		nack: (ackForSeq, error, nackOpts) =>
-			command.set({
-				kind: "nack",
-				ackForSeq,
-				error,
-				idempotencyKey: nackOpts?.idempotencyKey,
-				requestId: nackOpts?.requestId,
-			}),
+			command.set(
+				definedFields({
+					kind: "nack",
+					ackForSeq,
+					error,
+					idempotencyKey: nackOpts?.idempotencyKey,
+					requestId: nackOpts?.requestId,
+				}),
+			),
 		close: (reason, closeOpts) =>
-			command.set({ kind: "close", reason, idempotencyKey: closeOpts?.idempotencyKey }),
+			command.set(
+				definedFields({ kind: "close", reason, idempotencyKey: closeOpts?.idempotencyKey }),
+			),
 	};
 	bridgeInboundTargets.set(
 		bundle as WireBridgeBundle<unknown, unknown>,
@@ -1660,4 +1669,11 @@ function processInbound<TOutbound, TInbound>(
 			],
 		]);
 	}
+}
+
+/** @internal The object without its undefined fields, so a value stays strict JSON. */
+function definedFields<T extends object>(value: T): T {
+	const out: Record<string, unknown> = {};
+	for (const [key, field] of Object.entries(value)) if (field !== undefined) out[key] = field;
+	return out as T;
 }
