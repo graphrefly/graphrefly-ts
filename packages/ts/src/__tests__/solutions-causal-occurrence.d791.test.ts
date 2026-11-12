@@ -29,7 +29,6 @@ import {
 	causalOccurrenceRequiredEdges,
 } from "../solutions/causal-occurrence.js";
 import { asState } from "./helpers/as-state.js";
-import { removeOwnedNodeDep } from "./helpers/owned-rewire.js";
 
 const digest = (char: string) => `sha256:${char.repeat(64)}`;
 const problem = (code: string): DataIssue => ({
@@ -1368,9 +1367,14 @@ describe("causal topology exact-string index", () => {
 				if (authority && !changed) {
 					changed = true;
 					expect(authority.status.cache).toBe("empty");
-					removeOwnedNodeDep(authority, this.find("causal/arrivals")!, () => {
-						calls += 1;
-					});
+					const arrivals = this.find("causal/arrivals");
+					this.replace(
+						authority,
+						authority.deps.filter((d) => d !== arrivals),
+						() => {
+							calls += 1;
+						},
+					);
 				}
 				return super.inspect(...args);
 			}

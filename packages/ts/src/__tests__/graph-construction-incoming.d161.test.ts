@@ -5,7 +5,6 @@ import type { TopologyEvent } from "../graph/inspect.js";
 import type { NodeCore } from "../node/core.js";
 import { Node, withNodeCore } from "../node/node.js";
 import { releaseRuntimeOfNode } from "../node/runtime-accessors.js";
-import { rewireOwnedNode } from "./helpers/owned-rewire.js";
 import { relayFirst } from "./helpers/relay.js";
 
 const graphs: Graph[] = [];
@@ -56,7 +55,7 @@ describe("D161 B1 incoming inspection", () => {
 	it("captures only actual acquired targets, reading current deps before the manifest is complete", () => {
 		const f = fixture();
 		f.g.node([f.a], relayFirst, { name: "view/decoy" });
-		rewireOwnedNode(f.root, [f.b]);
+		f.g.replace(f.root, [f.b], relayFirst);
 		expect(f.scope.readIncoming().edges).toEqual([{ from: "b", to: "view/root" }]);
 		expect(f.g.find("view/future")).toBeUndefined();
 		expect(f.root.status.cache).toBe("empty");
@@ -101,7 +100,7 @@ describe("D161 B1 incoming inspection", () => {
 
 	it("retains a target's unregistered live dependency rather than substituting its old registered dep", () => {
 		const f = fixture();
-		rewireOwnedNode(f.root, [hidden(f.g)]);
+		f.g.replace(f.root, [hidden(f.g)], relayFirst);
 		expect(f.scope.readIncoming().edges).toEqual([{ from: "~hidden#0", to: "view/root" }]);
 		expect(f.g.inspect().nodes.find((n) => n.id === "view/root")?.deps).toEqual(["~hidden#0"]);
 	});
@@ -111,7 +110,7 @@ describe("D161 B1 incoming inspection", () => {
 		const child = graph();
 		f.g.mount(child, { at: "child" });
 		const read = vi.spyOn(child, "inspect").mockImplementation((opts, prefix) => {
-			rewireOwnedNode(f.root, [f.b]);
+			f.g.replace(f.root, [f.b], relayFirst);
 			return nativeInspect.call(child, opts, prefix);
 		});
 		expect(f.scope.readIncoming().edges).toEqual([

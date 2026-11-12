@@ -51,7 +51,6 @@ import type {
 } from "../solutions/causal-occurrence/contracts.js";
 import { causalOccurrenceDigest } from "../solutions/causal-occurrence/identity.js";
 import { asState } from "./helpers/as-state.js";
-import { removeOwnedNodeDep, rewireOwnedNode } from "./helpers/owned-rewire.js";
 
 vi.mock("node:crypto", async (importOriginal) => {
 	const original = await importOriginal<typeof import("node:crypto")>();
@@ -146,7 +145,7 @@ function collect<T>(n: Node<T>) {
 function viewInput(f: ReturnType<typeof fixture>): StateNode<CommittedEffectsView> {
 	const view = f.built.causal.committedEffects;
 	const input = f.graph.state(collect(view).last(), { name: "test/view" });
-	rewireOwnedNode(view as Node<unknown>, [input as Node<unknown>], (ctx) => {
+	f.graph.replace(view, [input as Node<unknown>], (ctx) => {
 		for (const value of ctx.deps[0].waves.flat()) ctx.down([["DATA", value]]);
 	});
 	return input;
@@ -524,7 +523,7 @@ describe("private publication material-v1", () => {
 		f.frame([a.material]);
 		expect(out.last().rows[0].material).toBe("matched");
 	});
-	it.each([0, 1])("real dependency removal %s cannot use old cache", (index) => {
+	it.each([0, 1])("a join replaced without dependency %s fails and never matches", (index) => {
 		const f = fixture(),
 			a = facts(),
 			out = collect(f.built.publication);
@@ -532,7 +531,12 @@ describe("private publication material-v1", () => {
 		f.admit(a);
 		const n = out.values.length;
 		const join = f.built.requestMaterialJoin;
-		removeOwnedNodeDep(join, join.deps[index], f.joinFn);
+		const removed = join.deps[index];
+		f.graph.replace(
+			join,
+			join.deps.filter((d) => d !== removed),
+			f.joinFn,
+		);
 		if (index === 0) f.frame([a.material]);
 		else f.send("effectOutcomes", a.outcome);
 		expect(out.values.slice(n).some((v) => v.rows.some((r) => r.material === "matched"))).toBe(

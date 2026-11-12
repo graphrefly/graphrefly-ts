@@ -23,7 +23,6 @@ import type { NodeFn } from "../ctx/types.js";
 import { Dispatcher, type Handle } from "../dispatcher/index.js";
 import { ColdConstructionError, ConstructionScope } from "../graph/construction-scope.js";
 import { Graph } from "../graph/graph.js";
-import { removeOwnedNodeDep } from "./helpers/owned-rewire.js";
 
 it("scheduler failure before write retains known no-submit without executing", async () => {
 	const run = runHost();
@@ -72,14 +71,19 @@ it("stale aborted resource lease cannot write, transfer, or clear newer owner", 
 	expect(calls).toEqual(["exact"]);
 });
 it("removing a real guard dependency faults without positional fallback", async () => {
-	const spy = vi.spyOn(ConstructionScope.prototype, "node");
 	const run = runHost();
-	const fn = spy.mock.calls.find((call) => call[2]?.name === "spending/hostGuard")?.[1];
-	spy.mockRestore();
 	try {
 		await drain();
+		const guard = run.host.guard;
+		const { fn, setup, recipe } = run.graph.definition(guard);
 		expect(fn).toBeTypeOf("function");
-		removeOwnedNodeDep(run.host.guard, run.host.guard.deps[2], fn as NodeFn);
+		const removed = guard.deps[2];
+		run.graph.replace(
+			guard,
+			guard.deps.filter((d) => d !== removed),
+			fn as NodeFn,
+			{ setup, recipe },
+		);
 		run.drive([evaluationFixture()]);
 		await drain();
 		expect(run.calls).toHaveLength(0);

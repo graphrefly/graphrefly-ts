@@ -1,5 +1,5 @@
 import { setImmediate } from "node:timers/promises";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import type {
 	Assessment,
 	BusinessFrame,
@@ -27,7 +27,6 @@ import {
 	profileScenario,
 	rebindEvaluation,
 } from "../../../../scripts/fixtures/spending-preset-scenarios.js";
-import { removeOwnedNodeDep } from "./helpers/owned-rewire.js";
 
 type Mutable<T> = { -readonly [K in keyof T]: Mutable<T[K]> };
 type Run = ReturnType<typeof presetRun> | ReturnType<typeof referenceRun>;
@@ -320,17 +319,9 @@ it("D164: independent pack decoding accepts a legal pack above 1 MiB", () => {
 
 for (const name of ["score", "material", "store", "assessment", "evidence"] as const) {
 	it(`D164 reference removing ${name} dependency blocks admission`, () => {
-		let calls: import("vitest").MockInstance<
-			import("../graph/construction-scope.js").ConstructionScope["node"]
-		>;
-		const r = referenceRun("off", presetBinding, (scope) => {
-			calls = vi.spyOn(scope, "node");
-		});
+		const r = referenceRun("off", presetBinding);
 		const node = r.built.nodes.get(name)!;
-		const fn = calls!.mock.calls.find(
-			(c) => (c[2] as { name?: string })?.name === `spending/reference/${name}`,
-		)?.[1];
-		calls!.mockRestore();
+		const { fn, setup, recipe } = r.graph.definition(node);
 		expect(fn).toBeTypeOf("function");
 		const errors: unknown[] = [];
 		const stop = node.subscribe((incoming) => {
@@ -339,7 +330,7 @@ for (const name of ["score", "material", "store", "assessment", "evidence"] as c
 			}
 		});
 		try {
-			removeOwnedNodeDep(node, node.deps[0], fn as import("../ctx/types.js").NodeFn);
+			r.graph.replace(node, node.deps.slice(1), fn!, { setup, recipe });
 			const e = evaluationFixture(),
 				f = policyFacts(e);
 			r.send("pack", evaluationPack([e]));

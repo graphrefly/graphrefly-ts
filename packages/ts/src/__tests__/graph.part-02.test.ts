@@ -18,7 +18,6 @@ import {
 } from "../index.js";
 import { buildBeside } from "../node/node.js";
 import { asState } from "./helpers/as-state.js";
-import { rewireOwnedNode } from "./helpers/owned-rewire.js";
 
 function collect(n: { subscribe(s: (msgs: Wave) => void): () => void }) {
 	const msgs: Message[] = [];
@@ -67,7 +66,7 @@ describe("Graph.observeTopology — read-only topology egress (D145)", () => {
 		const events: TopologyEvent[] = [];
 		const unsub = g.observeTopology("d").subscribe((event) => events.push(event));
 
-		rewireOwnedNode(d, [b], (ctx) => ctx.down([["DATA", ctx.deps[0].value]]));
+		g.replace(d, [b], (ctx) => ctx.down([["DATA", ctx.deps[0].value]]));
 
 		unsub();
 		expect(events).toEqual([
@@ -107,7 +106,7 @@ describe("Graph.observeTopology — read-only topology egress (D145)", () => {
 		const d = child.node([a], (ctx) => ctx.down([["DATA", ctx.deps[0].value]]), {
 			name: "d",
 		});
-		rewireOwnedNode(d, [b], (ctx) => ctx.down([["DATA", ctx.deps[0].value]]));
+		child.replace(d, [b], (ctx) => ctx.down([["DATA", ctx.deps[0].value]]));
 
 		unsub();
 		expect(events).toEqual([
@@ -702,7 +701,7 @@ describe("Graph release-local subscriber accounting — D122/D124", () => {
 		expect(group.released).toBe(false);
 		expect(events).toEqual([]);
 		// Live topology changes after rejection must be read again on the next attempt.
-		rewireOwnedNode(join, [a], (ctx) => ctx.down([["DATA", ctx.deps[0].value]]));
+		g.replace(join, [a], (ctx) => ctx.down([["DATA", ctx.deps[0].value]]));
 		expect(join.deps).toEqual([a]);
 		expect(() => group.release()).toThrow(/'join' still has live subscribers/);
 		disconnect();

@@ -30,7 +30,6 @@ import {
 	timer,
 } from "../index.js";
 import { checkpointStateOfNode } from "../node/runtime-accessors.js";
-import { rewireOwnedNode } from "./helpers/owned-rewire.js";
 
 afterEach(() => {
 	vi.useRealTimers();
@@ -520,7 +519,7 @@ describe("checkpoint and restore: ported cases (TS layout, graphrefly-ts:D178)",
 		});
 		const src2 = restored.state(10, { name: "src2" });
 		const mapped = restored.find("mapped") as Node<unknown>;
-		rewireOwnedNode(mapped, [src2], (ctx) => ctx.down([["DATA", 11]]));
+		restored.replace(mapped, [src2], (ctx) => ctx.down([["DATA", 11]]));
 		expect(collect(mapped)).toEqual([["START"], ["DATA", 11]]);
 	});
 

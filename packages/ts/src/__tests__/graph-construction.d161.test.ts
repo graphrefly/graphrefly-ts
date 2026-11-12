@@ -30,7 +30,6 @@ import {
 	causalOccurrenceDigest,
 } from "../solutions/causal-occurrence.js";
 import { asState } from "./helpers/as-state.js";
-import { rewireOwnedNode } from "./helpers/owned-rewire.js";
 import { relayFirst } from "./helpers/relay.js";
 
 afterEach(() => vi.restoreAllMocks());
@@ -187,7 +186,8 @@ describe("D161 graph construction ownership", () => {
 			if (event.path !== "causal/issues") return;
 			const authority = f.graph.find("causal/authority")!;
 			expect(authority.status.cache).toBe("empty");
-			rewireOwnedNode(authority, []);
+			const { fn, setup, recipe } = f.graph.definition(authority);
+			f.graph.replace(authority, [], fn!, { setup, recipe });
 			changed = true;
 		});
 		expect(f.graph.describe).toBe(Graph.prototype.describe);

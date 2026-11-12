@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import numericVectors from "../../../../docs/design/causal-preset-numeric-contract-v1.vectors.json";
 import type {
 	Assessment,
@@ -25,7 +25,6 @@ import {
 } from "../../../../scripts/fixtures/spending-preset-plain.js";
 import { assertCausalCapabilities } from "../solutions/causal-occurrence/capabilities.js";
 import type { CausalEvidence } from "../solutions/causal-occurrence/contracts.js";
-import { removeOwnedNodeDep } from "./helpers/owned-rewire.js";
 
 const extraStops: (() => void)[] = [];
 const runs: ReturnType<typeof presetRun>[] = [];
@@ -504,18 +503,10 @@ describe("D165 actual dependency removal", () => {
 		"assessment",
 		"evidence",
 	])("removing %s dependency blocks progress with original function", (name) => {
-		let calls: import("vitest").MockInstance<
-			import("../graph/construction-scope.js").ConstructionScope["node"]
-		>;
-		const r = presetRun("off", presetBinding, (scope) => {
-			calls = vi.spyOn(scope, "node");
-		});
+		const r = presetRun("off", presetBinding);
 		runs.push(r);
 		const node = r.graph.find(`spending/${name}`)!;
-		const fn = calls!.mock.calls.find(
-			(c) => (c[2] as { name?: string })?.name === `spending/${name}`,
-		)?.[1];
-		calls!.mockRestore();
+		const { fn, setup, recipe } = r.graph.definition(node);
 		expect(fn).toBeTypeOf("function");
 		const errors: unknown[] = [];
 		extraStops.push(
@@ -525,7 +516,7 @@ describe("D165 actual dependency removal", () => {
 				}
 			}),
 		);
-		removeOwnedNodeDep(node, node.deps[0], fn as import("../ctx/types.js").NodeFn);
+		r.graph.replace(node, node.deps.slice(1), fn!, { setup, recipe });
 		const e = evaluationFixture();
 		r.send("pack", evaluationPack([e]));
 		r.drive(e);

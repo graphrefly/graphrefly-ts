@@ -7,7 +7,6 @@ import {
 	startConstruction,
 } from "../graph/construction-scope.js";
 import { Graph } from "../graph/graph.js";
-import { rewireOwnedNode } from "./helpers/owned-rewire.js";
 import { relayFirst } from "./helpers/relay.js";
 
 for (const closingEdge of ["receipt-to-guard", "authority-to-receipt"] as const) {
@@ -28,21 +27,20 @@ for (const closingEdge of ["receipt-to-guard", "authority-to-receipt"] as const)
 		};
 		const authority = scope.node([input], fn, { name: "authority" });
 		const guard = scope.node([authority], fn, { name: "guard" });
-		const receiptDeps = closingEdge === "receipt-to-guard" ? [] : [guard];
-		const receipt = scope.node(receiptDeps, receiptDeps.length === 0 ? null : relayFirst, {
-			name: "receipt",
-			quiet: true,
-		});
+		// R-node: a state node cannot be replaced, so the receipt that later takes the guard as its
+		// input starts as a computed node over the input.
+		const receiptDeps = closingEdge === "receipt-to-guard" ? [input] : [guard];
+		const receipt = scope.node(receiptDeps, relayFirst, { name: "receipt", quiet: true });
 		scope.node([guard, receipt], fn, { name: "controller" });
-		if (closingEdge === "receipt-to-guard") rewireOwnedNode(authority, [input, receipt], fn);
+		if (closingEdge === "receipt-to-guard") graph.replace(authority, [input, receipt], fn);
 		let failure: unknown;
 		try {
-			if (closingEdge === "receipt-to-guard") rewireOwnedNode(receipt, [guard]);
-			else rewireOwnedNode(authority, [input, receipt], fn);
+			if (closingEdge === "receipt-to-guard") graph.replace(receipt, [guard], relayFirst);
+			else graph.replace(authority, [input, receipt], fn);
 		} catch (error) {
 			failure = error;
 		}
-		expect(String(failure)).toContain("would create a cycle");
+		expect(String(failure)).toContain("a dependency is the node itself or depends on it");
 		expect(invocations).toBe(0);
 		expect(() => scope.abort(failure)).toThrow(ColdConstructionError);
 		expect(graph.inspect()).toEqual(baseline);
