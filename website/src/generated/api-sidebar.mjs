@@ -49,10 +49,6 @@ export const apiSidebar = [
 				"link": "/api/node"
 			},
 			{
-				"label": "defaultNodeVersionHash()",
-				"link": "/api/defaultnodeversionhash"
-			},
-			{
 				"label": "isInvalidErrorPayload()",
 				"link": "/api/isinvaliderrorpayload"
 			},

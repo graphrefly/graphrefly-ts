@@ -11,7 +11,6 @@ import type {
 	Subscriber,
 	SyncCtxState,
 	ValueState,
-	VersionState,
 	WaveState,
 } from "./core.js";
 import type { Node } from "./node.js";
@@ -28,7 +27,6 @@ export interface NodeRuntimeHost<T = unknown> {
 	_privateState: PrivateState;
 	_lifetime: LifetimeState;
 	_syncCtxState: SyncCtxState;
-	_version: VersionState;
 	_syncCtx: Ctx | null;
 	_seed: import("./types.js").NodeSeed | undefined;
 	_released: boolean;

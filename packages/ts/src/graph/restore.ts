@@ -16,7 +16,6 @@ import type { Node } from "../node/node.js";
 import { nodeRuntimeHost } from "../node/node-runtime-host.js";
 import { restoreStateOfNode } from "../node/runtime-accessors.js";
 import type { NodeOptions, NodeReceived } from "../node/types.js";
-import type { NodeVersioningPolicy } from "../node/versioning.js";
 import { SENTINEL } from "../protocol/messages.js";
 import {
 	GRAPH_CHECKPOINT_FORMAT,
@@ -105,7 +104,6 @@ export type GraphRestoreRegistry =
 export interface RestoreGraphOptions {
 	registry: GraphRestoreRegistry;
 	dispatcher?: Dispatcher;
-	versioning?: NodeVersioningPolicy;
 }
 
 type TakeConfig = { n: number };
@@ -794,9 +792,8 @@ function constructPrepared(
 	prepared: PreparedCheckpoint,
 	registry: GraphRestoreRegistry,
 	dispatcher?: Dispatcher,
-	versioning?: NodeVersioningPolicy,
 ): Graph {
-	const out = graph({ name: prepared.checkpoint.name, dispatcher, versioning });
+	const out = graph({ name: prepared.checkpoint.name, dispatcher });
 	try {
 		const built = new Map<string, Node<unknown>>();
 		const visiting = new Set<string>();
@@ -850,7 +847,7 @@ function constructPrepared(
 		for (const id of prepared.nodes.keys()) buildNode(id);
 
 		for (const mount of prepared.mounts) {
-			out.mount(constructPrepared(mount.prepared, registry, dispatcher, versioning), {
+			out.mount(constructPrepared(mount.prepared, registry, dispatcher), {
 				at: mount.at,
 			});
 		}
@@ -891,7 +888,7 @@ function constructPrepared(
  *
  * @param checkpoint - A `graphrefly-ts/checkpoint@1` checkpoint.
  * @param options - The registry of recipe factories, restore extensions and named definitions,
- *   and optional dispatcher and versioning overrides.
+ *   and an optional dispatcher override.
  * @returns A new graph with no subscribers; no recipe function has run.
  * @example
  * ```ts
@@ -913,10 +910,10 @@ export function restoreGraph(checkpoint: GraphCheckpoint, options: RestoreGraphO
 		throw new Error("restoreGraph: registry must be a Map or object");
 	}
 	for (const key of Object.keys(options)) {
-		if (key !== "registry" && key !== "dispatcher" && key !== "versioning") {
+		if (key !== "registry" && key !== "dispatcher") {
 			throw new Error(`restoreGraph: unknown option '${key}'`);
 		}
 	}
 	const prepared = prepareCheckpoint(checkpoint, options.registry);
-	return constructPrepared(prepared, options.registry, options.dispatcher, options.versioning);
+	return constructPrepared(prepared, options.registry, options.dispatcher);
 }

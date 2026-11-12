@@ -427,16 +427,6 @@ export {
 } from "./json/codec.js";
 export { Node, type NodeOptions, type Status } from "./node/node.js";
 export {
-	defaultNodeVersionHash,
-	type NodeVersion,
-	type NodeVersionHashFn,
-	type NodeVersioningLevel,
-	type NodeVersioningPolicy,
-	type NodeVersionJson,
-	type NodeVersionV0,
-	type NodeVersionV1,
-} from "./node/versioning.js";
-export {
 	type KnowledgeAssertionStrictJsonValue,
 	type KnowledgeGraphCursor,
 	type KnowledgeGraphEntity,

@@ -7,7 +7,6 @@
  */
 
 import type { Status } from "../node/node.js";
-import type { NodeVersion } from "../node/versioning.js";
 
 export interface GraphTopologyNode {
 	/** Stable mount-aware `::` path (auto-numbered when unnamed). Edge key. */
@@ -41,8 +40,6 @@ export interface DescribeNode extends GraphTopologyNode {
 	status: Status;
 	/** Cache snapshot at call time; field ABSENT = SENTINEL / never-emitted. */
 	value?: unknown;
-	/** D109 node runtime version metadata; absent when versioning:false. */
-	version?: NodeVersion;
 }
 
 export interface DescribeEdge extends GraphTopologyEdge {}

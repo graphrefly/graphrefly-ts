@@ -503,10 +503,9 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 		// Each write from a sink is a request of the graph; the proposal's sink admits it.
 		const unsubscribeProposal = runtime.cancellationProposals.subscribe((incoming) => {
 			for (const message of incoming) {
-				if (message[0] !== "DATA" || message[1].proposalId === undefined) continue;
-				if (decided) continue;
+				if (message[0] !== "DATA" || decided) continue;
 				decided = true;
-				const proposal = message[1];
+				const proposal = message[1] as ManagedUntrustedJsComputeCancellationProposal;
 				decisions.set({
 					...proposal,
 					kind: "managed-untrusted-js-compute-cancellation-decision",

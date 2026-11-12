@@ -1,6 +1,5 @@
 import type { Dispatcher } from "../dispatcher/index.js";
 import type { Node, NodeOptions } from "../node/node.js";
-import type { NodeVersioningPolicy } from "../node/versioning.js";
 import type { EnvironmentDrivers } from "./environment.js";
 
 /** Map a tuple of Nodes to the tuple of their value types (typed value-level fn args). */
@@ -29,8 +28,6 @@ export interface GraphOptions {
 	name?: string;
 	/** Bind to a dispatcher (default = process-global, D26). */
 	dispatcher?: Dispatcher;
-	/** D109 default node runtime versioning policy for graph-owned nodes. Default is nodev0. */
-	versioning?: NodeVersioningPolicy;
 	/** Graph-owned environment drivers for source/adapter boundaries (D130/D131). */
 	environment?: EnvironmentDrivers;
 	/**

@@ -1,7 +1,6 @@
 import type { Ctx, NodeFn } from "../ctx/types.js";
 import type { Dispatcher, Handle } from "../dispatcher/index.js";
 import type { Node } from "./node.js";
-import type { NodeVersioningPolicy } from "./versioning.js";
 
 /**
  * R-node@2: a node's status, derived from what it holds and never stored. Reading it changes
@@ -68,11 +67,6 @@ export interface NodeOptions<T = unknown> {
 	 * without one is local-only in a checkpoint.
 	 */
 	recipe?: unknown;
-	/**
-	 * D109 node runtime versioning policy. Default is nodev0 (`{level:0,counter}`); `false`
-	 * disables runtime version metadata for this node.
-	 */
-	versioning?: NodeVersioningPolicy;
 	/** Mark this as a dynamicNode — fn gets ctx.track(i) for read-selection (R-dynamic-node / D35). */
 	dynamic?: boolean;
 	/** Dispatch pool for the fn (R-sync-core). Default sync. */

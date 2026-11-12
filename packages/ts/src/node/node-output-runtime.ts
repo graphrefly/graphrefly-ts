@@ -8,11 +8,6 @@ import type { Node } from "./node.js";
 import { nodeCloseLifetime } from "./node-lifecycle-runtime.js";
 import type { NodeRuntimeHost } from "./node-runtime-host.js";
 import { validateDownPayloads } from "./protocol-guards.js";
-import {
-	advanceNodeVersion,
-	assertNodeVersionDataCompatible,
-	snapshotNodeVersionData,
-} from "./versioning.js";
 
 /**
  * R-wave: an array carrying DATA, RESOLVED, INVALIDATE, COMPLETE or ERROR marks the sender's
@@ -54,9 +49,6 @@ export function prepareArrays(msgs: Wave): Message[][] {
 export function nodeDown<T>(self: NodeRuntimeHost<T>, msgs: Wave): void {
 	if (self._released) return;
 	validateDownPayloads(msgs);
-	for (const m of msgs) {
-		if (m[0] === "DATA") assertNodeVersionDataCompatible(self._version.policy, m[1]);
-	}
 	// Terminal-is-forever (R-terminals): once COMPLETE/ERROR has been emitted the node's output
 	// is final; later output is dropped.
 	if (self._value.terminal !== undefined) return;
@@ -73,13 +65,7 @@ export function nodeDown<T>(self: NodeRuntimeHost<T>, msgs: Wave): void {
 		const staged = stagedBatchWave(self._core, self as unknown as Node<unknown>);
 		if (staged?.some((m) => isTerminal(m[0])))
 			throw new Error("down: a terminal must be the last message of its array (R-wave)");
-		const add = arrays
-			.flat()
-			.map((m) =>
-				m[0] === "DATA"
-					? (["DATA", snapshotNodeVersionData(self._version.policy, m[1])] as Message)
-					: m,
-			);
+		const add = arrays.flat();
 		deferToBatch(self._core, self as unknown as Node<unknown>, [...(staged ?? []), ...add]);
 		return;
 	}
@@ -101,7 +87,6 @@ export function nodePublish<T>(self: NodeRuntimeHost<T>, arrays: readonly Messag
 		for (const m of array) {
 			if (m[0] === "DATA") {
 				const v = m[1] as T;
-				self._version.value = advanceNodeVersion(self._version.value, self._version.policy, v);
 				self._value.cache = v;
 				self._value.hasData = true;
 				values.push(v);

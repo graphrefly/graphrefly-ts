@@ -1602,37 +1602,7 @@ function describeNode(value: unknown): DescribeSnapshot["nodes"][number] {
 	};
 	if (Object.hasOwn(value, "value"))
 		out.value = cloneJson(value.value, "local untrusted JS compute describe node value");
-	if (value.version !== undefined) out.version = nodeVersion(value.version);
 	return Object.freeze(out);
-}
-
-function nodeVersion(value: unknown): NonNullable<DescribeSnapshot["nodes"][number]["version"]> {
-	if (!plain(value))
-		throw new TypeError("Local untrusted JS compute describe node version is invalid.");
-	if (value.level === 0) {
-		exactKeys(value, ["level", "counter"]);
-		if (!Number.isSafeInteger(value.counter) || Number(value.counter) < 0)
-			throw new TypeError("Local untrusted JS compute describe node version is invalid.");
-		return Object.freeze({ level: 0, counter: Number(value.counter) });
-	}
-	exactKeys(value, ["level", "counter", "cid", "prev"]);
-	if (
-		value.level !== 1 ||
-		!Number.isSafeInteger(value.counter) ||
-		Number(value.counter) < 0 ||
-		typeof value.cid !== "string" ||
-		(value.prev !== null && typeof value.prev !== "string")
-	)
-		throw new TypeError("Local untrusted JS compute describe node version is invalid.");
-	safe(value.cid, "local untrusted JS compute describe node version cid");
-	if (value.prev !== null)
-		safe(value.prev, "local untrusted JS compute describe node previous version cid");
-	return Object.freeze({
-		level: 1,
-		counter: Number(value.counter),
-		cid: value.cid,
-		prev: value.prev,
-	});
 }
 
 function exactKeys(

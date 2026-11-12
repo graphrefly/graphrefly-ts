@@ -23,7 +23,7 @@ function graph(opts: GraphOptions = {}): Graph
 
 | Parameter | Type | Description |
 |---|---|---|
-| `opts` | `GraphOptions` | Optional graph name, dispatcher, versioning policy, environment drivers, and profiling switch. |
+| `opts` | `GraphOptions` | Optional graph name, dispatcher, environment drivers, and profiling switch. |
 
 ## Returns
 

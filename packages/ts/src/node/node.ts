@@ -38,7 +38,6 @@ import {
 	type Subscriber,
 	type SyncCtxState,
 	type ValueState,
-	type VersionState,
 	type WaveState,
 } from "./core.js";
 import {
@@ -95,12 +94,6 @@ import {
 	withNodeCore,
 } from "./runtime-accessors.js";
 import type { NodeOptions, NodeReceived, NodeSeed, Status } from "./types.js";
-import {
-	cloneNodeVersion,
-	createNodeVersion,
-	type NodeVersion,
-	resolveNodeVersioningPolicy,
-} from "./versioning.js";
 
 export {
 	checkpointStateOfNode,
@@ -146,7 +139,6 @@ export class Node<T = unknown> {
 	private readonly _privateState: PrivateState;
 	private readonly _lifetime: LifetimeState;
 	private readonly _syncCtxState: SyncCtxState;
-	private readonly _version: VersionState;
 	private _seed: NodeSeed | undefined = undefined;
 	private _released = false;
 	// biome-ignore lint/correctness/noUnusedPrivateClassMembers: accessed through the checked internal runtime host.
@@ -200,7 +192,6 @@ export class Node<T = unknown> {
 			opts.dispatcher ?? stagedDispatcher ?? running?.dispatcher ?? defaultDispatcher;
 		const environment = stagedEnvironment ?? running?.environment ?? EnvironmentDrivers.empty();
 		try {
-			const versioning = resolveNodeVersioningPolicy(opts.versioning);
 			const pool = opts.pool ?? "sync";
 
 			let handle: Handle | null;
@@ -273,13 +264,6 @@ export class Node<T = unknown> {
 						closingSignal: null,
 					},
 					syncCtx: { value: null },
-					version: {
-						policy: versioning,
-						value: createNodeVersion(
-							versioning,
-							opts.initial !== undefined ? opts.initial : undefined,
-						),
-					},
 				},
 				acquisition,
 			);
@@ -295,7 +279,6 @@ export class Node<T = unknown> {
 			this._privateState = this._core.getPrivateState(this._id);
 			this._lifetime = this._core.getLifetime(this._id);
 			this._syncCtxState = this._core.getSyncCtx(this._id);
-			this._version = this._core.getVersion(this._id);
 			Node._retainIndirectRuntimeMethods(this as Node<unknown>);
 			issueNodeRegistration(this as Node<unknown>);
 			acquisition.node = this as Node<unknown>;
@@ -312,10 +295,6 @@ export class Node<T = unknown> {
 	/** R-node@2: derived from what the node holds; reading it changes nothing. */
 	get status(): Status {
 		return nodeStatus(nodeRuntimeHost(this));
-	}
-
-	get version(): NodeVersion | undefined {
-		return cloneNodeVersion(this._version.value);
 	}
 
 	get name(): string | undefined {

@@ -271,16 +271,11 @@ describe("D161 graph construction ownership", () => {
 		scope.startupSource();
 		let caught: unknown;
 		try {
-			scope.node([], () => {}, {
-				name: "cold/bad",
-				initial: 1,
-				versioning: {
-					level: 1,
-					hash: () => {
-						throw new Error("hash allocation failure");
-					},
-				} as never,
+			// A failure after the constructor registered the function's handle, before the node exists.
+			vi.spyOn(NodeCore.prototype, "createSlot").mockImplementationOnce(() => {
+				throw new Error("allocation failure");
 			});
+			scope.node([], () => {}, { name: "cold/bad", initial: 1 });
 		} catch (error) {
 			caught = error;
 		}
@@ -677,16 +672,11 @@ describe("D161 graph construction ownership", () => {
 		scope.startupSource();
 		let cause: unknown;
 		try {
-			scope.node([], () => {}, {
-				name: "partial/root",
-				initial: 1,
-				versioning: {
-					level: 1,
-					hash: () => {
-						throw new Error("hash");
-					},
-				},
+			// A failure after the constructor registered the function's handle, before the node exists.
+			vi.spyOn(NodeCore.prototype, "createSlot").mockImplementationOnce(() => {
+				throw new Error("allocation failure");
 			});
+			scope.node([], () => {}, { name: "partial/root", initial: 1 });
 		} catch (error) {
 			cause = error;
 		}

@@ -43,7 +43,6 @@ import {
 	type NodeAcquisition,
 } from "../node/owned-acquisition.js";
 import type { NodeDefinition, ReplaceOptions } from "../node/types.js";
-import type { NodeVersioningPolicy } from "../node/versioning.js";
 import { errorPayload, messageTier, SENTINEL } from "../protocol/messages.js";
 import {
 	GRAPH_BLUEPRINT_VERSION,
@@ -162,7 +161,6 @@ export function assertGraphLocalNode(owner: Graph, n: Node<unknown>, label: stri
 export class Graph {
 	readonly name?: string;
 	private readonly _dispatcher: Dispatcher;
-	private readonly _versioning: NodeVersioningPolicy | undefined;
 	private readonly _environment: EnvironmentDrivers;
 	private readonly _core = new NodeCore();
 	private readonly _entries = new Map<Node<unknown>, Entry>();
@@ -184,7 +182,6 @@ export class Graph {
 	constructor(opts: GraphOptions = {}) {
 		this.name = opts.name;
 		this._dispatcher = opts.dispatcher ?? defaultDispatcher;
-		this._versioning = opts.versioning;
 		this._environment = opts.environment ?? EnvironmentDrivers.empty();
 		if (opts.profile) this._dispatcher.setRecording(true);
 		this._core.report = opts.report;
@@ -281,7 +278,6 @@ export class Graph {
 		const { name: _n, meta: _m, ...rest } = opts;
 		return {
 			...rest,
-			versioning: rest.versioning ?? this._versioning,
 			dispatcher: this._dispatcher,
 		};
 	}
@@ -659,7 +655,6 @@ export class Graph {
 				};
 				if (entry.name !== undefined) dnode.name = entry.name;
 				if (entry.node.cache !== undefined) dnode.value = entry.node.cache; // absent = SENTINEL
-				if (entry.node.version !== undefined) dnode.version = entry.node.version;
 				if (entry.meta !== undefined) dnode.meta = entry.meta;
 				nodes.push(dnode);
 			}
@@ -690,7 +685,6 @@ export class Graph {
 					deps: liveIds,
 				};
 				if (inner.cache !== undefined) dnode.value = inner.cache;
-				if (inner.version !== undefined) dnode.version = inner.version;
 				nodes.push(dnode);
 				for (const from of liveIds) edges.push({ from, to: dnode.id });
 			}
@@ -1133,7 +1127,7 @@ function checkpointRecipe(recipe: unknown, id: string): GraphCheckpointRecipe | 
 /**
  * Construct a graph with graph-local topology, lifecycle, and inspection ownership.
  *
- * @param opts - Optional graph name, dispatcher, versioning policy, environment drivers, and
+ * @param opts - Optional graph name, dispatcher, environment drivers, and
  *   profiling switch.
  * @returns A `Graph` instance whose sugar methods create graph-registered nodes.
  * @example
