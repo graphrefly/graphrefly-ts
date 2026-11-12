@@ -407,15 +407,17 @@ const lifecycleIn = fromNestLifecycle<unknown, { readonly event: string }>(g, {
 class GraphAuditLogger implements OnModuleDestroy {
 	private readonly logger = new Logger("GraphAudit");
 	private readonly audit = new Map<string, AuditEntry>();
-	private readonly stopAudit = g.observe("orders.audit").subscribe((event) => {
-		if (event.msg[0] !== "DATA") return;
-		const entry = event.msg[1] as AuditEntry;
-		this.audit.set(entry.requestId, entry);
-		this.logger.log(
-			`orders.audit ${entry.requestId} accepted=${entry.accepted}${
-				entry.reason ? ` reason=${entry.reason}` : ""
-			}`,
-		);
+	private readonly stopAudit = g.observe(["orders.audit"], (event) => {
+		for (const msg of event.msgs) {
+			if (msg[0] !== "DATA") continue;
+			const entry = msg[1] as AuditEntry;
+			this.audit.set(entry.requestId, entry);
+			this.logger.log(
+				`orders.audit ${entry.requestId} accepted=${entry.accepted}${
+					entry.reason ? ` reason=${entry.reason}` : ""
+				}`,
+			);
+		}
 	});
 	private readonly stopDiagnostics = diagnosticsIn.node.subscribe((msgs) => {
 		for (const msg of msgs) {
@@ -446,7 +448,7 @@ class GraphBoundaryDemo {
 		return result(202, { lifecycle: "teardown-envelope-emitted" });
 	}
 
-	describe(): ReturnType<Graph["describe"]> {
+	inspect(): ReturnType<Graph["inspect"]> {
 		return g.inspect();
 	}
 }
@@ -543,7 +545,7 @@ class DemoController {
 	}
 
 	@Get("graph")
-	graph(): ReturnType<GraphBoundaryDemo["describe"]> {
+	graph(): ReturnType<GraphBoundaryDemo["inspect"]> {
 		return this.demo.inspect();
 	}
 }

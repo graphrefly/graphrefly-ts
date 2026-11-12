@@ -19,7 +19,7 @@ type MetaSnapshot = {
 function segmentNodeId(graph: Graph): string | null {
 	const described = graph
 		.describe()
-		.nodes.find((node) => node.id === "segments" || node.id.endsWith(":segments"));
+		.find((node) => node.id === "segments" || node.id.endsWith(":segments"));
 	return described?.id ?? null;
 }
 
@@ -36,7 +36,7 @@ function readMetaSnapshot(graph: Graph | null): MetaSnapshot {
 		const described =
 			segmentsId === null
 				? undefined
-				: graph.describe().nodes.find((node) => node.id === segmentsId);
+				: graph.inspect().nodes.find((node) => node.id === segmentsId);
 		const meta = described?.meta ?? {};
 		return {
 			cacheHitRate: metaCache<number>(meta, "cache-hit-rate"),
@@ -83,9 +83,7 @@ export default function InspectStrip({
 		try {
 			const segmentsId = segmentNodeId(activeGraph);
 			if (segmentsId === null) return;
-			const unsub = activeGraph
-				.observe(segmentsId)
-				.subscribe(() => setMeta(readMetaSnapshot(activeGraph)));
+			const unsub = activeGraph.observe([segmentsId], () => setMeta(readMetaSnapshot(activeGraph)));
 			return () => unsub();
 		} catch {
 			return;

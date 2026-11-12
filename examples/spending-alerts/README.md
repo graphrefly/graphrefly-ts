@@ -18,7 +18,7 @@ txFeed → anomalyScore → thresholdGate → reasonFactors → alertMessage
 ```
 
 The original [pipeline](pipeline.ts) uses
-`graph.describe({ explain: { from: "txFeed", to: "alertMessage" } })` to explain
+`graph.inspect({ explain: { from: "txFeed", to: "alertMessage" } })` to explain
 its dependency chain. It does not provide the complete Causal admission and host
 lifecycle proof described below.
 
@@ -98,7 +98,7 @@ original references without introducing another identity registry.
 ## Inspect one instance in a shared graph
 
 Keep the owning Graph and the original composed instance together. Start with
-`graph.describe()` without an explain-path filter; inspect the intended instance
+`graph.inspect()` without an explain-path filter; inspect the intended instance
 through its own `inspect()`, view and capability references. The existing
 [demo's evidence navigation](causal-graded-demo.ts) joins each publication to that
 instance's retained request and outcome.
@@ -106,7 +106,7 @@ instance's retained request and outcome.
 For an existing `graph` and its composed `app`, the read-only observations are:
 
 ```ts
-const fullGraph = graph.describe();
+const fullGraph = graph.inspect();
 const host = app.inspect();
 const publication = app.view.publication.cache;
 const retainedQuiescence = app.capabilities.retained.retainedQuiescence.cache;

@@ -18,9 +18,12 @@
 //     can answer "which grapheme did the user click on?" against the
 //     current `layout/code-lines` and the raw snippet text.
 
-import type { Node } from "@graphrefly/ts/graph";
+import type { Node } from "@graphrefly/ts/core";
+import { graph } from "@graphrefly/ts/graph";
 import {
 	analyzeAndMeasure,
+	type BlockAdapters,
+	blockMeasurementProvider,
 	type CharPosition,
 	type ContentBlock,
 	computeCharPositions,
@@ -62,17 +65,22 @@ export function createLeaderboardLayout(initialLabels: readonly string[]): {
 	setBlocks: (labels: readonly string[]) => void;
 	totalHeight: Node<number>;
 } {
-	const bundle = reactiveBlockLayout({
-		adapters: { text: getMeasurementAdapter() },
-		defaultFont: LAYOUT_FONT,
-		defaultLineHeight: 28,
-		maxWidth: 320,
-	});
 	const toBlocks = (labels: readonly string[]): ContentBlock[] =>
-		labels.map<ContentBlock>((l) => ({ type: "text", text: l }));
-	bundle.setBlocks(toBlocks(initialLabels));
+		labels.map<ContentBlock>((l) => ({ kind: "text", text: l }));
+	const g = graph({ name: "compat-matrix/leaderboard-layout" });
+	const blocks = g.state<readonly ContentBlock[]>(toBlocks(initialLabels), { name: "blocks" });
+	const measurements = blockMeasurementProvider({
+		graph: g,
+		blocks,
+		maxWidth: g.state(320, { name: "max-width" }),
+		adapters: g.state<BlockAdapters>({ text: getMeasurementAdapter() }, { name: "adapters" }),
+		font: g.state(LAYOUT_FONT, { name: "font" }),
+		lineHeight: g.state(28, { name: "line-height" }),
+		name: "leaderboard:measurements",
+	});
+	const bundle = reactiveBlockLayout({ graph: g, measurements, name: "leaderboard" });
 	return {
-		setBlocks: (labels) => bundle.setBlocks(toBlocks(labels)),
+		setBlocks: (labels) => blocks.set(toBlocks(labels)),
 		totalHeight: bundle.totalHeight,
 	};
 }
@@ -105,13 +113,7 @@ export function hitTestCharacter(
 	const adapter = getMeasurementAdapter();
 	const cache = new Map<string, Map<string, number>>();
 	const segments = analyzeAndMeasure(text, LAYOUT_FONT, adapter, cache);
-	const lineBreaks = computeLineBreaks(
-		segments,
-		Math.max(100, maxWidth),
-		adapter,
-		LAYOUT_FONT,
-		cache,
-	);
+	const lineBreaks = computeLineBreaks(segments, Math.max(100, maxWidth));
 	const positions = computeCharPositions(lineBreaks, segments, LAYOUT_LINE_HEIGHT);
 	if (positions.length === 0) return null;
 	let best: { hit: CharHit; dist: number } | null = null;

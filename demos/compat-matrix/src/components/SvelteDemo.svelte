@@ -4,7 +4,7 @@ import {
 	nodeWritable as useStore,
 	nodeReadable as useSubscribe,
 } from "@graphrefly/svelte";
-import type { Node } from "@graphrefly/ts/graph";
+import type { Node } from "@graphrefly/ts/core";
 import { onMount } from "svelte";
 import { readable, writable } from "svelte/store";
 import {

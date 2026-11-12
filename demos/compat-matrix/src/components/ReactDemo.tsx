@@ -10,7 +10,7 @@ import type {
 	WritableNanoAtom,
 	ZustandStoreApi,
 } from "@graphrefly/ts/adapters";
-import type { Node } from "@graphrefly/ts/graph";
+import type { Node } from "@graphrefly/ts/core";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
 	counterGraph,

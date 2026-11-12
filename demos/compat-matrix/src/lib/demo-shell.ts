@@ -1,5 +1,6 @@
-import { type Graph, graph, type Node } from "@graphrefly/ts/graph";
-import { describeToMermaid } from "@graphrefly/ts/render";
+import type { Node } from "@graphrefly/ts/core";
+import { type Graph, graph } from "@graphrefly/ts/graph";
+import { inspectToMermaid } from "@graphrefly/ts/render";
 import {
 	analyzeAndMeasure,
 	computeLineBreaks,
@@ -44,7 +45,7 @@ export function demoShell(opts: DemoShellOptions): DemoShellHandle {
 		(_tick, selected) => {
 			const source = demoGraphRef.current;
 			if (!source) return "flowchart LR";
-			const rendered = describeToMermaid(source.describe(), { direction: "LR" });
+			const rendered = inspectToMermaid(source.inspect(), { direction: "LR" });
 			return selected ? `${rendered}\n%% selected: ${selected}` : rendered;
 		},
 		{ name: "graph/mermaid" },
@@ -59,7 +60,7 @@ export function demoShell(opts: DemoShellOptions): DemoShellHandle {
 			const maxWidth = Math.max(120, Math.round((width ?? 0) * (1 - (ratio ?? 0.6)) - 32));
 			const font = opts.layoutFont ?? '13px "Fira Code", ui-monospace, monospace';
 			const segments = analyzeAndMeasure(text, font, opts.adapter, cache);
-			return computeLineBreaks(segments, maxWidth, opts.adapter, font, cache);
+			return computeLineBreaks(segments, maxWidth);
 		},
 		{ name: "layout/code-lines" },
 	);

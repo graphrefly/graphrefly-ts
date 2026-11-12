@@ -14,7 +14,7 @@ type CounterState = {
 
 const g = graph({ name: "zustand-example" });
 const counter = g.state<CounterState>({ count: 0 }, { name: "counter" });
-const store = zustandStore(counter);
+const store = zustandStore<CounterState>(counter);
 
 // Selector-based derivation (zustand idiom).
 const doubled = (s: CounterState) => s.count * 2;

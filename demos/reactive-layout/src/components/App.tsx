@@ -65,7 +65,7 @@ const CHAPTERS: Chapter[] = [
 		return {
 			id: "batch",
 			label: "Batch",
-			tagline: "5 writes, 1 coalesced recompute via batch().",
+			tagline: "5 writes, 1 coalesced recompute via graph.batch().",
 			graph: c.batched.graph,
 			sourceCode: c.sourceCode,
 			registry: c.registry,

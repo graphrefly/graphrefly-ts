@@ -7,7 +7,7 @@
  * or an imperative graph mutation API.
  */
 
-import { graph } from "@graphrefly/ts";
+import { graph, type Node } from "@graphrefly/ts";
 import {
 	type KnowledgeAssertion,
 	type KnowledgeGraphRelation,
@@ -99,9 +99,7 @@ function assertionsFromDocs(docs: readonly Doc[]): KnowledgeAssertion[] {
 	return assertions;
 }
 
-function activate<T>(node: {
-	subscribe: (sink: (message: readonly [string, unknown?]) => void) => () => void;
-}): { readonly value: T; readonly unsubscribe: () => void } {
+function activate<T>(node: Node<T>): { readonly value: T; readonly unsubscribe: () => void } {
 	let latest: T | undefined;
 	const unsubscribe = node.subscribe((msgs) => {
 		for (const [type, value] of msgs) {

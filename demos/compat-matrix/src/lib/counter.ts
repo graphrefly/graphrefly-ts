@@ -10,7 +10,8 @@ import {
 	type WritableNode,
 	type ZustandStoreApi,
 } from "@graphrefly/ts/adapters";
-import { type Graph, graph, type Node } from "@graphrefly/ts/graph";
+import type { Node } from "@graphrefly/ts/core";
+import { type Graph, graph } from "@graphrefly/ts/graph";
 import { createLeaderboardLayout } from "./layout-integration";
 
 export const counterGraph: Graph = graph({ name: "compat-matrix" });
@@ -23,7 +24,7 @@ export const rawDoubledNode = counterGraph.derived([rawNode], (n) => (n ?? 0) * 
 
 // 2. Jotai-style facade over caller-owned GraphReFly nodes.
 export const jotaiNode = counterGraph.state(0, { name: "jotai/count" });
-export const jotaiCounter: WritableJotaiAtom<number> = jotaiAtom(jotaiNode);
+export const jotaiCounter: WritableJotaiAtom<number> = jotaiAtom<number>(jotaiNode);
 export const jotaiDoubledNode = counterGraph.derived([jotaiNode], (n) => (n ?? 0) * 2, {
 	name: "jotai/doubled",
 });
@@ -31,7 +32,7 @@ export const jotaiDoubled: JotaiAtom<number> = jotaiAtom(jotaiDoubledNode);
 
 // 3. Nanostores-style facade over caller-owned GraphReFly nodes.
 export const nanoNode = counterGraph.state(0, { name: "nanostores/count" });
-export const nanoCounter: WritableNanoAtom<number> = nanoAtom(nanoNode);
+export const nanoCounter: WritableNanoAtom<number> = nanoAtom<number>(nanoNode);
 export const nanoDoubledNode = counterGraph.derived([nanoNode], (n) => (n ?? 0) * 2, {
 	name: "nanostores/doubled",
 });
@@ -115,8 +116,9 @@ const leaderboardLayout = createLeaderboardLayout(
 	["graphrefly", "jotai", "nanostores", "zustand"].map((k) => `${k.toUpperCase()}  ${k}/count`),
 );
 export const leaderboardTotalHeight = leaderboardLayout.totalHeight;
-keysNode.subscribe((msg) => {
-	if (msg[0] === "DATA") {
+keysNode.subscribe((msgs) => {
+	for (const msg of msgs) {
+		if (msg[0] !== "DATA") continue;
 		leaderboardLayout.setBlocks(
 			(msg[1] as readonly string[]).map((k) => `${k.toUpperCase()}  ${k}/count`),
 		);

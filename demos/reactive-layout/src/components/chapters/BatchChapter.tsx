@@ -38,7 +38,7 @@ export default function BatchChapterUI({ onHover }: ChapterProps) {
 			<p className="chapter-lede">
 				Two identical <code>reactiveLayout</code> bundles. Click the button to apply the same 5
 				writes (text, font, line-height, max-width, text-again) to each. The batched one wraps the
-				writes in <code>batch(() =&gt; &hellip;)</code>; the unbatched one doesn't.
+				writes in <code>graph.batch(() =&gt; &hellip;)</code>; the unbatched one doesn't.
 			</p>
 			<div className="controls">
 				<button type="button" onClick={handleRun}>
@@ -60,7 +60,7 @@ export default function BatchChapterUI({ onHover }: ChapterProps) {
 
 			<div className="compare-grid">
 				<div className="compare-col" data-output="batched">
-					<h4>batch(() =&gt; &hellip;) — one coalesced pass</h4>
+					<h4>graph.batch(() =&gt; &hellip;) — one coalesced pass</h4>
 					<table className="counter-table">
 						<tbody>
 							<tr data-counter="batched.segments" {...hoverProps(onHover, "segments")}>

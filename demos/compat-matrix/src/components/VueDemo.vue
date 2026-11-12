@@ -6,7 +6,7 @@ import type {
 	WritableNode,
 	ZustandStoreApi,
 } from "@graphrefly/ts/adapters";
-import type { Node } from "@graphrefly/ts/graph";
+import type { Node } from "@graphrefly/ts/core";
 import { useNodeInput, useNodeRecord, useNodeValue as useSubscribe } from "@graphrefly/vue";
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import {

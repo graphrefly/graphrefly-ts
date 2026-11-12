@@ -12,7 +12,7 @@ import type {
 	WritableNanoAtom,
 	ZustandStoreApi,
 } from "@graphrefly/ts/adapters";
-import type { Node } from "@graphrefly/ts/graph";
+import type { Node } from "@graphrefly/ts/core";
 import { createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js";
 import {
 	counterGraph,
@@ -61,8 +61,8 @@ const LIB_DESCS: Record<LibName, string> = {
 // ── Custom bridging hooks ─────────────────────────────────────────────
 
 function useJotaiAtom<T>(atom: WritableJotaiAtom<T>) {
-	const [value, setValue] = createSignal<T>(atom.get(), { equals: false });
-	const unsub = atom.subscribe((v: T) => setValue(() => v));
+	const [value, setValue] = createSignal<T | undefined>(atom.get(), { equals: false });
+	const unsub = atom.subscribe((v: T | undefined) => setValue(() => v));
 	onCleanup(() => unsub());
 	return {
 		get: value,
@@ -71,15 +71,15 @@ function useJotaiAtom<T>(atom: WritableJotaiAtom<T>) {
 }
 
 function useJotaiReadonly<T>(atom: JotaiAtom<T>) {
-	const [value, setValue] = createSignal<T>(atom.get(), { equals: false });
-	const unsub = atom.subscribe((v: T) => setValue(() => v));
+	const [value, setValue] = createSignal<T | undefined>(atom.get(), { equals: false });
+	const unsub = atom.subscribe((v: T | undefined) => setValue(() => v));
 	onCleanup(() => unsub());
 	return value;
 }
 
 function useNanoAtom<T>(store: WritableNanoAtom<T>) {
-	const [value, setValue] = createSignal<T>(store.get(), { equals: false });
-	const unsub = store.subscribe((v: T) => setValue(() => v));
+	const [value, setValue] = createSignal<T | undefined>(store.get(), { equals: false });
+	const unsub = store.subscribe((v: T | undefined) => setValue(() => v));
 	onCleanup(() => unsub());
 	return {
 		get: value,
@@ -88,8 +88,8 @@ function useNanoAtom<T>(store: WritableNanoAtom<T>) {
 }
 
 function useNanoComputedValue<T>(store: NanoAtom<T>) {
-	const [value, setValue] = createSignal<T>(store.get(), { equals: false });
-	const unsub = store.subscribe((v: T) => setValue(() => v));
+	const [value, setValue] = createSignal<T | undefined>(store.get(), { equals: false });
+	const unsub = store.subscribe((v: T | undefined) => setValue(() => v));
 	onCleanup(() => unsub());
 	return value;
 }

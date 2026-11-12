@@ -229,11 +229,11 @@ export default function FlowChapterUI({ onHover }: ChapterProps) {
 		const rafGraph = graph({ name: "flow-raf" });
 		const raf = rafGraph.initNode(fromRaf(), [], { name: "flow-raf/tick" });
 		let lastT = -1;
-		const unsub = raf.subscribe((msg) => {
-			// Collect the latest DATA timestamp in this batch (rAF is single-
-			// emission per tick, but batches can in principle coalesce).
+		const unsub = raf.subscribe((msgs) => {
+			// Collect the latest DATA timestamp in this array (rAF is single-
+			// emission per tick, but an array can in principle carry several).
 			let t = -1;
-			if (msg[0] === "DATA") t = msg[1] as number;
+			for (const msg of msgs) if (msg[0] === "DATA") t = msg[1] as number;
 			if (t < 0) return;
 			if (lastT < 0) {
 				lastT = t;

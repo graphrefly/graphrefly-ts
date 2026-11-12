@@ -2,7 +2,7 @@ import { useNodeInput, useNodeValue } from "@graphrefly/react";
 import { count, doubled } from "./store";
 
 export function Counter() {
-	const [value, setValue] = useNodeInput(count);
+	const [value, setValue] = useNodeInput<number>(count);
 	const dbl = useNodeValue(doubled);
 	const n = value ?? 0;
 	return (

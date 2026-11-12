@@ -1,7 +1,6 @@
 import type { Node } from "@graphrefly/ts/core";
-import { batch } from "@graphrefly/ts/core";
 import { type Graph, graph } from "@graphrefly/ts/graph";
-import { describeToMermaid } from "@graphrefly/ts/render";
+import { inspectToMermaid } from "@graphrefly/ts/render";
 
 export type HoverTarget = { pane: "visual" | "graph" | "code"; id: string } | null;
 
@@ -53,7 +52,7 @@ function findNode(g: Graph | null, id: string | null): Node<unknown> | undefined
 	if (local) return local;
 	const described = g
 		.describe()
-		.nodes.find((node) => id.endsWith(`:${node.id}`) || node.id.endsWith(`:${id}`));
+		.find((node) => id.endsWith(`:${node.id}`) || node.id.endsWith(`:${id}`));
 	return described ? g.find(described.id) : undefined;
 }
 
@@ -61,13 +60,13 @@ function nodeDetail(g: Graph | null, id: string | null): NodeDetail | null {
 	const node = findNode(g, id);
 	if (!node || id === null) return null;
 	const described = g
-		?.describe()
+		?.inspect()
 		.nodes.find((entry) => entry.id === id || id.endsWith(`:${entry.id}`));
 	return {
 		path: described?.id ?? id,
 		kind: described?.factory,
 		value: node.cache,
-		status: node.status,
+		status: `${node.status.cache}/${node.status.output}/${node.status.lifecycle}`,
 	};
 }
 
@@ -87,7 +86,7 @@ export function getShell(viewportWidth?: number): DemoShellHandle {
 		[demoGraph, graphTick],
 		(current) => {
 			if (current === null) return "";
-			return describeToMermaid(current.describe(), { direction: "TD" });
+			return inspectToMermaid(current.inspect(), { direction: "TD" });
 		},
 		{ name: "graph/mermaid" },
 	);
@@ -109,7 +108,7 @@ export function getShell(viewportWidth?: number): DemoShellHandle {
 
 	shell = {
 		graph: g,
-		batch,
+		batch: (fn) => g.batch(fn),
 		setDemoGraph: (next) => demoGraph.set(next),
 		setCodeText: (next) => sourceCode.set(next),
 		selectNode: (next) => selectedNode.set(next),

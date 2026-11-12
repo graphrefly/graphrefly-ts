@@ -1,4 +1,3 @@
-import { batch } from "@graphrefly/ts/core";
 import { createDemoReactiveLayout, type DemoReactiveLayoutBundle } from "../layout-bundles.js";
 import { getMeasurementAdapter, LAYOUT_FONT, LAYOUT_LINE_HEIGHT } from "../measure-adapter.js";
 import type { NodeRegistry } from "../shell.js";
@@ -11,8 +10,8 @@ layout.setMaxWidth(300);
 layout.setText("five — final");
 // → segments runs 3×, line-breaks runs 4×, height runs 4×, char-positions 4×.
 
-// Batched — same writes inside one \`batch(...)\` call.
-batch(() => {
+// Batched — same writes inside one \`graph.batch(...)\` call.
+layout.graph.batch(() => {
   layout.setText("five");
   layout.setFont("12px Inter");
   layout.setLineHeight(18);
@@ -35,7 +34,7 @@ export type BatchChapter = {
 	batchedStats: BatchStats;
 	unbatchedStats: BatchStats;
 	resetStats: () => void;
-	/** Apply the same 5 interleaved writes to both bundles; batched wraps in `batch(...)`. */
+	/** Apply the same 5 interleaved writes to both bundles; batched wraps in `graph.batch(...)`. */
 	applyFiveEdits: () => void;
 	sourceCode: string;
 	registry: NodeRegistry;
@@ -56,7 +55,7 @@ export function buildBatchChapter(): BatchChapter {
 	const batched = createDemoReactiveLayout({
 		adapter,
 		name: "layout.batched",
-		text: "Wrapped in batch(): same 5 writes collapse into 1 cycle.",
+		text: "Wrapped in graph.batch(): same 5 writes collapse into 1 cycle.",
 		font: LAYOUT_FONT,
 		lineHeight: LAYOUT_LINE_HEIGHT,
 		maxWidth: 420,
@@ -102,12 +101,12 @@ export function buildBatchChapter(): BatchChapter {
 			b.setText(`edit-${nonce}e — final text for this round`);
 		};
 		writes(unbatched);
-		batch(() => writes(batched));
+		batched.graph.batch(() => writes(batched));
 	};
 
 	// The shell's topology pane renders the BATCHED bundle, so registry
 	// entries target the batched section of the source (lines 11–15 are the
-	// batched setX calls inside `batch(() => ...)`, line 17 is the cascade
+	// batched setX calls inside `layout.graph.batch(() => ...)`, line 17 is the cascade
 	// claim "→ segments runs 1×, line-breaks runs 1×, height runs 1×, ...").
 	const registry: NodeRegistry = new Map([
 		["text", { codeLine: 11, visualSelector: "[data-field='batched.text']" }],
