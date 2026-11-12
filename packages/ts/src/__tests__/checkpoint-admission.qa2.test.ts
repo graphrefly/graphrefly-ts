@@ -23,6 +23,12 @@ function capture() {
 }
 const savedNode = (cp: GraphCheckpoint) => cp.nodes.find((n) => n.id === "n")!;
 const defects: [string, (node: GraphCheckpointNode) => void][] = [
+	[
+		"lifetime dependency cycle",
+		(n) => {
+			n.lifetime!.deps = ["n"];
+		},
+	],
 	...["factory", "deps", "values", "terminal", "policies", "lifetime"].map(
 		(key): [string, (node: GraphCheckpointNode) => void] => [
 			`missing ${key}`,
@@ -267,4 +273,16 @@ describe("QA2 recipe result adapter", () => {
 		expect(setup).toHaveBeenCalledOnce();
 		stop();
 	});
+});
+
+it("admits the union of declared and lifetime dependencies before any callback", () => {
+	const cp = capture();
+	cp.nodes.find((n) => n.id === "first")!.deps = ["n"];
+	savedNode(cp).lifetime!.deps = ["first"];
+	// Each edge set alone is acyclic; first -> n -> first exists in their union.
+	const build = vi.fn(() => ({ fn: () => {} }));
+	expect(() => restoreGraph(cp, { registry: { r: { ref: "r", build } } })).toThrow(
+		/dependency cycle/,
+	);
+	expect(build).not.toHaveBeenCalled();
 });

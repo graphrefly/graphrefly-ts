@@ -856,7 +856,8 @@ function prepareCheckpoint(
 		if (visited.has(id)) return;
 		if (visiting.has(id)) throw notRestorable(id, "dependency cycle");
 		visiting.add(id);
-		for (const dep of nodes.get(id)!.checkpoint.deps) visit(dep);
+		const node = nodes.get(id)!.checkpoint;
+		for (const dep of [...node.deps, ...(node.lifetime?.deps ?? [])]) visit(dep);
 		visiting.delete(id);
 		visited.add(id);
 	};
