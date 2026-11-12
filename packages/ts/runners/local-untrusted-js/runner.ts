@@ -474,7 +474,7 @@ function materializeResult(
 		if (answerNode === undefined) throw new TypeError("Runner answer node is unavailable.");
 		const answerPlan = plan.nodes.find((node) => node.id === plan.answerNodeId);
 		if (answerPlan === undefined) throw new TypeError("Runner answer plan is unavailable.");
-		releases.push(runtimeGraph.retain(answerNode, { reason: "local untrusted JS runner answer" }));
+		releases.push(runtimeGraph.retain(answerNode));
 		if (answerNode.cache === undefined)
 			throw new TypeError("Runner answer node did not produce a Graph value.");
 		const answer = JSON.parse(
