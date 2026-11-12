@@ -9,7 +9,6 @@ import {
 	startConstruction,
 } from "../graph/construction-scope.js";
 import { Graph } from "../graph/graph.js";
-import { nodeRuntimeHost } from "../node/node-runtime-host.js";
 import { checkpointStateOfNode, subscriberCountOfNode } from "../node/runtime-accessors.js";
 import {
 	assertCausalCapabilities,
@@ -133,7 +132,11 @@ const binding: CausalBinding = {
 	epoch: 1,
 };
 
-function combined(inject?: (scope: ConstructionScope) => void, empty = false) {
+function combined(
+	inject?: (scope: ConstructionScope) => void,
+	empty = false,
+	finalFailure?: Error,
+) {
 	const dispatcher = new CountingDispatcher();
 	const f = causal(trackedGraph(dispatcher));
 	const a = empty
@@ -221,6 +224,7 @@ function combined(inject?: (scope: ConstructionScope) => void, empty = false) {
 		const final = scope.node(
 			[value, count],
 			(ctx) => {
+				if (finalFailure !== undefined) throw finalFailure;
 				if (ctx.deps[0].value === undefined || ctx.deps[1].value === undefined) return;
 				ctx.down([["DATA", [ctx.deps[0].value, ctx.deps[1].value]]]);
 			},
@@ -458,12 +462,10 @@ describe("D162 private shared cold assembly", () => {
 		expect(constructionOf(g, "context")).toBeUndefined();
 	});
 	it("retains obligations across late root failure, UI unsubscribe, wrong outcome and exact replay", () => {
-		const f = combined();
+		// Fail only after the original release root has activated the actual authority: the last
+		// root's function throws on its first run, so that root ends with ERROR as it activates.
+		const f = combined(undefined, false, new Error("late root failure"));
 		const owner = own(f);
-		// Fail only after the original release root has activated the actual authority.
-		vi.spyOn(nodeRuntimeHost(f.final), "_subscribeOwned").mockImplementation(() => {
-			throw new Error("late root failure");
-		});
 		startConstruction(f.graph, owner);
 		expect(owner.phase).toBe("faulted");
 		expect(effects(f)[0]?.admission?.state).toBe("admitted");

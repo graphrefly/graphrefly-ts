@@ -432,16 +432,10 @@ describe("D167 exact command binding and existing D110 batch fate", () => {
 		const f = busFixture();
 		const source = f.graph.node<MessageBusCommand>([], null);
 		const subscribe = vi.spyOn(source, "subscribe");
-		// The actual owned subscription seam throws after structural commit.
-		const original = nodeRuntimeHost(source)._subscribeOwned;
-		vi.spyOn(nodeRuntimeHost(source), "_subscribeOwned").mockImplementation(function (
-			this: unknown,
-			...args
-		) {
-			original.apply(this, args);
-			throw new Error("activation");
-		});
-		expect(() => attachMessageBusCommandSource(f.graph, f.bus, source)).toThrow("activation");
+		// A node released from its graph cannot be subscribed: the bus commits the new dependency,
+		// then subscribing it throws.
+		releaseGraphNodes(f.graph, [source]);
+		expect(() => attachMessageBusCommandSource(f.graph, f.bus, source)).toThrow(/released/);
 		expect(f.bus.commands.deps).toEqual([f.publish, source]);
 		expect(subscribe).not.toHaveBeenCalled();
 	});

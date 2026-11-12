@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { deferRequest } from "../batch/boundary.js";
 import { ctxRewireDiff } from "../ctx/types.js";
 import { Dispatcher, type Handle } from "../dispatcher/index.js";
 import {
@@ -9,11 +8,10 @@ import {
 	startConstruction,
 } from "../graph/construction-scope.js";
 import { Graph, type GraphOptions } from "../graph/graph.js";
-import { NodeCore, type NodeId, type Subscriber } from "../node/core.js";
-import { Node } from "../node/node.js";
+import { NodeCore, type NodeId } from "../node/core.js";
+import { Node, type StateNode } from "../node/node.js";
 import { nodeRuntimeHost } from "../node/node-runtime-host.js";
 import { checkpointStateOfNode, subscriberCountOfNode } from "../node/runtime-accessors.js";
-import type { MessageType } from "../protocol/messages.js";
 import {
 	assertCausalCapabilities,
 	type CausalBinding,
@@ -34,25 +32,6 @@ import { relayFirst } from "./helpers/relay.js";
 
 afterEach(() => vi.restoreAllMocks());
 
-/** Wraps a subscriber so the delivery carrying `type` throws `message` instead of arriving. */
-function failingAt(subscriber: Subscriber, type: MessageType, message: string): Subscriber {
-	if (subscriber.kind === "sink")
-		return {
-			kind: "sink",
-			fn: (msgs) => {
-				if (msgs.some((m) => m[0] === type)) throw new Error(message);
-				subscriber.fn(msgs);
-			},
-		};
-	return {
-		kind: "dependent",
-		fn: (m, delivery) => {
-			if (m[0] === type) throw new Error(message);
-			subscriber.fn(m, delivery);
-		},
-	};
-}
-
 class CountingDispatcher extends Dispatcher {
 	readonly live = new Set<Handle>();
 	override register(...args: Parameters<Dispatcher["register"]>): Handle {
@@ -66,7 +45,12 @@ class CountingDispatcher extends Dispatcher {
 	}
 }
 
-function simple(name = "view", report?: GraphOptions["report"]) {
+/** `onRun` runs at the start of every run of the right and join functions. */
+function simple(
+	name = "view",
+	report?: GraphOptions["report"],
+	onRun?: (node: "right" | "join") => void,
+) {
 	const dispatcher = new CountingDispatcher();
 	const graph = new Graph({ dispatcher, report });
 	const a = graph.state(2, { name: "a" });
@@ -83,12 +67,18 @@ function simple(name = "view", report?: GraphOptions["report"]) {
 	});
 	const right = scope.node(
 		[a, b],
-		(ctx) => ctx.down([["DATA", Number(ctx.deps[0].value) + Number(ctx.deps[1].value)]]),
+		(ctx) => {
+			onRun?.("right");
+			ctx.down([["DATA", Number(ctx.deps[0].value) + Number(ctx.deps[1].value)]]);
+		},
 		{ name: `${name}/right` },
 	);
 	const join = scope.node<number>(
 		[left, right],
-		(ctx) => ctx.down([["DATA", Number(ctx.deps[0].value) + Number(ctx.deps[1].value)]]),
+		(ctx) => {
+			onRun?.("join");
+			ctx.down([["DATA", Number(ctx.deps[0].value) + Number(ctx.deps[1].value)]]);
+		},
 		{ name: `${name}/join` },
 	);
 	return { graph, dispatcher, a, b, scope, startup, left, right, join };
@@ -206,17 +196,18 @@ describe("D161 graph construction ownership", () => {
 	});
 
 	it("constructs cold, transfers before running, and preserves a real fan-out/fan-in trace", () => {
-		const f = simple();
+		const phases: unknown[] = [];
+		const f = simple("view", undefined, (node) => {
+			if (node === "join") phases.push(constructionOf(f.graph, "view")?.phase);
+		});
 		expect(subscriberCountOfNode(f.a)).toBe(0);
 		expect(f.dispatcher.live.size).toBe(3);
-		const original = nodeRuntimeHost(f.join)._subscribeOwned.bind(nodeRuntimeHost(f.join));
-		vi.spyOn(nodeRuntimeHost(f.join), "_subscribeOwned").mockImplementation((sink, acquisition) => {
-			expect(constructionOf(f.graph, "view")?.phase).toBe("starting");
-			return original(sink, acquisition);
-		});
 		const owner = f.scope.seal(f.startup, [f.join]);
 		f.scope.transferToGraph(owner);
+		expect(phases).toEqual([]);
 		startConstruction(f.graph, owner);
+		// The join first runs as its root lease activates it, while the startup is in progress.
+		expect(phases).toEqual(["starting"]);
 		expect(f.startup.cache?.state).toBe("started");
 		expect(f.join.cache).toBe(9);
 		f.a.set(4);
@@ -353,53 +344,59 @@ describe("D161 graph construction ownership", () => {
 		expect(f.dispatcher.live.size).toBe(1);
 	});
 
-	it.each([
-		"START",
-		"DATA",
-	] as const)("records the acquired root lease before throwing %s delivery", (failAt) => {
+	it("records the acquired root lease when a failure is reported while the root activates", () => {
 		const reports: unknown[] = [];
-		const f = simple("view", (failure) => reports.push(failure));
-		const host = nodeRuntimeHost(f.join);
-		// DATA uses a pre-existing source cache and the actual subscription implementation.
-		const target: Node<unknown> = failAt === "DATA" ? f.startup : f.join;
-		const targetHost = nodeRuntimeHost(target);
-		const original = targetHost._subscribeOwned.bind(targetHost);
-		vi.spyOn(targetHost, "_subscribeOwned").mockImplementation((subscriber, acquisition) =>
-			original(failingAt(subscriber, failAt, "handshake"), acquisition),
+		// The join's first run writes `side`; the write is a request that runs after the activation
+		// wave, and side's sink throws on it.
+		let side: StateNode<number> | undefined;
+		const f = simple(
+			"view",
+			(failure) => reports.push(failure),
+			(node) => node === "join" && side?.set(1),
 		);
+		side = f.graph.state(0, { name: "side" });
+		side.subscribe((msgs) => {
+			if (msgs.some((m) => m[0] === "DATA" && m[1] === 1)) throw new Error("side sink");
+		});
+		const host = nodeRuntimeHost(f.join);
 		const owner = f.scope.seal(f.startup, [f.join]);
 		f.scope.transferToGraph(owner);
 		startConstruction(f.graph, owner);
-		// R-failure: a root lease is a sink, and a sink that throws has no node to end: the failure
-		// goes to the graph's reporter, and the startup, which observes the failures it causes
-		// (graphrefly-ts:D181), is faulted.
+		// R-failure: a sink that throws has no node to end: the failure goes to the graph's reporter,
+		// and the startup, which observes the failures it causes (graphrefly-ts:D181), is faulted.
 		expect(reports).not.toHaveLength(0);
 		for (const report of reports)
 			expect(report).toEqual({
 				source: expect.stringMatching(/^sink of /),
-				error: new Error("handshake"),
+				error: new Error("side sink"),
 			});
 		expect(owner.phase).toBe("faulted");
-		expect(owner.startupError).toEqual(new Error("handshake"));
-		expect(owner.roots.find((r) => r.node === target)?.unsubscribe).toBeTypeOf("function");
-		expect(subscriberCountOfNode(target)).toBe(1);
-		// R-subscription: activation comes before START, so a failed START finds the node activated.
-		if (failAt === "START") expect(host._lifecycle.activated).toBe(true);
+		expect(owner.startupError).toEqual(new Error("side sink"));
+		expect(owner.roots.find((r) => r.node === f.join)?.unsubscribe).toBeTypeOf("function");
+		expect(subscriberCountOfNode(f.join)).toBe(1);
+		// R-subscription: activation comes before START, so the failure finds the node activated.
+		expect(host._lifecycle.activated).toBe(true);
 	});
 
-	it("retains failed deep dependency leases without disturbing a shared existing subscriber", () => {
-		const f = simple();
+	it("keeps deep dependency leases without disturbing a shared existing subscriber when a deep node's activation fails", () => {
+		// The right node, a dependency of the root, writes `side` on its first run; the write runs
+		// in the drain after the activation wave, and side's sink throws there.
+		let side: StateNode<number> | undefined;
+		const f = simple(
+			"view",
+			() => {},
+			(node) => node === "right" && side?.set(1),
+		);
+		side = f.graph.state(0, { name: "side" });
+		side.subscribe((msgs) => {
+			if (msgs.some((m) => m[0] === "DATA" && m[1] === 1)) throw new Error("deep handshake");
+		});
 		const values: unknown[] = [];
 		f.a.subscribe((incoming) => {
 			for (const m of incoming) {
 				if (m[0] === "DATA") values.push(m[1]);
 			}
 		});
-		const original = nodeRuntimeHost(f.b)._subscribeOwned.bind(nodeRuntimeHost(f.b));
-		vi.spyOn(nodeRuntimeHost(f.b), "_subscribeOwned").mockImplementation(
-			(subscriber, acquisition) =>
-				original(failingAt(subscriber, "START", "deep handshake"), acquisition),
-		);
 		const owner = f.scope.seal(f.startup, [f.join]);
 		f.scope.transferToGraph(owner);
 		startConstruction(f.graph, owner);
@@ -413,26 +410,18 @@ describe("D161 graph construction ownership", () => {
 	});
 
 	it("does not call startup successful before exitWave drain returns", () => {
-		const f = simple();
-		const original = nodeRuntimeHost(f.join)._subscribeOwned.bind(nodeRuntimeHost(f.join));
-		vi.spyOn(nodeRuntimeHost(f.join), "_subscribeOwned").mockImplementation(
-			(subscriber, acquisition) =>
-				original(
-					subscriber.kind === "sink"
-						? {
-								kind: "sink",
-								fn: (msgs) => {
-									subscriber.fn(msgs);
-									if (msgs[0]?.[0] === "START")
-										deferRequest(nodeRuntimeHost(f.join)._core, () => {
-											throw new Error("drain failure");
-										});
-								},
-							}
-						: subscriber,
-					acquisition,
-				),
+		// The join's first run writes `side`; the write is a request that runs in the drain after
+		// the activation wave, and side's sink throws there.
+		let side: StateNode<number> | undefined;
+		const f = simple(
+			"view",
+			() => {},
+			(node) => node === "join" && side?.set(1),
 		);
+		side = f.graph.state(0, { name: "side" });
+		side.subscribe((msgs) => {
+			if (msgs.some((m) => m[0] === "DATA" && m[1] === 1)) throw new Error("drain failure");
+		});
 		const owner = f.scope.seal(f.startup, [f.join]);
 		f.scope.transferToGraph(owner);
 		startConstruction(f.graph, owner);

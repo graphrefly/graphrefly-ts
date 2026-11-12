@@ -52,14 +52,6 @@ interface Activation {
 
 const activations: Activation[] = [];
 
-/** Node's own subscription method; a dependency with a different one is instrumented (Q15). */
-let plainSubscribeOwned: unknown;
-
-/** @internal Node registers its own `_subscribeOwned` once, when its class is defined. */
-export function setPlainSubscribeOwned(method: unknown): void {
-	plainSubscribeOwned = method;
-}
-
 function newActivation(
 	self: NodeRuntimeHost<unknown>,
 	subscriber: Subscriber | undefined,
@@ -147,16 +139,8 @@ function stepActivation(f: Activation, base: number): void {
 						? undefined
 						: { received: seed.received[i], onChange: () => (restored.changed = true) },
 				);
-				const depHost = nodeRuntimeHost(dep);
-				if (depHost._subscribeOwned !== plainSubscribeOwned) {
-					// A dependency whose subscription method is its own (instrumented) is subscribed
-					// through that method, as before; it runs its own activation loop.
-					depHost._subscribeOwned(link.subscriber, link.acquisition);
-					link.finish();
-					return;
-				}
 				f.link = link;
-				activations.push(newActivation(depHost, link.subscriber, link.acquisition));
+				activations.push(newActivation(nodeRuntimeHost(dep), link.subscriber, link.acquisition));
 				return;
 			}
 			self._wave.activating = false;

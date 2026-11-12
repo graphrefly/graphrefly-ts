@@ -58,7 +58,6 @@ import {
 	nodeSubscribeDepAt,
 	nodeSubscribeOwned,
 	nodeSubscriberCount,
-	setPlainSubscribeOwned,
 } from "./node-lifecycle-runtime.js";
 import {
 	nodeDown,
@@ -151,12 +150,6 @@ export class Node<T = unknown> {
 	// biome-ignore lint/correctness/noUnusedPrivateClassMembers: accessed through the checked internal runtime host.
 	private set _syncCtx(ctx: Ctx | null) {
 		this._syncCtxState.value = ctx;
-	}
-
-	static {
-		// graphrefly-ts Q15: the activation loop subscribes a dependency on its own stack when the
-		// dependency's subscription method is this one, and through the method otherwise.
-		setPlainSubscribeOwned(Node.prototype._subscribeOwned);
 	}
 
 	private static _retainIndirectRuntimeMethods(node: Node<unknown>): void {
@@ -419,6 +412,7 @@ export class Node<T = unknown> {
 
 	// ── rewire (R-request-order): the node's own dependencies for its current lifetime ──
 
+	// biome-ignore lint/correctness/noUnusedPrivateClassMembers: accessed through the checked internal runtime host.
 	private _dedupDeps(deps: Node<unknown>[]): Node<unknown>[] {
 		const seen = new Set<Node<unknown>>();
 		const out: Node<unknown>[] = [];
@@ -457,6 +451,7 @@ export class Node<T = unknown> {
 			);
 	}
 
+	// biome-ignore lint/correctness/noUnusedPrivateClassMembers: accessed through the checked internal runtime host.
 	private _rewire(newDeps: Node<unknown>[]): boolean {
 		return nodeRewire(nodeRuntimeHost(this), newDeps);
 	}
