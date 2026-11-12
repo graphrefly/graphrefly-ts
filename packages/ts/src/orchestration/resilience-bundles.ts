@@ -1,3 +1,4 @@
+import type { NodeFn } from "../ctx/types.js";
 import type { Graph } from "../graph/graph.js";
 import {
 	type BackoffPolicy,
@@ -7,6 +8,7 @@ import {
 	retryPolicy,
 	shouldRetry,
 } from "../graph/resilience.js";
+import type { GraphRecipeFactory } from "../graph/restore.js";
 import { timeout as timeoutOperator } from "../graph/time.js";
 import type { Node } from "../node/node.js";
 import { oneArrayPerRun } from "../node/one-array-per-run.js";
@@ -32,6 +34,12 @@ export interface BreakerOptions {
 	readonly failureThreshold: number;
 	readonly resetAfterMs?: number;
 	readonly now?: () => number;
+	/**
+	 * R-checkpoint@1: the ref under which the restoring caller registers `now` as a definition
+	 * (`{ kind: "definition", ref, fn }`). A custom `now` without it leaves the breaker local-only;
+	 * the default clock (`Date.now`) needs none.
+	 */
+	readonly nowRef?: string;
 	readonly name?: string;
 }
 
@@ -101,9 +109,10 @@ export function retryStatusBundle(
 						state: shouldRetry(policy, attempt) ? "failed" : "exhausted",
 						attempt,
 						maxAttempts: policy.maxAttempts,
-						delayMs: shouldRetry(policy, attempt)
-							? nextRetryDelayMs(policy, attempt + 1)
-							: undefined,
+						// An absent delay is omitted, so the status stays strict JSON (R-checkpoint@1).
+						...(shouldRetry(policy, attempt)
+							? { delayMs: nextRetryDelayMs(policy, attempt + 1) }
+							: {}),
 					};
 				} else {
 					next = {
@@ -152,51 +161,151 @@ export function breakerBundle(
 	if (!Number.isInteger(opts.failureThreshold) || opts.failureThreshold <= 0) {
 		throw new RangeError("breakerBundle: failureThreshold must be a positive integer");
 	}
+	if (opts.nowRef !== undefined && opts.now === undefined) {
+		throw new TypeError("breakerBundle: nowRef names the clock given as now");
+	}
 	const name = opts.name ?? "breaker";
-	const now = opts.now ?? Date.now;
+	const config: BreakerStatusConfig = {
+		failureThreshold: opts.failureThreshold,
+		...(opts.resetAfterMs === undefined ? {} : { resetAfterMs: opts.resetAfterMs }),
+		...(opts.nowRef === undefined ? {} : { nowRef: opts.nowRef }),
+	};
+	// R-checkpoint@1: a custom clock with no ref cannot be named in a recipe: local-only.
+	const restorable = opts.now === undefined || opts.nowRef !== undefined;
 	const status = graph.node<BreakerStatus>(
 		[events],
-		(ctx) => {
-			let next =
-				ctx.state.get<BreakerStatus>() ??
-				({ state: "closed", failures: 0 } satisfies BreakerStatus);
-			if (
-				next.state === "open" &&
-				opts.resetAfterMs !== undefined &&
-				next.openedAtMs !== undefined &&
-				now() - next.openedAtMs >= opts.resetAfterMs
-			) {
-				next = { ...next, state: "half-open" };
-			}
-			for (const raw of ctx.deps[0].waves.flat()) {
-				const event = raw as ResilienceEvent;
-				if (event.kind === "success") {
-					next = { state: "closed", failures: 0 };
-				} else if (event.kind === "failure" || event.kind === "exhausted") {
-					const failures = next.failures + 1;
-					next =
-						failures >= opts.failureThreshold
-							? { state: "open", failures, openedAtMs: now() }
-							: { ...next, failures };
-				}
-			}
-			ctx.state.set(next);
-			ctx.down([["DATA", next]]);
+		breakerStatusFn(config, opts.now ?? Date.now),
+		{
+			name: `${name}/status`,
+			factory: "breakerStatus",
+			...(restorable ? { recipe: { ref: BREAKER_STATUS_REF, config } } : {}),
 		},
-		{ name: `${name}/status`, factory: "breakerStatus" },
 	);
-	const allowed = graph.node<boolean>(
-		[status],
-		oneArrayPerRun((ctx) => {
-			const statusBatch = ctx.deps[0].waves.flat();
-			for (const value of statusBatch) {
-				ctx.down([["DATA", (value as BreakerStatus).state !== "open"]]);
-			}
-		}),
-		{ name: `${name}/allowed`, factory: "breakerAllowed" },
-	);
+	const allowed = graph.node<boolean>([status], breakerAllowedFn(), {
+		name: `${name}/allowed`,
+		factory: "breakerAllowed",
+		recipe: { ref: BREAKER_ALLOWED_REF },
+	});
 	return { status, allowed };
 }
+
+const BREAKER_STATUS_REF = "breaker.status";
+const BREAKER_ALLOWED_REF = "breaker.allowed";
+
+/** The breaker status node's recipe config: everything its function is built from. */
+interface BreakerStatusConfig {
+	readonly failureThreshold: number;
+	readonly resetAfterMs?: number;
+	readonly nowRef?: string;
+}
+
+function breakerStatusFn(config: BreakerStatusConfig, now: () => number): NodeFn {
+	const { failureThreshold, resetAfterMs } = config;
+	return (ctx) => {
+		let next =
+			ctx.state.get<BreakerStatus>() ?? ({ state: "closed", failures: 0 } satisfies BreakerStatus);
+		if (
+			next.state === "open" &&
+			resetAfterMs !== undefined &&
+			next.openedAtMs !== undefined &&
+			now() - next.openedAtMs >= resetAfterMs
+		) {
+			next = { ...next, state: "half-open" };
+		}
+		for (const raw of ctx.deps[0].waves.flat()) {
+			const event = raw as ResilienceEvent;
+			if (event.kind === "success") {
+				next = { state: "closed", failures: 0 };
+			} else if (event.kind === "failure" || event.kind === "exhausted") {
+				const failures = next.failures + 1;
+				next =
+					failures >= failureThreshold
+						? { state: "open", failures, openedAtMs: now() }
+						: { ...next, failures };
+			}
+		}
+		ctx.state.set(next);
+		ctx.down([["DATA", next]]);
+	};
+}
+
+function breakerAllowedFn(): NodeFn {
+	return oneArrayPerRun((ctx) => {
+		const statusBatch = ctx.deps[0].waves.flat();
+		for (const value of statusBatch) {
+			ctx.down([["DATA", (value as BreakerStatus).state !== "open"]]);
+		}
+	});
+}
+
+function breakerConfigNumber(
+	c: Record<string, unknown>,
+	key: "failureThreshold" | "resetAfterMs",
+): number {
+	const value = c[key];
+	if (typeof value !== "number" || !Number.isFinite(value) || value < 0)
+		throw new Error(
+			`restoreGraph: '${BREAKER_STATUS_REF}' config.${key} must be a non-negative number`,
+		);
+	return value;
+}
+
+/**
+ * Restore entries for the breaker's nodes (R-checkpoint@1): add them to the registry given to
+ * restoreGraph, with the clock's definition when the breaker named one by `nowRef`.
+ * @category orchestration
+ * @example
+ * ```ts
+ * import { defaultRestoreRegistry, restoreGraph } from "@graphrefly/ts/graph";
+ * import { breakerRestoreRegistry } from "@graphrefly/ts/orchestration";
+ *
+ * const g = restoreGraph(checkpoint, {
+ *   registry: { ...defaultRestoreRegistry, ...breakerRestoreRegistry },
+ * });
+ * ```
+ */
+export const breakerRestoreRegistry: Readonly<Record<string, GraphRecipeFactory<any>>> = {
+	[BREAKER_STATUS_REF]: {
+		ref: BREAKER_STATUS_REF,
+		validateConfig(config): BreakerStatusConfig {
+			if (typeof config !== "object" || config === null || Array.isArray(config))
+				throw new Error(`restoreGraph: '${BREAKER_STATUS_REF}' recipe requires an object config`);
+			const c = config as Record<string, unknown>;
+			const failureThreshold = breakerConfigNumber(c, "failureThreshold");
+			if (!Number.isSafeInteger(failureThreshold) || failureThreshold < 1)
+				throw new Error(
+					`restoreGraph: '${BREAKER_STATUS_REF}' config.failureThreshold must be a positive integer`,
+				);
+			if (c.nowRef !== undefined && typeof c.nowRef !== "string")
+				throw new Error(`restoreGraph: '${BREAKER_STATUS_REF}' config.nowRef must be a string`);
+			return {
+				failureThreshold,
+				...(c.resetAfterMs === undefined
+					? {}
+					: { resetAfterMs: breakerConfigNumber(c, "resetAfterMs") }),
+				...(c.nowRef === undefined ? {} : { nowRef: c.nowRef as string }),
+			};
+		},
+		build(config: BreakerStatusConfig, ctx) {
+			const nowRef = config.nowRef;
+			const definition =
+				nowRef === undefined ? undefined : ctx.definition<undefined, number>(nowRef);
+			const now = definition === undefined ? Date.now : () => definition.fn(undefined);
+			return { fn: breakerStatusFn(config, now) };
+		},
+	} satisfies GraphRecipeFactory<BreakerStatusConfig>,
+	[BREAKER_ALLOWED_REF]: {
+		ref: BREAKER_ALLOWED_REF,
+		validateConfig(config): undefined {
+			if (config !== undefined)
+				throw new Error(`restoreGraph: '${BREAKER_ALLOWED_REF}' takes no config`);
+			return undefined;
+		},
+		build() {
+			return { fn: breakerAllowedFn() };
+		},
+	} satisfies GraphRecipeFactory<undefined>,
+};
 
 /**
  * Creates a timeout bundle.

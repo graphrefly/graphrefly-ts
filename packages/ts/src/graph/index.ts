@@ -54,6 +54,7 @@ export {
 	type GraphCheckpointPolicies,
 	type GraphCheckpointReceived,
 	type GraphCheckpointRecipe,
+	type GraphCheckpointSugar,
 	type GraphCheckpointTerminal,
 } from "./checkpoint.js";
 export type {
@@ -123,6 +124,7 @@ export {
 	type HostReporter,
 	StateNode,
 	type SugarOpts,
+	type SugarRecipe,
 	type TopologyGroup,
 	type TopologyGroupOptions,
 	type TopologyGroupReleaseOptions,
@@ -135,6 +137,7 @@ export type {
 	TopologyEventKind,
 	TopologyStream,
 } from "./inspect.js";
+export { operatorRestoreRegistry } from "./operator-restore.js";
 export {
 	type BackoffPolicy,
 	backoffDelayMs,
@@ -154,6 +157,8 @@ export {
 	type GraphRestoreExtension,
 	type GraphRestoreExtensionContext,
 	type GraphRestoreRegistry,
+	type GraphSugarRecipeBuild,
+	type GraphSugarRecipeFactory,
 	type RestoreGraphOptions,
 	restoreGraph,
 	takeRestoreDescriptor,

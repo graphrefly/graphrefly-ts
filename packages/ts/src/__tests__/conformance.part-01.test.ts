@@ -254,7 +254,7 @@ describe("C-12 occurrences stay DATA; RESOLVED is undirty-only (R-resolved-undir
 		expect(f.cache).toBe(150); // cache preserved across the undirty wave
 	});
 
-	it("(c') a downstream recompute un-dirties as DATA (occurrence), never wedges", () => {
+	it("(c') a RESOLVED-only input settles a derived with RESOLVED, never wedges (graphrefly-ts:D184)", () => {
 		const g = graph();
 		const s = g.state(100); // accepted by the filter
 		const f = g.initNode(
@@ -266,8 +266,10 @@ describe("C-12 occurrences stay DATA; RESOLVED is undirty-only (R-resolved-undir
 		expect(d.cache).toBe(200); // f=100 → d=200
 		msgs.length = 0;
 
-		s.set(50); // rejected by f → f synthesizes RESOLVED → d clears + recomputes f's cached 100
-		expect(types(msgs)).toEqual(["PENDING", "DATA"]); // d un-dirtied via a (same-value) DATA, no wedge
+		// Rejected by f, which sent nothing, so the kernel settles it with RESOLVED; derived's gate
+		// calls its function only for new DATA, so d is settled by the kernel's RESOLVED too.
+		s.set(50);
+		expect(types(msgs)).toEqual(["PENDING", "RESOLVED"]);
 		expect(d.cache).toBe(200);
 	});
 

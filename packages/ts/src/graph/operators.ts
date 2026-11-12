@@ -451,6 +451,7 @@ export function distinctUntilChanged<S>(eq: (a: S, b: S) => boolean = Object.is)
 export function merge<T>(): Operator<T, T> {
 	return {
 		factory: "merge",
+		recipe: { ref: "merge" },
 		opts: {},
 		body: (ctx) => {
 			// The first run of a lifetime sends its dependencies' snapshots as one array, which a first
@@ -518,6 +519,7 @@ export function reduce<S, T>(reducer: (acc: T, v: S) => T, seed: T): Operator<S,
 export function pairwise<S>(): Operator<S, readonly [S, S]> {
 	return {
 		factory: "pairwise",
+		recipe: { ref: "pairwise" },
 		body: (ctx) => {
 			const st = ctx.state.get<{ prev: S }>();
 			let prev = st?.prev;
@@ -544,6 +546,7 @@ export function pairwise<S>(): Operator<S, readonly [S, S]> {
 export function skip<S>(n: number): Operator<S, S> {
 	return {
 		factory: "skip",
+		recipe: { ref: "skip", config: { n: toCheckpointJson(n, "skip.n") } },
 		body: (ctx) => {
 			let count = ctx.state.get<number>() ?? 0;
 			eachInputArray(ctx, 0, (v, out) => {
@@ -690,6 +693,7 @@ export function find<S>(pred: (v: S) => boolean): Operator<S, S> {
 export function elementAt<S>(index: number): Operator<S, S> {
 	return {
 		factory: "elementAt",
+		recipe: { ref: "elementAt", config: { index: toCheckpointJson(index, "elementAt.index") } },
 		opts: { complete: "manual" },
 		body: (ctx) => {
 			const b = ctx.deps[0].waves.length === 0 ? null : ctx.deps[0].waves.flat();

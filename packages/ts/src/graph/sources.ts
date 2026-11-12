@@ -16,7 +16,7 @@
 import type { Ctx } from "../ctx/types.js";
 import type { Node, NodeOptions } from "../node/node.js";
 import { errorPayload, type Message } from "../protocol/messages.js";
-import { toCheckpointJson } from "./checkpoint.js";
+import { type GraphCheckpointJson, toCheckpointJson } from "./checkpoint.js";
 import type {
 	DriverCancel,
 	DriverResult,
@@ -809,7 +809,12 @@ function timerSource(factory: string, ms: number, opts?: TimerSourceOpts): Opera
 		factory,
 		(ctx) => {
 			let done = false;
-			let count = 0;
+			// The tick count is private state (R-checkpoint@1), so a restored source counts on.
+			const nextCount = () => {
+				const count = ctx.state.get<number>() ?? 0;
+				ctx.state.set(count + 1);
+				return count;
+			};
 			let t: ReturnType<typeof setTimeout> | undefined;
 			let iv: ReturnType<typeof setInterval> | undefined;
 			const cleanup = () => {
@@ -826,16 +831,16 @@ function timerSource(factory: string, ms: number, opts?: TimerSourceOpts): Opera
 			const finish = () => {
 				if (done) return;
 				if (period != null) {
-					ctx.down([["DATA", count++]]);
+					ctx.down([["DATA", nextCount()]]);
 					iv = setInterval(() => {
 						if (done) return;
-						ctx.down([["DATA", count++]]);
+						ctx.down([["DATA", nextCount()]]);
 					}, period);
 				} else {
 					// One-shot: DATA then COMPLETE in one wave (terminal-is-forever).
 					done = true;
 					signal?.removeEventListener("abort", onAbort);
-					ctx.down([["DATA", count++], ["COMPLETE"]]);
+					ctx.down([["DATA", nextCount()], ["COMPLETE"]]);
 				}
 			};
 			if (signal?.aborted) {
@@ -848,8 +853,23 @@ function timerSource(factory: string, ms: number, opts?: TimerSourceOpts): Opera
 		},
 		{ pool: "sync" },
 	);
-	if (factory === "timer" && period === undefined && signal === undefined) {
-		return { ...op, recipe: { ref: "timer", config: { ms: toCheckpointJson(ms, "timer.ms") } } };
+	// A signal is a host object, so a timer that takes one is local-only (R-checkpoint).
+	if (signal !== undefined) return op;
+	if (factory === "interval") {
+		return {
+			...op,
+			recipe: { ref: "interval", config: { ms: toCheckpointJson(ms, "interval.ms") } },
+		};
+	}
+	if (factory === "fromTimer" || factory === "timer") {
+		const config: GraphCheckpointJson =
+			period == null
+				? { ms: toCheckpointJson(ms, `${factory}.ms`) }
+				: {
+						ms: toCheckpointJson(ms, `${factory}.ms`),
+						period: toCheckpointJson(period, `${factory}.period`),
+					};
+		return { ...op, recipe: { ref: factory, config } };
 	}
 	return op;
 }
@@ -1039,7 +1059,7 @@ export function fromAsyncIter<T>(
  * @category sources
  */
 export function of<T = never>(...values: T[]): Operator<never, T> {
-	return source<T>(
+	const op = source<T>(
 		"of",
 		(ctx) => {
 			// One array: what a source sends at activation reaches a first subscriber as its snapshot
@@ -1048,6 +1068,14 @@ export function of<T = never>(...values: T[]): Operator<never, T> {
 		},
 		{ pool: "sync" },
 	);
+	// Values that are not strict JSON cannot be a recipe's configuration: such an `of` is local-only.
+	let json: GraphCheckpointJson;
+	try {
+		json = toCheckpointJson(values, "of.values");
+	} catch {
+		return op;
+	}
+	return { ...op, recipe: { ref: "of", config: { values: json } } };
 }
 
 /**
@@ -1100,13 +1128,16 @@ export function fromIter<T>(iterable: Iterable<T>): Operator<never, T> {
  * @category sources
  */
 export function empty<T = never>(): Operator<never, T> {
-	return source<T>(
-		"empty",
-		(ctx) => {
-			ctx.down([["COMPLETE"]]);
-		},
-		{ pool: "sync" },
-	);
+	return {
+		...source<T>(
+			"empty",
+			(ctx) => {
+				ctx.down([["COMPLETE"]]);
+			},
+			{ pool: "sync" },
+		),
+		recipe: { ref: "empty" },
+	};
 }
 
 /**
@@ -1123,7 +1154,7 @@ export function empty<T = never>(): Operator<never, T> {
  * @category sources
  */
 export function never<T = never>(): Operator<never, T> {
-	return source<T>("never", () => undefined, { pool: "sync" });
+	return { ...source<T>("never", () => undefined, { pool: "sync" }), recipe: { ref: "never" } };
 }
 
 /**

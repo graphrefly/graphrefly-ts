@@ -111,12 +111,11 @@ describe("Q15: a chain deeper than the JS stack", () => {
 			last.subscribe(out.sink);
 			s.set(1);
 			s.complete();
-			// graphrefly:D806 (1), R-terminals@1: under auto COMPLETE each function runs once more on
-			// its dependency's terminal, so the last node sends its value and then COMPLETE, in one
-			// delivery of two arrays, as a three-node chain does.
+			// graphrefly:D806 (1) runs a kernel function on the last terminal; derived's own gate
+			// (graphrefly-ts:D184) calls the user function only for a run with new DATA, so a
+			// terminal alone recomputes nothing and the last node sends just COMPLETE.
 			expect(out.log).toEqual([
 				[["START"], ["DATA", DEPTH]],
-				[["PENDING"], ["DATA", DEPTH + 1]],
 				[["PENDING"], ["DATA", DEPTH + 1]],
 				[["PENDING"], ["COMPLETE"]],
 			]);

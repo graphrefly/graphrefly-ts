@@ -18,13 +18,16 @@ import { restoreStateOfNode } from "../node/runtime-accessors.js";
 import type { NodeOptions, NodeReceived } from "../node/types.js";
 import { SENTINEL } from "../protocol/messages.js";
 import {
+	CHECKPOINT_REFUSAL,
 	GRAPH_CHECKPOINT_FORMAT,
 	type GraphCheckpoint,
 	type GraphCheckpointJson,
 	type GraphCheckpointNode,
 	type GraphCheckpointPolicies,
 	type GraphCheckpointRecipe,
+	type GraphCheckpointSugar,
 	type GraphCheckpointTerminal,
+	notRestorable,
 	toCheckpointJson,
 } from "./checkpoint.js";
 import type { IndexRow, ReactiveIndex } from "./data-structures/reactive-index.js";
@@ -35,7 +38,15 @@ import {
 	type ReactiveMap,
 	restoreReactiveMapFromBackendState,
 } from "./data-structures/reactive-map.js";
-import { type Graph, graph, restoreNodeInGraph, restoreStateNodeInGraph } from "./graph.js";
+import {
+	type Graph,
+	graph,
+	isCheckpointSugar,
+	restoreNodeInGraph,
+	restoreStateNodeInGraph,
+	sugarNodeParts,
+} from "./graph.js";
+import { operatorRestoreRegistry } from "./operator-restore.js";
 import { map, operatorNodeFn, take } from "./operators.js";
 import { timer } from "./sources.js";
 
@@ -71,6 +82,25 @@ export interface GraphRecipeFactory<C = GraphCheckpointJson | undefined> {
 	build(config: C, ctx: GraphRecipeContext): GraphRecipeBuild;
 }
 
+/**
+ * What a recipe factory gives for a node built with `g.derived`, `g.effect` or `g.producer`
+ * (R-checkpoint): the value-level callback only, never a setup. For derived it is
+ * `(...values) => value`, for effect `(...values) => cleanup | void`, for producer the `NodeFn`.
+ * Restore builds the node with the same sugar and gate around it.
+ */
+export interface GraphSugarRecipeBuild {
+	readonly fn: (...args: any[]) => unknown;
+	/** A sugar node takes no setup from the registry; one given is refused. */
+	readonly setup?: undefined;
+}
+
+/** A registered recipe factory for a sugar node: given its configuration, it gives the callback. */
+export interface GraphSugarRecipeFactory<C = GraphCheckpointJson | undefined> {
+	readonly ref: string;
+	validateConfig?(config: GraphCheckpointJson | undefined): C;
+	build(config: C, ctx: GraphRecipeContext): GraphSugarRecipeBuild;
+}
+
 /** What a restore extension is given (graphrefly-ts:D178). */
 export interface GraphRestoreExtensionContext<C = GraphCheckpointJson | undefined> {
 	readonly graph: Graph;
@@ -94,6 +124,7 @@ export interface GraphRestoreExtension<C = GraphCheckpointJson | undefined> {
 
 export type GraphRestoreEntry =
 	| GraphRecipeFactory<any>
+	| GraphSugarRecipeFactory<any>
 	| GraphRestoreExtension<any>
 	| GraphRestoreDefinition<any, any>;
 
@@ -107,7 +138,7 @@ export interface RestoreGraphOptions {
 }
 
 type TakeConfig = { n: number };
-type TimerConfig = { ms: number };
+type TimerConfig = { ms: number; period?: number };
 type MapConfig = { fn: string };
 type LogConfig = { maxSize?: number };
 
@@ -160,11 +191,18 @@ export const mapRestoreDescriptor: GraphRecipeFactory<MapConfig> = {
 export const timerRestoreDescriptor: GraphRecipeFactory<TimerConfig> = {
 	ref: "timer",
 	validateConfig(config) {
-		return { ms: finiteNumber(objectConfig(config, "timer").ms, "timer", "ms") };
+		const raw = objectConfig(config, "timer");
+		return raw.period === undefined
+			? { ms: finiteNumber(raw.ms, "timer", "ms") }
+			: {
+					ms: finiteNumber(raw.ms, "timer", "ms"),
+					period: finiteNumber(raw.period, "timer", "period"),
+				};
 	},
 	build(config) {
 		// The timer is opened by the setup, which runs at the restored node's first activation.
-		const op = timer(config.ms);
+		const op =
+			config.period === undefined ? timer(config.ms) : timer(config.ms, { period: config.period });
 		return { fn: operatorNodeFn(op), setup: op.opts?.setup };
 	},
 };
@@ -569,6 +607,7 @@ export const reactiveMapSnapshotRestoreDescriptor: GraphRestoreExtension<undefin
 };
 
 export const defaultRestoreRegistry: Readonly<Record<string, GraphRestoreEntry>> = {
+	...operatorRestoreRegistry,
 	map: mapRestoreDescriptor,
 	take: takeRestoreDescriptor,
 	timer: timerRestoreDescriptor,
@@ -592,6 +631,8 @@ export const defaultRestoreRegistry: Readonly<Record<string, GraphRestoreEntry>>
 type Prepared = {
 	checkpoint: GraphCheckpointNode;
 	entry: GraphRecipeFactory | GraphRestoreExtension | undefined;
+	/** The sugar a recipe's node was built with, rebuilt the same way. */
+	sugar?: GraphCheckpointSugar;
 	config: GraphCheckpointJson | undefined;
 	terminal: true | unknown | undefined;
 };
@@ -686,16 +727,21 @@ function prepareNode(node: GraphCheckpointNode, registry: GraphRestoreRegistry):
 	if (node.kind === "computed" && node.policies === undefined)
 		throw new Error(`restoreGraph: computed node '${id}' has no policies`);
 	if (node.recipe === undefined) {
-		if (node.kind === "computed")
-			throw new Error(
-				`restoreGraph: node '${id}' is local-only: its instance carries no recipe (R-checkpoint)`,
-			);
+		// R-checkpoint@1: a local-only node fails at restore, not at capture.
+		if (node.kind === "computed") throw notRestorable(id, CHECKPOINT_REFUSAL.localOnly);
 		return { checkpoint: node, entry: undefined, config: undefined, terminal };
 	}
 	const ref = assertString(node.recipe.ref, `node '${id}' recipe.ref`);
+	const sugar = node.recipe.sugar;
+	if (sugar !== undefined && (!isCheckpointSugar(sugar) || node.kind !== "computed"))
+		throw new Error(
+			`restoreGraph: node '${id}' recipe.sugar must name derived, effect or producer`,
+		);
 	const entry = entryFor(registry, ref, id);
 	if (node.kind === "state" && !isExtension(entry))
 		throw new Error(`restoreGraph: state node '${id}' recipe '${ref}' is not a restore extension`);
+	if (sugar !== undefined && !isFactory(entry))
+		throw notRestorable(id, `its ${sugar} recipe '${ref}' is not a recipe factory`);
 	const raw = node.recipe.config;
 	if (raw !== undefined) toCheckpointJson(raw, `${id}.recipe.config`);
 	const config = isExtension(entry)
@@ -705,7 +751,7 @@ function prepareNode(node: GraphCheckpointNode, registry: GraphRestoreRegistry):
 		: entry.validateConfig
 			? entry.validateConfig(raw)
 			: raw;
-	return { checkpoint: node, entry, config, terminal };
+	return { checkpoint: node, entry, config, terminal, ...(sugar === undefined ? {} : { sugar }) };
 }
 
 function prepareCheckpoint(
@@ -774,7 +820,9 @@ function recipeContext(registry: GraphRestoreRegistry, out: Graph, id: string): 
 	return ctx;
 }
 
-function policyOptions(p: GraphCheckpointPolicies): Partial<NodeOptions<unknown>> {
+function policyOptions(
+	p: GraphCheckpointPolicies,
+): Pick<NodeOptions<unknown>, "complete" | "error" | "invalidate" | "quiet" | "pool"> {
 	return {
 		complete: p.complete,
 		error: p.error,
@@ -824,6 +872,28 @@ function constructPrepared(
 					throw new Error(
 						`restoreGraph: restore extension '${item.entry.ref}' did not register node '${id}'`,
 					);
+			} else if (item.sugar !== undefined) {
+				// R-checkpoint: a sugar node gets only its value-level callback from the registry and
+				// is built with the same sugar and gate; a setup from the registry is refused.
+				const build = item.entry.build(item.config, recipeContext(registry, out, id)) as
+					| GraphRecipeBuild
+					| GraphSugarRecipeBuild;
+				if (build.setup !== undefined)
+					throw notRestorable(
+						id,
+						`its ${item.sugar} recipe '${item.entry.ref}' gives a setup; a ${item.sugar} takes none`,
+					);
+				if (typeof build.fn !== "function")
+					throw notRestorable(
+						id,
+						`its ${item.sugar} recipe '${item.entry.ref}' gives no callback function`,
+					);
+				const parts = sugarNodeParts(item.sugar, build.fn);
+				made = restoreNodeInGraph(out, id, node.factory, deps, parts.fn, {
+					...common,
+					...policyOptions(node.policies as GraphCheckpointPolicies),
+					...(parts.setup === undefined ? {} : { setup: parts.setup }),
+				});
 			} else {
 				const build = item.entry.build(item.config, recipeContext(registry, out, id));
 				made = restoreNodeInGraph(out, id, node.factory, deps, build.fn, {
@@ -866,7 +936,9 @@ function constructPrepared(
 			restoreStateOfNode(made, {
 				values: node.values,
 				terminal: item.terminal,
-				privateState: lifetime?.state ?? SENTINEL,
+				// A detached copy: a restored node may change its state in place (zip, buffer), and two
+				// graphs restored from one checkpoint object must not share it.
+				privateState: lifetime?.state === undefined ? SENTINEL : structuredClone(lifetime.state),
 				seed: lifetime === undefined || received === undefined ? undefined : { received },
 			});
 		}

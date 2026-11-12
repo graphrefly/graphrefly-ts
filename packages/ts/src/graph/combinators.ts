@@ -23,6 +23,7 @@
 
 import type { Ctx, DepTerminal } from "../ctx/types.js";
 import type { Message } from "../protocol/messages.js";
+import { toCheckpointJson } from "./checkpoint.js";
 import { eachInputArray } from "./each-input-array.js";
 import type { Operator } from "./operators.js";
 
@@ -42,6 +43,7 @@ import type { Operator } from "./operators.js";
 export function combine<T extends readonly unknown[]>(): Operator<unknown, T> {
 	return {
 		factory: "combine",
+		recipe: { ref: "combine" },
 		opts: {},
 		body: (ctx) => {
 			const vals = Array.from({ length: ctx.deps.length }, (_, i) => ctx.deps[i].value);
@@ -72,6 +74,7 @@ export const combineLatest = combine;
 export function withLatestFrom<A, B>(): Operator<unknown, readonly [A, B]> {
 	return {
 		factory: "withLatestFrom",
+		recipe: { ref: "withLatestFrom" },
 		opts: { complete: "manual" },
 		body: (ctx) => {
 			const sec = ctx.deps[1]?.value as B | undefined;
@@ -119,6 +122,7 @@ interface ZipState {
 export function zip<T extends readonly unknown[]>(): Operator<unknown, T> {
 	return {
 		factory: "zip",
+		recipe: { ref: "zip" },
 		opts: { complete: "manual" },
 		body: (ctx) => {
 			const n = ctx.deps.length;
@@ -170,6 +174,7 @@ interface ConcatState<S> {
 export function concat<S>(): Operator<S, S> {
 	return {
 		factory: "concat",
+		recipe: { ref: "concat" },
 		opts: { complete: "manual" },
 		body: (ctx) => {
 			const firstBatch = ctx.deps[0].waves.length === 0 ? null : ctx.deps[0].waves.flat();
@@ -288,6 +293,7 @@ export function race<S>(): Operator<S, S> {
 export function buffer<S>(): Operator<unknown, S[]> {
 	return {
 		factory: "buffer",
+		recipe: { ref: "buffer" },
 		opts: { complete: "manual" },
 		body: (ctx) => {
 			const sourceBatch = ctx.deps[0].waves.length === 0 ? null : ctx.deps[0].waves.flat();
@@ -328,6 +334,7 @@ export function bufferCount<S>(count: number): Operator<S, S[]> {
 	}
 	return {
 		factory: "bufferCount",
+		recipe: { ref: "bufferCount", config: { count: toCheckpointJson(count, "bufferCount.count") } },
 		opts: { complete: "manual" },
 		body: (ctx) => {
 			const b = ctx.deps[0].waves.length === 0 ? null : ctx.deps[0].waves.flat();
@@ -433,6 +440,7 @@ export function sample<S>(): Operator<unknown, S> {
 export function takeUntil<S>(): Operator<unknown, S> {
 	return {
 		factory: "takeUntil",
+		recipe: { ref: "takeUntil" },
 		opts: { complete: "manual" },
 		body: (ctx: Ctx) => {
 			const sourceBatch = ctx.deps[0].waves.length === 0 ? null : ctx.deps[0].waves.flat();

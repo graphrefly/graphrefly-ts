@@ -505,15 +505,19 @@ describe("Graph.checkpoint — data shape (R-checkpoint / D802, TS layout D178)"
 	it("fails honestly for non-strict-JSON values, private state and terminal payloads", () => {
 		const badCache = graph();
 		badCache.state(1n, { name: "big" });
-		expect(() => badCache.checkpoint()).toThrow(/strict JSON compatible/);
+		expect(() => badCache.checkpoint()).toThrow(
+			"not restorable: big: its retained values are not JSON",
+		);
 
 		const badString = graph();
 		badString.state("\ud800", { name: "surrogate" });
-		expect(() => badString.checkpoint()).toThrow(/strict JSON compatible/);
+		expect(() => badString.checkpoint()).toThrow(
+			"not restorable: surrogate: its retained values are not JSON",
+		);
 
 		const badName = graph();
 		badName.state(1, { name: "\ud800" });
-		expect(() => badName.checkpoint()).toThrow(/strict JSON compatible/);
+		expect(() => badName.checkpoint()).toThrow(/^not restorable: .*: its id is not JSON$/);
 
 		const badCtxState = graph();
 		const src = badCtxState.state(1, { name: "src" });
@@ -526,12 +530,16 @@ describe("Graph.checkpoint — data shape (R-checkpoint / D802, TS layout D178)"
 			{ name: "memo" },
 		);
 		collect(memo);
-		expect(() => badCtxState.checkpoint()).toThrow(/strict JSON compatible/);
+		expect(() => badCtxState.checkpoint()).toThrow(
+			"not restorable: memo: its private state is not JSON",
+		);
 
 		const badTerminal = graph();
 		const failed = badTerminal.state(1, { name: "failed" });
 		failed.error(new Error("not-json"));
-		expect(() => badTerminal.checkpoint()).toThrow(/strict JSON compatible/);
+		expect(() => badTerminal.checkpoint()).toThrow(
+			"not restorable: failed: its ERROR payload is not JSON",
+		);
 	});
 
 	it("rejects duplicate ids and cyclic mounts instead of producing ambiguous checkpoints", () => {
@@ -638,7 +646,9 @@ describe("Graph.checkpoint — data shape (R-checkpoint / D802, TS layout D178)"
 		const g = graph();
 		reactiveList(g, [1n], { name: "big" });
 
-		expect(() => g.checkpoint()).toThrow(/big\.delta\.backendState.*strict JSON compatible/);
+		expect(() => g.checkpoint()).toThrow(
+			"not restorable: big.delta: its retained values are not JSON",
+		);
 	});
 
 	it("fails honestly when a reactiveIndex primary key cannot restore through D160", () => {

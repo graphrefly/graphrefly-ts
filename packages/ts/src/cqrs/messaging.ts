@@ -7,8 +7,10 @@
 
 import type { CqrsCommand, CqrsError, CqrsEvent, CqrsStatus } from "../cqrs/index.js";
 
+import type { NodeFn } from "../ctx/types.js";
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
+import type { GraphRecipeFactory } from "../graph/restore.js";
 import { canonicalTupleKey, compoundTupleKey } from "../identity.js";
 import type {
 	MessageBusAvailablePage,
@@ -152,9 +154,10 @@ export function cqrsMessageCommand<TPayload = unknown, TCommand = unknown>(
 			id,
 			type,
 			payload: message.payload.payload as TCommand,
-			aggregateId: stringField(message.payload, "aggregateId"),
-			correlationId: stringField(message.payload, "correlationId"),
-			causationId: stringField(message.payload, "causationId"),
+			// Absent fields are omitted, so the command stays strict JSON (R-checkpoint@1).
+			...optionalStringField(message.payload, "aggregateId"),
+			...optionalStringField(message.payload, "correlationId"),
+			...optionalStringField(message.payload, "causationId"),
 			metadata: {
 				...(objectField(message.payload, "metadata") ?? {}),
 			},
@@ -185,45 +188,67 @@ export function cqrsMessageAckCommands(
 		readonly ackRejected?: boolean;
 	},
 ): Node<MessageBusCommand> {
+	const config: AckCommandsConfig = {
+		ackRejected: opts.ackRejected !== false,
+		issues: opts.issues !== undefined,
+	};
 	return graph.node<MessageBusCommand>(
 		opts.issues === undefined
 			? [opts.commands, opts.status]
 			: [opts.commands, opts.status, opts.issues],
-		oneArrayPerRun((ctx) => {
-			const deliveries =
-				ctx.state.get<Map<string, MessageBusDelivery[]>>() ??
-				new Map<string, MessageBusDelivery[]>();
-			for (const raw of ctx.deps[0].waves.flat()) {
-				const command = raw as CqrsCommand;
-				const delivery = commandDelivery(command);
-				if (delivery !== undefined) pushDelivery(deliveries, command.id, delivery);
-			}
-			for (const raw of ctx.deps[1]?.waves.flat() ?? []) {
-				const status = raw as CqrsStatus;
-				if (status.state === "rejected" && opts.ackRejected === false) continue;
-				if (status.commandId === undefined) continue;
-				const delivery = shiftDelivery(deliveries, status.commandId);
-				if (delivery === undefined) continue;
-				ctx.down([["DATA", ackCommand(delivery, ackCommandId("cqrs", delivery, "status"))]]);
-			}
-			if (opts.issues !== undefined) {
-				for (const raw of ctx.deps[2]?.waves.flat() ?? []) {
-					const issue = raw as DataIssue;
-					const delivery = issueDelivery(issue);
-					if (delivery !== undefined) {
-						ctx.down([["DATA", ackCommand(delivery, ackCommandId("cqrs", delivery, "issue"))]]);
-					}
-				}
-			}
-			ctx.state.set(deliveries);
-		}),
+		ackCommandsFn(config),
 		{
 			name: opts.name ?? "cqrsMessaging/ackCommands",
 			factory: "cqrsMessagingAckCommands",
 			complete: "manual",
 			error: "manual",
+			recipe: { ref: ACK_COMMANDS_REF, config },
 		},
 	);
+}
+
+const ACK_COMMANDS_REF = "cqrsMessaging.ackCommands";
+const OUTBOX_COMMANDS_REF = "cqrsMessaging.outboxCommands";
+
+/** The ack commands node's recipe config: its policy and whether it reads an issues input. */
+interface AckCommandsConfig {
+	readonly ackRejected: boolean;
+	readonly issues: boolean;
+}
+
+/**
+ * Deliveries awaiting a CQRS status, by command id, in arrival order: strict JSON private state
+ * (R-checkpoint@1), so a checkpoint keeps what a restored node still has to ack.
+ */
+type PendingDeliveries = Array<[commandId: string, deliveries: MessageBusDelivery[]]>;
+
+function ackCommandsFn(config: AckCommandsConfig): NodeFn {
+	return oneArrayPerRun((ctx) => {
+		const deliveries = ctx.state.get<PendingDeliveries>() ?? [];
+		for (const raw of ctx.deps[0].waves.flat()) {
+			const command = raw as CqrsCommand;
+			const delivery = commandDelivery(command);
+			if (delivery !== undefined) pushDelivery(deliveries, command.id, delivery);
+		}
+		for (const raw of ctx.deps[1]?.waves.flat() ?? []) {
+			const status = raw as CqrsStatus;
+			if (status.state === "rejected" && !config.ackRejected) continue;
+			if (status.commandId === undefined) continue;
+			const delivery = shiftDelivery(deliveries, status.commandId);
+			if (delivery === undefined) continue;
+			ctx.down([["DATA", ackCommand(delivery, ackCommandId("cqrs", delivery, "status"))]]);
+		}
+		if (config.issues) {
+			for (const raw of ctx.deps[2]?.waves.flat() ?? []) {
+				const issue = raw as DataIssue;
+				const delivery = issueDelivery(issue);
+				if (delivery !== undefined) {
+					ctx.down([["DATA", ackCommand(delivery, ackCommandId("cqrs", delivery, "issue"))]]);
+				}
+			}
+		}
+		ctx.state.set(deliveries);
+	});
 }
 
 /**
@@ -246,34 +271,85 @@ export function cqrsEventOutboxCommands<TEvent>(
 	topic: string,
 	opts: { readonly name?: string } = {},
 ): Node<MessageBusCommand> {
-	return graph.node<MessageBusCommand>(
-		[events],
-		oneArrayPerRun((ctx) => {
-			for (const event of ctx.deps[0].waves.flat()) {
-				const typed = event as CqrsEvent<TEvent>;
-				ctx.down([
-					[
-						"DATA",
-						{
-							kind: "publish",
-							topic,
-							payload: typed,
-							key: typed.aggregateId,
-							commandId: compoundTupleKey("cqrs-outbox", [typed.id]),
-							idempotencyKey: typed.id,
-						} satisfies MessageBusCommand,
-					],
-				]);
-			}
-		}),
-		{
-			name: opts.name ?? "cqrsMessaging/outboxCommands",
-			factory: "cqrsMessagingOutboxCommands",
-			complete: "manual",
-			error: "manual",
-		},
-	);
+	return graph.node<MessageBusCommand>([events], outboxCommandsFn(topic), {
+		name: opts.name ?? "cqrsMessaging/outboxCommands",
+		factory: "cqrsMessagingOutboxCommands",
+		complete: "manual",
+		error: "manual",
+		recipe: { ref: OUTBOX_COMMANDS_REF, config: { topic } },
+	});
 }
+
+function outboxCommandsFn(topic: string): NodeFn {
+	return oneArrayPerRun((ctx) => {
+		for (const event of ctx.deps[0].waves.flat()) {
+			const typed = event as CqrsEvent;
+			ctx.down([
+				[
+					"DATA",
+					{
+						kind: "publish",
+						topic,
+						payload: typed,
+						// An event with no aggregate has no key: omitted, not undefined (strict JSON).
+						...(typed.aggregateId === undefined ? {} : { key: typed.aggregateId }),
+						commandId: compoundTupleKey("cqrs-outbox", [typed.id]),
+						idempotencyKey: typed.id,
+					} satisfies MessageBusCommand,
+				],
+			]);
+		}
+	});
+}
+
+function recipeObject(config: unknown, ref: string): Record<string, unknown> {
+	if (typeof config !== "object" || config === null || Array.isArray(config))
+		throw new Error(`restoreGraph: '${ref}' recipe requires an object config`);
+	return config as Record<string, unknown>;
+}
+
+/**
+ * Restore entries for the CQRS messaging ack and outbox command nodes (R-checkpoint@1): add them
+ * to the registry given to restoreGraph.
+ * @category cqrs
+ * @example
+ * ```ts
+ * import { cqrsMessagingRestoreRegistry } from "@graphrefly/ts/cqrs/messaging";
+ * import { defaultRestoreRegistry, restoreGraph } from "@graphrefly/ts/graph";
+ *
+ * const g = restoreGraph(checkpoint, {
+ *   registry: { ...defaultRestoreRegistry, ...cqrsMessagingRestoreRegistry },
+ * });
+ * ```
+ */
+export const cqrsMessagingRestoreRegistry: Readonly<Record<string, GraphRecipeFactory<any>>> = {
+	[ACK_COMMANDS_REF]: {
+		ref: ACK_COMMANDS_REF,
+		validateConfig(config): AckCommandsConfig {
+			const c = recipeObject(config, ACK_COMMANDS_REF);
+			if (typeof c.ackRejected !== "boolean" || typeof c.issues !== "boolean")
+				throw new Error(
+					`restoreGraph: '${ACK_COMMANDS_REF}' config.ackRejected and config.issues must be booleans`,
+				);
+			return { ackRejected: c.ackRejected, issues: c.issues };
+		},
+		build(config: AckCommandsConfig) {
+			return { fn: ackCommandsFn(config) };
+		},
+	} satisfies GraphRecipeFactory<AckCommandsConfig>,
+	[OUTBOX_COMMANDS_REF]: {
+		ref: OUTBOX_COMMANDS_REF,
+		validateConfig(config): { readonly topic: string } {
+			const topic = recipeObject(config, OUTBOX_COMMANDS_REF).topic;
+			if (typeof topic !== "string" || topic.length === 0)
+				throw new Error(`restoreGraph: '${OUTBOX_COMMANDS_REF}' config.topic must be a string`);
+			return { topic };
+		},
+		build(config: { readonly topic: string }) {
+			return { fn: outboxCommandsFn(config.topic) };
+		},
+	} satisfies GraphRecipeFactory<{ readonly topic: string }>,
+};
 
 function project<T, TCommand>(
 	graph: Graph,
@@ -362,23 +438,24 @@ function messageDelivery(
 }
 
 function pushDelivery(
-	deliveries: Map<string, MessageBusDelivery[]>,
+	deliveries: PendingDeliveries,
 	commandId: string,
 	delivery: MessageBusDelivery,
 ): void {
-	const queue = deliveries.get(commandId) ?? [];
-	deliveries.set(commandId, [...queue, delivery]);
+	const entry = deliveries.find(([id]) => id === commandId);
+	if (entry === undefined) deliveries.push([commandId, [delivery]]);
+	else entry[1] = [...entry[1], delivery];
 }
 
 function shiftDelivery(
-	deliveries: Map<string, MessageBusDelivery[]>,
+	deliveries: PendingDeliveries,
 	commandId: string,
 ): MessageBusDelivery | undefined {
-	const queue = deliveries.get(commandId);
-	if (queue === undefined || queue.length === 0) return undefined;
-	const [first, ...rest] = queue;
-	if (rest.length === 0) deliveries.delete(commandId);
-	else deliveries.set(commandId, rest);
+	const at = deliveries.findIndex(([id]) => id === commandId);
+	if (at < 0) return undefined;
+	const [first, ...rest] = (deliveries[at] as PendingDeliveries[number])[1];
+	if (rest.length === 0) deliveries.splice(at, 1);
+	else deliveries[at] = [commandId, rest];
 	return first;
 }
 
@@ -431,4 +508,10 @@ function objectField(
 
 function isObjectRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null;
+}
+
+/** `{ [key]: value }` when the record has a string `key`, else nothing. */
+function optionalStringField(record: Record<string, unknown>, key: string): Record<string, string> {
+	const value = stringField(record, key);
+	return value === undefined ? {} : { [key]: value };
 }

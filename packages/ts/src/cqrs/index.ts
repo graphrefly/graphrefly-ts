@@ -8,7 +8,10 @@
  * storage-owned restore surface.
  */
 
+import type { NodeFn } from "../ctx/types.js";
+import { toCheckpointJson } from "../graph/checkpoint.js";
 import type { Graph } from "../graph/graph.js";
+import type { GraphRecipeContext, GraphRecipeFactory } from "../graph/restore.js";
 import { compoundTupleKey } from "../identity.js";
 import type { Node } from "../node/node.js";
 import { oneArrayPerRun } from "../node/one-array-per-run.js";
@@ -124,6 +127,12 @@ export type CqrsCommandHandler<TCommand = unknown, TEvent = unknown> = (
 export interface CqrsCommandHandlerDefinition<TCommand = unknown, TEvent = unknown> {
 	readonly type: string;
 	readonly handle: CqrsCommandHandler<TCommand, TEvent>;
+	/**
+	 * R-checkpoint@1: the ref under which the restoring caller registers `handle` as a definition
+	 * (`{ kind: "definition", ref, fn: handle }`). A bundle with a handler that has none keeps its
+	 * runtime local-only.
+	 */
+	readonly ref?: string;
 }
 
 export interface CqrsOptions<TCommand = unknown, TEvent = unknown> {
@@ -131,6 +140,11 @@ export interface CqrsOptions<TCommand = unknown, TEvent = unknown> {
 	readonly handlers?: readonly CqrsCommandHandlerDefinition<TCommand, TEvent>[];
 	readonly events?: readonly string[];
 	readonly now?: () => number;
+	/**
+	 * R-checkpoint@1: the ref under which the restoring caller registers `now` as a definition. A
+	 * custom `now` without it leaves the runtime local-only; the default clock needs none.
+	 */
+	readonly nowRef?: string;
 	/**
 	 * D142: static command/event duplicate-recognition windows. Omitted means
 	 * exact unbounded dedupe; bounded windows evict oldest ids by insertion order.
@@ -176,6 +190,7 @@ interface CqrsRuntimeState {
 interface HandlerRecord {
 	readonly type: string;
 	readonly handle: CqrsCommandHandler<unknown, unknown>;
+	readonly ref?: string;
 }
 
 interface NormalizedCqrsDedupePolicy {
@@ -187,6 +202,7 @@ interface NormalizedCqrsDedupePolicy {
 /** Convenience helper for declaring typed command handlers in a CQRS bundle.
  * @param type - type value used by the helper.
  * @param handle - handle value used by the helper.
+ * @param opts - `ref`: the definition ref that names `handle` in a checkpoint (R-checkpoint@1).
  * @returns A `CqrsCommandHandlerDefinition<TCommand, TEvent>` value.
  * @category cqrs
  * @example
@@ -197,9 +213,12 @@ interface NormalizedCqrsDedupePolicy {
 export function cqrsCommandHandler<TCommand = unknown, TEvent = unknown>(
 	type: string,
 	handle: CqrsCommandHandler<TCommand, TEvent>,
+	opts: { readonly ref?: string } = {},
 ): CqrsCommandHandlerDefinition<TCommand, TEvent> {
 	if (type.length === 0) throw new Error("cqrsCommandHandler: type must be non-empty");
-	return { type, handle };
+	if (opts.ref !== undefined && opts.ref.length === 0)
+		throw new Error("cqrsCommandHandler: ref must be non-empty");
+	return { type, handle, ...(opts.ref === undefined ? {} : { ref: opts.ref }) };
 }
 
 /**
@@ -222,6 +241,9 @@ export function cqrs<TCommand = unknown, TEvent = unknown>(
 	const handlers = normalizeHandlers(opts.handlers ?? []);
 	const knownEvents =
 		opts.events === undefined ? undefined : new Set(uniqueNames(opts.events, "cqrs.events"));
+	if (opts.nowRef !== undefined && opts.now === undefined) {
+		throw new TypeError("cqrs: nowRef names the clock given as now");
+	}
 	const now = opts.now ?? Date.now;
 	const dedupe = normalizeDedupePolicy(opts.dedupe);
 	const command = graph.node<CqrsCommand<TCommand>>([], null, {
@@ -230,26 +252,27 @@ export function cqrs<TCommand = unknown, TEvent = unknown>(
 		complete: "manual",
 		error: "manual",
 	});
+	// R-checkpoint@1: the runtime's recipe names each handler and the clock by ref; a user
+	// function with no ref cannot be named, so the runtime is then local-only.
+	const handlerRefs = [...handlers.values()].map((h) => ({ type: h.type, ref: h.ref }));
+	const runtimeConfig: CqrsRuntimeConfig | undefined =
+		handlerRefs.every((h) => h.ref !== undefined) &&
+		(opts.now === undefined || opts.nowRef !== undefined)
+			? {
+					handlers: handlerRefs as { type: string; ref: string }[],
+					...(knownEvents === undefined ? {} : { events: [...knownEvents] }),
+					dedupe: {
+						...(dedupe.commandMaxEntries === undefined
+							? {}
+							: { commands: dedupe.commandMaxEntries }),
+						...(dedupe.eventMaxEntries === undefined ? {} : { events: dedupe.eventMaxEntries }),
+					},
+					...(opts.nowRef === undefined ? {} : { nowRef: opts.nowRef }),
+				}
+			: undefined;
 	const runtime = graph.node<CqrsRuntimeFact<TEvent>>(
 		[command],
-		(ctx) => {
-			const state =
-				ctx.state.get<CqrsRuntimeState>() ??
-				({
-					eventSeq: 0,
-					commandCount: 0,
-					errorCount: 0,
-					auditSeq: 0,
-					seenCommandIds: [],
-					seenEventIds: [],
-				} satisfies CqrsRuntimeState);
-			for (const raw of ctx.deps[0].waves.flat()) {
-				reduceCommandFact(raw, state, handlers, knownEvents, now, dedupe, (fact) =>
-					ctx.down([["DATA", fact as CqrsRuntimeFact<TEvent>]]),
-				);
-			}
-			ctx.state.set(state);
-		},
+		cqrsRuntimeFn(handlers, knownEvents, now, dedupe),
 		{
 			name: `${name}/runtime`,
 			factory: "cqrsRuntime",
@@ -260,48 +283,18 @@ export function cqrs<TCommand = unknown, TEvent = unknown>(
 			},
 			complete: "manual",
 			error: "manual",
+			...(runtimeConfig === undefined
+				? {}
+				: { recipe: { ref: CQRS_RUNTIME_REF, config: runtimeConfig } }),
 		},
 	);
-	const events = runtimeProjection<CqrsEvent<TEvent>, TEvent>(
-		graph,
-		runtime,
-		"event",
-		`${name}/events`,
-		"cqrsEvents",
-		(fact) => (fact.kind === "event" ? fact.event : undefined),
-	);
-	const status = runtimeProjection<CqrsStatus, TEvent>(
-		graph,
-		runtime,
-		"status",
-		`${name}/status`,
-		"cqrsStatus",
-		(fact) => (fact.kind === "status" ? fact.status : undefined),
-	);
-	const errors = runtimeProjection<CqrsError, TEvent>(
-		graph,
-		runtime,
-		"error",
-		`${name}/errors`,
-		"cqrsErrors",
-		(fact) => (fact.kind === "error" ? fact.error : undefined),
-	);
-	const audit = runtimeProjection<CqrsAuditRecord, TEvent>(
-		graph,
-		runtime,
-		"audit",
-		`${name}/audit`,
-		"cqrsAudit",
-		(fact) => (fact.kind === "audit" ? fact.audit : undefined),
-	);
-	const cursor = runtimeProjection<CqrsCursor, TEvent>(
-		graph,
-		runtime,
-		"cursor",
-		`${name}/cursor`,
-		"cqrsCursor",
-		(fact) => (fact.kind === "cursor" ? fact.cursor : undefined),
-	);
+	const project = <TOut>(kind: CqrsRuntimeFact["kind"], suffix: string, factory: string) =>
+		runtimeProjection<TOut>(graph, runtime, kind, `${name}/${suffix}`, factory);
+	const events = project<CqrsEvent<TEvent>>("event", "events", "cqrsEvents");
+	const status = project<CqrsStatus>("status", "status", "cqrsStatus");
+	const errors = project<CqrsError>("error", "errors", "cqrsErrors");
+	const audit = project<CqrsAuditRecord>("audit", "audit", "cqrsAudit");
+	const cursor = project<CqrsCursor>("cursor", "cursor", "cqrsCursor");
 	graph.retain(runtime);
 	graph.retain(events);
 	graph.retain(status);
@@ -328,6 +321,12 @@ export interface CqrsProjectionOptions<TState, TEvent = unknown> {
 	readonly events?: readonly string[];
 	readonly initial: TState;
 	readonly reducer: (state: TState, event: CqrsEvent<TEvent>) => TState;
+	/**
+	 * R-checkpoint@1: the ref under which the restoring caller registers `reducer` as a definition
+	 * (`{ kind: "definition", ref, fn: reducer }`). Without it the projection's frames node is
+	 * local-only. With it `initial` must be strict JSON, since the frames recipe holds it.
+	 */
+	readonly reducerRef?: string;
 }
 
 export type CqrsProjectionFrame<TState> =
@@ -384,124 +383,43 @@ export function cqrsProjection<TState, TEvent = unknown>(
 		opts.events === undefined
 			? undefined
 			: new Set(uniqueNames(opts.events, "cqrsProjection.events"));
+	const framesConfig: CqrsProjectionFramesConfig | undefined =
+		opts.reducerRef === undefined
+			? undefined
+			: {
+					initial: toCheckpointJson(opts.initial, "cqrsProjection.initial"),
+					reducerRef: opts.reducerRef,
+					...(eventFilter === undefined ? {} : { events: [...eventFilter] }),
+				};
 	const frames = graph.node<CqrsProjectionFrame<TState>>(
 		[source.events],
-		oneArrayPerRun((ctx) => {
-			const state = ctx.state.get<{ value: TState }>() ?? { value: opts.initial };
-			for (const raw of ctx.deps[0].waves.flat()) {
-				const event = raw as CqrsEvent<TEvent>;
-				if (eventFilter !== undefined && !eventFilter.has(event.type)) continue;
-				try {
-					state.value = opts.reducer(state.value, event);
-					ctx.state.set(state);
-					ctx.down([
-						[
-							"DATA",
-							{
-								kind: "value",
-								state: state.value,
-								eventId: event.id,
-								cursor: event.runtimeCursor,
-							} satisfies CqrsProjectionFrame<TState>,
-						],
-					]);
-				} catch (error) {
-					rethrowGraphRuntimeInvariant(error);
-					ctx.down([
-						[
-							"DATA",
-							{
-								kind: "error",
-								error: {
-									code: "projection-threw",
-									message: errorMessage(error),
-									eventId: event.id,
-									eventType: event.type,
-									cursor: event.runtimeCursor,
-								},
-							} satisfies CqrsProjectionFrame<TState>,
-						],
-					]);
-					return;
-				}
-			}
-		}),
+		cqrsProjectionFramesFn(
+			opts.initial,
+			opts.reducer as (state: unknown, event: CqrsEvent) => unknown,
+			eventFilter,
+		),
 		{
 			name,
 			factory: "cqrsProjection",
 			meta: { eventTypes: eventFilter ? [...eventFilter] : "open" },
 			complete: "manual",
 			error: "manual",
+			...(framesConfig === undefined
+				? {}
+				: { recipe: { ref: CQRS_PROJECTION_FRAMES_REF, config: framesConfig } }),
 		},
 	);
-	const value = graph.node<TState>(
-		[frames],
-		oneArrayPerRun((ctx) => {
-			for (const frame of ctx.deps[0].waves.flat()) {
-				const typed = frame as CqrsProjectionFrame<TState>;
-				if (typed.kind === "value") ctx.down([["DATA", typed.state]]);
-			}
-		}),
-		{
-			name: `${name}/value`,
-			factory: "cqrsProjectionValue",
+	const view = <TOut>(kind: CqrsProjectionViewKind, factory: string): Node<TOut> =>
+		graph.node<TOut>([frames], cqrsProjectionViewFn(kind), {
+			name: `${name}/${kind}`,
+			factory,
 			complete: "manual",
 			error: "manual",
-		},
-	);
-	const errors = graph.node<CqrsProjectionError>(
-		[frames],
-		oneArrayPerRun((ctx) => {
-			for (const frame of ctx.deps[0].waves.flat()) {
-				const typed = frame as CqrsProjectionFrame<TState>;
-				if (typed.kind === "error") ctx.down([["DATA", typed.error]]);
-			}
-		}),
-		{
-			name: `${name}/errors`,
-			factory: "cqrsProjectionErrors",
-			complete: "manual",
-			error: "manual",
-		},
-	);
-	const status = graph.node<CqrsProjectionStatus>(
-		[frames],
-		oneArrayPerRun((ctx) => {
-			for (const frame of ctx.deps[0].waves.flat()) {
-				const typed = frame as CqrsProjectionFrame<TState>;
-				if (typed.kind === "value") {
-					ctx.down([
-						[
-							"DATA",
-							{
-								state: "updated",
-								eventId: typed.eventId,
-								cursor: typed.cursor,
-							} satisfies CqrsProjectionStatus,
-						],
-					]);
-				} else {
-					ctx.down([
-						[
-							"DATA",
-							{
-								state: "errored",
-								eventId: typed.error.eventId,
-								eventType: typed.error.eventType,
-								cursor: typed.error.cursor,
-							} satisfies CqrsProjectionStatus,
-						],
-					]);
-				}
-			}
-		}),
-		{
-			name: `${name}/status`,
-			factory: "cqrsProjectionStatus",
-			complete: "manual",
-			error: "manual",
-		},
-	);
+			recipe: { ref: CQRS_PROJECTION_VIEW_REF, config: { kind } },
+		});
+	const value = view<TState>("value", "cqrsProjectionValue");
+	const errors = view<CqrsProjectionError>("errors", "cqrsProjectionErrors");
+	const status = view<CqrsProjectionStatus>("status", "cqrsProjectionStatus");
 	graph.retain(frames);
 	graph.retain(value);
 	graph.retain(status);
@@ -520,6 +438,7 @@ function normalizeHandlers<TCommand, TEvent>(
 		handlers.set(definition.type, {
 			type: definition.type,
 			handle: definition.handle as CqrsCommandHandler<unknown, unknown>,
+			...(definition.ref === undefined ? {} : { ref: definition.ref }),
 		});
 	}
 	return handlers;
@@ -790,32 +709,339 @@ function emitAudit<TEvent>(
 	});
 }
 
-function runtimeProjection<TOut, TEvent>(
+function runtimeProjection<TOut>(
 	graph: Graph,
-	runtime: Node<CqrsRuntimeFact<TEvent>>,
-	kind: CqrsRuntimeFact<TEvent>["kind"],
+	runtime: Node<unknown>,
+	kind: CqrsRuntimeFact["kind"],
 	name: string,
 	factory: string,
-	select: (fact: CqrsRuntimeFact<TEvent>) => TOut | undefined,
 ): Node<TOut> {
-	return graph.node<TOut>(
-		[runtime],
-		oneArrayPerRun((ctx) => {
-			for (const fact of ctx.deps[0].waves.flat()) {
-				const typed = fact as CqrsRuntimeFact<TEvent>;
-				if (typed.kind !== kind) continue;
-				const selected = select(typed);
-				if (selected !== undefined) ctx.down([["DATA", selected]]);
-			}
-		}),
-		{
-			name,
-			factory,
-			complete: "manual",
-			error: "manual",
-		},
-	);
+	return graph.node<TOut>([runtime], runtimeProjectionFn(kind), {
+		name,
+		factory,
+		complete: "manual",
+		error: "manual",
+		recipe: { ref: CQRS_PROJECTION_REF, config: { kind } },
+	});
 }
+
+function runtimeProjectionValue(fact: CqrsRuntimeFact): unknown {
+	switch (fact.kind) {
+		case "event":
+			return fact.event;
+		case "status":
+			return fact.status;
+		case "error":
+			return fact.error;
+		case "audit":
+			return fact.audit;
+		case "cursor":
+			return fact.cursor;
+	}
+}
+
+function runtimeProjectionFn(kind: CqrsRuntimeFact["kind"]): NodeFn {
+	return oneArrayPerRun((ctx) => {
+		for (const fact of ctx.deps[0].waves.flat()) {
+			const typed = fact as CqrsRuntimeFact;
+			if (typed.kind !== kind) continue;
+			const selected = runtimeProjectionValue(typed);
+			if (selected !== undefined) ctx.down([["DATA", selected]]);
+		}
+	});
+}
+
+const CQRS_RUNTIME_REF = "cqrs.runtime";
+const CQRS_PROJECTION_REF = "cqrs.projection";
+const CQRS_PROJECTION_FRAMES_REF = "cqrsProjection.frames";
+const CQRS_PROJECTION_VIEW_REF = "cqrsProjection.view";
+
+const CQRS_FACT_KINDS: readonly CqrsRuntimeFact["kind"][] = [
+	"event",
+	"status",
+	"error",
+	"audit",
+	"cursor",
+];
+
+/** The runtime's recipe config: handler refs by command type, event names, dedupe bounds, clock. */
+interface CqrsRuntimeConfig {
+	readonly handlers: readonly { readonly type: string; readonly ref: string }[];
+	readonly events?: readonly string[];
+	readonly dedupe: { readonly commands?: number; readonly events?: number };
+	readonly nowRef?: string;
+}
+
+/** The projection frames node's recipe config. */
+interface CqrsProjectionFramesConfig {
+	readonly initial: unknown;
+	readonly reducerRef: string;
+	readonly events?: readonly string[];
+}
+
+type CqrsProjectionViewKind = "value" | "errors" | "status";
+
+function cqrsRuntimeFn(
+	handlers: ReadonlyMap<string, HandlerRecord>,
+	knownEvents: ReadonlySet<string> | undefined,
+	now: () => number,
+	dedupe: NormalizedCqrsDedupePolicy,
+): NodeFn {
+	return (ctx) => {
+		const state =
+			ctx.state.get<CqrsRuntimeState>() ??
+			({
+				eventSeq: 0,
+				commandCount: 0,
+				errorCount: 0,
+				auditSeq: 0,
+				seenCommandIds: [],
+				seenEventIds: [],
+			} satisfies CqrsRuntimeState);
+		for (const raw of ctx.deps[0].waves.flat()) {
+			reduceCommandFact(raw, state, handlers, knownEvents, now, dedupe, (fact) =>
+				ctx.down([["DATA", fact]]),
+			);
+		}
+		ctx.state.set(state);
+	};
+}
+
+function cqrsProjectionFramesFn(
+	initial: unknown,
+	reducer: (state: unknown, event: CqrsEvent) => unknown,
+	eventFilter: ReadonlySet<string> | undefined,
+): NodeFn {
+	return oneArrayPerRun((ctx) => {
+		const state = ctx.state.get<{ value: unknown }>() ?? { value: initial };
+		for (const raw of ctx.deps[0].waves.flat()) {
+			const event = raw as CqrsEvent;
+			if (eventFilter !== undefined && !eventFilter.has(event.type)) continue;
+			try {
+				state.value = reducer(state.value, event);
+				ctx.state.set(state);
+				ctx.down([
+					[
+						"DATA",
+						{
+							kind: "value",
+							state: state.value,
+							eventId: event.id,
+							cursor: event.runtimeCursor,
+						} satisfies CqrsProjectionFrame<unknown>,
+					],
+				]);
+			} catch (error) {
+				rethrowGraphRuntimeInvariant(error);
+				ctx.down([
+					[
+						"DATA",
+						{
+							kind: "error",
+							error: {
+								code: "projection-threw",
+								message: errorMessage(error),
+								eventId: event.id,
+								eventType: event.type,
+								cursor: event.runtimeCursor,
+							},
+						} satisfies CqrsProjectionFrame<unknown>,
+					],
+				]);
+				return;
+			}
+		}
+	});
+}
+
+function cqrsProjectionViewFn(kind: CqrsProjectionViewKind): NodeFn {
+	return oneArrayPerRun((ctx) => {
+		for (const frame of ctx.deps[0].waves.flat()) {
+			const typed = frame as CqrsProjectionFrame<unknown>;
+			if (kind === "value") {
+				if (typed.kind === "value") ctx.down([["DATA", typed.state]]);
+			} else if (kind === "errors") {
+				if (typed.kind === "error") ctx.down([["DATA", typed.error]]);
+			} else if (typed.kind === "value") {
+				ctx.down([
+					[
+						"DATA",
+						{
+							state: "updated",
+							eventId: typed.eventId,
+							cursor: typed.cursor,
+						} satisfies CqrsProjectionStatus,
+					],
+				]);
+			} else {
+				ctx.down([
+					[
+						"DATA",
+						{
+							state: "errored",
+							eventId: typed.error.eventId,
+							eventType: typed.error.eventType,
+							cursor: typed.error.cursor,
+						} satisfies CqrsProjectionStatus,
+					],
+				]);
+			}
+		}
+	});
+}
+
+function recipeObject(config: unknown, ref: string): Record<string, unknown> {
+	if (typeof config !== "object" || config === null || Array.isArray(config))
+		throw new Error(`restoreGraph: '${ref}' recipe requires an object config`);
+	return config as Record<string, unknown>;
+}
+
+function recipeRef(value: unknown, ref: string, key: string): string {
+	if (typeof value !== "string" || value.length === 0)
+		throw new Error(`restoreGraph: '${ref}' config.${key} must be a non-empty string`);
+	return value;
+}
+
+function recipeNames(value: unknown, ref: string, key: string): readonly string[] | undefined {
+	if (value === undefined) return undefined;
+	if (!Array.isArray(value) || value.some((v) => typeof v !== "string"))
+		throw new Error(`restoreGraph: '${ref}' config.${key} must be an array of strings`);
+	return uniqueNames(value as string[], `restoreGraph: '${ref}' config.${key}`);
+}
+
+function recipeBound(value: unknown, ref: string, key: string): number | undefined {
+	if (value === undefined) return undefined;
+	if (!Number.isSafeInteger(value) || (value as number) < 0)
+		throw new Error(`restoreGraph: '${ref}' config.${key} must be a non-negative integer`);
+	return value as number;
+}
+
+function restoredCqrsClock(nowRef: string | undefined, ctx: GraphRecipeContext): () => number {
+	if (nowRef === undefined) return Date.now;
+	const clock = ctx.definition<undefined, number>(nowRef);
+	return () => clock.fn(undefined);
+}
+
+/**
+ * Restore entries for cqrs and cqrsProjection nodes (R-checkpoint@1): add them to the registry
+ * given to restoreGraph, with each command handler registered as a definition under its `ref`
+ * (and the projection reducer under `reducerRef`, the clock under `nowRef`).
+ * @category cqrs
+ * @example
+ * ```ts
+ * import { cqrsRestoreRegistry } from "@graphrefly/ts/cqrs";
+ * import { defaultRestoreRegistry, restoreGraph } from "@graphrefly/ts/graph";
+ *
+ * const g = restoreGraph(checkpoint, {
+ *   registry: {
+ *     ...defaultRestoreRegistry,
+ *     ...cqrsRestoreRegistry,
+ *     "orders.place": { kind: "definition", ref: "orders.place", fn: placeOrder },
+ *   },
+ * });
+ * ```
+ */
+export const cqrsRestoreRegistry: Readonly<Record<string, GraphRecipeFactory<any>>> = {
+	[CQRS_RUNTIME_REF]: {
+		ref: CQRS_RUNTIME_REF,
+		validateConfig(config): CqrsRuntimeConfig {
+			const c = recipeObject(config, CQRS_RUNTIME_REF);
+			if (!Array.isArray(c.handlers))
+				throw new Error(`restoreGraph: '${CQRS_RUNTIME_REF}' config.handlers must be an array`);
+			const handlers = c.handlers.map((raw, i) => {
+				const h = recipeObject(raw, CQRS_RUNTIME_REF);
+				return {
+					type: recipeRef(h.type, CQRS_RUNTIME_REF, `handlers[${i}].type`),
+					ref: recipeRef(h.ref, CQRS_RUNTIME_REF, `handlers[${i}].ref`),
+				};
+			});
+			const events = recipeNames(c.events, CQRS_RUNTIME_REF, "events");
+			const d = recipeObject(c.dedupe, CQRS_RUNTIME_REF);
+			const commands = recipeBound(d.commands, CQRS_RUNTIME_REF, "dedupe.commands");
+			const eventBound = recipeBound(d.events, CQRS_RUNTIME_REF, "dedupe.events");
+			const nowRef =
+				c.nowRef === undefined ? undefined : recipeRef(c.nowRef, CQRS_RUNTIME_REF, "nowRef");
+			return {
+				handlers,
+				...(events === undefined ? {} : { events }),
+				dedupe: {
+					...(commands === undefined ? {} : { commands }),
+					...(eventBound === undefined ? {} : { events: eventBound }),
+				},
+				...(nowRef === undefined ? {} : { nowRef }),
+			};
+		},
+		build(config: CqrsRuntimeConfig, ctx) {
+			const handlers = normalizeHandlers(
+				config.handlers.map((h) => ({
+					type: h.type,
+					handle: ctx.definition(h.ref).fn as CqrsCommandHandler<unknown, unknown>,
+					ref: h.ref,
+				})),
+			);
+			const dedupe = normalizeDedupePolicy({
+				...(config.dedupe.commands === undefined
+					? {}
+					: { commands: { maxEntries: config.dedupe.commands } }),
+				...(config.dedupe.events === undefined
+					? {}
+					: { events: { maxEntries: config.dedupe.events } }),
+			});
+			const knownEvents = config.events === undefined ? undefined : new Set(config.events);
+			return {
+				fn: cqrsRuntimeFn(handlers, knownEvents, restoredCqrsClock(config.nowRef, ctx), dedupe),
+			};
+		},
+	} satisfies GraphRecipeFactory<CqrsRuntimeConfig>,
+	[CQRS_PROJECTION_REF]: {
+		ref: CQRS_PROJECTION_REF,
+		validateConfig(config): { readonly kind: CqrsRuntimeFact["kind"] } {
+			const kind = recipeObject(config, CQRS_PROJECTION_REF).kind;
+			if (!CQRS_FACT_KINDS.includes(kind as CqrsRuntimeFact["kind"]))
+				throw new Error(`restoreGraph: '${CQRS_PROJECTION_REF}' config.kind is unknown`);
+			return { kind: kind as CqrsRuntimeFact["kind"] };
+		},
+		build(config: { readonly kind: CqrsRuntimeFact["kind"] }) {
+			return { fn: runtimeProjectionFn(config.kind) };
+		},
+	} satisfies GraphRecipeFactory<{ readonly kind: CqrsRuntimeFact["kind"] }>,
+	[CQRS_PROJECTION_FRAMES_REF]: {
+		ref: CQRS_PROJECTION_FRAMES_REF,
+		validateConfig(config): CqrsProjectionFramesConfig {
+			const c = recipeObject(config, CQRS_PROJECTION_FRAMES_REF);
+			if (c.initial === undefined)
+				throw new Error(`restoreGraph: '${CQRS_PROJECTION_FRAMES_REF}' config.initial is required`);
+			const events = recipeNames(c.events, CQRS_PROJECTION_FRAMES_REF, "events");
+			return {
+				initial: c.initial,
+				reducerRef: recipeRef(c.reducerRef, CQRS_PROJECTION_FRAMES_REF, "reducerRef"),
+				...(events === undefined ? {} : { events }),
+			};
+		},
+		build(config: CqrsProjectionFramesConfig, ctx) {
+			const reducer = ctx.definition(config.reducerRef).fn as unknown as (
+				state: unknown,
+				event: CqrsEvent,
+			) => unknown;
+			const filter = config.events === undefined ? undefined : new Set(config.events);
+			return { fn: cqrsProjectionFramesFn(config.initial, reducer, filter) };
+		},
+	} satisfies GraphRecipeFactory<CqrsProjectionFramesConfig>,
+	[CQRS_PROJECTION_VIEW_REF]: {
+		ref: CQRS_PROJECTION_VIEW_REF,
+		validateConfig(config): { readonly kind: CqrsProjectionViewKind } {
+			const kind = recipeObject(config, CQRS_PROJECTION_VIEW_REF).kind;
+			if (kind !== "value" && kind !== "errors" && kind !== "status")
+				throw new Error(
+					`restoreGraph: '${CQRS_PROJECTION_VIEW_REF}' config.kind must be value, errors or status`,
+				);
+			return { kind };
+		},
+		build(config: { readonly kind: CqrsProjectionViewKind }) {
+			return { fn: cqrsProjectionViewFn(config.kind) };
+		},
+	} satisfies GraphRecipeFactory<{ readonly kind: CqrsProjectionViewKind }>,
+};
 
 function cursorOf(state: CqrsRuntimeState, dedupe: NormalizedCqrsDedupePolicy): CqrsCursor {
 	return {

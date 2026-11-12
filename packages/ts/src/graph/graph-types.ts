@@ -1,10 +1,11 @@
 import type { Dispatcher } from "../dispatcher/index.js";
 import type { Node, NodeOptions } from "../node/node.js";
+import type { GraphCheckpointJson } from "./checkpoint.js";
 import type { EnvironmentDrivers } from "./environment.js";
 
 /** Map a tuple of Nodes to the tuple of their value types (typed value-level fn args). */
 export type DepValues<D extends readonly Node<unknown>[]> = {
-	[K in keyof D]: D[K] extends Node<infer V> ? V | undefined : never;
+	[K in keyof D]: D[K] extends Node<infer V> ? V : never;
 };
 
 /** Value-level derived fn: receives dep values, returns the next value (undefined = no emit). */
@@ -22,6 +23,20 @@ export type EffectFn<D extends readonly Node<unknown>[]> = (
 export interface SugarOpts<T = unknown> extends Omit<NodeOptions<T>, "dispatcher"> {
 	name?: string;
 	meta?: Record<string, unknown>;
+}
+
+/**
+ * R-checkpoint@1: the recipe `g.derived`, `g.effect` and `g.producer` take in their options. It
+ * names a function the restoring caller registers in the restore registry under `ref`, with a
+ * strict-JSON `config` given to that registry entry. With one the node is restorable; without
+ * one it is local-only and restore refuses it. A config that is not JSON is refused when the
+ * checkpoint is taken. `g.node` takes the same shape. `opts.recipe` stays typed as the node
+ * option's opaque `unknown` so option forwarders keep compiling; a recipe that is not
+ * `{ ref, config }` is refused at capture.
+ */
+export interface SugarRecipe {
+	readonly ref: string;
+	readonly config?: GraphCheckpointJson;
 }
 
 export interface GraphOptions {

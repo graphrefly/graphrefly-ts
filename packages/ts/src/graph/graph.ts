@@ -55,7 +55,9 @@ import {
 	normalizeTopologyMeta,
 } from "./blueprint.js";
 import {
+	CHECKPOINT_REFUSAL,
 	checkpointBackendStateOfNode,
+	checkpointJsonOf,
 	checkpointTerminal,
 	GRAPH_CHECKPOINT_FORMAT,
 	type GraphCheckpoint,
@@ -63,6 +65,8 @@ import {
 	type GraphCheckpointLifetime,
 	type GraphCheckpointNode,
 	type GraphCheckpointRecipe,
+	type GraphCheckpointSugar,
+	notRestorable,
 	toCheckpointJson,
 } from "./checkpoint.js";
 import {
@@ -89,7 +93,7 @@ import {
 	type TopologyGroup,
 	type TopologyGroupOptions,
 } from "./graph-topology-group.js";
-import type { DepValues, DerivedFn, EffectFn, GraphOptions, SugarOpts } from "./graph-types.js";
+import type { DerivedFn, EffectFn, GraphOptions, SugarOpts } from "./graph-types.js";
 import type {
 	NodeProfile,
 	ObserveEvent,
@@ -111,6 +115,7 @@ export type {
 	HostFailure,
 	HostReporter,
 	SugarOpts,
+	SugarRecipe,
 } from "./graph-types.js";
 
 interface Entry {
@@ -416,91 +421,55 @@ export class Graph {
 		);
 	}
 
-	/** ctx-level depless source; its fn runs on activation (R-rom-ram). */
+	/**
+	 * ctx-level depless source; its fn runs on activation (R-rom-ram). With `opts.recipe` it is
+	 * restorable: the registry entry under the recipe's ref gives this `fn` again, with no setup.
+	 */
 	producer<T = unknown>(fn: NodeFn, opts: SugarOpts<T> = {}): Node<T> {
 		return this._createRegistered(
 			"producer",
 			[],
-			opts,
+			sugarRecipeOpts(opts, "producer", opts.setup),
 			(nodeOpts) => new Node<T>([], fn, nodeOpts),
 		);
 	}
 
-	/** value-level pure transform: deps → value (D27 wrapped; D30 throw→ERROR). */
+	/**
+	 * value-level pure transform: deps → value (D27 wrapped; D30 throw→ERROR). With
+	 * `opts.recipe` it is restorable: the registry entry under the recipe's ref gives the
+	 * value-level `fn` again, with no setup, and restore builds the node with this same gate.
+	 */
 	derived<const D extends readonly Node<unknown>[], T>(
 		deps: D,
 		fn: DerivedFn<D, T>,
 		opts: SugarOpts<T> = {},
 	): Node<T> {
 		this._assertDepsLocal(deps, `dep of '${opts.name ?? "derived"}'`);
-		const ctxFn: NodeFn = (ctx: Ctx) => {
-			const args = Array.from(
-				{ length: ctx.deps.length },
-				(_, i) => ctx.deps[i].value,
-			) as DepValues<D>;
-			// graphrefly-ts:D184 (the user's Q1): the value-level gate. The function waits until every
-			// dependency has a value; until then a run sends nothing.
-			if (args.some((value) => value === undefined)) return;
-			try {
-				const result = fn(...args);
-				if (result !== undefined) ctx.down([["DATA", result]]);
-			} catch (e) {
-				ctx.down([["ERROR", errorPayload(e, "derived threw without a valid error payload")]]); // D30: value-level throw → graph-layer ERROR
-			}
-		};
+		const ctxFn = derivedNodeFn(fn as (...values: unknown[]) => unknown);
 		return this._createRegistered(
 			"derived",
 			deps,
-			opts,
+			sugarRecipeOpts(opts, "derived", opts.setup),
 			(nodeOpts) => new Node<T>([...deps], ctxFn, nodeOpts),
 		);
 	}
 
-	/** value-level sink: deps → effect; the latest run's returned fn runs when the lifetime closes (R-lifetime). */
+	/**
+	 * value-level sink: deps → effect; the latest run's returned fn runs when the lifetime closes
+	 * (R-lifetime). With `opts.recipe` it is restorable like `derived`.
+	 */
 	effect<const D extends readonly Node<unknown>[]>(
 		deps: D,
 		fn: EffectFn<D>,
 		opts: SugarOpts<void> = {},
 	): Node<void> {
 		this._assertDepsLocal(deps, `dep of '${opts.name ?? "effect"}'`);
-		// R-lifetime: the latest run's returned cleanup belongs to the run's lifetime, and the
-		// lifetime's cleanup (installed by setup) runs it once when the lifetime closes. A run that
-		// returns nothing clears it; a rerun replaces it without running it. It is kept by lifetime
-		// signal, not in private state, which a checkpoint saves as JSON (R-checkpoint@1).
-		const cleanups = new WeakMap<AbortSignal, () => void>();
-		const ctxFn: NodeFn = (ctx: Ctx) => {
-			const args = Array.from(
-				{ length: ctx.deps.length },
-				(_, i) => ctx.deps[i].value,
-			) as DepValues<D>;
-			// graphrefly-ts:D184 (the user's Q1): the value-level gate. The function waits until every
-			// dependency has a value; until then a run sends nothing.
-			if (args.some((value) => value === undefined)) return;
-			try {
-				const cleanup = fn(...args);
-				if (typeof cleanup === "function") cleanups.set(ctx.signal, cleanup);
-				else cleanups.delete(ctx.signal);
-			} catch (e) {
-				ctx.down([["ERROR", errorPayload(e, "effect threw without a valid error payload")]]);
-			}
-		};
-		const userSetup = opts.setup;
-		const setup = (ctx: Ctx): (() => void) => {
-			const userCleanup = userSetup?.(ctx);
-			const signal = ctx.signal;
-			return () => {
-				const cleanup = cleanups.get(signal);
-				cleanups.delete(signal);
-				cleanup?.();
-				if (typeof userCleanup === "function") userCleanup();
-			};
-		};
-		opts = { ...opts, setup };
+		const parts = effectNodeParts(fn as (...values: unknown[]) => unknown, opts.setup);
 		return this._createRegistered(
 			"effect",
 			deps,
-			opts,
-			(nodeOpts) => new Node<void>([...deps], ctxFn, nodeOpts),
+			sugarRecipeOpts({ ...opts, setup: parts.setup }, "effect", opts.setup),
+			(nodeOpts) => new Node<void>([...deps], parts.fn, nodeOpts),
 		);
 	}
 
@@ -1083,14 +1052,18 @@ export class Graph {
 		const slot = nodeRuntimeHost(node)._slot;
 		const isState = slot.fn === null && slot.declaredDeps.length === 0;
 		const helper = isNonAuthoritativeCollectionHelperMeta(opts.meta);
-		const json = (value: unknown, path: string) => toCheckpointJson(value, `${id}.${path}`);
+		// R-checkpoint@1: a value the capture cannot save as JSON refuses the node here, by cause.
+		checkpointJsonOf(id, "its id is not JSON", id);
+		if (opts.name !== undefined) checkpointJsonOf(id, "its name is not JSON", opts.name);
 		const out: GraphCheckpointNode = {
 			id,
 			factory: opts.factory,
 			kind: isState ? "state" : "computed",
 			deps: slot.declaredDeps.map(localId),
-			values: helper ? [] : state.values.map((v, i) => json(v, `values[${i}]`)),
-			terminal: checkpointTerminal(state.terminal, `${id}.terminal`),
+			values: helper
+				? []
+				: (checkpointJsonOf(id, CHECKPOINT_REFUSAL.values, state.values) as GraphCheckpointJson[]),
+			terminal: checkpointTerminal(state.terminal, id),
 		};
 		if (opts.name !== undefined) out.name = opts.name;
 		// A state needs no recipe; one that carries one (a collection's input) keeps it.
@@ -1107,10 +1080,12 @@ export class Graph {
 			const lifetime = helper ? undefined : this._checkpointLifetime(node, id, localId);
 			if (lifetime !== undefined) out.lifetime = lifetime;
 		}
-		const backendState = checkpointBackendStateOfNode(node, `${id}.backendState`);
+		const backendState = checkpointBackendStateOfNode(node, id);
 		if (backendState !== undefined) out.backendState = backendState;
 		if (opts.meta !== undefined)
-			out.meta = json(opts.meta, "meta") as { [key: string]: GraphCheckpointJson };
+			out.meta = checkpointJsonOf(id, CHECKPOINT_REFUSAL.meta, opts.meta) as {
+				[key: string]: GraphCheckpointJson;
+			};
 		return out;
 	}
 
@@ -1137,16 +1112,15 @@ export class Graph {
 						})
 					: undefined;
 		if (received === undefined) return undefined;
+		// What it received is part of what it retains; a received ERROR payload is an ERROR payload.
 		const out: GraphCheckpointLifetime = {
-			received: received.map((r, i) => ({
-				values: r.values.map((v, j) =>
-					toCheckpointJson(v, `${id}.lifetime.received[${i}].values[${j}]`),
-				),
-				terminal: checkpointTerminal(r.terminal, `${id}.lifetime.received[${i}].terminal`),
+			received: received.map((r) => ({
+				values: checkpointJsonOf(id, CHECKPOINT_REFUSAL.values, r.values) as GraphCheckpointJson[],
+				terminal: checkpointTerminal(r.terminal, id),
 			})),
 		};
 		if (state.privateState !== SENTINEL)
-			out.state = toCheckpointJson(state.privateState, `${id}.lifetime.state`);
+			out.state = checkpointJsonOf(id, CHECKPOINT_REFUSAL.privateState, state.privateState);
 		const deps = host._slot.deps;
 		const declared = host._slot.declaredDeps;
 		if (deps.length !== declared.length || deps.some((d, i) => d !== declared[i]))
@@ -1158,12 +1132,122 @@ export class Graph {
 /** R-node: a recipe the checkpoint can save is a factory reference with a JSON configuration. */
 function checkpointRecipe(recipe: unknown, id: string): GraphCheckpointRecipe | undefined {
 	if (recipe === undefined) return undefined;
-	const r = recipe as { ref?: unknown; config?: unknown };
+	const r = recipe as { ref?: unknown; config?: unknown; sugar?: unknown };
 	if (typeof recipe !== "object" || recipe === null || typeof r.ref !== "string")
-		throw new TypeError(`checkpoint: node '${id}' carries a recipe that is not { ref, config }`);
+		throw notRestorable(id, "its recipe is not { ref, config }");
 	const out: GraphCheckpointRecipe = { ref: r.ref };
-	if (r.config !== undefined) out.config = toCheckpointJson(r.config, `${id}.recipe.config`);
+	if (r.config !== undefined)
+		out.config = checkpointJsonOf(id, CHECKPOINT_REFUSAL.recipeConfig, r.config);
+	if (isCheckpointSugar(r.sugar)) out.sugar = r.sugar;
 	return out;
+}
+
+const SUGARS: readonly GraphCheckpointSugar[] = ["derived", "effect", "producer"];
+
+/** @internal Whether a recipe's `sugar` names a sugar restore rebuilds (graphrefly-ts:D178). */
+export function isCheckpointSugar(value: unknown): value is GraphCheckpointSugar {
+	return SUGARS.includes(value as GraphCheckpointSugar);
+}
+
+/** R-checkpoint: a sugar node's instance carries its recipe tagged with the sugar it was built with. */
+function sugarRecipeOpts<T>(
+	opts: SugarOpts<T>,
+	sugar: GraphCheckpointSugar,
+	userSetup: unknown,
+): SugarOpts<T> {
+	const recipe = opts.recipe;
+	if (recipe === undefined) return opts;
+	// A restored sugar node is rebuilt from its value callback alone, so a setup would be lost.
+	if (userSetup !== undefined)
+		throw new TypeError(
+			`${sugar}: a node with a recipe takes no setup; the restored node could not rebuild it`,
+		);
+	return { ...opts, recipe: { ...(recipe as object), sugar } };
+}
+
+/**
+ * graphrefly-ts:D184 (the user's Q1): the value-level gate of derived and effect. The function
+ * runs once every dependency has a value, and then only for a run in which a dependency sent
+ * DATA; a run whose input is only a terminal (or nothing new, as a restored node's first run
+ * over unchanged dependencies) sends nothing. Gives the values, or undefined to skip the run.
+ */
+function sugarGate(ctx: Ctx): unknown[] | undefined {
+	const deps = ctx.deps;
+	const values = new Array<unknown>(deps.length);
+	let fresh = false;
+	for (let i = 0; i < deps.length; i++) {
+		const dep = deps[i];
+		const value = dep.value;
+		if (value === undefined) return undefined;
+		values[i] = value;
+		if (!fresh && dep.waves.some((wave) => wave.length > 0)) fresh = true;
+	}
+	return fresh ? values : undefined;
+}
+
+/** @internal derived's sugar over a value-level callback (D27 wrapped; D30 throw→ERROR). */
+export function derivedNodeFn(fn: (...values: unknown[]) => unknown): NodeFn {
+	return (ctx: Ctx) => {
+		const args = sugarGate(ctx);
+		if (args === undefined) return;
+		try {
+			const result = fn(...args);
+			if (result !== undefined) ctx.down([["DATA", result]]);
+		} catch (e) {
+			ctx.down([["ERROR", errorPayload(e, "derived threw without a valid error payload")]]); // D30: value-level throw → graph-layer ERROR
+		}
+	};
+}
+
+/**
+ * @internal effect's sugar over a value-level callback: its node function and the setup that
+ * runs the latest run's cleanup when the lifetime closes (R-lifetime).
+ */
+export function effectNodeParts(
+	fn: (...values: unknown[]) => unknown,
+	userSetup?: SugarOpts<void>["setup"],
+): { fn: NodeFn; setup: (ctx: Ctx) => () => void } {
+	// R-lifetime: the latest run's returned cleanup belongs to the run's lifetime, and the
+	// lifetime's cleanup (installed by setup) runs it once when the lifetime closes. A run that
+	// returns nothing clears it; a rerun replaces it without running it. It is kept by lifetime
+	// signal, not in private state, which a checkpoint saves as JSON (R-checkpoint@1).
+	const cleanups = new WeakMap<AbortSignal, () => void>();
+	const ctxFn: NodeFn = (ctx: Ctx) => {
+		const args = sugarGate(ctx);
+		if (args === undefined) return;
+		try {
+			const cleanup = fn(...args);
+			if (typeof cleanup === "function") cleanups.set(ctx.signal, cleanup as () => void);
+			else cleanups.delete(ctx.signal);
+		} catch (e) {
+			ctx.down([["ERROR", errorPayload(e, "effect threw without a valid error payload")]]);
+		}
+	};
+	const setup = (ctx: Ctx): (() => void) => {
+		const userCleanup = userSetup?.(ctx);
+		const signal = ctx.signal;
+		return () => {
+			const cleanup = cleanups.get(signal);
+			cleanups.delete(signal);
+			cleanup?.();
+			if (typeof userCleanup === "function") userCleanup();
+		};
+	};
+	return { fn: ctxFn, setup };
+}
+
+/**
+ * @internal R-checkpoint: rebuild a sugar node's function from the value-level callback a
+ * registry entry gives, with the same sugar and gate as `g.derived`, `g.effect`, `g.producer`.
+ */
+export function sugarNodeParts(
+	sugar: GraphCheckpointSugar,
+	callback: (...args: never[]) => unknown,
+): { fn: NodeFn; setup?: (ctx: Ctx) => () => void } {
+	const fn = callback as (...values: unknown[]) => unknown;
+	if (sugar === "derived") return { fn: derivedNodeFn(fn) };
+	if (sugar === "effect") return effectNodeParts(fn);
+	return { fn: fn as NodeFn };
 }
 
 /**

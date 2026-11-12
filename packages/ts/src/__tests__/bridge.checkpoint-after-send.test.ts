@@ -31,7 +31,9 @@ describe("wireBridge command values after send, ack, nack and close", () => {
 		for (const value of [...commands, ...outbound])
 			expect(() => toCheckpointJson(value, "bridge value")).not.toThrow();
 		// The only value a capture still refuses is the retained fold's working copy.
-		expect(() => g.checkpoint()).toThrow(/bridge\/events\.lifetime\.state/);
+		expect(() => g.checkpoint()).toThrow(
+			"not restorable: bridge/events: its private state is not JSON",
+		);
 		stop();
 	});
 });

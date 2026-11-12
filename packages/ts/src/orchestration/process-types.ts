@@ -202,7 +202,18 @@ export interface ProcessBundleOptions<
 	readonly name?: string;
 	readonly initialState: TState;
 	readonly reduce: ProcessReducer<TCommand, TState, TEvent, TEffect>;
+	/**
+	 * R-checkpoint@1: the ref under which the restoring caller registers `reduce` as a definition
+	 * (`{ kind: "definition", ref, fn: reduce }`). Without it the process runtime is local-only.
+	 * With it `initialState` must be strict JSON, since the runtime's recipe holds it.
+	 */
+	readonly reduceRef?: string;
 	readonly now?: () => number;
+	/**
+	 * R-checkpoint@1: the ref under which the restoring caller registers `now` as a definition. A
+	 * custom `now` without it leaves the runtime local-only; the default clock needs none.
+	 */
+	readonly nowRef?: string;
 }
 
 /** D136 facts-plus-reducer process bundle. It is not a workflow engine or hidden runtime owner. */

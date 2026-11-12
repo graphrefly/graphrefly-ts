@@ -19,6 +19,7 @@ import { cqrsCommandHandler } from "@graphrefly/ts/cqrs";
 function cqrsCommandHandler(
 	type: string,
 	handle: CqrsCommandHandler<TCommand, TEvent>,
+	opts: { readonly ref?: string } = {},
 ): CqrsCommandHandlerDefinition<TCommand, TEvent>
 ```
 
@@ -28,6 +29,7 @@ function cqrsCommandHandler(
 |---|---|---|
 | `type` | `string` | type value used by the helper. |
 | `handle` | `CqrsCommandHandler<TCommand, TEvent>` | handle value used by the helper. |
+| `opts` | `{ readonly ref?: string }` | `ref`: the definition ref that names `handle` in a checkpoint (R-checkpoint@1). |
 
 ## Returns
 

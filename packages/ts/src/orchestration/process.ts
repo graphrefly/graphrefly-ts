@@ -3,11 +3,14 @@
  */
 
 import type { NodeFn } from "../ctx/types.js";
+import { toCheckpointJson } from "../graph/checkpoint.js";
 import type { Graph, TopologyGroup } from "../graph/graph.js";
+import type { GraphRecipeContext, GraphRecipeFactory } from "../graph/restore.js";
 import { compoundTupleKey } from "../identity.js";
 import { type AttachableInput, attachableInput } from "../node/attachable-input.js";
 import type { Node } from "../node/node.js";
 import { oneArrayPerRun } from "../node/one-array-per-run.js";
+import type { NodeOptions } from "../node/types.js";
 import type { Message } from "../protocol/messages.js";
 import type {
 	ProcessAuditRecord,
@@ -83,7 +86,12 @@ type ProcessEffectRunnerFact<TResult = unknown> =
 
 const processCommandSources = new WeakMap<
 	ProcessBundle<unknown, unknown, unknown, unknown>,
-	{ readonly input: AttachableInput; readonly detaches: Map<Node<unknown>, () => void> }
+	{
+		readonly input: AttachableInput;
+		readonly detaches: Map<Node<unknown>, () => void>;
+		/** The command node's graph id, which a runner's commands recipe names. */
+		readonly commandId: string;
+	}
 >();
 
 /**
@@ -116,8 +124,21 @@ export function processBundle<
 	if (opts.initialState === undefined) {
 		throw new TypeError("processBundle: initialState must not be undefined");
 	}
+	if (opts.nowRef !== undefined && opts.now === undefined) {
+		throw new TypeError("processBundle: nowRef names the clock given as now");
+	}
 	const name = opts.name ?? "process";
 	const now = opts.now ?? Date.now;
+	// R-checkpoint@1: the runtime's recipe names its reducer and clock; a user function with no
+	// ref cannot be named, so the runtime is then local-only.
+	const runtimeConfig: ProcessRuntimeConfig | undefined =
+		opts.reduceRef !== undefined && (opts.now === undefined || opts.nowRef !== undefined)
+			? {
+					initialState: toCheckpointJson(opts.initialState, "processBundle.initialState"),
+					reduceRef: opts.reduceRef,
+					...(opts.nowRef === undefined ? {} : { nowRef: opts.nowRef }),
+				}
+			: undefined;
 	const topology = graph.topologyGroup({ name: `${name}.process` });
 	// The host's dispatches are a state input; the command node forwards it and every attached
 	// command source, which it rewires itself to (no graph-level rewire, R-request-order).
@@ -129,106 +150,46 @@ export function processBundle<
 	});
 	const commandSources = attachableInput();
 	const commandDetaches = new Map<Node<unknown>, () => void>();
-	const command = topology.node<ProcessCommand<TCommand>>(
-		[dispatchInput],
-		(ctx) => {
-			const out: Message[] = [];
-			for (let i = 0; i < ctx.deps.length; i += 1)
-				for (const next of ctx.deps[i].waves.flat()) out.push(["DATA", next]);
-			if (out.length > 0) ctx.down(out);
-		},
-		{
-			name: `${name}/command`,
-			factory: "processCommand",
-			complete: "manual",
-			error: "manual",
-			setup: commandSources.setup,
-		},
-	);
+	const command = topology.node<ProcessCommand<TCommand>>([dispatchInput], processCommandFn(), {
+		name: `${name}/command`,
+		factory: "processCommand",
+		complete: "manual",
+		error: "manual",
+		setup: commandSources.setup,
+		recipe: { ref: PROCESS_COMMAND_REF },
+	});
 	commandSources.bind(command as Node<unknown>);
 	const runtime = topology.node<ProcessRuntimeFact<TState, TEvent, TEffect>>(
 		[command],
-		(ctx) => {
-			let state =
-				ctx.state.get<ProcessRuntimeState<TState>>() ??
-				({
-					eventSeq: 0,
-					effectSeq: 0,
-					commandCount: 0,
-					errorCount: 0,
-					auditSeq: 0,
-					seenEventIds: [],
-					seenEffectIds: [],
-					state: opts.initialState,
-				} satisfies ProcessRuntimeState<TState>);
-			for (const raw of ctx.deps[0].waves.flat()) {
-				state = reduceProcessCommandFact(
-					raw,
-					state,
-					opts.reduce as ProcessReducer<unknown, TState, unknown, unknown>,
-					now,
-					(fact) => ctx.down([["DATA", fact as ProcessRuntimeFact<TState, TEvent, TEffect>]]),
-				);
-				ctx.state.set(state);
-			}
-		},
+		processRuntimeFn(
+			opts.initialState,
+			opts.reduce as ProcessReducer<unknown, TState, unknown, unknown>,
+			now,
+		),
 		{
 			name: `${name}/runtime`,
 			factory: "processRuntime",
 			meta: { process: "facts-plus-reducer", d: "D136" },
 			complete: "manual",
 			error: "manual",
+			...(runtimeConfig === undefined
+				? {}
+				: { recipe: { ref: PROCESS_RUNTIME_REF, config: runtimeConfig } }),
 		},
 	);
-	const events = processProjection<ProcessEvent<TEvent>, TState, TEvent, TEffect>(
-		topology,
-		runtime,
-		`${name}/events`,
-		"processEvents",
-		(fact) => (fact.kind === "event" ? fact.event : undefined),
-	);
-	const state = processProjection<TState, TState, TEvent, TEffect>(
-		topology,
-		runtime,
-		`${name}/state`,
-		"processState",
-		(fact) => (fact.kind === "state" ? fact.state : undefined),
-	);
-	const audit = processProjection<ProcessAuditRecord, TState, TEvent, TEffect>(
-		topology,
-		runtime,
-		`${name}/audit`,
-		"processAudit",
-		(fact) => (fact.kind === "audit" ? fact.audit : undefined),
-	);
-	const effectRequests = processProjection<ProcessEffectRequest<TEffect>, TState, TEvent, TEffect>(
-		topology,
-		runtime,
-		`${name}/effectRequests`,
+	const project = <TOut>(kind: ProcessFactKind, suffix: string, factory: string): Node<TOut> =>
+		processProjection<TOut>(topology, runtime, `${name}/${suffix}`, factory, kind);
+	const events = project<ProcessEvent<TEvent>>("event", "events", "processEvents");
+	const state = project<TState>("state", "state", "processState");
+	const audit = project<ProcessAuditRecord>("audit", "audit", "processAudit");
+	const effectRequests = project<ProcessEffectRequest<TEffect>>(
+		"effect-request",
+		"effectRequests",
 		"processEffectRequests",
-		(fact) => (fact.kind === "effect-request" ? fact.effect : undefined),
 	);
-	const status = processProjection<ProcessStatus, TState, TEvent, TEffect>(
-		topology,
-		runtime,
-		`${name}/status`,
-		"processStatus",
-		(fact) => (fact.kind === "status" ? fact.status : undefined),
-	);
-	const errors = processProjection<ProcessError, TState, TEvent, TEffect>(
-		topology,
-		runtime,
-		`${name}/errors`,
-		"processErrors",
-		(fact) => (fact.kind === "error" ? fact.error : undefined),
-	);
-	const cursor = processProjection<ProcessCursor, TState, TEvent, TEffect>(
-		topology,
-		runtime,
-		`${name}/cursor`,
-		"processCursor",
-		(fact) => (fact.kind === "cursor" ? fact.cursor : undefined),
-	);
+	const status = project<ProcessStatus>("status", "status", "processStatus");
+	const errors = project<ProcessError>("error", "errors", "processErrors");
+	const cursor = project<ProcessCursor>("cursor", "cursor", "processCursor");
 	const retainProcessNodes = () => [
 		graph.retain(runtime),
 		graph.retain(events),
@@ -273,7 +234,7 @@ export function processBundle<
 	};
 	processCommandSources.set(
 		bundle as unknown as ProcessBundle<unknown, unknown, unknown, unknown>,
-		{ input: commandSources, detaches: commandDetaches },
+		{ input: commandSources, detaches: commandDetaches, commandId: `${name}/command` },
 	);
 	return bundle;
 }
@@ -307,46 +268,25 @@ export function processEffectRunner<TEffect = unknown, TResult = unknown>(
 	const topology = graph.topologyGroup({ name: `${name}.effectRunner` });
 	const requests = topology.node<ProcessEffectRequest<TEffect>>(
 		[process.effectRequests],
-		oneArrayPerRun((ctx) => {
-			for (const request of ctx.deps[0].waves.flat()) {
-				ctx.down([["DATA", request as ProcessEffectRequest<TEffect>]]);
-			}
-		}),
+		processEffectRunnerRequestsFn(),
 		{
 			name: `${name}/requests`,
 			factory: "processEffectRunnerRequests",
 			complete: "manual",
 			error: "manual",
+			recipe: { ref: RUNNER_REQUESTS_REF },
 		},
 	);
 	const runtime = topology.node<ProcessEffectRunnerFact<TResult>>(
 		[...opts.outcomes],
-		oneArrayPerRun((ctx) => {
-			for (let i = 0; i < opts.outcomes.length; i += 1) {
-				for (const raw of ctx.deps[i].waves.flat()) {
-					const parsed = parseProcessEffectOutcome<TResult>(raw);
-					if (typeof parsed === "string") {
-						const error = {
-							code: "malformed-outcome",
-							message: parsed,
-							outcome: raw,
-						} satisfies ProcessEffectRunnerError;
-						ctx.down([["DATA", { kind: "error", error }]]);
-						continue;
-					}
-					const outcome = parsed as ProcessEffectOutcome<TResult>;
-					const command = processEffectOutcomeCommand(outcome);
-					ctx.down([["DATA", { kind: "outcome", outcome }]]);
-					ctx.down([["DATA", { kind: "command", command }]]);
-				}
-			}
-		}),
+		processEffectRunnerRuntimeFn(),
 		{
 			name: `${name}/runtime`,
 			factory: "processEffectRunner",
 			meta: { process: "effect-runner", d: "D156" },
 			complete: "manual",
 			error: "manual",
+			recipe: { ref: RUNNER_RUNTIME_REF },
 		},
 	);
 	const outcomes = processEffectRunnerProjection<ProcessEffectOutcome<TResult>, TResult>(
@@ -354,88 +294,36 @@ export function processEffectRunner<TEffect = unknown, TResult = unknown>(
 		runtime,
 		`${name}/outcomes`,
 		"processEffectRunnerOutcomes",
-		(fact) => (fact.kind === "outcome" ? fact.outcome : undefined),
+		{ kind: "outcome" },
 	);
+	// The commands node is attached to the process's command input; its recipe names that input,
+	// so a restored runner attaches to the restored process again (R-checkpoint@1).
+	const processCommandId = processCommandSources.get(
+		process as unknown as ProcessBundle<unknown, unknown, unknown, unknown>,
+	)?.commandId;
 	const commands = processEffectRunnerProjection<
 		ProcessCommand<ProcessEffectCommandPayload<TResult>>,
 		TResult
-	>(topology, runtime, `${name}/commands`, "processEffectRunnerCommands", (fact) =>
-		fact.kind === "command" ? fact.command : undefined,
-	);
+	>(topology, runtime, `${name}/commands`, "processEffectRunnerCommands", {
+		kind: "command",
+		...(processCommandId === undefined ? {} : { processCommand: processCommandId }),
+	});
 	const errors = processEffectRunnerProjection<ProcessEffectRunnerError, TResult>(
 		topology,
 		runtime,
 		`${name}/errors`,
 		"processEffectRunnerErrors",
-		(fact) => (fact.kind === "error" ? fact.error : undefined),
+		{ kind: "error" },
 	);
 	const status = topology.node<ProcessEffectRunnerStatus>(
 		[requests, runtime],
-		oneArrayPerRun((ctx) => {
-			let state =
-				ctx.state.get<ProcessEffectRunnerState>() ??
-				({ requested: 0, commanded: 0, rejected: 0 } satisfies ProcessEffectRunnerState);
-			for (const request of ctx.deps[0].waves.flat()) {
-				state = { ...state, requested: state.requested + 1 };
-				const typedRequest = request as ProcessEffectRequest<TEffect>;
-				ctx.down([
-					[
-						"DATA",
-						{
-							state: "requested",
-							effectId: typedRequest.id,
-							effectType: typedRequest.type,
-							requested: state.requested,
-							commanded: state.commanded,
-							rejected: state.rejected,
-						} satisfies ProcessEffectRunnerStatus,
-					],
-				]);
-			}
-			for (const fact of ctx.deps[1]?.waves.flat() ?? []) {
-				const typedFact = fact as ProcessEffectRunnerFact<TResult>;
-				if (typedFact.kind === "command") {
-					state = { ...state, commanded: state.commanded + 1 };
-					ctx.down([
-						[
-							"DATA",
-							{
-								state: "commanded",
-								effectId: typedFact.command.payload.effectId,
-								effectType: typedFact.command.payload.effectType,
-								commandId: typedFact.command.id,
-								commandType: typedFact.command.type as ProcessEffectCommandType,
-								requested: state.requested,
-								commanded: state.commanded,
-								rejected: state.rejected,
-							} satisfies ProcessEffectRunnerStatus,
-						],
-					]);
-				}
-				if (typedFact.kind === "error") {
-					state = { ...state, rejected: state.rejected + 1 };
-					ctx.down([
-						[
-							"DATA",
-							{
-								state: "rejected",
-								effectId: typedFact.error.effectId,
-								effectType: typedFact.error.effectType,
-								requested: state.requested,
-								commanded: state.commanded,
-								rejected: state.rejected,
-							} satisfies ProcessEffectRunnerStatus,
-						],
-					]);
-				}
-			}
-			ctx.state.set(state);
-		}),
+		processEffectRunnerStatusFn(),
 		{
 			name: `${name}/status`,
 			factory: "processEffectRunnerStatus",
 			complete: "manual",
 			error: "manual",
+			recipe: { ref: RUNNER_STATUS_REF },
 		},
 	);
 	const retainRunnerNodes = () => [
@@ -496,28 +384,401 @@ interface ProcessRuntimeState<TState> {
 	state: TState;
 }
 
+const PROCESS_COMMAND_REF = "process.command";
+const PROCESS_RUNTIME_REF = "process.runtime";
+const PROCESS_PROJECTION_REF = "process.projection";
+const RUNNER_REQUESTS_REF = "processEffectRunner.requests";
+const RUNNER_RUNTIME_REF = "processEffectRunner.runtime";
+const RUNNER_PROJECTION_REF = "processEffectRunner.projection";
+const RUNNER_STATUS_REF = "processEffectRunner.status";
+
+/** The process runtime's recipe config: its initial state and the refs of its functions. */
+interface ProcessRuntimeConfig {
+	readonly initialState: unknown;
+	readonly reduceRef: string;
+	readonly nowRef?: string;
+}
+
+type ProcessFactKind = ProcessRuntimeFact["kind"];
+
+const PROCESS_FACT_KINDS: readonly ProcessFactKind[] = [
+	"state",
+	"event",
+	"effect-request",
+	"status",
+	"error",
+	"audit",
+	"cursor",
+];
+
+/** A runner projection's recipe config; the commands projection names the process input. */
+interface RunnerProjectionConfig {
+	readonly kind: ProcessEffectRunnerFact["kind"];
+	readonly processCommand?: string;
+}
+
+/** The command node forwards every dependency's values: the dispatch input and attached sources. */
+function processCommandFn(): NodeFn {
+	return (ctx) => {
+		const out: Message[] = [];
+		for (let i = 0; i < ctx.deps.length; i += 1)
+			for (const next of ctx.deps[i].waves.flat()) out.push(["DATA", next]);
+		if (out.length > 0) ctx.down(out);
+	};
+}
+
+function processRuntimeFn<TState>(
+	initialState: TState,
+	reduce: ProcessReducer<unknown, TState, unknown, unknown>,
+	now: () => number,
+): NodeFn {
+	return (ctx) => {
+		let state =
+			ctx.state.get<ProcessRuntimeState<TState>>() ??
+			({
+				eventSeq: 0,
+				effectSeq: 0,
+				commandCount: 0,
+				errorCount: 0,
+				auditSeq: 0,
+				seenEventIds: [],
+				seenEffectIds: [],
+				state: initialState,
+			} satisfies ProcessRuntimeState<TState>);
+		for (const raw of ctx.deps[0].waves.flat()) {
+			state = reduceProcessCommandFact(raw, state, reduce, now, (fact) =>
+				ctx.down([["DATA", fact]]),
+			);
+			ctx.state.set(state);
+		}
+	};
+}
+
+function processFactValue(fact: ProcessRuntimeFact, kind: ProcessFactKind): unknown {
+	if (fact.kind !== kind) return undefined;
+	switch (fact.kind) {
+		case "state":
+			return fact.state;
+		case "event":
+			return fact.event;
+		case "effect-request":
+			return fact.effect;
+		case "status":
+			return fact.status;
+		case "error":
+			return fact.error;
+		case "audit":
+			return fact.audit;
+		case "cursor":
+			return fact.cursor;
+	}
+}
+
+function processProjectionFn(kind: ProcessFactKind): NodeFn {
+	return oneArrayPerRun((ctx) => {
+		for (const raw of ctx.deps[0].waves.flat()) {
+			const selected = processFactValue(raw as ProcessRuntimeFact, kind);
+			if (selected !== undefined) ctx.down([["DATA", selected]]);
+		}
+	});
+}
+
+function processEffectRunnerRequestsFn(): NodeFn {
+	return oneArrayPerRun((ctx) => {
+		for (const request of ctx.deps[0].waves.flat()) ctx.down([["DATA", request]]);
+	});
+}
+
+/** The runner's runtime reads every outcome dependency, in dependency order. */
+function processEffectRunnerRuntimeFn(): NodeFn {
+	return oneArrayPerRun((ctx) => {
+		for (let i = 0; i < ctx.deps.length; i += 1) {
+			for (const raw of ctx.deps[i].waves.flat()) {
+				const parsed = parseProcessEffectOutcome<unknown>(raw);
+				if (typeof parsed === "string") {
+					const error = {
+						code: "malformed-outcome",
+						message: parsed,
+						outcome: raw,
+					} satisfies ProcessEffectRunnerError;
+					ctx.down([["DATA", { kind: "error", error }]]);
+					continue;
+				}
+				const command = processEffectOutcomeCommand(parsed);
+				ctx.down([["DATA", { kind: "outcome", outcome: parsed }]]);
+				ctx.down([["DATA", { kind: "command", command }]]);
+			}
+		}
+	});
+}
+
+function processEffectRunnerProjectionFn(kind: ProcessEffectRunnerFact["kind"]): NodeFn {
+	return oneArrayPerRun((ctx) => {
+		for (const raw of ctx.deps[0].waves.flat()) {
+			const fact = raw as ProcessEffectRunnerFact;
+			if (fact.kind !== kind) continue;
+			const value =
+				fact.kind === "outcome"
+					? fact.outcome
+					: fact.kind === "command"
+						? fact.command
+						: fact.error;
+			ctx.down([["DATA", value]]);
+		}
+	});
+}
+
+function processEffectRunnerStatusFn(): NodeFn {
+	return oneArrayPerRun((ctx) => {
+		let state =
+			ctx.state.get<ProcessEffectRunnerState>() ??
+			({ requested: 0, commanded: 0, rejected: 0 } satisfies ProcessEffectRunnerState);
+		for (const request of ctx.deps[0].waves.flat()) {
+			state = { ...state, requested: state.requested + 1 };
+			const typedRequest = request as ProcessEffectRequest<unknown>;
+			ctx.down([
+				[
+					"DATA",
+					{
+						state: "requested",
+						effectId: typedRequest.id,
+						effectType: typedRequest.type,
+						requested: state.requested,
+						commanded: state.commanded,
+						rejected: state.rejected,
+					} satisfies ProcessEffectRunnerStatus,
+				],
+			]);
+		}
+		for (const fact of ctx.deps[1]?.waves.flat() ?? []) {
+			const typedFact = fact as ProcessEffectRunnerFact;
+			if (typedFact.kind === "command") {
+				state = { ...state, commanded: state.commanded + 1 };
+				ctx.down([
+					[
+						"DATA",
+						{
+							state: "commanded",
+							effectId: typedFact.command.payload.effectId,
+							effectType: typedFact.command.payload.effectType,
+							commandId: typedFact.command.id,
+							commandType: typedFact.command.type as ProcessEffectCommandType,
+							requested: state.requested,
+							commanded: state.commanded,
+							rejected: state.rejected,
+						} satisfies ProcessEffectRunnerStatus,
+					],
+				]);
+			}
+			if (typedFact.kind === "error") {
+				state = { ...state, rejected: state.rejected + 1 };
+				const { effectId, effectType } = typedFact.error;
+				ctx.down([
+					[
+						"DATA",
+						{
+							state: "rejected",
+							...(effectId === undefined ? {} : { effectId }),
+							...(effectType === undefined ? {} : { effectType }),
+							requested: state.requested,
+							commanded: state.commanded,
+							rejected: state.rejected,
+						} satisfies ProcessEffectRunnerStatus,
+					],
+				]);
+			}
+		}
+		ctx.state.set(state);
+	});
+}
+
+/**
+ * Restored runners' commands nodes by the restored process command node they attach to: a
+ * runner's commands recipe registers here as it is built, and the restored command node's first
+ * setup attaches them, so later lifetimes rewire to them again (R-checkpoint@1, R-lifetime).
+ */
+const restoredProcessAttachments = new WeakMap<Graph, Map<string, string[]>>();
+
+function restoredAttachmentList(graph: Graph, commandId: string): string[] {
+	let byCommand = restoredProcessAttachments.get(graph);
+	if (byCommand === undefined) {
+		byCommand = new Map();
+		restoredProcessAttachments.set(graph, byCommand);
+	}
+	let list = byCommand.get(commandId);
+	if (list === undefined) {
+		list = [];
+		byCommand.set(commandId, list);
+	}
+	return list;
+}
+
+function restoredProcessCommandSetup(ctx: GraphRecipeContext): NodeOptions["setup"] {
+	const input = attachableInput();
+	const { graph, id } = ctx;
+	let attached = false;
+	return (nodeCtx) => {
+		if (!attached) {
+			attached = true;
+			const self = graph.find(id);
+			if (self === undefined) throw new Error(`restoreGraph: '${id}' was not restored`);
+			input.bind(self);
+			// Attached before the input's setup, which rewires to every attached source.
+			for (const sourceId of restoredProcessAttachments.get(graph)?.get(id) ?? []) {
+				const source = graph.find(sourceId);
+				if (source === undefined)
+					throw new Error(`restoreGraph: '${id}' attaches '${sourceId}', which was not restored`);
+				input.attach(source);
+			}
+		}
+		return input.setup(nodeCtx);
+	};
+}
+
+function recipeObject(config: unknown, ref: string): Record<string, unknown> {
+	if (typeof config !== "object" || config === null || Array.isArray(config))
+		throw new Error(`restoreGraph: '${ref}' recipe requires an object config`);
+	return config as Record<string, unknown>;
+}
+
+function noRecipeConfig(config: unknown, ref: string): undefined {
+	if (config !== undefined) throw new Error(`restoreGraph: '${ref}' takes no config`);
+	return undefined;
+}
+
+function optionalRef(value: unknown, ref: string, key: string): string | undefined {
+	if (value === undefined) return undefined;
+	if (typeof value !== "string" || value.length === 0)
+		throw new Error(`restoreGraph: '${ref}' config.${key} must be a non-empty string`);
+	return value;
+}
+
+/**
+ * Restore entries for ProcessBundle and processEffectRunner nodes (R-checkpoint@1): add them to
+ * the registry given to restoreGraph, with the process reducer registered as a definition under
+ * the bundle's `reduceRef` (and its clock under `nowRef`, when it has one).
+ * @category orchestration
+ * @example
+ * ```ts
+ * import { defaultRestoreRegistry, restoreGraph } from "@graphrefly/ts/graph";
+ * import { processRestoreRegistry } from "@graphrefly/ts/orchestration";
+ *
+ * const g = restoreGraph(checkpoint, {
+ *   registry: {
+ *     ...defaultRestoreRegistry,
+ *     ...processRestoreRegistry,
+ *     "orders.reduce": { kind: "definition", ref: "orders.reduce", fn: reduce },
+ *   },
+ * });
+ * ```
+ */
+export const processRestoreRegistry: Readonly<Record<string, GraphRecipeFactory<any>>> = {
+	[PROCESS_COMMAND_REF]: {
+		ref: PROCESS_COMMAND_REF,
+		validateConfig: (config) => noRecipeConfig(config, PROCESS_COMMAND_REF),
+		build(_config, ctx) {
+			return { fn: processCommandFn(), setup: restoredProcessCommandSetup(ctx) };
+		},
+	} satisfies GraphRecipeFactory<undefined>,
+	[PROCESS_RUNTIME_REF]: {
+		ref: PROCESS_RUNTIME_REF,
+		validateConfig(config): ProcessRuntimeConfig {
+			const c = recipeObject(config, PROCESS_RUNTIME_REF);
+			const reduceRef = optionalRef(c.reduceRef, PROCESS_RUNTIME_REF, "reduceRef");
+			if (reduceRef === undefined)
+				throw new Error(`restoreGraph: '${PROCESS_RUNTIME_REF}' config.reduceRef is required`);
+			if (c.initialState === undefined)
+				throw new Error(`restoreGraph: '${PROCESS_RUNTIME_REF}' config.initialState is required`);
+			const nowRef = optionalRef(c.nowRef, PROCESS_RUNTIME_REF, "nowRef");
+			return {
+				initialState: c.initialState,
+				reduceRef,
+				...(nowRef === undefined ? {} : { nowRef }),
+			};
+		},
+		build(config: ProcessRuntimeConfig, ctx) {
+			const reduce = ctx.definition(config.reduceRef).fn as unknown as ProcessReducer<
+				unknown,
+				unknown,
+				unknown,
+				unknown
+			>;
+			const clock =
+				config.nowRef === undefined ? undefined : ctx.definition<undefined, number>(config.nowRef);
+			const now = clock === undefined ? Date.now : () => clock.fn(undefined);
+			return { fn: processRuntimeFn(config.initialState, reduce, now) };
+		},
+	} satisfies GraphRecipeFactory<ProcessRuntimeConfig>,
+	[PROCESS_PROJECTION_REF]: {
+		ref: PROCESS_PROJECTION_REF,
+		validateConfig(config): { readonly kind: ProcessFactKind } {
+			const kind = recipeObject(config, PROCESS_PROJECTION_REF).kind;
+			if (!PROCESS_FACT_KINDS.includes(kind as ProcessFactKind))
+				throw new Error(`restoreGraph: '${PROCESS_PROJECTION_REF}' config.kind is unknown`);
+			return { kind: kind as ProcessFactKind };
+		},
+		build(config: { readonly kind: ProcessFactKind }) {
+			return { fn: processProjectionFn(config.kind) };
+		},
+	} satisfies GraphRecipeFactory<{ readonly kind: ProcessFactKind }>,
+	[RUNNER_REQUESTS_REF]: {
+		ref: RUNNER_REQUESTS_REF,
+		validateConfig: (config) => noRecipeConfig(config, RUNNER_REQUESTS_REF),
+		build() {
+			return { fn: processEffectRunnerRequestsFn() };
+		},
+	} satisfies GraphRecipeFactory<undefined>,
+	[RUNNER_RUNTIME_REF]: {
+		ref: RUNNER_RUNTIME_REF,
+		validateConfig: (config) => noRecipeConfig(config, RUNNER_RUNTIME_REF),
+		build() {
+			return { fn: processEffectRunnerRuntimeFn() };
+		},
+	} satisfies GraphRecipeFactory<undefined>,
+	[RUNNER_PROJECTION_REF]: {
+		ref: RUNNER_PROJECTION_REF,
+		validateConfig(config): RunnerProjectionConfig {
+			const c = recipeObject(config, RUNNER_PROJECTION_REF);
+			if (c.kind !== "outcome" && c.kind !== "command" && c.kind !== "error")
+				throw new Error(
+					`restoreGraph: '${RUNNER_PROJECTION_REF}' config.kind must be outcome, command or error`,
+				);
+			const processCommand = optionalRef(c.processCommand, RUNNER_PROJECTION_REF, "processCommand");
+			if (processCommand !== undefined && c.kind !== "command")
+				throw new Error(
+					`restoreGraph: '${RUNNER_PROJECTION_REF}' only the commands projection names a process command`,
+				);
+			return { kind: c.kind, ...(processCommand === undefined ? {} : { processCommand }) };
+		},
+		build(config: RunnerProjectionConfig, ctx) {
+			if (config.processCommand !== undefined)
+				restoredAttachmentList(ctx.graph, config.processCommand).push(ctx.id);
+			return { fn: processEffectRunnerProjectionFn(config.kind) };
+		},
+	} satisfies GraphRecipeFactory<RunnerProjectionConfig>,
+	[RUNNER_STATUS_REF]: {
+		ref: RUNNER_STATUS_REF,
+		validateConfig: (config) => noRecipeConfig(config, RUNNER_STATUS_REF),
+		build() {
+			return { fn: processEffectRunnerStatusFn() };
+		},
+	} satisfies GraphRecipeFactory<undefined>,
+};
+
 function processEffectRunnerProjection<T, TResult>(
 	topology: TopologyGroup,
 	runtime: Node<ProcessEffectRunnerFact<TResult>>,
 	name: string,
 	factory: string,
-	pick: (fact: ProcessEffectRunnerFact<TResult>) => T | undefined,
+	config: RunnerProjectionConfig,
 ): Node<T> {
-	return topology.node<T>(
-		[runtime],
-		oneArrayPerRun((ctx) => {
-			for (const fact of ctx.deps[0].waves.flat()) {
-				const value = pick(fact as ProcessEffectRunnerFact<TResult>);
-				if (value !== undefined) ctx.down([["DATA", value]]);
-			}
-		}),
-		{
-			name,
-			factory,
-			complete: "manual",
-			error: "manual",
-		},
-	);
+	return topology.node<T>([runtime], processEffectRunnerProjectionFn(config.kind), {
+		name,
+		factory,
+		complete: "manual",
+		error: "manual",
+		recipe: { ref: RUNNER_PROJECTION_REF, config },
+	});
 }
 
 function parseProcessEffectOutcome<TResult>(raw: unknown): ProcessEffectOutcome<TResult> | string {
@@ -573,16 +834,15 @@ function processEffectOutcomeCommand<TResult>(
 	outcome: ProcessEffectOutcome<TResult>,
 ): ProcessCommand<ProcessEffectCommandPayload<TResult>> {
 	const commandType = processEffectCommandType(outcome.kind);
+	// Absent optional fields are omitted, not set to undefined: a fact is strict JSON
+	// (R-checkpoint@1).
 	return {
 		id:
 			outcome.commandId ??
 			compoundTupleKey("process-effect-command", [outcome.effectId, commandType]),
 		type: commandType,
 		payload: processEffectCommandPayload(outcome),
-		processId: outcome.processId,
-		correlationId: outcome.correlationId,
-		causationId: outcome.causationId,
-		metadata: outcome.metadata,
+		...outcomeCorrelation(outcome),
 	};
 }
 
@@ -605,10 +865,7 @@ function processEffectCommandPayload<TResult>(
 	const base = {
 		effectId: outcome.effectId,
 		effectType: outcome.effectType,
-		processId: outcome.processId,
-		correlationId: outcome.correlationId,
-		causationId: outcome.causationId,
-		metadata: outcome.metadata,
+		...outcomeCorrelation(outcome),
 	};
 	switch (outcome.kind) {
 		case "result":
@@ -616,10 +873,28 @@ function processEffectCommandPayload<TResult>(
 		case "failure":
 			return { ...base, kind: "failure", error: outcome.error };
 		case "cancel":
-			return { ...base, kind: "cancel", reason: outcome.reason };
+			return {
+				...base,
+				kind: "cancel",
+				...(outcome.reason === undefined ? {} : { reason: outcome.reason }),
+			};
 		case "timeout":
 			return { ...base, kind: "timeout", error: outcome.error };
 	}
+}
+
+function outcomeCorrelation(outcome: ProcessEffectOutcome<unknown>): {
+	readonly processId?: string;
+	readonly correlationId?: string;
+	readonly causationId?: string;
+	readonly metadata?: Record<string, unknown>;
+} {
+	return {
+		...(outcome.processId === undefined ? {} : { processId: outcome.processId }),
+		...(outcome.correlationId === undefined ? {} : { correlationId: outcome.correlationId }),
+		...(outcome.causationId === undefined ? {} : { causationId: outcome.causationId }),
+		...(outcome.metadata === undefined ? {} : { metadata: outcome.metadata }),
+	};
 }
 
 function attachProcessCommandSource(
@@ -791,23 +1066,20 @@ function reduceProcessCommandFact<TState>(
 	return draft;
 }
 
-function processProjection<TOut, TState, TEvent, TEffect>(
+function processProjection<TOut>(
 	graph: Graph | TopologyGroup,
-	runtime: Node<ProcessRuntimeFact<TState, TEvent, TEffect>>,
+	runtime: Node<unknown>,
 	name: string,
 	factory: string,
-	select: (fact: ProcessRuntimeFact<TState, TEvent, TEffect>) => TOut | undefined,
+	kind: ProcessFactKind,
 ): Node<TOut> {
-	return graph.node<TOut>(
-		[runtime],
-		oneArrayPerRun((ctx) => {
-			for (const raw of ctx.deps[0].waves.flat()) {
-				const selected = select(raw as ProcessRuntimeFact<TState, TEvent, TEffect>);
-				if (selected !== undefined) ctx.down([["DATA", selected]]);
-			}
-		}),
-		{ name, factory, complete: "manual", error: "manual" },
-	);
+	return graph.node<TOut>([runtime], processProjectionFn(kind), {
+		name,
+		factory,
+		complete: "manual",
+		error: "manual",
+		recipe: { ref: PROCESS_PROJECTION_REF, config: { kind } },
+	});
 }
 
 function parseProcessCommand(value: unknown): ProcessCommand<unknown> | string {

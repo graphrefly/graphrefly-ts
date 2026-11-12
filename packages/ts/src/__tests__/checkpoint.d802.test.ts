@@ -310,7 +310,9 @@ describe("C-38 restore keeps the saved state, refreshes once on a changed input,
 	it("values, private state and ERROR payloads that are not JSON are refused", () => {
 		const values = graph();
 		values.state<unknown>(new Map(), { name: "m" });
-		expect(() => values.checkpoint()).toThrow(/not strict JSON/);
+		expect(() => values.checkpoint()).toThrow(
+			"not restorable: m: its retained values are not JSON",
+		);
 
 		const state = graph();
 		const a = state.state(1, { name: "a" });
@@ -324,11 +326,11 @@ describe("C-38 restore keeps the saved state, refreshes once on a changed input,
 				{ name: "s", recipe: { ref: "s" } },
 			),
 		);
-		expect(() => state.checkpoint()).toThrow(/lifetime\.state is not strict JSON/);
+		expect(() => state.checkpoint()).toThrow("not restorable: s: its private state is not JSON");
 
 		const errored = graph();
 		errored.state(1, { name: "e" }).error(new Error("boom"));
-		expect(() => errored.checkpoint()).toThrow(/terminal is not strict JSON/);
+		expect(() => errored.checkpoint()).toThrow("not restorable: e: its ERROR payload is not JSON");
 
 		const jsonError = graph();
 		jsonError.state(1, { name: "e" }).error({ code: "boom" });
@@ -346,7 +348,7 @@ describe("C-38 restore keeps the saved state, refreshes once on a changed input,
 		const src = local.state(1, { name: "src" });
 		local.derived([src], (n) => n, { name: "derived" });
 		expect(() => restoreGraph(local.checkpoint(), { registry: defaultRestoreRegistry })).toThrow(
-			/node 'derived' is local-only/,
+			"not restorable: derived: local-only, built or replaced without a recipe",
 		);
 
 		// The user's Q5: the tag names the package; any other tag is refused and not migrated.
@@ -387,7 +389,9 @@ describe("C-38 restore keeps the saved state, refreshes once on a changed input,
 		collect(n);
 		// Same dependencies, another function, no recipe: local-only, not restored as "old".
 		g.replace(n, [a], (ctx) => ctx.down([["DATA", 99]]));
-		expect(() => restoreGraph(g.checkpoint(), { registry })).toThrow(/node 'n' is local-only/);
+		expect(() => restoreGraph(g.checkpoint(), { registry })).toThrow(
+			"not restorable: n: local-only, built or replaced without a recipe",
+		);
 		// Another recipe and setup, onto a dependency made after the node.
 		const later = g.state(7, { name: "later" });
 		g.replace(n, [later], fn, { recipe: { ref: "next" }, setup: () => {} });
