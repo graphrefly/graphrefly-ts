@@ -42,6 +42,11 @@ def verify(root):
     groups = {}
     for entry in entries:
         local = local_file(root, entry["path"])
+        if not local.exists():
+            # Q14: evidence archived under archive/ keeps its path below it and its sha256.
+            archived = local_file(root, "archive/" + entry["path"])
+            if archived.exists():
+                local = archived
         if not local.exists() and entry["optional"]:
             pass  # Optional expanded bundle: archive remains mandatory.
         elif not local.is_file() or digest(local.read_bytes()) != entry["sha256"]:
