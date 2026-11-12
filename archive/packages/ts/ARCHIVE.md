@@ -29,3 +29,11 @@ is the frozen D687 evidence, bound to the preregistration with baselineCommit 96
 byte as before. Its frozen test is removed until the final migration head, where D687 is
 re-qualified under a new preregistration whose baselineCommit is that head; the old
 preregistration is archived as it is then, and no new digest is bound to it.
+
+## D686 frozen evidence
+
+Archived on 2026-11-11 (Q14, D686 as recommended). `evals/work-item-execution-project-fit/d686-showcase-evidence-v2.json`
+and `d686-qualified-evidence.json` are the frozen D686 evidence, byte for byte as on `origin/main`;
+`src/__tests__/work-item-execution-project-fit.d686.test.ts` and `work-item-execution-default.d687.test.ts`
+here are those tests at `origin/main`'s bytes, including their frozen-evidence cases. D686's other
+four tests stay live with the migrated harness.

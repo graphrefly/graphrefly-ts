@@ -12,10 +12,5 @@
 		}
 	},
 	"include": ["src/**/*.ts"],
-	"exclude": [
-		"node_modules",
-		"dist",
-		"src/__tests__/work-item-execution-default.d687.test.ts",
-		"src/__tests__/work-item-execution-project-fit.d686.test.ts"
-	]
+	"exclude": ["node_modules", "dist", "src/__tests__/work-item-execution-default.d687.test.ts"]
 }
