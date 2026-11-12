@@ -1,15 +1,16 @@
 /**
  * D797 kernel migration, phase 1 (graphrefly-ts:D797-KERNEL-MIGRATION-TS): the closed message set.
  *
- * TS harness for the root scenarios C-26, C-42 and C-12 (c) in
+ * TS harness for the root scenarios C-26, C-42, C-12 (c) and the ERROR side of C-23 (f) in
  * ~/src/graphrefly/spec/conformance.jsonl, against R-messages@1, R-wave@2, R-subscription@3,
  * R-failure@3 and R-no-imperative@2 (graphrefly:D798, D799 and D801).
  */
 
 import { describe, expect, it } from "vitest";
 import type { Ctx, Message, Wave } from "../index.js";
-import { graph } from "../index.js";
+import { fromPromise, graph } from "../index.js";
 
+const flush = () => new Promise((r) => setTimeout(r, 0));
 const types = (msgs: readonly Message[]) => msgs.map((m) => m[0]);
 
 function recorder(): { msgs: Message[]; sink: (m: Message) => void } {
@@ -244,5 +245,60 @@ describe("C-12 (c): RESOLVED is the kernel's alone", () => {
 		s.msgs.length = 0;
 		a.set(2);
 		expect(types(s.msgs)).toEqual(["PENDING", "RESOLVED"]);
+	});
+});
+
+describe("R-messages (C-23 (f), its ERROR side): an ERROR payload that is a boolean or SENTINEL (undefined) is rejected", () => {
+	it("rejects it at the host input, also inside a batch body; a host source coerces such a failure", async () => {
+		const g = graph();
+		const s = g.node<number>([], null);
+		const msgs: Message[] = [];
+		s.subscribe((incoming) => {
+			for (const m of incoming) msgs.push(m);
+		});
+		msgs.length = 0;
+		expect(() => s.error(undefined)).toThrow(/non-SENTINEL/);
+		expect(() => s.error(false)).toThrow(/non-boolean/);
+		expect(() => s.error(true)).toThrow(/non-boolean/);
+		expect(() =>
+			g.batch(() => {
+				s.set(1);
+				s.error(false);
+			}),
+		).toThrow(/non-boolean/);
+		// Nothing was delivered: not the rejected ERRORs, and not the batch's staged DATA.
+		expect(msgs).toEqual([]);
+
+		for (const reason of [undefined, false, true]) {
+			const n = g.initNode(fromPromise(Promise.reject(reason)), []);
+			const out: Message[] = [];
+			n.subscribe((incoming) => {
+				for (const m of incoming) out.push(m);
+			});
+			await flush();
+			const last = out.at(-1);
+			expect(last?.[0]).toBe("ERROR");
+			expect((last as readonly ["ERROR", unknown])[1]).toBeInstanceOf(Error);
+		}
+	});
+
+	it("null is a valid ERROR payload; a dependent receives it as the input's terminal, not among its arrays", () => {
+		const g = graph();
+		const c = g.node<number>([], null);
+		const waves: unknown[][][][] = [];
+		const terminals: unknown[][] = [];
+		const p = g.node<number>(
+			[c],
+			(ctx) => {
+				waves.push(ctx.deps.map((d) => d.waves.map((w) => [...w])));
+				terminals.push(ctx.deps.map((d) => d.terminal));
+			},
+			{ complete: "manual", error: "manual" },
+		);
+		p.subscribe(() => {});
+		c.error(null);
+		expect(c.status.output).toBe("errored");
+		expect(waves.at(-1)).toEqual([[]]);
+		expect(terminals.at(-1)).toEqual([{ kind: "error", error: null }]);
 	});
 });

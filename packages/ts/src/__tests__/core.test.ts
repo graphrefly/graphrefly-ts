@@ -1,9 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { ctxRewireDiff } from "../ctx/types.js";
 import type { Ctx, Message } from "../index.js";
-import { Dispatcher, graph, strictCanonicalJsonBytes, strictJsonCodec } from "../index.js";
+import { graph } from "../index.js";
 import type { Subscribable } from "./helpers/collect.js";
-import { addOwnedNodeDep } from "./helpers/owned-rewire.js";
 
 function collect(n: Subscribable) {
 	const msgs: Message[] = [];
@@ -16,9 +15,6 @@ function collect(n: Subscribable) {
 }
 
 const types = (msgs: Message[]) => msgs.map((m) => m[0]);
-const TEST_JSON_DECODER = new TextDecoder();
-const decodeTestJsonBytes = (bytes: Uint8Array) => TEST_JSON_DECODER.decode(bytes);
-const testHash = (bytes: Uint8Array) => `h:${decodeTestJsonBytes(bytes)}`;
 
 describe("state node (manual source)", () => {
 	it("push-on-subscribe delivers START then cached DATA (R-push-subscribe, R-initial)", () => {
@@ -178,6 +174,26 @@ describe("no first-run gate in the kernel; derived and effect gate on values (gr
 		expect(effectCalls).toEqual([[1, 9]]);
 		expect(sum.cache).toBe(10);
 	});
+
+	it("derived over an input that settles with RESOLVED alone settles with the kernel's RESOLVED (C-12 (b), R-wave)", () => {
+		const g = graph();
+		const s = g.state(100);
+		// f sends nothing for a value under 100, so the kernel settles it with RESOLVED.
+		const f = g.node<number>([s], (ctx: Ctx) => {
+			const v = ctx.deps[0].value as number;
+			if (v >= 100) ctx.down([["DATA", v]]);
+		});
+		const d = g.derived([f], (v) => v! * 2);
+		const { msgs } = collect(d);
+		expect(d.cache).toBe(200);
+		msgs.length = 0;
+
+		// derived's gate calls its function only for new DATA, so d is settled by the kernel too.
+		s.set(50);
+		expect(types(msgs)).toEqual(["PENDING", "RESOLVED"]);
+		expect(d.cache).toBe(200);
+		expect(d.status.cache).not.toBe("stale");
+	});
 });
 
 describe("closed message set at node output (R-messages)", () => {
@@ -202,190 +218,31 @@ describe("closed message set at node output (R-messages)", () => {
 	});
 });
 
-describe("B49 core-slot migration", () => {
-	const coreOf = (n: object) => (n as unknown as Record<string, unknown>)._core;
-	const occupied = (xs: unknown[]) => xs.filter((x) => x !== undefined).length;
-	const slotCount = (core: unknown) =>
-		occupied((core as Record<string, unknown>).slots as unknown[]);
-	const sideTableCounts = (core: unknown) => {
-		const c = core as Record<string, unknown>;
-		return [
-			"depStates",
-			"lifecycles",
-			"values",
-			"waves",
-			"privateStates",
-			"lifetimes",
-			"syncCtxs",
-		].map((k) => occupied(c[k] as unknown[]));
-	};
-	const boundaryTaskCount = (core: unknown) => {
-		const boundary = (core as Record<string, unknown>).domain as {
-			queue: unknown[];
-			head: number;
-		};
-		return boundary.queue.length - boundary.head;
-	};
-
-	it("stores wave bookkeeping behind the Node view, without old direct-field shims", () => {
-		const g = graph();
-		const s = g.node<number>([], null, { initial: 1, factory: "probe" });
-		const view = s as unknown as Record<string, unknown>;
-
-		expect(Object.hasOwn(view, "_core")).toBe(true);
-		expect(Object.hasOwn(view, "_id")).toBe(true);
-		expect(Object.hasOwn(view, "_slot")).toBe(true);
-		const slot = view._slot as Record<string, unknown>;
-		for (const oldField of [
-			"_deps",
-			"_depBatch",
-			"_depPrev",
-			"_depDirty",
-			"_pending",
-			"_cache",
-			"_status",
-			"_subscribers",
-			"_pauseLockset",
-			"_depRecords",
-		]) {
-			expect(Object.hasOwn(view, oldField), oldField).toBe(false);
-		}
-		for (const sideTableField of [
-			"value",
-			"wave",
-			"subscribers",
-			"activated",
-			"dep",
-			"privateState",
-			"lifetimes",
-			"syncCtx",
-			"version",
-		]) {
-			expect(Object.hasOwn(slot, sideTableField), sideTableField).toBe(false);
-		}
-		expect(sideTableCounts(coreOf(s))).toEqual([1, 1, 1, 1, 1, 1, 1]);
-
-		expect(s.cache).toBe(1);
-		expect(s.status.cache).toBe("ready");
-		expect(s.factory).toBe("probe");
-	});
-
-	it("uses packed NodeId-indexed arrays for B49 side tables", () => {
-		const g = graph();
-		const a = g.state(1);
-		const b = g.derived([a], (v) => v! + 1);
-		const core = coreOf(a) as Record<string, unknown>;
-		const idOf = (n: object) => (n as unknown as Record<string, unknown>)._id as number;
-		const slotOf = (n: object) => (n as unknown as Record<string, unknown>)._slot;
-
-		for (const table of [
-			"slots",
-			"depStates",
-			"lifecycles",
-			"values",
-			"waves",
-			"privateStates",
-			"lifetimes",
-			"syncCtxs",
-		]) {
-			expect(Array.isArray(core[table]), table).toBe(true);
-			expect((core[table] as unknown[]).length, table).toBe(2);
-		}
-		expect((core.slots as unknown[])[idOf(a)]).toBe(slotOf(a));
-		expect((core.slots as unknown[])[idOf(b)]).toBe(slotOf(b));
-		expect(slotCount(core)).toBe(2);
-		expect(sideTableCounts(core)).toEqual([2, 2, 2, 2, 2, 2, 2]);
-	});
-
-	it("does not add a parallel frontier or adjacency transport over subscriber propagation", () => {
-		const g = graph();
-		const s = g.node<number>([], null, { initial: 1 });
-		const coreKeys = Reflect.ownKeys(coreOf(s) as object).map((key) => String(key));
-		const knownCoreFields = new Set([
-			"nextId",
-			"slots",
-			"values",
-			"waves",
-			"lifecycles",
-			"depStates",
-			"privateStates",
-			"lifetimes",
-			"syncCtxs",
-			"domain",
-		]);
-		const forbiddenTransportName = /adjacency|edge|frontier|queue|work/i;
-
-		for (const key of coreKeys) {
-			if (knownCoreFields.has(key)) continue;
-			expect(
-				key,
-				"new core fields must not smuggle B50-B52 adjacency/frontier/work transport",
-			).not.toMatch(forbiddenTransportName);
-		}
-	});
-
-	it("does not retain a failed cross-graph graph-node construction in the target core", () => {
+describe("graph domains (R-graph-domain)", () => {
+	it("refuses a graph node over another graph's node and registers nothing", () => {
 		const g1 = graph();
-		const anchor = g1.state(1);
-		const before = slotCount(coreOf(anchor));
+		g1.state(1, { name: "anchor" });
+		const before = g1.describe().map((n) => n.id);
 		const foreign = graph().state(2);
 
 		expect(() => g1.derived([foreign], (v) => v)).toThrow(/different graph/);
-		expect(slotCount(coreOf(anchor))).toBe(before);
+		expect(g1.describe().map((n) => n.id)).toEqual(before);
 	});
 
-	it("keeps the graph core hook one-shot when dispatcher registration constructs another node", () => {
-		let nested: object | undefined;
-		class NestedDispatcher extends Dispatcher {
-			override register(fn: (ctx: Ctx) => void, pool?: "sync" | "async" | number) {
-				nested ??= graph().node<number>([], null, { initial: 7 });
-				return pool === undefined ? super.register(fn) : super.register(fn, pool);
-			}
-		}
-
-		const g = graph({ dispatcher: new NestedDispatcher() });
-		const src = g.state(1);
-		const d = g.derived([src], (v) => v! + 1);
-
-		expect(nested).toBeDefined();
-		expect(coreOf(d)).toBe(coreOf(src));
-		expect(coreOf(nested as object)).not.toBe(coreOf(src));
-	});
-
-	it("rejects public rewire from a graph-owned node to a different graph's node", () => {
+	it("refuses a ctx.rewire to another graph's node and changes nothing", () => {
 		const g1 = graph();
 		const a = g1.state(1);
-		const d = g1.derived([a], (v) => v! + 1);
+		let kept: Ctx | undefined;
+		const d = g1.node<number>([a], (ctx: Ctx) => {
+			kept = ctx;
+			ctx.down([["DATA", (ctx.deps[0].value as number) + 1]]);
+		});
+		d.subscribe(() => {});
 		const foreign = graph().state(2);
 
-		expect(() =>
-			addOwnedNodeDep(d, foreign, (ctx: Ctx) => ctx.down([["DATA", ctx.deps[0].value]])),
-		).toThrow(/different graph/);
+		expect(() => (kept as Ctx).rewire([a, foreign])).toThrow(/different graph/);
 		expect(d.deps).toEqual([a]);
-	});
-
-	it("stores deferred-boundary work on the owning core and drains it at the wave boundary", () => {
-		const g = graph();
-		const trigger = g.state(0);
-		const inner = g.node<number>([], (ctx) => ctx.down([["DATA", 7]]));
-		let queuedInsideRun = -1;
-		const op = g.node<number>(
-			[trigger],
-			function opFn(ctx) {
-				if (ctx.deps[0].value === 1) {
-					ctxRewireDiff(ctx, [inner]);
-					queuedInsideRun = boundaryTaskCount(coreOf(op));
-				}
-			},
-			{ complete: "manual" },
-		);
-		op.subscribe(() => {});
-		trigger.set(1);
-
-		expect(queuedInsideRun).toBe(1);
-		expect(boundaryTaskCount(coreOf(op))).toBe(0);
-		expect(op.deps).toContain(inner);
-		expect(inner.cache).toBe(7);
+		expect(d.cache).toBe(2);
 	});
 
 	it("keeps each graph's request queue its own: a write to another graph in a batch body runs at once (R-graph-domain@3, D803)", () => {

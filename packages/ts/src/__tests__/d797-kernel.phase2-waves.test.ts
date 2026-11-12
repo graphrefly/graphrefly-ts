@@ -1,8 +1,8 @@
 /**
  * D797 kernel migration, phase 2 (graphrefly-ts:D797-KERNEL-MIGRATION-TS): waves and arrays.
  *
- * TS harness for the root scenarios C-12, C-16, C-23, C-28, C-41 and the value and quiet-node
- * clauses of C-44 in ~/src/graphrefly/spec/conformance.jsonl, against R-wave@2, R-subscription@3,
+ * TS harness for the root scenarios C-12, C-16, C-23, C-28, C-41, the wave clauses of C-4 and the
+ * value and quiet-node clauses of C-44 in ~/src/graphrefly/spec/conformance.jsonl, against R-wave@2, R-subscription@3,
  * R-invocation@2 and R-failure@3. Clauses that need the request queue (phase 5) or the terminal
  * and INVALIDATE policies (phase 3) are tested in those phases.
  */
@@ -166,6 +166,14 @@ describe("C-23: each ctx.deps entry (waves, terminal, latest value) is the funct
 		sendFromA(2, (ctx) => ctx.down([["DATA", 1], ["DATA", 2], ["INVALIDATE"], ["DATA", 3]]));
 		expect(captures.at(-1)?.waves).toEqual([[[3]], []]);
 		expect(captures.at(-1)?.latest).toEqual([3, "b"]);
+		// (c') a host batch on a state is split the same way: N sees only what followed the INVALIDATE
+		g.batch(() => {
+			b.set(1);
+			b.set(2);
+			b.invalidate();
+			b.set("b");
+		});
+		expect(captures.at(-1)?.waves).toEqual([[], [["b"]]]);
 		// (d) null and [] are ordinary payloads
 		sendFromA(3, (ctx) => ctx.down([["DATA", null]]));
 		expect(captures.at(-1)?.waves).toEqual([[[null]], []]);
@@ -350,6 +358,57 @@ describe("C-41: the snapshot is the node's last array that carried DATA", () => 
 		// A computed node drops its values when it deactivates; a state keeps them.
 		expect(n.cache).toBeUndefined();
 		expect(q.cache).toBe(2);
+	});
+});
+
+describe("C-4: a sync leg and an async leg: the async result is a later wave, nothing waits across it (R-wave, R-invocation)", () => {
+	it("settles the async leg with the kernel's RESOLVED in A's wave; its result is a later wave", () => {
+		const g = graph();
+		let dRuns = 0;
+		let cctx: Ctx | undefined;
+		const a = g.node<number>([], null, { initial: 1 });
+		const b = g.node<number>([a], (ctx) =>
+			ctx.down([["DATA", (ctx.deps[0].value as number) + 10]]),
+		); // sync leg
+		const c = g.node<number>(
+			[a],
+			(ctx) => {
+				cctx = ctx; // async leg: the result comes later through this ctx
+			},
+			{ pool: "async" },
+		);
+		const cs = arrays();
+		c.subscribe(cs.sink);
+		// Waiting for both legs is sugar (a gate), not kernel behaviour; derived holds it
+		// (graphrefly-ts:D184), so its function first runs once c has a value.
+		const d = g.derived([b, c], (bv, cv) => {
+			dRuns++;
+			return (bv as number) + (cv as number);
+		});
+		const ds = arrays();
+		d.subscribe(ds.sink);
+		expect(dRuns).toBe(0);
+		(cctx as Ctx).down([["DATA", 21]]);
+		expect(dRuns).toBe(1);
+		expect(d.cache).toBe(32); // 11 + 21
+
+		ds.log.length = 0;
+		cs.log.length = 0;
+		a.set(2);
+		// In A's wave c sent nothing, so the kernel settled it; d ran once on b's new value and
+		// c's old one, and no PENDING stays open while c's work runs.
+		expect(cs.log).toEqual([[["PENDING"], ["RESOLVED"]]]);
+		expect(dRuns).toBe(2);
+		expect(d.cache).toBe(33); // 12 + 21
+		expect(ds.log).toEqual([[["PENDING"], ["DATA", 33]]]);
+		expect(d.status.cache).not.toBe("stale");
+
+		// c's result is a new wave from c, in which d runs once more.
+		ds.log.length = 0;
+		(cctx as Ctx).down([["DATA", 30]]);
+		expect(dRuns).toBe(3);
+		expect(d.cache).toBe(42); // 12 + 30
+		expect(ds.log).toEqual([[["PENDING"], ["DATA", 42]]]);
 	});
 });
 

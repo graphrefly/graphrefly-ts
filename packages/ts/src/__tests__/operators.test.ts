@@ -171,6 +171,39 @@ describe("core operators (free-standing factories via g.initNode, D43/D6)", () =
 		expect(data(msgs)).toEqual([20]);
 	});
 
+	it("filter: a rejected value settles with the kernel's RESOLVED; the retained value is kept (C-12 (b), R-wave)", () => {
+		const g = graph();
+		const s = g.state(50);
+		const f = g.initNode(
+			filter((n: number) => n >= 100),
+			[s],
+		);
+		const msgs: Message[] = [];
+		f.subscribe((incoming) => {
+			for (const x of incoming) msgs.push(x);
+		});
+		const types = () => msgs.map((m) => m[0]);
+		// activation: 50 rejected, f never produced a value
+		expect(f.status.cache).toBe("empty");
+		expect(f.cache).toBeUndefined();
+		msgs.length = 0;
+
+		s.set(60); // rejected: f was marked pending and sent nothing, so the kernel settles it
+		expect(types()).toEqual(["PENDING", "RESOLVED"]);
+		expect(f.status.cache).toBe("empty"); // still no retained value
+		msgs.length = 0;
+
+		s.set(150); // accepted: a DATA occurrence
+		expect(types()).toEqual(["PENDING", "DATA"]);
+		expect(f.cache).toBe(150);
+		msgs.length = 0;
+
+		s.set(70); // rejected again: RESOLVED, and the retained 150 stays
+		expect(types()).toEqual(["PENDING", "RESOLVED"]);
+		expect(f.status.cache).toBe("ready");
+		expect(f.cache).toBe(150);
+	});
+
 	it("scan accumulates with a seed", () => {
 		const g = graph();
 		const s = g.state(1);
@@ -234,6 +267,18 @@ describe("core operators (free-standing factories via g.initNode, D43/D6)", () =
 		});
 		expect(data(msgs)).toEqual([1, 2]);
 		expect(first2.status.output).toBe("completed");
+	});
+
+	it("take counts equal values as distinct occurrences (C-12 (a), R-wave)", () => {
+		const g = graph();
+		const src = g.initNode(fromIter<number>([1, 1, 1]), []);
+		const t = g.initNode(take<number>(3), [src]);
+		const msgs: Message[] = [];
+		t.subscribe((incoming) => {
+			for (const m of incoming) msgs.push(m);
+		});
+		expect(data(msgs)).toEqual([1, 1, 1]);
+		expect(t.status.output).toBe("completed");
 	});
 
 	it("take(0) emits no DATA and completes immediately", () => {

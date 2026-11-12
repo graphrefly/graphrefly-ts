@@ -81,6 +81,12 @@ describe("C-3: INVALIDATE through a diamond: one INVALIDATE out, private state k
 		f.s.invalidate();
 		expect(f.runs).toEqual([{ invalidated: [true, true], waves: [[], []] }]);
 		expect(f.sink.log).toEqual([[["PENDING"], ["INVALIDATE"]]]);
+		expect(f.d.cache).toBeUndefined();
+		expect(f.d.status.cache).toBe("empty");
+		// A second INVALIDATE finds no value anywhere: dropped, no run, nothing sent.
+		f.s.invalidate();
+		expect(f.runs).toHaveLength(1);
+		expect(f.sink.log).toHaveLength(1);
 		f.s.set(5);
 		expect(f.runs.at(-1)?.invalidated).toEqual([false, false]);
 		expect(f.d.cache).toBe(2);
@@ -180,7 +186,7 @@ describe("C-17: an ended dependency counts toward auto COMPLETE, in any order", 
 		expect(f.runs).toEqual([
 			{ terminal: [undefined, { kind: "error", error: e }], waves: [[], []] },
 		]);
-		expect(f.d.status.output).not.toBe("errored");
+		expect(f.d.status.output).toBe("open"); // neither errored (manual ERROR) nor completed (B open)
 		expect(f.dctrl.status.output).toBe("errored");
 		expect(f.ctrlRuns()).toBe(0);
 		f.g.batch(() => {
@@ -203,7 +209,7 @@ describe("C-17: an ended dependency counts toward auto COMPLETE, in any order", 
 			f.b.set(1);
 			f.b.complete();
 		});
-		expect(f.d.status.output).not.toBe("completed");
+		expect(f.d.status.output).toBe("open"); // C has not ended
 		f.c.error(e);
 		expect(f.runs.at(-1)).toEqual({
 			terminal: [undefined, { kind: "error", error: e }],
@@ -267,6 +273,34 @@ describe("C-34: terminal fanout, the ended node's lifetime closing, and acquirin
 		// S never runs again.
 		expect(() => t.set(2)).not.toThrow();
 		expect(runs).toBe(1);
+	});
+});
+
+describe("R-terminals: an ended node's own rewire is dropped, since its lifetime has closed", () => {
+	it("a ctx.rewire through the ended node's ctx changes nothing", () => {
+		const g = graph();
+		const a = g.state(1, { name: "a" });
+		const extra = g.state(5, { name: "extra" });
+		let kept: Ctx | undefined;
+		let runs = 0;
+		const d = g.node<number>(
+			[a],
+			(ctx) => {
+				kept = ctx;
+				runs++;
+				const v = ctx.deps[0].value as number;
+				ctx.down(v === 2 ? [["COMPLETE"]] : [["DATA", v]]);
+			},
+			{ name: "d", complete: "manual" },
+		);
+		d.subscribe(() => {});
+		a.set(2);
+		expect(d.status.output).toBe("completed");
+		runs = 0;
+		expect(() => (kept as Ctx).rewire([a, extra])).not.toThrow();
+		expect(d.deps).toEqual([a]);
+		expect(runs).toBe(0);
+		expect(d.cache).toBe(1);
 	});
 });
 
