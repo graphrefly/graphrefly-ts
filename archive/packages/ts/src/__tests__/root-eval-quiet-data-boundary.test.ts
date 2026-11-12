@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { rootEvalQuietDataBoundary } from "../../evals/graph-native-rerun-avoidance/quiet-data-boundary.js";
 import { graph } from "../graph/graph.js";
-import { asState } from "./helpers/as-state.js";
 
 describe("D151 quiet complete-DATA boundary", () => {
 	it("preserves a six-occurrence wave, supports bigint through an exact fingerprint, and deduplicates mixed replay", () => {
@@ -16,20 +15,16 @@ describe("D151 quiet complete-DATA boundary", () => {
 			fingerprint: (value) => String(value.version),
 		});
 		const messages: unknown[][] = [];
-		const stop = boundary.output.subscribe((incoming) => {
-			for (const message of incoming) {
-				messages.push([...message]);
-			}
-		});
+		const stop = boundary.output.subscribe((message) => messages.push([...message]));
 		try {
+			input.down([["DIRTY"], ["RESOLVED"]]);
+			expect(messages.some((message) => message[0] === "DIRTY")).toBe(false);
 			const values = Array.from({ length: 6 }, (_, index) => ({ id: String(index), version: 1n }));
-			owner.batch(() => {
-				for (const value of values) asState(input).set(value);
-			});
-			owner.batch(() => {
-				input.set(values[0]);
-				input.set({ id: "6", version: 1n });
-			});
+			input.down(values.map((value) => ["DATA", value]));
+			input.down([
+				["DATA", values[0]],
+				["DATA", { id: "6", version: 1n }],
+			]);
 			expect(
 				messages.filter((message) => message[0] === "DATA").map((message) => message[1]),
 			).toEqual([...values, { id: "6", version: 1n }]);
@@ -48,26 +43,20 @@ describe("D151 quiet complete-DATA boundary", () => {
 			key: (value) => value.id,
 		});
 		const data: unknown[] = [];
-		const stop = boundary.output.subscribe((incoming) => {
-			for (const message of incoming) {
-				if (message[0] === "DATA") data.push(message[1]);
-			}
+		const stop = boundary.output.subscribe((message) => {
+			if (message[0] === "DATA") data.push(message[1]);
 		});
 		const errors: unknown[] = [];
 		const unobserve = owner.observe("accepted/validated").subscribe((event) => {
 			if (event.msg[0] === "ERROR") errors.push(event.msg[1]);
 		});
 		try {
-			// R-failure@3: the rejection inside `validated` is its ERROR, not a host throw.
 			expect(() =>
-				owner.batch(() => {
-					input.set({ id: "same", value: 1 });
-					input.set({ id: "same", value: 2 });
-				}),
-			).not.toThrow();
-			expect(String((errors[0] as Error | undefined)?.message)).toMatch(
-				"conflicting occurrence replay",
-			);
+				input.down([
+					["DATA", { id: "same", value: 1 }],
+					["DATA", { id: "same", value: 2 }],
+				]),
+			).toThrow("conflicting occurrence replay");
 			expect(data).toEqual([]);
 		} finally {
 			stop();

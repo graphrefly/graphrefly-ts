@@ -12,7 +12,6 @@ import {
 import { parseRootEvalLiveProviderResponse } from "../../evals/graph-native-rerun-avoidance/root-eval-live.js";
 
 const reservationMicrousd = 200_000;
-const sha256Text = (text: string) => empiricalSha256(new TextEncoder().encode(text));
 // This unit fixture supplies only parser coordinates; Graph admission validation has separate coverage.
 const admission = {
 	admissionId: "d154-cost-test/dispatch-1/admission",
@@ -21,7 +20,7 @@ const admission = {
 	providerModelRef: "deepseek/deepseek-v4-flash-0731",
 	endpointProtocol: "chat-completions",
 	maxOutputTokens: 4_096,
-	reasoningEffort: "medium",
+	reasoningEffort: "low",
 } as EvalAdmittedEffect;
 
 function request() {
@@ -50,7 +49,7 @@ function request() {
 			},
 		},
 		max_tokens: admission.maxOutputTokens,
-		reasoning: { effort: admission.reasoningEffort as string },
+		reasoning: { effort: admission.reasoningEffort },
 		provider: {
 			order: ["fireworks"],
 			only: ["fireworks"],
@@ -144,8 +143,8 @@ describe("D154 exact policy-qualified provider cost evidence", () => {
 		const result = parse(body, wire);
 		expect(result.costMicrousd).toBe(0);
 		expect(result.costEvidence).toBe("policy-qualified-nonbillable");
-		expect(result.nonbillableEvidence?.requestDigest).toBe(sha256Text(wire));
-		expect(result.nonbillableEvidence?.responseDigest).toBe(sha256Text(JSON.stringify(body)));
+		expect(result.nonbillableEvidence?.requestDigest).toBe(empiricalSha256(wire));
+		expect(result.nonbillableEvidence?.responseDigest).toBe(empiricalSha256(JSON.stringify(body)));
 		expect(
 			validateNonbillableCostEvidence(result.nonbillableEvidence, admission, result.resultDigest),
 		).toEqual(result.nonbillableEvidence);
@@ -158,7 +157,7 @@ describe("D154 exact policy-qualified provider cost evidence", () => {
 			validateNonbillableCostEvidence(
 				proof,
 				admission,
-				nonbillableHttpResultDigest(sha256Text("different response")),
+				nonbillableHttpResultDigest(empiricalSha256("different response")),
 			),
 		).toThrow(/binding/);
 		expect(() =>
@@ -171,14 +170,14 @@ describe("D154 exact policy-qualified provider cost evidence", () => {
 		const { evidenceDigest: _ignored, ...material } = proof;
 		const rebound = nonbillableCostEvidence({
 			...material,
-			responseDigest: sha256Text("different response"),
+			responseDigest: empiricalSha256("different response"),
 		});
 		expect(() => validateNonbillableCostEvidence(rebound, admission, result.resultDigest)).toThrow(
 			/binding/,
 		);
 		expect(() =>
 			validateNonbillableCostEvidence(
-				{ ...proof, requestDigest: sha256Text("different request") },
+				{ ...proof, requestDigest: empiricalSha256("different request") },
 				admission,
 				result.resultDigest,
 			),

@@ -1,6 +1,7 @@
 import { depBatch } from "../../src/ctx/types.js";
 import type { Graph } from "../../src/graph/graph.js";
 import type { Node } from "../../src/node/node.js";
+import { merge } from "../../src/operators/index.js";
 import { empiricalStrictJsonDigest } from "./canonical.js";
 
 /** D151 package-private delivery of complete, already validated domain DATA. */
@@ -18,6 +19,7 @@ export function rootEvalQuietDataBoundary<T>(
 ): Readonly<{ output: Node<T>; release: () => void }> {
 	if (!Number.isSafeInteger(opts.maxOccurrences) || opts.maxOccurrences < 1)
 		throw new TypeError("quiet DATA boundary needs a fixed positive occurrence bound");
+	const pullId = Symbol(opts.name);
 	const validated = graph.node<T>(
 		[input],
 		(ctx) => {
@@ -55,11 +57,22 @@ export function rootEvalQuietDataBoundary<T>(
 			meta: { materialFree: true },
 		},
 	);
-	// One quiet node is the release boundary (graphrefly-ts:D172): `validated` already admits
-	// each occurrence once, and a quiet node's output goes out after the current wave as a wave
-	// of its own (R-wave), so nothing below waits on the input's wave.
-	const output = graph.node<T>(
+	const port = graph.node<T>(
 		[validated],
+		(ctx) => {
+			const values = depBatch(ctx, 0) ?? [];
+			if (values.length > 0) ctx.down(values.map((value) => ["DATA", value]));
+		},
+		{
+			name: `${opts.name}/released`,
+			factory: "rootEvalQuietDataPort",
+			pullId,
+			pausable: "resumeAll",
+			meta: { ...opts.meta, boundary: "complete-domain-data-only" },
+		},
+	);
+	const output = graph.node<T>(
+		[port],
 		(ctx) => {
 			const values = depBatch(ctx, 0) ?? [];
 			if (values.length > 0) ctx.down(values.map((value) => ["DATA", value]));
@@ -67,12 +80,39 @@ export function rootEvalQuietDataBoundary<T>(
 		{
 			name: opts.name,
 			factory: opts.factory,
-			quiet: true,
 			meta: { ...opts.meta, boundary: "complete-domain-data-only" },
 		},
 	);
+	const events = graph.initNode(merge<T>(), [output, validated], {
+		name: `${opts.name}/release-events`,
+	});
+	const controller = graph.node(
+		[events],
+		(ctx) => {
+			const ledger = ctx.state.get<Map<string, string>>() ?? new Map<string, string>();
+			let fresh = false;
+			for (const raw of depBatch(ctx, 0) ?? []) {
+				const value = raw as T;
+				const key = opts.key(value);
+				const digest = opts.fingerprint?.(value) ?? empiricalStrictJsonDigest(value);
+				const prior = ledger.get(key);
+				if (prior !== undefined) {
+					if (prior !== digest)
+						throw new TypeError("quiet DATA boundary received conflicting occurrence replay");
+					continue;
+				}
+				if (ledger.size >= opts.maxOccurrences)
+					throw new TypeError("quiet DATA boundary exceeded its fixed bound");
+				ledger.set(key, digest);
+				fresh = true;
+			}
+			ctx.state.set(ledger);
+			if (fresh) ctx.upNext([["PULL", { pullId }]]);
+		},
+		{ name: `${opts.name}/release-controller`, factory: "rootEvalQuietDataReleaseController" },
+	);
 	return Object.freeze({
 		output,
-		release: graph.retain(output, { reason: `${opts.name}: complete DATA release` }),
+		release: graph.retain(controller, { reason: `${opts.name}: complete DATA release` }),
 	});
 }

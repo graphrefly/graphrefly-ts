@@ -413,33 +413,22 @@ export function createProviderQualificationGraph(executionRef: string) {
 	);
 	const budget = graph.derived(
 		[state],
-		(value) =>
-			value === undefined
-				? undefined
-				: {
-						state: value,
-						remainingMicrousd: PROVIDER_QUALIFICATION_CAP - value.accountedMicrousd,
-					},
+		(value) => ({
+			state: value,
+			remainingMicrousd: PROVIDER_QUALIFICATION_CAP - value.accountedMicrousd,
+		}),
 		{
 			name: "qualification/budget",
 			meta: { maxRequests: 3, hardCapMicrousd: PROVIDER_QUALIFICATION_CAP },
 		},
 	);
-	const admission = graph.derived(
-		[budget],
-		(b) => (b === undefined ? undefined : qualificationAdmission(b.state)),
-		{
-			name: "qualification/provider-admission",
-			meta: { ...PROVIDER_QUALIFICATION_ROUTE, concurrency: 1, fallback: false },
-		},
-	);
-	const terminal = graph.derived(
-		[state],
-		(value) => (value === undefined ? undefined : value.terminal ? value : null),
-		{
-			name: "qualification/terminal",
-		},
-	);
+	const admission = graph.derived([budget], ({ state: value }) => qualificationAdmission(value), {
+		name: "qualification/provider-admission",
+		meta: { ...PROVIDER_QUALIFICATION_ROUTE, concurrency: 1, fallback: false },
+	});
+	const terminal = graph.derived([state], (value) => (value.terminal ? value : null), {
+		name: "qualification/terminal",
+	});
 	const releases = [graph.retain(admission), graph.retain(terminal)];
 	return {
 		graph,

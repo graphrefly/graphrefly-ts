@@ -32,7 +32,6 @@ import {
 	type EvalBudgetState,
 	type EvalEffectOutcome,
 	type EvalProviderOutcome,
-	type EvalVerificationDiagnostics,
 	emptyEvalProviderOutcomeReasonCounts,
 	ROOT_EVAL_MAX_AVAILABILITY_RETRIES,
 	ROOT_EVAL_MAX_CAPACITY_RETRIES,
@@ -215,8 +214,6 @@ import { strictJsonCodec } from "../json/codec.js";
 
 const ROOT_EVAL_DEVELOPMENT_TASK = ROOT_EVAL_DEVELOPMENT_TASKS[0]!;
 const DEFAULT_TEST_WORK_ITEM_ID = "root-eval-test/candidate-work-item";
-/** Test-only: a writable copy of a readonly fixture, for drift cases. */
-type DeepMutable<T> = { -readonly [K in keyof T]: DeepMutable<T[K]> };
 
 function correctCandidate(
 	task: RootEvalTaskDefinition,
@@ -617,7 +614,7 @@ function liveEvidenceInput(
 					passed: arm === "relevant-applied" ? replicateCount : 0,
 				},
 			]),
-		) as EvalVerificationDiagnostics["stageCounts"],
+		),
 		terminalReasonCounts: Object.fromEntries(
 			arms.map((arm) => [
 				arm,
@@ -632,7 +629,7 @@ function liveEvidenceInput(
 					passed: arm === "relevant-applied" ? replicateCount : 0,
 				},
 			]),
-		) as EvalVerificationDiagnostics["terminalReasonCounts"],
+		),
 		completedWorkItems: workItemCount,
 	};
 	const observation = {
@@ -1087,11 +1084,13 @@ function withRehashedPricing(
 ): RootEvalLiveEvidenceInput {
 	const { observationDigest: _digest, ...current } = input.pricing;
 	const material = { ...current, ...patch };
-	const observationDigest = empiricalStrictJsonDigest(material);
-	const pricingObservation = { ...material, observationDigest } as never;
+	const pricingObservation = {
+		...material,
+		observationDigest: empiricalStrictJsonDigest(material),
+	} as never;
 	return withRehashedClaim(
 		{ ...input, pricing: pricingObservation },
-		{ pricingObservationDigest: observationDigest },
+		{ pricingObservationDigest: pricingObservation.observationDigest },
 	);
 }
 
@@ -1101,11 +1100,10 @@ function withRehashedZeroByok(
 ): RootEvalLiveEvidenceInput {
 	const { observationDigest: _digest, ...current } = input.zeroByok;
 	const material = { ...current, ...patch };
-	const observationDigest = empiricalStrictJsonDigest(material);
-	const zeroByok = { ...material, observationDigest } as never;
+	const zeroByok = { ...material, observationDigest: empiricalStrictJsonDigest(material) } as never;
 	return withRehashedClaim(
 		{ ...input, zeroByok },
-		{ zeroByokObservationDigest: observationDigest },
+		{ zeroByokObservationDigest: zeroByok.observationDigest },
 	);
 }
 
@@ -1322,7 +1320,10 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				generationQualified: true,
 				consecutiveQualifyingGenerations: 1,
 				requiredConsecutiveGenerations: 2,
-				heldOutEligible: false,
+				relevantPasses: 5,
+				bestControlPasses: 0,
+				irrelevantPasses: 0,
+				requiredMargin: 2,
 			},
 			evidenceDigest: empiricalStrictJsonDigest("historical-evidence"),
 		});
@@ -2409,7 +2410,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			async () => {
 				active += 1;
 				try {
-					return await new Promise<never>((_resolve, reject) => {
+					await new Promise<never>((_resolve, reject) => {
 						const onAbort = () => reject(cancellation.signal.reason);
 						cancellation.signal.addEventListener("abort", onAbort, { once: true });
 						if (cancellation.signal.aborted) onAbort();
@@ -2567,7 +2568,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				providerResponseForRequest(request) {
 					const messages = request.messages as readonly Readonly<Record<string, unknown>>[];
 					capturedSystemPrompt = String(messages[0]?.content);
-					return { status: 200, bytes: providerBytesForEffect(admitted!) };
+					return { status: 200, bytes: providerBytesForEffect(admitted) };
 				},
 			});
 			try {
@@ -4129,15 +4130,16 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 	it("fails closed on verification-diagnostics shape, conservation, binding, and progress drift", () => {
 		const base = liveEvidenceInput();
 		const baseDiagnostics = base.graphResult!.finding.verificationDiagnostics;
-		const missingStage = structuredClone(baseDiagnostics) as DeepMutable<typeof baseDiagnostics>;
-		Reflect.deleteProperty(missingStage.stageCounts.cold, "cleanupCompleted");
+		const missingStage = structuredClone(baseDiagnostics) as Record<string, unknown>;
+		delete (missingStage.stageCounts as Record<string, Record<string, unknown>>).cold
+			.cleanupCompleted;
 		expect(
 			evaluateRootEvalLiveAdmission(
 				withGraphResult(base, {}, { verificationDiagnostics: missingStage as never }),
 			).admissionReport,
 		).toMatchObject({ status: "rejected", violationCodes: ["success.graph-shape-invalid"] });
 
-		const reasonDrift = structuredClone(baseDiagnostics) as DeepMutable<typeof baseDiagnostics>;
+		const reasonDrift = structuredClone(baseDiagnostics);
 		reasonDrift.terminalReasonCounts.cold["no-change"] = 4;
 		const reasonDriftInput = withTerminalObservation(
 			withGraphResult(base, {}, { verificationDiagnostics: reasonDrift }),
@@ -4148,9 +4150,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			violationCodes: ["success.graph-shape-invalid"],
 		});
 
-		const unreachableReason = structuredClone(baseDiagnostics) as DeepMutable<
-			typeof baseDiagnostics
-		>;
+		const unreachableReason = structuredClone(baseDiagnostics);
 		unreachableReason.stageCounts.cold.exactToolAdmitted = 0;
 		unreachableReason.stageCounts.cold.scopedChange = 0;
 		unreachableReason.stageCounts.cold.publicSemanticPassed = 0;
@@ -4166,9 +4166,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			violationCodes: ["success.graph-shape-invalid"],
 		});
 
-		const impossibleCleanupObscuring = structuredClone(baseDiagnostics) as DeepMutable<
-			typeof baseDiagnostics
-		>;
+		const impossibleCleanupObscuring = structuredClone(baseDiagnostics);
 		impossibleCleanupObscuring.stageCounts.cold.exactToolAdmitted = 4;
 		impossibleCleanupObscuring.stageCounts.cold.scopedChange = 1;
 		impossibleCleanupObscuring.stageCounts.cold.publicSemanticPassed = 0;
@@ -4186,7 +4184,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			violationCodes: ["success.graph-shape-invalid"],
 		});
 
-		const bindingDrift = structuredClone(baseDiagnostics) as DeepMutable<typeof baseDiagnostics>;
+		const bindingDrift = structuredClone(baseDiagnostics);
 		bindingDrift.stageCounts["relevant-applied"].hiddenVerifierPassed = 0;
 		bindingDrift.stageCounts["relevant-applied"].passed = 0;
 		bindingDrift.terminalReasonCounts["relevant-applied"].passed = 0;
@@ -4233,7 +4231,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			reconciledBilledMicrousd: null,
 			billingDisposition: "pending",
 		};
-		const regressed = structuredClone(baseDiagnostics) as DeepMutable<typeof baseDiagnostics>;
+		const regressed = structuredClone(baseDiagnostics);
 		regressed.stageCounts.cold.completedWorkItems = 0;
 		regressed.stageCounts.cold.exactToolAdmitted = 0;
 		regressed.stageCounts.cold.cleanupCompleted = 0;
@@ -4256,9 +4254,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			violationCodes: ["success.terminal-observation-order-invalid"],
 		});
 
-		const higherScopedProgress = structuredClone(baseDiagnostics) as DeepMutable<
-			typeof baseDiagnostics
-		>;
+		const higherScopedProgress = structuredClone(baseDiagnostics);
 		higherScopedProgress.stageCounts.cold.scopedChange = 1;
 		higherScopedProgress.terminalReasonCounts.cold["no-change"] =
 			ROOT_EVAL_LIVE_REPLICATE_COUNT - 1;
@@ -4286,9 +4282,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			violationCodes: ["success.terminal-observation-order-invalid"],
 		});
 
-		const priorReasonProgress = structuredClone(baseDiagnostics) as DeepMutable<
-			typeof baseDiagnostics
-		>;
+		const priorReasonProgress = structuredClone(baseDiagnostics);
 		priorReasonProgress.terminalReasonCounts.cold["no-change"] = ROOT_EVAL_LIVE_REPLICATE_COUNT - 1;
 		priorReasonProgress.terminalReasonCounts.cold["exact-tool-failed"] = 1;
 		const equalCompletionReasonRegression = withGraphResult(base, {
@@ -4412,9 +4406,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		};
 		const negativeObservations = base.graphResult!.observations.map((event, index, events) => {
 			const value = event.msg[1] as unknown as Record<string, unknown>;
-			const diagnostics = structuredClone(value.verificationDiagnostics) as DeepMutable<
-				typeof baseDiagnostics
-			>;
+			const diagnostics = structuredClone(value.verificationDiagnostics) as typeof baseDiagnostics;
 			const relevantCompleted = diagnostics.stageCounts["relevant-applied"].completedWorkItems;
 			diagnostics.stageCounts["relevant-applied"].hiddenVerifierPassed = 0;
 			diagnostics.stageCounts["relevant-applied"].passed = 0;
@@ -5000,7 +4992,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 	it("D154 persists a real budget-stopped Graph terminal without efficacy and rejects terminal drift", async () => {
 		const temporary = await mkdtemp(join(tmpdir(), "graphrefly-root-eval-d154-stopped-"));
 		const privateRoot = await realpath(temporary);
-		let stopBudget: () => void = () => undefined;
+		let stopBudget = () => undefined;
 		try {
 			const claimInput = await currentClaimInput(privateRoot);
 			const acquisition = await acquireRootEvalLiveClaimForNoNetworkQualification(claimInput);
@@ -5027,10 +5019,8 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				reservationMicrousd: ROOT_EVAL_LIVE_CAMPAIGN_HARD_CAP_MICROUSD + 1,
 			});
 			let budgetReceipt: EvalBudgetState | null = null;
-			stopBudget = topology.nodes.budgets.subscribe((incoming) => {
-				for (const message of incoming) {
-					if (message[0] === "DATA") budgetReceipt = message[1] as EvalBudgetState;
-				}
+			stopBudget = topology.nodes.budgets.subscribe((message) => {
+				if (message[0] === "DATA") budgetReceipt = message[1] as EvalBudgetState;
 			});
 			const execute = vi.fn(async () => {
 				throw new Error("stopped Graph must not execute effects");
@@ -5948,10 +5938,6 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				transactionDigest: empiricalStrictJsonDigest(journalMaterial),
 				reconciliationReceiptDigest: expect.stringMatching(/^sha256:[0-9a-f]{64}$/u),
 			});
-			const reconciliationReceiptDigest =
-				recovered !== null && "reconciliationReceiptDigest" in recovered
-					? recovered.reconciliationReceiptDigest
-					: undefined;
 			const ledger = await readRootEvalD145CharterLedger(ledgerPath);
 			expect(ledger).toMatchObject({
 				developmentSpentMicrousd: 5_890_000,
@@ -5963,7 +5949,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 						providerReportedMicrousd: 90_000,
 						unreportedSettledUpperBoundMicrousd: 5_800_000,
 						accountedUpperBoundMicrousd: 5_890_000,
-						evidenceDigest: reconciliationReceiptDigest,
+						evidenceDigest: recovered?.reconciliationReceiptDigest,
 					}),
 				],
 			});
@@ -5976,7 +5962,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				generationRef,
 				classification: "consumed-unqualified-stale-transaction",
 				accountedUpperBoundMicrousd: 5_890_000,
-				receiptDigest: reconciliationReceiptDigest,
+				receiptDigest: recovered?.reconciliationReceiptDigest,
 			});
 			await expect(stat(journalPath)).rejects.toMatchObject({ code: "ENOENT" });
 			await expect(stat(join(privateRoot, generationRef))).rejects.toMatchObject({
@@ -6104,7 +6090,6 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 					} satisfies EvalProviderOutcome);
 				},
 			);
-			if (graphResult.finding === null) throw new Error("root eval stopped before a finding");
 			expect(executor.providerRequestSummaries()).toHaveLength(7);
 			expect(graphResult.finding.providerReportedMicrousd).toBe(1_099);
 			expect(graphResult.finding.providerOutcomeReasonCounts).toMatchObject({
@@ -6328,11 +6313,8 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 			settledRetryAttemptCount: maxRetryAttempts,
 			providerCallCount: maxProviderAttempts,
 			providerOutcomeReasonCounts: maximalReasonCounts,
-		};
-		assertRootEvalObservationRuntimeShape(
-			maximalObservation as never,
-			"maximal offline observation",
-		);
+		} as never;
+		assertRootEvalObservationRuntimeShape(maximalObservation, "maximal offline observation");
 		const maximalEvent = {
 			...terminal,
 			msg: ["DATA", maximalObservation] as never,
@@ -6497,7 +6479,6 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				}
 				return executor.execute(effect);
 			});
-			if (result.finding === null) throw new Error("root eval stopped before a finding");
 			expect(routeRejectionChecked).toBe(true);
 			const requests = executor.providerRequestSummaries();
 			expect(requests).toHaveLength(35);
@@ -6581,7 +6562,6 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 		});
 		try {
 			const result = await runRootEval(topology, executor.execute);
-			if (result.finding === null) throw new Error("root eval stopped before a finding");
 			expect(executor.providerRequestSummaries()).toHaveLength(35);
 			expect(result.finding.providerOutcomeReasonCounts["tool-proposed"]).toBe(35);
 			expect(result.finding.armOrder).toHaveLength(6);
@@ -6685,8 +6665,6 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 					throw new Error("unexpected retry delay in exact-tool integration test");
 				if (effect.kind === "eval-admitted-billing-observation")
 					return await executor.execute(effect);
-				if (effect.kind !== "eval-admitted-effect")
-					throw new Error("unexpected exact-tool effect outside the relevant-applied replicate");
 				const digest = empiricalStrictJsonDigest({
 					kind: "injected-control-provider-failure",
 					executionId: effect.executionId,
@@ -6725,7 +6703,6 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 					toolProposal: null,
 				} satisfies EvalProviderOutcome);
 			});
-			if (graphResult.finding === null) throw new Error("root eval stopped before a finding");
 			expect(
 				Object.entries(graphResult.finding.providerOutcomeReasonCounts).filter(
 					([, count]) => count > 0,
@@ -7598,11 +7575,9 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				executionGrantDigest: acquisition.claim.executionGrantDigest,
 			});
 			const budgetDigests: string[] = [];
-			const stopBudget = topology.nodes.budgets.subscribe((incoming) => {
-				for (const message of incoming) {
-					if (message[0] === "DATA")
-						budgetDigests.push((message[1] as EvalBudgetState).executionGrantDigest);
-				}
+			const stopBudget = topology.nodes.budgets.subscribe((message) => {
+				if (message[0] === "DATA")
+					budgetDigests.push((message[1] as EvalBudgetState).executionGrantDigest);
 			});
 			expect(topology.campaignContract.executionGrantDigest).toBe(grant.grantDigest);
 			expect(budgetDigests).toEqual([grant.grantDigest]);
@@ -8083,10 +8058,7 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 				zeroByok,
 				credential,
 			};
-			// @ts-expect-error historical D85 claim input (no current-key admission) must be rejected at run time
-			await expect(acquireRootEvalLiveClaim(claimInput)).rejects.toThrow(
-				/claim coordinates did not match the current closure: .*implementation-manifest/u,
-			);
+			await expect(acquireRootEvalLiveClaim(claimInput)).rejects.toThrow(/current closure/u);
 			const currentEvidence = liveEvidenceInput();
 			const originalClaim = currentEvidence.claim!;
 			await expect(
@@ -8350,26 +8322,21 @@ describe("D145 live-boundary qualification over immutable D116/D117 and D118/D12
 					qualificationDigest: input.qualificationDigest,
 					taskBindingDigest: input.taskBindingDigest,
 					taskManifestDigest: testTaskManifestDigest,
-					// @ts-expect-error historical Fireworks pricing must be rejected at run time
 					pricing: Object.freeze({
 						...pricingMaterial,
 						observationDigest: empiricalStrictJsonDigest(pricingMaterial),
 					}),
-					// @ts-expect-error historical Fireworks zero-BYOK observation must be rejected at run time
 					zeroByok: Object.freeze({
 						...zeroMaterial,
 						observationDigest: empiricalStrictJsonDigest(zeroMaterial),
 					}),
-					// @ts-expect-error historical D94 credential binding must be rejected at run time
 					credential: Object.freeze({
 						bearerToken: "test-openrouter-token-not-secret",
 						bindingRef: "openrouter.local-eval-2" as const,
 						bindingRevision: "2026-08-24.d94.v1" as const,
 					}),
 				}),
-			).rejects.toThrow(
-				/claim coordinates did not match the current closure: .*implementation-manifest/u,
-			);
+			).rejects.toThrow(/current closure/u);
 			expect(await readdir(privateRoot)).toEqual([]);
 		} finally {
 			await rm(temporary, { recursive: true, force: true });

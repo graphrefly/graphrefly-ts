@@ -391,14 +391,16 @@ describe("D155 independent provider qualification", () => {
 		const envelopes: unknown[] = [];
 		const stop = topology.graph.observe().subscribe((value) => envelopes.push(value));
 		try {
-			topology.input.set({ kind: "start" });
+			topology.input.down([["DATA", { kind: "start" }]]);
 			for (let request = 1; request <= 3; request++) {
 				const admission = topology.admission.cache!;
 				expect(admission.request).toBe(request);
-				topology.input.set({
-					kind: "outcome",
-					outcome: qualificationOutcome(admission, 200, response(request)),
-				});
+				topology.input.down([
+					[
+						"DATA",
+						{ kind: "outcome", outcome: qualificationOutcome(admission, 200, response(request)) },
+					],
+				]);
 			}
 			expect(topology.admission.cache).toBeNull();
 			expect(topology.terminal.cache).toEqual(completed());

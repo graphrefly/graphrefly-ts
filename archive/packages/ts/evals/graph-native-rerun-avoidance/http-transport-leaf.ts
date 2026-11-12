@@ -87,37 +87,27 @@ export function createRootEvalHttpTransportLeaf<T>(
 			},
 		},
 	});
-	const stopOutcome = runtime.outcomes.subscribe((incoming) => {
-		for (const message of incoming) {
-			if (message[0] !== "DATA") {
-				continue;
-			}
-			const outcome = message[1] as { requestId: string; kind: string };
-			const operation = active.get(outcome.requestId);
-			if (operation === undefined) {
-				continue;
-			}
-			if (operation.error !== undefined) operation.reject(operation.error.value);
-			else if (operation.material !== undefined && outcome.kind === "result")
-				operation.resolve(operation.material.value);
-			else operation.reject(new TypeError("HTTP runtime rejected the admitted transport"));
-		}
+	const stopOutcome = runtime.outcomes.subscribe((message) => {
+		if (message[0] !== "DATA") return;
+		const outcome = message[1] as { requestId: string; kind: string };
+		const operation = active.get(outcome.requestId);
+		if (operation === undefined) return;
+		if (operation.error !== undefined) operation.reject(operation.error.value);
+		else if (operation.material !== undefined && outcome.kind === "result")
+			operation.resolve(operation.material.value);
+		else operation.reject(new TypeError("HTTP runtime rejected the admitted transport"));
 	});
-	const stopStatus = runtime.runStatus.subscribe((incoming) => {
-		for (const message of incoming) {
-			if (message[0] !== "DATA") {
-				continue;
-			}
-			const status = message[1] as { requestId?: string; status: string };
-			if (
-				["missing-request", "missing-input", "stale-request", "mismatched-request"].includes(
-					status.status,
-				)
+	const stopStatus = runtime.runStatus.subscribe((message) => {
+		if (message[0] !== "DATA") return;
+		const status = message[1] as { requestId?: string; status: string };
+		if (
+			["missing-request", "missing-input", "stale-request", "mismatched-request"].includes(
+				status.status,
 			)
-				active
-					.get(status.requestId ?? "")
-					?.reject(new TypeError("HTTP runtime rejected transport correlation"));
-		}
+		)
+			active
+				.get(status.requestId ?? "")
+				?.reject(new TypeError("HTTP runtime rejected transport correlation"));
 	});
 	return Object.freeze({
 		run(executionId: string, invoke: Operation["invoke"], signal: AbortSignal): Promise<T> {
@@ -148,39 +138,49 @@ export function createRootEvalHttpTransportLeaf<T>(
 			try {
 				// Only opaque admission coordinates enter Graph DATA. The marker is
 				// consumed by this private driver and is never sent over the network.
-				inputs.set({
-					kind: "tool-provider-adapter-input",
-					adapterInputId: executionId,
-					status: "ready",
-					requestId: executionId,
-					operationId: executionId,
-					providerId,
-					toolName: "http.fetch",
-					routeId: providerId,
-					executorId: name,
-					profileId: `${name}/profile`,
-					sourceRefs: [{ kind: "eval-admission", id: executionId }],
-					toolCall: {
-						kind: "tool-call",
-						toolName: "http.fetch",
-						arguments: {
-							url: options.endpoint,
-							method: "POST",
-							headers: { "x-eval-transport-id": executionId },
+				inputs.down([
+					[
+						"DATA",
+						{
+							kind: "tool-provider-adapter-input",
+							adapterInputId: executionId,
+							status: "ready",
+							requestId: executionId,
+							operationId: executionId,
+							providerId,
+							toolName: "http.fetch",
+							routeId: providerId,
+							executorId: name,
+							profileId: `${name}/profile`,
+							sourceRefs: [{ kind: "eval-admission", id: executionId }],
+							toolCall: {
+								kind: "tool-call",
+								toolName: "http.fetch",
+								arguments: {
+									url: options.endpoint,
+									method: "POST",
+									headers: { "x-eval-transport-id": executionId },
+								},
+							},
 						},
-					},
-				});
-				requests.set({
-					kind: "tool-provider-adapter-run-requested",
-					runId: executionId,
-					adapterInputId: executionId,
-					requestId: executionId,
-					operationId: executionId,
-					providerId,
-					attempt: 1,
-					reason: "initial",
-					sourceRefs: [{ kind: "eval-admission", id: executionId }],
-				});
+					],
+				]);
+				requests.down([
+					[
+						"DATA",
+						{
+							kind: "tool-provider-adapter-run-requested",
+							runId: executionId,
+							adapterInputId: executionId,
+							requestId: executionId,
+							operationId: executionId,
+							providerId,
+							attempt: 1,
+							reason: "initial",
+							sourceRefs: [{ kind: "eval-admission", id: executionId }],
+						},
+					],
+				]);
 			} catch (error) {
 				reject(error);
 			}

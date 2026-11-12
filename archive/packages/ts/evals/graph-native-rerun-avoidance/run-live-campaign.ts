@@ -548,10 +548,8 @@ async function executeClaimedCampaign(input: {
 			),
 			reservationMicrousd: 200_000,
 		});
-		stopBudget = topology.nodes.budgets.subscribe((incoming) => {
-			for (const message of incoming) {
-				if (message[0] === "DATA") budgetReceipt = message[1] as EvalBudgetState;
-			}
+		stopBudget = topology.nodes.budgets.subscribe((message) => {
+			if (message[0] === "DATA") budgetReceipt = message[1] as EvalBudgetState;
 		});
 		stopObservation = topology.graph.observe("eval/observation").subscribe((event) => {
 			partialGraphObservations.push(event);
