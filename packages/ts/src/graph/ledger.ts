@@ -36,7 +36,7 @@ export function declaredLedger<S>(
 		ledger,
 		setup: (ledgerIndex) => (ctx) => {
 			if (ctx.state.get<S>() === undefined)
-				ctx.state.set(copyOf((ctx.deps[ledgerIndex]?.value as S | undefined) ?? opts.initial()));
+				ctx.state.set(copyOf((ctx.deps[ledgerIndex].value as S | undefined) ?? opts.initial()));
 			return () => {
 				const state = ctx.state.get<S>();
 				if (state !== undefined && !isNodeRuntimeReleased(ledger as Node<unknown>))

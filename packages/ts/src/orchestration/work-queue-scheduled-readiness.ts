@@ -288,12 +288,12 @@ export function workQueueReadinessHandoffProjector<T = unknown>(
 				const record = raw as WorkQueueRecord<T>;
 				ingestWorkQueueRecord(state, record);
 			}
-			for (const raw of ctx.deps[1]?.waves.flat() ?? []) {
+			for (const raw of ctx.deps[1].waves.flat()) {
 				const ready = raw as ScheduledReadinessReady;
 				state.readyByScheduleId.set(ready.scheduleId, ready);
 			}
 			if (opts.overdue !== undefined) {
-				for (const raw of ctx.deps[2]?.waves.flat() ?? []) {
+				for (const raw of ctx.deps[2].waves.flat()) {
 					emitOverdueHandoffStatus(ctx, state, raw as ScheduledReadinessOverdue);
 				}
 			}

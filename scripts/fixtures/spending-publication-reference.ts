@@ -48,9 +48,8 @@ export function buildReferencePublication<T>(
 				memory = {};
 				ctx.state.set(memory);
 			}
-			const current = ctx.deps[1]?.value,
-				delivered =
-					((ctx.deps[1]?.waves.length ? (ctx.deps[1]?.waves.flat() ?? []) : null)?.length ?? 0) > 0;
+			const current = ctx.deps[1].value,
+				delivered = ctx.deps[1].waves.flat().length > 0;
 			if (current === undefined && !delivered) {
 				memory.input = undefined;
 				memory.index = undefined;

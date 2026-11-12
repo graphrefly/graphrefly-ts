@@ -76,7 +76,7 @@ export function workItemEffectPlanProjector<TInput = unknown>(
 						admitPlan(ctx, state, proposal, opts.policy, now);
 				}
 			}
-			for (const raw of ctx.deps[1]?.waves.flat() ?? []) {
+			for (const raw of ctx.deps[1].waves.flat()) {
 				const proposal = raw as WorkItemEffectPlanProposed<TInput>;
 				if (
 					isRecord(proposal) &&
@@ -93,11 +93,11 @@ export function workItemEffectPlanProjector<TInput = unknown>(
 				admitPlan(ctx, state, proposal, opts.policy, now);
 			}
 			if (evidenceIndex >= 0) {
-				for (const raw of ctx.deps[evidenceIndex]?.waves.flat() ?? [])
+				for (const raw of ctx.deps[evidenceIndex].waves.flat())
 					recordPlanEvidence(ctx, state, raw as WorkItemEvidenceRecorded);
 			}
 			if (resultIndex >= 0) {
-				for (const raw of ctx.deps[resultIndex]?.waves.flat() ?? [])
+				for (const raw of ctx.deps[resultIndex].waves.flat())
 					recordPlanResult(ctx, state, raw as EffectRunResult);
 			}
 			drainPlanWork(ctx, state, opts.policy);

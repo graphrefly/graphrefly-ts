@@ -83,8 +83,10 @@ export function toolProviderRunRetryProjector(
 				const policy = sanitizeToolProviderRunRetryPolicy(raw as ToolProviderRunRetryPolicy);
 				state.policies.set(policy.policyId, policy);
 			});
-			for (const rawNow of ctx.deps[nowDepIndex]?.waves.flat() ?? []) {
-				if (typeof rawNow === "number" && Number.isFinite(rawNow)) state.nowMs = rawNow;
+			if (nowDeps.length > 0) {
+				for (const rawNow of ctx.deps[nowDepIndex].waves.flat()) {
+					if (typeof rawNow === "number" && Number.isFinite(rawNow)) state.nowMs = rawNow;
+				}
 			}
 			forEachDepBatch(ctx, readinessDepStart, readinessDeps.length, (raw) => {
 				const ready = sanitizeRetryReadinessReady(raw);
@@ -94,7 +96,7 @@ export function toolProviderRunRetryProjector(
 				}
 				state.readinessBySchedule.set(ready.scheduleId, ready);
 			});
-			for (const raw of ctx.deps[outcomeDepIndex]?.waves.flat() ?? []) {
+			for (const raw of ctx.deps[outcomeDepIndex].waves.flat()) {
 				retainOutcome(state, raw as ExecutorOutcome);
 			}
 			evaluateOutcomes(ctx, state);

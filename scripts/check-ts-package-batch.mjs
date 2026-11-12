@@ -69,6 +69,7 @@ for (const [origin, graphFactory] of [["root", root.graph], ["graph", graphLayer
      requests++; ctx.rewire([request, added]);
      assert.equal(op.deps.length, 1, "rewire applied inside the requesting function");
     }
+    // Dependency 1 exists only once the rewire above has applied.
     for (const value of ctx.deps[1]?.waves.flat() ?? []) ctx.down([["DATA", value]]);
    }, { name: "rewire-op" });
    const stop = op.subscribe(msgs => { for (const m of msgs) if (m[0] === "DATA") values.push(m[1]); });

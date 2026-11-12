@@ -141,12 +141,11 @@ export function workQueue<T = unknown>(graph: Graph, opts: WorkQueueOptions<T>):
 		[admission.available, admissionKick, opts.bus.messages, opts.bus.status],
 		(ctx) => {
 			const pages = ctx.deps[0].waves.flat() as MessageBusAvailablePage<T>[];
-			let shouldPull =
-				((ctx.deps[1]?.waves.length ? (ctx.deps[1]?.waves.flat() ?? []) : null)?.length ?? 0) > 0;
-			for (const message of ctx.deps[2]?.waves.flat() ?? []) {
+			let shouldPull = ctx.deps[1].waves.flat().length > 0;
+			for (const message of ctx.deps[2].waves.flat()) {
 				if ((message as MessageBusMessage<T>).topic === opts.topic) shouldPull = true;
 			}
-			for (const status of ctx.deps[3]?.waves.flat() ?? []) {
+			for (const status of ctx.deps[3].waves.flat()) {
 				if (shouldPollAdmission(status as MessageBusStatus, opts.topic, opts.subscriptionId)) {
 					shouldPull = true;
 				}
@@ -168,7 +167,7 @@ export function workQueue<T = unknown>(graph: Graph, opts: WorkQueueOptions<T>):
 		[commands, admissionPages],
 		(ctx) => {
 			const events: QueueEvent<T>[] = [];
-			for (const page of ctx.deps[1]?.waves.flat() ?? []) {
+			for (const page of ctx.deps[1].waves.flat()) {
 				for (const msg of (page as MessageBusAvailablePage<T>).messages) {
 					events.push(...admitMessage(opts, state, msg, now()));
 				}

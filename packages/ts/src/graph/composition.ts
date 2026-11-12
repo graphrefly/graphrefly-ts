@@ -270,12 +270,11 @@ function stratifyBranchOperator<T, R>(
 			error: "manual",
 		},
 		body: (ctx: Ctx) => {
-			const sourceBatch = ctx.deps[0].waves.length === 0 ? null : ctx.deps[0].waves.flat();
 			const sourceTerminal = ctx.deps[0].terminal;
-			const rules = ctx.deps[1]?.value as R | undefined;
+			const rules = ctx.deps[1].value as R | undefined;
 			const out: Message[] = [];
-			if (rules !== undefined && sourceBatch !== null) {
-				for (const value of sourceBatch as readonly T[]) {
+			if (rules !== undefined) {
+				for (const value of ctx.deps[0].waves.flat() as T[]) {
 					if (classifier(rules, value)) out.push(["DATA", value]);
 				}
 			}

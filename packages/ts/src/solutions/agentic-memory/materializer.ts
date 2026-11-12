@@ -340,7 +340,7 @@ export function agenticMemoryRecordMaterializerBundle<T = unknown>(
 			ctx.down([
 				[
 					"DATA",
-					materializeAgenticMemoryRecordChanges<T>(ctx.deps[1]?.value, {
+					materializeAgenticMemoryRecordChanges<T>(ctx.deps[1].value, {
 						records: ctx.deps[0].value as readonly AgenticMemoryRecord<T>[] | undefined,
 						materializerId: opts.materializerId,
 						evaluation: state.evaluation,

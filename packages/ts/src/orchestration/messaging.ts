@@ -209,7 +209,7 @@ export function orchestrationMessageAckCommands(
 				const delivery = commandDelivery(command);
 				if (delivery !== undefined) pushDelivery(deliveries, command.id, delivery);
 			}
-			for (const raw of ctx.deps[1]?.waves.flat() ?? []) {
+			for (const raw of ctx.deps[1].waves.flat()) {
 				const status = raw as ProcessStatus;
 				if (status.state === "rejected" && opts.ackRejected === false) continue;
 				if (status.commandId === undefined) continue;
@@ -218,7 +218,7 @@ export function orchestrationMessageAckCommands(
 				commands.push(ackCommand(delivery, ackCommandId("orchestration", delivery, "status")));
 			}
 			if (opts.issues !== undefined) {
-				for (const raw of ctx.deps[2]?.waves.flat() ?? []) {
+				for (const raw of ctx.deps[2].waves.flat()) {
 					const delivery = issueDelivery(raw as DataIssue);
 					if (delivery !== undefined) {
 						commands.push(ackCommand(delivery, ackCommandId("orchestration", delivery, "issue")));

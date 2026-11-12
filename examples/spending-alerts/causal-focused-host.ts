@@ -295,7 +295,7 @@ export function buildOfflineSpendingHost(
 				return;
 			}
 			const view = ctx.deps[0].value as CommittedEffectsView | undefined;
-			const material = ctx.deps[1]?.value as MaterialSnapshot | undefined;
+			const material = ctx.deps[1].value as MaterialSnapshot | undefined;
 			if (!view || !material) return;
 			if (
 				view.authorityId !== `${name}/causal/authority` ||
@@ -309,7 +309,7 @@ export function buildOfflineSpendingHost(
 				const value = ctx.deps[index].value as Checked<T> | undefined;
 				return value?.valid ? value.value : undefined;
 			};
-			const pack = ctx.deps[6]?.value as Checked<EvaluationPack> | undefined;
+			const pack = ctx.deps[6].value as Checked<EvaluationPack> | undefined;
 			const current = checked<CurrentFrame>(2),
 				verification = checked<VerificationFrame>(3),
 				local = checked<LocalAuthorityFrame>(4),
@@ -496,9 +496,9 @@ export function buildOfflineSpendingHost(
 				if (domains.has(q.revisionDomain) || domains.size < 64) domains.set(q.revisionDomain, q);
 			}
 			ctx.state.set(domains);
-			const view = ctx.deps[1]?.value as CommittedEffectsView | undefined;
-			const local = ctx.deps[2]?.value as Checked<LocalAuthorityFrame> | undefined;
-			const pack = ctx.deps[3]?.value as Checked<EvaluationPack> | undefined;
+			const view = ctx.deps[1].value as CommittedEffectsView | undefined;
+			const local = ctx.deps[2].value as Checked<LocalAuthorityFrame> | undefined;
+			const pack = ctx.deps[3].value as Checked<EvaluationPack> | undefined;
 			const frontierCovered =
 				!!pack?.valid &&
 				pack.value.evaluations.every((e) => {

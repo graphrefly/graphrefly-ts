@@ -370,7 +370,7 @@ export function buildReferencePreset(
 				if (rows.length || errors.length) values.push(frame(rows, errors.splice(0)));
 			};
 			drain();
-			for (const v of ctx.deps[1]?.waves.flat() ?? []) {
+			for (const v of ctx.deps[1].waves.flat()) {
 				try {
 					const arrivals = referenceInput<ArrivalFrame>("arrivals", v, binding);
 					for (const id of arrivals.evaluationRefs) {
@@ -713,7 +713,7 @@ export function buildReferencePreset(
 		[selection, gate, store, current, verification, local, inbox],
 		(ctx) => {
 			// As the production policy: one pass per verification frame of this run, in order.
-			const frames = (ctx.deps[4]?.waves ?? [])
+			const frames = ctx.deps[4].waves
 				.flat()
 				.filter((f) => (f as Checked<VerificationFrame>)?.valid)
 				.map((f) => (f as Checked<VerificationFrame> & { valid: true }).value);
@@ -738,9 +738,9 @@ export function buildReferencePreset(
 			const s = collect(ctx, 1),
 				out: Message[] = [];
 			if (!s.valid[0]) return;
-			for (const checked of ((ctx.deps[1]?.waves.length
-				? (ctx.deps[1]?.waves.flat() ?? [])
-				: null) ?? [ctx.deps[1]?.value]) as (Checked<CurrentFrame> | undefined)[])
+			for (const checked of (ctx.deps[1].waves.length
+				? ctx.deps[1].waves.flat()
+				: [ctx.deps[1].value]) as (Checked<CurrentFrame> | undefined)[])
 				if (checked?.valid)
 					for (const row of s.maps[0].values()) {
 						const e = row.evaluation;
@@ -771,7 +771,7 @@ export function buildReferencePreset(
 		(ctx) => {
 			const out: Message[] = [];
 			for (let branch = 0; branch < 3; branch++)
-				for (const f of (ctx.deps[branch]?.waves.flat() ?? []) as BusinessFrame<any>[])
+				for (const f of ctx.deps[branch].waves.flat() as BusinessFrame<any>[])
 					if (f.valid)
 						for (const row of f.rows)
 							out.push([
@@ -804,9 +804,10 @@ export function buildReferencePreset(
 	const evidence = make<CausalEvidence>("evidence", [selection, store, verification], (ctx) => {
 		const s = collect(ctx, 2);
 		s.receipts ??= new Map<string, VerificationReceipt>();
-		for (const f of ((ctx.deps[2]?.waves.length ? (ctx.deps[2]?.waves.flat() ?? []) : null) ?? [
-			ctx.deps[2]?.value,
-		]) as (Checked<VerificationFrame> | undefined)[])
+		for (const f of (ctx.deps[2].waves.length ? ctx.deps[2].waves.flat() : [ctx.deps[2].value]) as (
+			| Checked<VerificationFrame>
+			| undefined
+		)[])
 			if (f?.valid)
 				for (const r of f.value.receipts) {
 					const id = digest(r.receiptRef);

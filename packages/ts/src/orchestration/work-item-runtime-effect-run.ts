@@ -39,7 +39,7 @@ export function workItemEffectRunProjector(
 				const workItem = raw as WorkItemSeed;
 				state.workItems.set(workItem.workItemId, workItem);
 			}
-			for (const raw of ctx.deps[1]?.waves.flat() ?? []) {
+			for (const raw of ctx.deps[1].waves.flat()) {
 				const request = raw as WorkItemEffectRequested;
 				state.requests.set(request.requestId, request);
 				const requestRefs = workItemEffectRequestRefs(request);
@@ -215,7 +215,7 @@ export function workItemEffectRunProjector(
 					if (!state.settledRequestIds.has(request.requestId))
 						state.pendingEffectRequests.set(request.requestId, request);
 				}
-				for (const raw of ctx.deps[1]?.waves.flat() ?? []) {
+				for (const raw of ctx.deps[1].waves.flat()) {
 					const fact = raw as WorkItemEffectRunFact;
 					if (fact.kind === "effect-run") {
 						for (const request of state.pendingEffectRequests.values()) {

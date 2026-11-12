@@ -963,11 +963,10 @@ export function valve<S>(opts?: ValveOpts): Operator<unknown, S> {
 		factory: "valve",
 		opts: { complete: "manual" },
 		body: (ctx) => {
-			const srcBatch = ctx.deps[0].waves.length === 0 ? null : ctx.deps[0].waves.flat();
-			const ctlBatch =
-				(ctx.deps[1]?.waves ?? []).length === 0 ? null : (ctx.deps[1]?.waves.flat() ?? []);
+			const sourceArrived = ctx.deps[0].waves.flat().length > 0;
+			const controlArrived = ctx.deps[1].waves.flat().length > 0;
 			const srcTerminal = ctx.deps[0].terminal;
-			const controlValue = ctx.deps[1]?.value as boolean | undefined;
+			const controlValue = ctx.deps[1].value as boolean | undefined;
 
 			if (abortInFlight != null) {
 				// Fire abort on the truthy→falsy edge only (never on activation / no prior state).
@@ -982,15 +981,14 @@ export function valve<S>(opts?: ValveOpts): Operator<unknown, S> {
 			}
 
 			if (controlValue) {
-				if (srcBatch && srcBatch.length > 0) {
+				if (sourceArrived) {
 					eachInputArray(ctx, 0, (v, out) => {
 						out.push(["DATA", v]);
 					});
 				} else {
 					// Gate just opened this wave (control fired, source didn't): re-emit the last source value.
 					const srcLatest = ctx.deps[0].value;
-					if (ctlBatch && ctlBatch.length > 0 && srcLatest !== undefined)
-						ctx.down([["DATA", srcLatest as S]]);
+					if (controlArrived && srcLatest !== undefined) ctx.down([["DATA", srcLatest as S]]);
 				}
 			}
 			// Then the source's terminal, after values that came with it; a control terminal is

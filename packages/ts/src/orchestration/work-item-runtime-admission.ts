@@ -79,7 +79,7 @@ export function workItemDomainActionAdmissionProjector(
 				const policy = raw as WorkItemDomainActionAdmissionPolicy;
 				state.policies.set(policy.policyId, policy);
 			});
-			for (const raw of ctx.deps[1]?.waves.flat() ?? []) {
+			for (const raw of ctx.deps[1].waves.flat()) {
 				const decision = raw as WorkItemDomainActionAdmissionDecision;
 				if (state.decisions.has(decision.decisionId)) {
 					emitWorkItemAdmissionIssue(

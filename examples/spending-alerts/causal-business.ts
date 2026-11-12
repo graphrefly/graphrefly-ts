@@ -277,7 +277,7 @@ export function buildBusiness(make: MakeNode, inputs: SpendingInputs, binding: S
 				if (rows.length || problems.length) values.push(frame(rows, problems.splice(0)));
 			};
 			emitPending();
-			for (const raw of ctx.deps[1]?.waves.flat() ?? []) {
+			for (const raw of ctx.deps[1].waves.flat()) {
 				const result: Checked<ArrivalFrame> =
 					raw === SENTINEL
 						? { valid: false, issue: issue("invalidated-arrivals") }

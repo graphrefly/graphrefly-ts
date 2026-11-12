@@ -78,11 +78,11 @@ export function workItemVerificationRequestLowerer<TInput = unknown>(
 				lowerPlan(ctx, state, workItem, opts.policy);
 			}
 			if (dispatchIntentIndex >= 0) {
-				for (const raw of ctx.deps[dispatchIntentIndex]?.waves.flat() ?? [])
+				for (const raw of ctx.deps[dispatchIntentIndex].waves.flat())
 					lowerIntent(ctx, state, raw as WorkItemDispatchIntent<TInput>, opts.policy);
 			}
 			if (verificationResultIndex >= 0) {
-				for (const raw of ctx.deps[verificationResultIndex]?.waves.flat() ?? [])
+				for (const raw of ctx.deps[verificationResultIndex].waves.flat())
 					recordVerificationResult(ctx, state, raw as VerificationResultRecorded, opts.policy);
 			}
 			ctx.state.set(state);
@@ -161,7 +161,7 @@ export function workItemVerificationResultMapper<TInput = unknown>(
 				replayEvidence(ctx, state, workItem.workItemId);
 			}
 			if (opts.policies !== undefined) {
-				for (const raw of ctx.deps[2]?.waves.flat() ?? []) {
+				for (const raw of ctx.deps[2].waves.flat()) {
 					const policy = raw as WorkItemVerificationMappingPolicy;
 					const issues = validateMappingPolicy(policy);
 					if (issues.length > 0) {
@@ -179,7 +179,7 @@ export function workItemVerificationResultMapper<TInput = unknown>(
 					mapEvidence(ctx, state, evidence, true);
 				}
 			}
-			for (const raw of ctx.deps[1]?.waves.flat() ?? [])
+			for (const raw of ctx.deps[1].waves.flat())
 				mapEvidence(ctx, state, raw as WorkItemEvidenceRecorded);
 			ctx.state.set(state);
 		},

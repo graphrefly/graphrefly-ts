@@ -184,7 +184,7 @@ export function admissionHandoff<T, R = unknown>(
 				observed = true;
 				ingestCandidate(ctx as DownCtx<T, R>, state, raw, name, opts.maxPending, opts.maxRecent);
 			}
-			for (const raw of ctx.deps[1]?.waves.flat() ?? []) {
+			for (const raw of ctx.deps[1].waves.flat()) {
 				observed = true;
 				ingestDecision(ctx as DownCtx<T, R>, state, raw, name, opts.maxPending, opts.maxRecent);
 			}

@@ -624,7 +624,7 @@ function createReactiveMap<K, V>(
 		body: (ctx: Ctx) => {
 			const changes: MapChange<K, V>[] = [];
 			for (const change of ctx.deps[0].waves.flat()) changes.push(change as MapChange<K, V>);
-			for (const prep of ctx.deps[1]?.waves.flat() ?? []) {
+			for (const prep of ctx.deps[1].waves.flat()) {
 				for (const change of (prep as SnapshotPrep<K, V>).expired) changes.push(change);
 			}
 			ctx.down(changes.map((v) => ["DATA", v] as const));

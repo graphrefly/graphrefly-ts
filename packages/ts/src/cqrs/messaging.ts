@@ -232,7 +232,7 @@ function ackCommandsFn(config: AckCommandsConfig): NodeFn {
 			const delivery = commandDelivery(command);
 			if (delivery !== undefined) pushDelivery(deliveries, command.id, delivery);
 		}
-		for (const raw of ctx.deps[1]?.waves.flat() ?? []) {
+		for (const raw of ctx.deps[1].waves.flat()) {
 			const status = raw as CqrsStatus;
 			if (status.state === "rejected" && !config.ackRejected) continue;
 			if (status.commandId === undefined) continue;
@@ -241,7 +241,7 @@ function ackCommandsFn(config: AckCommandsConfig): NodeFn {
 			acks.push(ackCommand(delivery, ackCommandId("cqrs", delivery, "status")));
 		}
 		if (config.issues) {
-			for (const raw of ctx.deps[2]?.waves.flat() ?? []) {
+			for (const raw of ctx.deps[2].waves.flat()) {
 				const issue = raw as DataIssue;
 				const delivery = issueDelivery(issue);
 				if (delivery !== undefined) {

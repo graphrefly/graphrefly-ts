@@ -100,7 +100,7 @@ export function forEachDepBatch(
 	fn: (value: unknown) => void,
 ): void {
 	for (let i = 0; i < count; i += 1) {
-		for (const value of ctx.deps[start + i]?.waves.flat() ?? []) fn(value);
+		for (const value of ctx.deps[start + i].waves.flat()) fn(value);
 	}
 }
 

@@ -288,7 +288,7 @@ function remoteCallResponsesNode<TRequest, TResponse>(
 					remotePendingTakeBySeq(state.pending, event.seq);
 				}
 			}
-			for (const raw of ctx.deps[1]?.waves.flat() ?? []) {
+			for (const raw of ctx.deps[1].waves.flat()) {
 				const timeout = raw as RemoteCallTimeout;
 				remotePendingTakeByRequestId(state.pending, timeout.requestId);
 			}
@@ -475,7 +475,7 @@ function remoteCallStatusNode<TRequest, TResponse>(
 					}
 				}
 			}
-			for (const raw of ctx.deps[1]?.waves.flat() ?? []) {
+			for (const raw of ctx.deps[1].waves.flat()) {
 				const timeout = raw as RemoteCallTimeout;
 				remotePendingTakeByRequestId(state.pending, timeout.requestId);
 				state.status = {
@@ -520,7 +520,7 @@ function remoteCallErrorsNode<TRequest, TResponse>(
 					],
 				]);
 			}
-			for (const raw of ctx.deps[1]?.waves.flat() ?? []) {
+			for (const raw of ctx.deps[1].waves.flat()) {
 				const event = (
 					raw as WireBridgeIndexedEvent<RemoteCallRequest<TRequest>, RemoteCallResponse<TResponse>>
 				).event;

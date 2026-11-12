@@ -56,7 +56,7 @@ export function agenticMemoryKgProjectionBundle(
 			state.evaluation += 1;
 			const recordProjection = validateAndProjectRecords(ctx.deps[0].value);
 			const draftProjection = validateAndProjectKgDrafts(
-				ctx.deps[1]?.value,
+				ctx.deps[1].value,
 				recordProjection.records,
 			);
 			const cursor: AgenticMemoryKgProjectionCursor = Object.freeze({

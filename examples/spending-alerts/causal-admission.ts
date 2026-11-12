@@ -320,7 +320,7 @@ export function buildAdmission(
 			// One policy pass per verification frame of this run, in arrival order: a delivery brings
 			// all of a wave's arrays to one run (R-wave), and each frame was the current verification
 			// when it arrived.
-			const frames = (ctx.deps[4]?.waves ?? [])
+			const frames = ctx.deps[4].waves
 				.flat()
 				.filter((f) => (f as Checked<VerificationFrame>)?.valid)
 				.map((f) => (f as Checked<VerificationFrame> & { valid: true }).value);
@@ -355,9 +355,9 @@ export function buildAdmission(
 			};
 			const s = collect(ctx, 1);
 			if (!s.valid[0]) return;
-			const frames = ((ctx.deps[1]?.waves.length ? (ctx.deps[1]?.waves.flat() ?? []) : null) ?? [
-				ctx.deps[1]?.value,
-			]) as (Checked<CurrentFrame> | undefined)[];
+			const frames = (
+				ctx.deps[1].waves.length ? ctx.deps[1].waves.flat() : [ctx.deps[1].value]
+			) as (Checked<CurrentFrame> | undefined)[];
 			for (const checked of frames) {
 				if (!checked?.valid) continue;
 				const current = checked.value;
@@ -445,12 +445,9 @@ export function buildAdmission(
 			};
 			const s = collect(ctx, 2) as RowsState & { receipts?: Map<string, VerificationReceipt> };
 			s.receipts ??= new Map();
-			const verificationFrames = (((ctx.deps[2]?.waves ?? []).length === 0
-				? null
-				: (ctx.deps[2]?.waves.flat() ?? [])) ?? [ctx.deps[2]?.value]) as (
-				| Checked<VerificationFrame>
-				| undefined
-			)[];
+			const verificationFrames = (
+				ctx.deps[2].waves.length === 0 ? [ctx.deps[2].value] : ctx.deps[2].waves.flat()
+			) as (Checked<VerificationFrame> | undefined)[];
 			for (const f of verificationFrames)
 				if (f?.valid)
 					for (const receipt of f.value.receipts) {

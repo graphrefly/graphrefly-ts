@@ -171,21 +171,19 @@ export function reactiveCascadingCache<K extends string, V>(
 			const invalidateBatch =
 				invalidateIndex === -1
 					? null
-					: (((ctx.deps[invalidateIndex]?.waves ?? []).length === 0
+					: ((ctx.deps[invalidateIndex].waves.length === 0
 							? null
-							: (ctx.deps[invalidateIndex]?.waves.flat() ?? [])) as readonly K[] | null);
+							: ctx.deps[invalidateIndex].waves.flat()) as readonly K[] | null);
 			const policyBatch =
 				policyIndex === -1
 					? null
-					: (((ctx.deps[policyIndex]?.waves ?? []).length === 0
+					: ((ctx.deps[policyIndex].waves.length === 0
 							? null
-							: (ctx.deps[policyIndex]?.waves.flat() ?? [])) as
-							| readonly CascadingCachePolicy[]
-							| null);
+							: ctx.deps[policyIndex].waves.flat()) as readonly CascadingCachePolicy[] | null);
 			const currentPolicy =
 				policyIndex === -1
 					? undefined
-					: (ctx.deps[policyIndex]?.value as CascadingCachePolicy | undefined);
+					: (ctx.deps[policyIndex].value as CascadingCachePolicy | undefined);
 
 			if (requestBatch !== null) {
 				for (const key of requestBatch) {

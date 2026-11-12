@@ -127,12 +127,12 @@ export function cqrsWorkQueueRecipe<TCommand = unknown>(
 				reduceRecord(ctx, state, raw as WorkQueueRecord<CqrsQueuedCommandPayload<TCommand>>, opts);
 			}
 			if (opts.errors !== undefined) {
-				for (const raw of ctx.deps[2]?.waves.flat() ?? []) {
+				for (const raw of ctx.deps[2].waves.flat()) {
 					const error = raw as CqrsError;
 					if (error.commandId !== undefined) state.errors.set(error.commandId, error);
 				}
 			}
-			for (const raw of ctx.deps[1]?.waves.flat() ?? []) {
+			for (const raw of ctx.deps[1].waves.flat()) {
 				reduceStatus(ctx, state, raw as CqrsStatus, opts);
 			}
 			ctx.state.set(state);

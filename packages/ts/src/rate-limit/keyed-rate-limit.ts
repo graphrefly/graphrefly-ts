@@ -1053,7 +1053,7 @@ function keyedRateLimitRuntimeBuild(
 			for (const raw of ctx.deps[0].waves.flat()) {
 				processRequest(state, raw, maxPending, facts);
 			}
-			for (const raw of ctx.deps[1]?.waves.flat() ?? []) {
+			for (const raw of ctx.deps[1].waves.flat()) {
 				processOutcome(state, raw, maxCompleted, facts);
 			}
 		}
@@ -1067,7 +1067,7 @@ function keyedRateLimitRuntimeBuild(
 		if (ctx.state.get<KeyedRateLimitRuntimeState>() === undefined)
 			ctx.state.set(
 				copyRuntimeState(
-					(ctx.deps[ledgerIndex]?.value as KeyedRateLimitRuntimeState | undefined) ??
+					(ctx.deps[ledgerIndex].value as KeyedRateLimitRuntimeState | undefined) ??
 						initialRuntimeState(),
 				),
 			);

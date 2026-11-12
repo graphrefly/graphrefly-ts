@@ -16,7 +16,7 @@ export function eachInputArray<V>(
 	// biome-ignore lint/suspicious/noConfusingVoidType: a value callback returns false to stop, or nothing.
 	onValue: (value: V, out: Message[]) => boolean | void,
 ): boolean {
-	for (const wave of ctx.deps[dep]?.waves ?? []) {
+	for (const wave of ctx.deps[dep].waves) {
 		const out: Message[] = [];
 		let stopped = false;
 		for (const value of wave) {

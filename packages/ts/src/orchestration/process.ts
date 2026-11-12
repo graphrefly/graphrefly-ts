@@ -552,7 +552,7 @@ function processEffectRunnerStatusFn(): NodeFn {
 				rejected: state.rejected,
 			});
 		}
-		for (const fact of ctx.deps[1]?.waves.flat() ?? []) {
+		for (const fact of ctx.deps[1].waves.flat()) {
 			const typedFact = fact as ProcessEffectRunnerFact;
 			if (typedFact.kind === "command") {
 				state = { ...state, commanded: state.commanded + 1 };

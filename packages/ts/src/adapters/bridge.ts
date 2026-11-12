@@ -501,7 +501,7 @@ function wireBridgeAckDriverEventsNode<TOutbound, TInbound>(
 				state.nowMs = nowMs;
 				touched = true;
 			}
-			for (const rawAttempt of ctx.deps[1]?.waves.flat() ?? []) {
+			for (const rawAttempt of ctx.deps[1].waves.flat()) {
 				const attempt = rawAttempt as { readonly seq: number; readonly attempt: number };
 				state.pending.set(attempt.seq, {
 					seq: attempt.seq,
@@ -510,15 +510,15 @@ function wireBridgeAckDriverEventsNode<TOutbound, TInbound>(
 				});
 				touched = true;
 			}
-			for (const rawAck of ctx.deps[2]?.waves.flat() ?? []) {
+			for (const rawAck of ctx.deps[2].waves.flat()) {
 				state.pending.delete((rawAck as { readonly ackForSeq: number }).ackForSeq);
 				touched = true;
 			}
-			for (const rawNack of ctx.deps[3]?.waves.flat() ?? []) {
+			for (const rawNack of ctx.deps[3].waves.flat()) {
 				state.pending.delete((rawNack as { readonly ackForSeq: number }).ackForSeq);
 				touched = true;
 			}
-			for (const rawStatus of ctx.deps[4]?.waves.flat() ?? []) {
+			for (const rawStatus of ctx.deps[4].waves.flat()) {
 				const status = rawStatus as {
 					readonly state?: string;
 					readonly pending?: number;
@@ -847,7 +847,7 @@ export function wireBridgeProtobuf(
 				const result = event.result;
 				if (result.kind === "issue") ctx.down([["DATA", result.issue]]);
 			}
-			for (const raw of ctx.deps[1]?.waves.flat() ?? []) {
+			for (const raw of ctx.deps[1].waves.flat()) {
 				const event = raw as WireBridgeProtobufOutboundEvent;
 				const result = event.result;
 				if (result.kind === "issue") ctx.down([["DATA", result.issue]]);
@@ -889,7 +889,7 @@ export function wireBridgeProtobuf(
 					});
 				}
 			}
-			for (const raw of ctx.deps[1]?.waves.flat() ?? []) {
+			for (const raw of ctx.deps[1].waves.flat()) {
 				const event = raw as WireBridgeProtobufOutboundEvent;
 				const result = event.result;
 				if (result.kind === "encoded") {
@@ -1101,10 +1101,10 @@ function wireBridgeEventsNode<TOutbound, TInbound>(
 				if (shouldTrackAck(type)) state.pending.set(envelope.metadata.seq, { envelope });
 			};
 
-			for (const raw of ctx.deps[1]?.waves.flat() ?? []) {
+			for (const raw of ctx.deps[1].waves.flat()) {
 				processInbound(ctx, state, raw, opts.sessionId);
 			}
-			const inboundTerminal = ctx.deps[1]?.terminal;
+			const inboundTerminal = ctx.deps[1].terminal;
 			if (inboundTerminal !== undefined && !state.terminalReported) {
 				state.terminalReported = true;
 				const error =

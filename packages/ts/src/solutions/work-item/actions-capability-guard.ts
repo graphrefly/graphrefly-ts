@@ -71,7 +71,7 @@ export function workItemDomainActionCapabilityGuardProjector(
 				statusSeq: 0,
 				auditSeq: 0,
 			};
-			for (const raw of ctx.deps[2]?.waves.flat() ?? []) {
+			for (const raw of ctx.deps[2].waves.flat()) {
 				const policyIssue = capabilityGuardPolicyIssue(raw);
 				if (policyIssue !== undefined) {
 					emitCapabilityGuardIssue(
@@ -85,7 +85,7 @@ export function workItemDomainActionCapabilityGuardProjector(
 				const policy = raw as WorkItemDomainActionCapabilityGuardPolicy;
 				state.policies.set(policy.policyId, policy);
 			}
-			for (const raw of ctx.deps[1]?.waves.flat() ?? []) {
+			for (const raw of ctx.deps[1].waves.flat()) {
 				const admissionIssue = capabilityAdmissionIssue(raw);
 				if (admissionIssue !== undefined) {
 					emitCapabilityGuardIssue(
@@ -105,7 +105,7 @@ export function workItemDomainActionCapabilityGuardProjector(
 				}
 			}
 			if (statusIndex >= 0) {
-				for (const raw of ctx.deps[statusIndex]?.waves.flat() ?? []) {
+				for (const raw of ctx.deps[statusIndex].waves.flat()) {
 					const statusIssue = capabilityAdmissionStatusIssue(raw);
 					if (statusIssue !== undefined) {
 						emitCapabilityGuardIssue(

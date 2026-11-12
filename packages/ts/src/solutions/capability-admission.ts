@@ -231,7 +231,7 @@ export function capabilityAdmissionProjector(
 				}
 				state.policies.set(policy.policyId, policy);
 			});
-			for (const raw of ctx.deps[1]?.waves.flat() ?? []) {
+			for (const raw of ctx.deps[1].waves.flat()) {
 				const decision = raw as CapabilityAdmissionDecision;
 				const issue = capabilityAdmissionDecisionIssue(decision);
 				if (issue !== undefined) {
@@ -799,7 +799,7 @@ function forEachPolicyDepBatch(
 	fn: (value: unknown) => void,
 ): void {
 	for (let i = 0; i < count; i += 1) {
-		for (const value of ctx.deps[start + i]?.waves.flat() ?? []) fn(value);
+		for (const value of ctx.deps[start + i].waves.flat()) fn(value);
 	}
 }
 

@@ -74,7 +74,7 @@ export function withLatestFrom<A, B>(): Operator<unknown, readonly [A, B]> {
 		recipe: { ref: "withLatestFrom" },
 		opts: { complete: "manual" },
 		body: (ctx) => {
-			const sec = ctx.deps[1]?.value as B | undefined;
+			const sec = ctx.deps[1].value as B | undefined;
 			if (sec === undefined) {
 				// No secondary yet: hold this run's primary values until it arrives.
 				const held = ctx.state.get<A[]>() ?? [];
@@ -132,8 +132,7 @@ export function zip<T extends readonly unknown[]>(): Operator<unknown, T> {
 				terminal: new Array(n).fill(false),
 			};
 			for (let i = 0; i < n; i++) {
-				const b = ctx.deps[i].waves.length === 0 ? null : ctx.deps[i].waves.flat();
-				if (b) for (const v of b) st.queues[i].push(v);
+				for (const v of ctx.deps[i].waves.flat()) st.queues[i].push(v);
 				if (ctx.deps[i].terminal?.kind === "complete") st.terminal[i] = true;
 			}
 			// The tuples a run forms go out as one array, with COMPLETE last if a dep is drained.
@@ -174,11 +173,10 @@ export function concat<S>(): Operator<S, S> {
 		recipe: { ref: "concat" },
 		opts: { complete: "manual" },
 		body: (ctx) => {
-			const firstBatch = ctx.deps[0].waves.length === 0 ? null : ctx.deps[0].waves.flat();
-			const secondBatch =
-				(ctx.deps[1]?.waves ?? []).length === 0 ? null : (ctx.deps[1]?.waves.flat() ?? []);
+			const firstValues = ctx.deps[0].waves.flat();
+			const secondValues = ctx.deps[1].waves.flat();
 			const firstTerminal = ctx.deps[0].terminal;
-			const secondTerminal = ctx.deps[1]?.terminal;
+			const secondTerminal = ctx.deps[1].terminal;
 			const st: ConcatState<S> = ctx.state.get<ConcatState<S>>() ?? {
 				phase: 0,
 				pending: [],
@@ -186,12 +184,12 @@ export function concat<S>(): Operator<S, S> {
 			};
 			// What a run plays goes out as one array, with COMPLETE last when the second dep is done.
 			const out: Message[] = [];
-			const play = (values: readonly unknown[] | null) => {
-				if (values) for (const v of values) out.push(["DATA", v]);
+			const play = (values: readonly unknown[]) => {
+				for (const v of values) out.push(["DATA", v]);
 			};
 			if (st.phase === 0) {
-				play(firstBatch);
-				if (secondBatch) for (const v of secondBatch) st.pending.push(v as S);
+				play(firstValues);
+				for (const v of secondValues) st.pending.push(v as S);
 				if (secondTerminal?.kind === "complete") st.secondDone = true;
 				if (firstTerminal?.kind === "complete") {
 					st.phase = 1;
@@ -200,7 +198,7 @@ export function concat<S>(): Operator<S, S> {
 					if (st.secondDone) out.push(["COMPLETE"]);
 				}
 			} else {
-				play(secondBatch);
+				play(secondValues);
 				if (secondTerminal?.kind === "complete") out.push(["COMPLETE"]);
 			}
 			ctx.state.set(st);
@@ -246,8 +244,7 @@ export function race<S>(): Operator<S, S> {
 			if (st.winner === null) {
 				// Find the first dep that delivered DATA this wave → it wins.
 				for (let i = 0; i < n; i++) {
-					const b = ctx.deps[i].waves.length === 0 ? null : ctx.deps[i].waves.flat();
-					if (b && b.length > 0) {
+					if (ctx.deps[i].waves.flat().length > 0) {
 						st.winner = i;
 						break;
 					}
@@ -263,7 +260,7 @@ export function race<S>(): Operator<S, S> {
 			if (st.winner === null) return;
 			// The winner's values, then its terminal when it came in the same array (also in the
 			// wave that picked it).
-			const terminal = ctx.deps[st.winner]?.terminal;
+			const terminal = ctx.deps[st.winner].terminal;
 			eachInputArray(ctx, st.winner, (v, out) => {
 				out.push(["DATA", v]);
 			});
@@ -293,18 +290,16 @@ export function buffer<S>(): Operator<unknown, S[]> {
 		recipe: { ref: "buffer" },
 		opts: { complete: "manual" },
 		body: (ctx) => {
-			const sourceBatch = ctx.deps[0].waves.length === 0 ? null : ctx.deps[0].waves.flat();
-			const notifierBatch =
-				(ctx.deps[1]?.waves ?? []).length === 0 ? null : (ctx.deps[1]?.waves.flat() ?? []);
+			const notified = ctx.deps[1].waves.flat().length > 0;
 			const buf = ctx.state.get<S[]>() ?? [];
-			if (sourceBatch) for (const v of sourceBatch) buf.push(v as S);
+			for (const v of ctx.deps[0].waves.flat()) buf.push(v as S);
 			if (ctx.deps[0].terminal?.kind === "complete") {
 				ctx.down([["DATA", [...buf]]]);
 				ctx.state.set([]);
 				ctx.down([["COMPLETE"]]);
 				return;
 			}
-			if (notifierBatch && notifierBatch.length > 0) {
+			if (notified) {
 				ctx.down([["DATA", [...buf]]]); // flush (may be empty) on each notifier signal
 				ctx.state.set([]);
 				return;
@@ -334,15 +329,12 @@ export function bufferCount<S>(count: number): Operator<S, S[]> {
 		recipe: { ref: "bufferCount", config: { count: toCheckpointJson(count, "bufferCount.count") } },
 		opts: { complete: "manual" },
 		body: (ctx) => {
-			const b = ctx.deps[0].waves.length === 0 ? null : ctx.deps[0].waves.flat();
 			const buf = ctx.state.get<S[]>() ?? [];
 			// The buffers a run fills go out as one array, with the remainder and COMPLETE at the end.
 			const out: Message[] = [];
-			if (b) {
-				for (const v of b) {
-					buf.push(v as S);
-					if (buf.length >= count) out.push(["DATA", buf.splice(0, buf.length)]);
-				}
+			for (const v of ctx.deps[0].waves.flat()) {
+				buf.push(v as S);
+				if (buf.length >= count) out.push(["DATA", buf.splice(0, buf.length)]);
 			}
 			if (ctx.deps[0].terminal?.kind === "complete") {
 				if (buf.length > 0) out.push(["DATA", [...buf]]);
@@ -384,11 +376,9 @@ export function sample<S>(): Operator<unknown, S> {
 			error: "manual",
 		},
 		body: (ctx) => {
-			const sourceBatch = ctx.deps[0].waves.length === 0 ? null : ctx.deps[0].waves.flat();
-			const notifierBatch =
-				(ctx.deps[1]?.waves ?? []).length === 0 ? null : (ctx.deps[1]?.waves.flat() ?? []);
+			const notified = ctx.deps[1].waves.flat().length > 0;
 			const sourceTerminal = ctx.deps[0].terminal;
-			const notifierTerminal = ctx.deps[1]?.terminal;
+			const notifierTerminal = ctx.deps[1].terminal;
 			// No `last` key until a value arrives: private state is strict JSON (R-checkpoint@1).
 			const st: SampleState<S> = ctx.state.get<SampleState<S>>() ?? {
 				sourceDone: false,
@@ -404,7 +394,7 @@ export function sample<S>(): Operator<unknown, S> {
 				]);
 				return;
 			}
-			if (sourceBatch) for (const v of sourceBatch) st.last = { v: v as S };
+			for (const v of ctx.deps[0].waves.flat()) st.last = { v: v as S };
 			if (sourceTerminal?.kind === "complete") {
 				st.sourceDone = true;
 				delete st.last;
@@ -414,7 +404,7 @@ export function sample<S>(): Operator<unknown, S> {
 				ctx.down([["COMPLETE"]]);
 				return;
 			}
-			if (notifierBatch && notifierBatch.length > 0 && st.last !== undefined && !st.sourceDone) {
+			if (notified && st.last !== undefined && !st.sourceDone) {
 				ctx.down([["DATA", st.last.v]]);
 			}
 			ctx.state.set(st);
@@ -440,14 +430,11 @@ export function takeUntil<S>(): Operator<unknown, S> {
 		recipe: { ref: "takeUntil" },
 		opts: { complete: "manual" },
 		body: (ctx: Ctx) => {
-			const sourceBatch = ctx.deps[0].waves.length === 0 ? null : ctx.deps[0].waves.flat();
-			const notifierBatch =
-				(ctx.deps[1]?.waves ?? []).length === 0 ? null : (ctx.deps[1]?.waves.flat() ?? []);
-			if (notifierBatch && notifierBatch.length > 0) {
+			if (ctx.deps[1].waves.flat().length > 0) {
 				ctx.down([["COMPLETE"]]); // notifier fired → stop
 				return;
 			}
-			if (sourceBatch) for (const v of sourceBatch) ctx.down([["DATA", v]]);
+			for (const v of ctx.deps[0].waves.flat()) ctx.down([["DATA", v]]);
 			if (ctx.deps[0].terminal?.kind === "complete") ctx.down([["COMPLETE"]]);
 		},
 	};

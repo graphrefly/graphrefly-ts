@@ -57,7 +57,7 @@ export function workItemDomainActionProposalProjector(
 				const workItem = raw as WorkItemSeed;
 				state.workItems.set(workItem.workItemId, workItem);
 			}
-			for (const raw of ctx.deps[1]?.waves.flat() ?? []) {
+			for (const raw of ctx.deps[1].waves.flat()) {
 				const evidence = raw as WorkItemEvidenceRecorded;
 				if (state.evidence.has(evidence.evidenceId)) {
 					emitWorkItemActionProposalIssue(
@@ -73,7 +73,7 @@ export function workItemDomainActionProposalProjector(
 				}
 				state.evidence.set(evidence.evidenceId, evidence);
 			}
-			for (const raw of ctx.deps[2]?.waves.flat() ?? []) {
+			for (const raw of ctx.deps[2].waves.flat()) {
 				const result = raw as EffectRunResult;
 				if (state.results.has(result.resultId)) {
 					emitWorkItemActionProposalIssue(

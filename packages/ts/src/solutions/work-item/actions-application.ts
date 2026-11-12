@@ -90,17 +90,17 @@ export function workItemDomainActionApplicationProjector<TInput = unknown>(
 				}
 				state.proposals.set(proposal.proposalId, proposal);
 			}
-			for (const raw of ctx.deps[2]?.waves.flat() ?? []) {
+			for (const raw of ctx.deps[2].waves.flat()) {
 				const workItem = raw as WorkItemProjection<TInput>;
 				state.workItems.set(workItem.workItemId, workItem);
 			}
 			if (opts.applyPolicies !== undefined) {
-				for (const raw of ctx.deps[3]?.waves.flat() ?? []) {
+				for (const raw of ctx.deps[3].waves.flat()) {
 					const policy = raw as WorkItemDomainActionApplyPolicy;
 					state.policies.set(policy.policyId, policy);
 				}
 			}
-			for (const raw of ctx.deps[1]?.waves.flat() ?? []) {
+			for (const raw of ctx.deps[1].waves.flat()) {
 				const admission = raw as WorkItemDomainActionAdmission;
 				if (state.admissions.has(admission.admissionId)) {
 					emitApplicationIssue(

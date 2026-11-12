@@ -70,7 +70,7 @@ export function agenticMemoryContextProjection<T>(
 		[projection, retrieval],
 		(ctx) => {
 			const projectionFact = ctx.deps[0].value as AgenticMemoryProjectionSnapshot<T> | undefined;
-			const retrievalFacts = ctx.deps[1]?.waves.flat() ?? [];
+			const retrievalFacts = ctx.deps[1].waves.flat();
 			if (projectionFact === undefined || retrievalFacts.length === 0) return;
 			const contexts: AgenticMemoryContext<T>[] = [];
 			for (const raw of retrievalFacts) {

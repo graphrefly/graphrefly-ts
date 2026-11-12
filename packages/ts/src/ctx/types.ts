@@ -162,7 +162,7 @@ export type NodeFn = (ctx: Ctx) => void;
 
 /** Internal adapter helper: the waves dependency `depIndex` delivered live, not as a snapshot. */
 export function depLiveWaves(ctx: Ctx, depIndex: number): readonly (readonly unknown[])[] {
-	const waves = ctx.deps[depIndex]?.waves ?? [];
+	const waves = ctx.deps[depIndex].waves;
 	const live = ctxDepWaveOrigins.get(ctx)?.live(depIndex) ?? [];
 	return waves.filter((_, index) => live[index]);
 }

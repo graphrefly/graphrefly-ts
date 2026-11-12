@@ -6,6 +6,6 @@
 import type { Ctx } from "../../ctx/types.js";
 
 export function relayFirst(ctx: Ctx): void {
-	const values = ctx.deps[0]?.waves.flat() ?? [];
+	const values = ctx.deps[0].waves.flat();
 	if (values.length > 0) ctx.down([["DATA", values[values.length - 1]]]);
 }

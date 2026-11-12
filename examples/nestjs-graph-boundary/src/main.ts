@@ -221,7 +221,7 @@ const ordersAudit = g.node<AuditEntry>(
 	(ctx) => {
 		const envelope = ctx.deps[0].value as NestBoundaryEnvelope<OrderRequest>;
 		if (envelope.requestId === undefined) return;
-		const currentPolicy = ctx.deps[1]?.value as PolicyState;
+		const currentPolicy = ctx.deps[1].value as PolicyState;
 		const accepted = currentPolicy.acceptOrders && envelope.payload.quantity > 0;
 		ctx.down([
 			[

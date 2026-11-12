@@ -54,8 +54,8 @@ export function agenticMemoryContextPackingBundle<T = unknown>(
 			state.evaluation += 1;
 			const packed = packContext(
 				ctx.deps[0].value,
-				ctx.deps[1]?.value,
-				ctx.deps[2]?.value,
+				ctx.deps[1].value,
+				ctx.deps[2].value,
 				state.evaluation,
 			);
 			ctx.state.set(state);

@@ -96,7 +96,7 @@ export function memoryRetrievalBundle<T = unknown>(
 				({ evaluation: 0 } satisfies MemoryRetrievalRuntimeState);
 			state.evaluation += 1;
 			const rawFragments = ctx.deps[0].value;
-			const rawQuery = ctx.deps[1]?.value;
+			const rawQuery = ctx.deps[1].value;
 			const queryValidation = validateMemoryRetrievalQuery(rawQuery);
 			const currentQuery = queryValidation.query;
 			const valid: MemoryFragment<T>[] = [];
@@ -276,7 +276,7 @@ export function knowledgeGraphReducerBundle(
 				({ evaluation: 0 } satisfies { evaluation: number });
 			state.evaluation += 1;
 			const policy = validateKnowledgeGraphPolicy(
-				opts.policy === undefined ? undefined : ctx.deps[1]?.value,
+				opts.policy === undefined ? undefined : ctx.deps[1].value,
 			);
 			const reduced = reduceKnowledgeAssertions(ctx.deps[0].value, policy.policy);
 			const pendingErrors = [...policy.errors, ...reduced.errors];

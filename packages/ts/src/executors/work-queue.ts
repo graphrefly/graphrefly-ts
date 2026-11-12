@@ -146,7 +146,7 @@ export function executorWorkQueueRecipe(
 			for (const raw of ctx.deps[0].waves.flat()) {
 				reduceRecord(ctx, state, raw as WorkQueueRecord<ExecutorQueuedDispatchPayload>, opts);
 			}
-			for (const raw of ctx.deps[1]?.waves.flat() ?? []) {
+			for (const raw of ctx.deps[1].waves.flat()) {
 				reduceOutcome(ctx, state, raw as ExecutorOutcome, opts);
 			}
 			ctx.state.set(state);

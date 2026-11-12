@@ -434,10 +434,8 @@ export function buildSpendingPublication<T>(
 			// These context helpers read only DATA delivered to this invocation's declared edges.
 			// Their per-dependency INVALIDATE bookkeeping remains valid even while this node is SENTINEL.
 			const view = ctx.deps[0].value as CommittedEffectsView | undefined;
-			const raw = ctx.deps[1]?.value;
-			const materialArrived = Boolean(
-				(ctx.deps[1]?.waves.length ? (ctx.deps[1]?.waves.flat() ?? []) : null)?.length,
-			);
+			const raw = ctx.deps[1].value;
+			const materialArrived = ctx.deps[1].waves.flat().length > 0;
 			if (raw === undefined && !materialArrived) {
 				state.raw = undefined;
 				state.index = undefined;

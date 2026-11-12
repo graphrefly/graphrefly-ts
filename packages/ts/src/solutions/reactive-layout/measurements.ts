@@ -352,8 +352,8 @@ export function textMeasurementProvider(opts: TextMeasurementProviderOptions): N
 				if (ctx.deps.every((dep) => dep.waves.every((wave) => wave.length === 0))) return;
 			}
 			const text = ctx.deps[0].value as string;
-			const font = ctx.deps[1]?.value as string;
-			const adapter = ctx.deps[2]?.value as MeasurementAdapter;
+			const font = ctx.deps[1].value as string;
+			const adapter = ctx.deps[2].value as MeasurementAdapter;
 			if (adapter !== activeAdapter) {
 				cache.clear();
 				activeAdapter = adapter;
@@ -361,7 +361,7 @@ export function textMeasurementProvider(opts: TextMeasurementProviderOptions): N
 			const segmentAdapter =
 				opts.segmentAdapter === undefined
 					? getDefaultSegmentAdapter()
-					: (ctx.deps[3]?.value as SegmentAdapter);
+					: (ctx.deps[3].value as SegmentAdapter);
 			ctx.down([
 				[
 					"DATA",
@@ -506,7 +506,7 @@ export function readinessTextMeasurements(
 	// R-lifetime: the cache is flushed when a lifetime closes (the setup's cleanup) and on INVALIDATE.
 	const flushFor = (ctx: Ctx) => () => {
 		cache.clear();
-		(ctx.deps[2]?.value as MeasurementAdapter | undefined)?.clearCache?.();
+		(ctx.deps[2].value as MeasurementAdapter | undefined)?.clearCache?.();
 	};
 	return opts.graph.node<Measurements>(
 		deps,
@@ -520,13 +520,13 @@ export function readinessTextMeasurements(
 				if (ctx.deps.every((dep) => dep.waves.every((wave) => wave.length === 0))) return;
 			}
 			const text = ctx.deps[0].value as string;
-			const font = ctx.deps[1]?.value as string;
-			const adapter = ctx.deps[2]?.value as MeasurementAdapter;
+			const font = ctx.deps[1].value as string;
+			const adapter = ctx.deps[2].value as MeasurementAdapter;
 			if (adapter !== activeAdapter) {
 				cache.clear();
 				activeAdapter = adapter;
 			}
-			const readiness = ctx.deps[3]?.value as MeasurementReadiness;
+			const readiness = ctx.deps[3].value as MeasurementReadiness;
 			if (readiness !== activeReadiness) {
 				cache.clear();
 				activeReadiness = readiness;
@@ -556,7 +556,7 @@ export function readinessTextMeasurements(
 			const segmentAdapter =
 				opts.segmentAdapter === undefined
 					? getDefaultSegmentAdapter()
-					: (ctx.deps[4]?.value as SegmentAdapter);
+					: (ctx.deps[4].value as SegmentAdapter);
 			ctx.down([
 				[
 					"DATA",
@@ -641,7 +641,7 @@ export function imageSizeMeasurements(opts: ImageSizeMeasurementsOptions): Node<
 		[opts.images, opts.measurer],
 		(ctx: Ctx) => {
 			const images = ctx.deps[0].value as readonly ImageSizeMeasurementTarget[];
-			const measurer = ctx.deps[1]?.value as ImageMeasurer;
+			const measurer = ctx.deps[1].value as ImageMeasurer;
 			const facts: MeasurementFact<Size>[] = [];
 			for (let i = 0; i < images.length; i += 1) {
 				const image = (images as readonly (ImageSizeMeasurementTarget | undefined)[])[i];
@@ -699,7 +699,7 @@ export function svgBoundsMeasurements(opts: SvgBoundsMeasurementsOptions): Node<
 		[opts.svgs, opts.measurer],
 		(ctx: Ctx) => {
 			const svgs = ctx.deps[0].value as readonly SvgBoundsMeasurementTarget[];
-			const measurer = ctx.deps[1]?.value as SvgMeasurer;
+			const measurer = ctx.deps[1].value as SvgMeasurer;
 			const facts: MeasurementFact<Size>[] = [];
 			for (let i = 0; i < svgs.length; i += 1) {
 				const svg = (svgs as readonly (SvgBoundsMeasurementTarget | undefined)[])[i];
@@ -795,13 +795,13 @@ export function blockAdaptersProvider(opts: BlockAdaptersProviderOptions): Node<
 				text:
 					positions.text === undefined
 						? undefined
-						: (ctx.deps[positions.text]?.value as MeasurementAdapter),
+						: (ctx.deps[positions.text].value as MeasurementAdapter),
 				svg:
-					positions.svg === undefined ? undefined : (ctx.deps[positions.svg]?.value as SvgMeasurer),
+					positions.svg === undefined ? undefined : (ctx.deps[positions.svg].value as SvgMeasurer),
 				image:
 					positions.image === undefined
 						? undefined
-						: (ctx.deps[positions.image]?.value as ImageMeasurer),
+						: (ctx.deps[positions.image].value as ImageMeasurer),
 			};
 			ctx.down([["DATA", adapters]]);
 		},
@@ -833,7 +833,7 @@ export function blockMeasurementProvider(
 	// R-lifetime: the cache is flushed when a lifetime closes (the setup's cleanup) and on INVALIDATE.
 	const flushFor = (ctx: Ctx) => () => {
 		cache.clear();
-		(ctx.deps[2]?.value as BlockAdapters | undefined)?.text?.clearCache?.();
+		(ctx.deps[2].value as BlockAdapters | undefined)?.text?.clearCache?.();
 	};
 	return opts.graph.node<Measurements>(
 		deps,
@@ -848,19 +848,19 @@ export function blockMeasurementProvider(
 			}
 			try {
 				const blocks = ctx.deps[0].value as readonly ContentBlock[];
-				const maxWidth = nonNegativeFinite(ctx.deps[1]?.value as number, 0);
-				const adapters = ctx.deps[2]?.value as BlockAdapters;
+				const maxWidth = nonNegativeFinite(ctx.deps[1].value as number, 0);
+				const adapters = ctx.deps[2].value as BlockAdapters;
 				if (adapters.text !== activeTextAdapter) {
 					cache.clear();
 					activeTextAdapter = adapters.text;
 				}
 				let depIndex = 3;
-				const font = opts.font ? (ctx.deps[depIndex++]?.value as string) : undefined;
+				const font = opts.font ? (ctx.deps[depIndex++].value as string) : undefined;
 				const lineHeight = opts.lineHeight
-					? nonNegativeFinite(ctx.deps[depIndex++]?.value as number, 0)
+					? nonNegativeFinite(ctx.deps[depIndex++].value as number, 0)
 					: undefined;
 				const segmentAdapter = opts.segmentAdapter
-					? (ctx.deps[depIndex]?.value as SegmentAdapter)
+					? (ctx.deps[depIndex].value as SegmentAdapter)
 					: getDefaultSegmentAdapter();
 				const measured: MeasuredBlock[] = [];
 				const issues: MeasurementIssue[] = [];

@@ -51,7 +51,7 @@ export function agenticMemoryRetentionBundle<T = unknown>(
 				({ evaluation: 0 } satisfies { evaluation: number });
 			state.evaluation += 1;
 			const recordProjection = validateAndProjectRecords<T>(ctx.deps[0].value);
-			const retention = projectRetention<T>(ctx.deps[1]?.value, recordProjection.records);
+			const retention = projectRetention<T>(ctx.deps[1].value, recordProjection.records);
 			const cursor: AgenticMemoryRetentionCursor = Object.freeze({
 				evaluation: state.evaluation,
 				validRecords: recordProjection.records.length,

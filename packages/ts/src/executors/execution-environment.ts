@@ -319,7 +319,7 @@ export function localHostExecutionGate(
 function reduceGate(ctx: Ctx, opts: LocalHostExecutionGateOptions): void {
 	const state = ctx.state.get<GateState>() ?? emptyState();
 	let dep = 0;
-	for (const raw of ctx.deps[dep++]?.waves.flat() ?? []) {
+	for (const raw of ctx.deps[dep++].waves.flat()) {
 		try {
 			assertPlainData(raw, "tool-provider adapter input");
 			const input = snapshotPlainData(raw) as ToolProviderAdapterInput;
@@ -331,7 +331,7 @@ function reduceGate(ctx: Ctx, opts: LocalHostExecutionGateOptions): void {
 		}
 	}
 	for (let index = 0; index < opts.profiles.length; index += 1) {
-		for (const raw of ctx.deps[dep++]?.waves.flat() ?? []) {
+		for (const raw of ctx.deps[dep++].waves.flat()) {
 			try {
 				const profile = environmentPinnedExecutorProfile(raw as EnvironmentPinnedExecutorProfile);
 				state.profiles.set(profile.profileId, profile);
@@ -341,7 +341,7 @@ function reduceGate(ctx: Ctx, opts: LocalHostExecutionGateOptions): void {
 		}
 	}
 	for (let index = 0; index < opts.routes.length; index += 1) {
-		for (const raw of ctx.deps[dep++]?.waves.flat() ?? []) {
+		for (const raw of ctx.deps[dep++].waves.flat()) {
 			try {
 				const route = environmentPinnedExecutorRoute(raw as EnvironmentPinnedExecutorRoute);
 				state.routes.set(route.routeId, route);
@@ -351,7 +351,7 @@ function reduceGate(ctx: Ctx, opts: LocalHostExecutionGateOptions): void {
 		}
 	}
 	for (let index = 0; index < opts.admittedRunRequests.length; index += 1) {
-		for (const raw of ctx.deps[dep++]?.waves.flat() ?? []) {
+		for (const raw of ctx.deps[dep++].waves.flat()) {
 			try {
 				assertPlainData(raw, "admitted environment-pinned run");
 			} catch (error) {
