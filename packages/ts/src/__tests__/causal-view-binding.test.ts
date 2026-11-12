@@ -5,6 +5,7 @@ import type { SpendingAlertsView } from "../../../../examples/spending-alerts/ca
 import { mountSpendingView } from "../../../../examples/spending-alerts/causal-view-binding.js";
 import { drain, runHost } from "../../../../scripts/fixtures/spending-focused-host-harness.js";
 import { evaluationFixture } from "../../../../scripts/fixtures/spending-preset-harness.js";
+import { graphTopology } from "../graph/blueprint.js";
 import { Graph } from "../graph/graph.js";
 
 for (const mode of ["off", "summary"] as const) {
@@ -14,9 +15,9 @@ for (const mode of ["off", "summary"] as const) {
 		let stop = () => {};
 		try {
 			await drain();
-			const topology = run.graph.topology();
+			const topology = graphTopology(run.graph);
 			stop = mountSpendingView(run.host.consume.view, (value) => observations.push(value));
-			expect(run.graph.topology()).toEqual(topology);
+			expect(graphTopology(run.graph)).toEqual(topology);
 			run.drive([evaluationFixture()]);
 			expect(run.calls).toHaveLength(1);
 			stop();
@@ -31,7 +32,7 @@ for (const mode of ["off", "summary"] as const) {
 			expect(run.host.inspect().records[0].outcome?.state).toBe("succeeded");
 			expect(run.calls).toHaveLength(1);
 			expect(observations.length).toBeGreaterThan(count);
-			expect(run.graph.topology()).toEqual(topology);
+			expect(graphTopology(run.graph)).toEqual(topology);
 		} finally {
 			stop();
 			run.teardown();

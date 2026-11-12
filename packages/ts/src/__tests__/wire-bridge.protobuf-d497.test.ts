@@ -11,8 +11,8 @@ import {
 	wireBridgeEnvelope,
 	wireBridgeProtobuf,
 } from "../adapters/index.js";
-
 import { graph } from "../graph/graph.js";
+import { renderSnapshot } from "../graph/render.js";
 import { asState } from "./helpers/as-state.js";
 
 interface VectorRecord {
@@ -663,7 +663,7 @@ describe("D498 wireBridgeProtobuf focused helper", () => {
 		expect(decoded.payload.kind).toBe("data");
 		if (decoded.payload.kind !== "data") return;
 		expect(decoded.payload.body).toEqual({ kind: "edge_cause", cause });
-		expect(g.inspect().nodes.map((node) => node.factory)).not.toContain("wireEdgeGroupOut");
+		expect(renderSnapshot(g).nodes.map((node) => node.factory)).not.toContain("wireEdgeGroupOut");
 	});
 
 	it("reports outbound encode issues for non-canonical semantic payloads", () => {
@@ -727,7 +727,7 @@ describe("D498 wireBridgeProtobuf focused helper", () => {
 		});
 		wireBridgeProtobuf(g, bridge, { name: "bridge/protobuf" });
 
-		const snap = g.inspect();
+		const snap = renderSnapshot(g);
 		expect(snap.nodes).toContainEqual(
 			expect.objectContaining({
 				id: "bridge/protobuf/inboundBytes",
@@ -781,7 +781,7 @@ describe("D498 wireBridgeProtobuf focused helper", () => {
 		});
 		wireBridgeProtobuf(g, bridge, { name: "bridge/protobuf" });
 
-		const issuePath = g.inspect({
+		const issuePath = renderSnapshot(g, {
 			explain: { from: "bridge/protobuf/inboundBytes", to: "bridge/protobuf/issues" },
 		});
 		expect(issuePath.nodes.map((node) => node.id)).toEqual(
@@ -800,7 +800,7 @@ describe("D498 wireBridgeProtobuf focused helper", () => {
 			]),
 		);
 
-		const statusPath = g.inspect({
+		const statusPath = renderSnapshot(g, {
 			explain: { from: "bridge/protobuf/inboundBytes", to: "bridge/protobuf/status" },
 		});
 		expect(statusPath.nodes.map((node) => node.id)).toEqual(
@@ -819,7 +819,7 @@ describe("D498 wireBridgeProtobuf focused helper", () => {
 			]),
 		);
 
-		const outboundIssuePath = g.inspect({
+		const outboundIssuePath = renderSnapshot(g, {
 			explain: { from: "bridge/outbound", to: "bridge/protobuf/issues" },
 		});
 		expect(outboundIssuePath.edges).toEqual(
@@ -830,7 +830,7 @@ describe("D498 wireBridgeProtobuf focused helper", () => {
 			]),
 		);
 
-		const outboundStatusPath = g.inspect({
+		const outboundStatusPath = renderSnapshot(g, {
 			explain: { from: "bridge/outbound", to: "bridge/protobuf/status" },
 		});
 		expect(outboundStatusPath.edges).toEqual(
@@ -863,7 +863,7 @@ describe("D498 wireBridgeProtobuf focused helper", () => {
 		]);
 
 		protobuf.release();
-		expect(g.inspect().edges).not.toContainEqual({
+		expect(renderSnapshot(g).edges).not.toContainEqual({
 			from: "bridge/protobuf/inboundDecoded",
 			to: "bridge/inbound",
 		});

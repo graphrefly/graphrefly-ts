@@ -4,6 +4,8 @@ import { afterEach, describe, expect, it } from "vitest";
 import type { DataIssue, DataResult } from "../data/index.js";
 import { constructionOf } from "../graph/construction-scope.js";
 import { Graph } from "../graph/graph.js";
+import { topologyGroup } from "../graph/graph-topology-group.js";
+import { renderSnapshot } from "../graph/render.js";
 import { stableJsonString } from "../json/codec.js";
 import type { Node } from "../node/node.js";
 import type { Message, Wave } from "../protocol/messages.js";
@@ -102,8 +104,8 @@ function fixture(
 		for (const release of owner.retainedStops.splice(0)) release();
 		// Test-owned teardown, never a production lifecycle settlement policy.
 		for (const root of constructionOf(owner, "causal")?.roots ?? []) root.unsubscribe?.();
-		const group = owner.topologyGroup({ name: "causal fixture cleanup" });
-		for (const entry of owner.inspect().nodes) group.add(owner.find(entry.id)!);
+		const group = topologyGroup(owner, { name: "causal fixture cleanup" });
+		for (const entry of renderSnapshot(owner).nodes) group.add(owner.find(entry.id)!);
 		group.release();
 		cleanups.delete(stop);
 	};
@@ -186,7 +188,7 @@ describe("D791 causal occurrence contract-v2", () => {
 	it("releases test-owned output subscriptions, retained helpers, and graph registrations", () => {
 		const f = fixture();
 		f.stop();
-		expect(f.owner.inspect().nodes).toHaveLength(0);
+		expect(renderSnapshot(f.owner).nodes).toHaveLength(0);
 		expect(f.owner.retainedStops).toHaveLength(0);
 		f.stop();
 	});
@@ -1141,7 +1143,7 @@ describe("D791 causal occurrence contract-v2", () => {
 
 	it("fails a topology mutation when any occurrence, join, release, or conservation edge is deleted", () => {
 		const f = fixture();
-		const description = f.owner.inspect();
+		const description = renderSnapshot(f.owner);
 		assertCausalOccurrenceTopology(description, "causal");
 		for (const deleted of causalOccurrenceRequiredEdges("causal", description)) {
 			expect(
@@ -1362,7 +1364,7 @@ describe("causal topology exact-string index", () => {
 		let changed = false;
 		let calls = 0;
 		class RewiredGraph extends FixtureGraph {
-			override inspect(...args: Parameters<Graph["inspect"]>): ReturnType<Graph["inspect"]> {
+			override describe(): ReturnType<Graph["describe"]> {
 				const authority = this.find("causal/authority");
 				if (authority && !changed) {
 					changed = true;
@@ -1376,7 +1378,7 @@ describe("causal topology exact-string index", () => {
 						},
 					);
 				}
-				return super.inspect(...args);
+				return super.describe();
 			}
 		}
 		const owner = new RewiredGraph();
@@ -1386,6 +1388,6 @@ describe("causal topology exact-string index", () => {
 		expect(changed).toBe(true);
 		expect(calls).toBe(0);
 		expect(owner.find("causal/authority")).toBeUndefined();
-		expect(owner.inspect().nodes).toHaveLength(8);
+		expect(owner.describe()).toHaveLength(8);
 	});
 });

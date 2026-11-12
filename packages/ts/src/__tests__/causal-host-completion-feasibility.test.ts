@@ -1,7 +1,7 @@
 /** Private no-I/O probe of the approved host notification contract. Not a host adapter. */
 import { expect, it } from "vitest";
-
 import { Graph } from "../graph/graph.js";
+import { topologyGroup } from "../graph/graph-topology-group.js";
 
 type Receipt = Readonly<{ id: number; result: "cancelled" | "succeeded" }>;
 function fixture(capacity = 64, enqueue: (callback: () => void) => void = queueMicrotask) {
@@ -89,7 +89,7 @@ function fixture(capacity = 64, enqueue: (callback: () => void) => void = queueM
 		cleanup: () => {
 			ownerStop();
 			observerStop();
-			const group = graph.topologyGroup();
+			const group = topologyGroup(graph);
 			for (const node of [guard, input, source]) group.add(node);
 			group.release();
 		},

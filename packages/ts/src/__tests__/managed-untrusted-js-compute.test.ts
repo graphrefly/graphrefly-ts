@@ -17,7 +17,9 @@ import {
 	managedUntrustedJsComputeReadiness,
 	managedUntrustedJsComputeRuntime,
 } from "../executors/managed-untrusted-js-compute.js";
+import { graphTopology } from "../graph/blueprint.js";
 import { graph } from "../graph/graph.js";
+import { renderSnapshot } from "../graph/render.js";
 import { compoundTupleKey } from "../identity.js";
 import type { Node } from "../node/node.js";
 import type {
@@ -329,7 +331,7 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 		expect(outcomes).toEqual([expect.objectContaining({ kind: "result" })]);
 		expect(movements).toEqual([expect.objectContaining({ classification: "result-artifact" })]);
 		const visible = JSON.stringify({
-			topology: g.topology(),
+			topology: graphTopology(g),
 			lifecycle,
 			cleanup,
 			outcomes,
@@ -379,7 +381,7 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 			},
 			now: () => 10,
 		});
-		expect(g.inspect().nodes.map((node) => node.id)).toEqual(
+		expect(renderSnapshot(g).nodes.map((node) => node.id)).toEqual(
 			expect.arrayContaining([
 				"managedUntrustedJsCompute/lifecycle",
 				"managedUntrustedJsCompute/cleanup",
@@ -393,7 +395,7 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 		await settle();
 		await runtime.dispose();
 		await runtime.dispose();
-		expect(g.inspect().nodes.map((node) => node.id)).not.toContain(
+		expect(renderSnapshot(g).nodes.map((node) => node.id)).not.toContain(
 			"managedUntrustedJsCompute/lifecycle",
 		);
 	});
@@ -428,12 +430,12 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 		});
 		const unsubscribe = runtime.outcomes.subscribe(() => {});
 		await runtime.dispose();
-		expect(g.inspect().nodes.map((node) => node.id)).toContain(
+		expect(renderSnapshot(g).nodes.map((node) => node.id)).toContain(
 			"managedUntrustedJsCompute/outcomes",
 		);
 		unsubscribe();
 		await runtime.dispose();
-		expect(g.inspect().nodes.map((node) => node.id)).not.toContain(
+		expect(renderSnapshot(g).nodes.map((node) => node.id)).not.toContain(
 			"managedUntrustedJsCompute/outcomes",
 		);
 	});

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { cqrs, cqrsCommandHandler, cqrsProjection } from "../cqrs/index.js";
 import { graph } from "../graph/graph.js";
+import { renderSnapshot } from "../graph/render.js";
 import { compoundTupleKey } from "../identity.js";
 
 const cqrsEventId = (commandId: string, seq: string) =>
@@ -734,7 +735,7 @@ describe("CQRS application infrastructure (B63 / D125 / D129)", () => {
 			reducer: (state) => state + 1,
 		});
 
-		const snap = g.inspect();
+		const snap = renderSnapshot(g);
 
 		expect(snap.nodes.map((node) => [node.id, node.factory])).toEqual(
 			expect.arrayContaining([

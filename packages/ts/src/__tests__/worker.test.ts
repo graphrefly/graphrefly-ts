@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-
 import { graph } from "../graph/graph.js";
+import { renderSnapshot } from "../graph/render.js";
 import { type WorkerDerivedJob, type WorkerDerivedSettle, workerDerived } from "../graph/worker.js";
 
 interface CapturedWorker<TInput, TResult> {
@@ -43,7 +43,7 @@ describe("workerDerived — backend-required helper-first worker slice (D148)", 
 
 		jobs[0].settle({ ok: true, value: jobs[0].job.compute(jobs[0].job.input) });
 		expect(seen).toContainEqual(["DATA", 4]);
-		expect(g.inspect().edges).toContainEqual({ from: "src", to: "worker/doubled" });
+		expect(renderSnapshot(g).edges).toContainEqual({ from: "src", to: "worker/doubled" });
 	});
 
 	it("fences stale completions and prepare-empty waves before graph mutation", () => {

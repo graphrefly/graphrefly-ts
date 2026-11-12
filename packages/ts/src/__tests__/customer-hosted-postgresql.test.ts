@@ -25,6 +25,7 @@ import {
 	customerHostedPostgresqlWorkerExecute,
 	postgresql16CustomerHostedControlStore,
 } from "../executors/customer-hosted-postgresql.js";
+import { graphTopology } from "../graph/blueprint.js";
 import { Graph } from "../graph/index.js";
 import type {
 	ExecutorOutcome,
@@ -684,7 +685,7 @@ describe("D606 customer-hosted PostgreSQL", () => {
 			name: "enrollments",
 		});
 		const postures = g.node<CustomerHostedPostgresqlReadiness>([], null, { name: "postures" });
-		const before = g.topology();
+		const before = graphTopology(g);
 		let admitted: CustomerHostedPostgresqlAdmittedEnvelope | undefined;
 		let currentLease: ReturnType<typeof lease> | undefined;
 		let revoked = false;
@@ -897,7 +898,7 @@ describe("D606 customer-hosted PostgreSQL", () => {
 		await tick();
 		expect(outcomes).toHaveLength(1);
 		expect(revokeOrder.slice(-2)).toEqual(["fence", "stop"]);
-		const during = g.topology();
+		const during = graphTopology(g);
 		const beforeNames = new Set(before.nodes.map((n) => n.name));
 		const added = during.nodes.filter((n) => !beforeNames.has(n.name));
 		expect(
@@ -939,13 +940,15 @@ describe("D606 customer-hosted PostgreSQL", () => {
 		expect(
 			during.edges.filter((e) => !before.edges.some((b) => b.from === e.from && b.to === e.to)),
 		).toEqual([]);
-		expect(JSON.stringify(g.topology())).not.toMatch(/password|socket|privateKey|connectionString/);
+		expect(JSON.stringify(graphTopology(g))).not.toMatch(
+			/password|socket|privateKey|connectionString/,
+		);
 		unsubscribeIssues();
 		unsubscribeOutcomes();
 		await runtime.dispose();
 		await runtime.dispose();
 		expect(transport.close).toHaveBeenCalledTimes(1);
-		expect(g.topology()).toEqual(before);
+		expect(graphTopology(g)).toEqual(before);
 	});
 });
 

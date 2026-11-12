@@ -1,3 +1,4 @@
+import { topologyGroup } from "../graph/graph-topology-group.js";
 /**
  * Focused execution-environment targeting contract and local-host gate (D603).
  *
@@ -264,7 +265,7 @@ export function localHostExecutionGate(
 	)
 		throw new TypeError("Local host gate requires profile, route, and admitted-run graph inputs.");
 	const name = opts.name ?? "localHostExecutionGate";
-	const topology = graph.topologyGroup({ name });
+	const topology = topologyGroup(graph, { name });
 	const deps: readonly Node<unknown>[] = [
 		opts.inputs,
 		...opts.profiles,

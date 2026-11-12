@@ -20,6 +20,8 @@ import {
 import { oracleRequest } from "../../../../scripts/fixtures/spending-preset-oracle.js";
 import { ColdConstructionError } from "../graph/construction-scope.js";
 import { Graph } from "../graph/graph.js";
+import { topologyGroup } from "../graph/graph-topology-group.js";
+import { renderSnapshot } from "../graph/render.js";
 
 function fixture(create: typeof composeOfflineSpending, diagnostics: "off" | "summary") {
 	const graph = new Graph({ name: "same-construction" });
@@ -37,14 +39,14 @@ function fixture(create: typeof composeOfflineSpending, diagnostics: "off" | "su
 	);
 	const teardown = () => {
 		for (const root of host.owner.roots) root.unsubscribe?.();
-		const group = graph.topologyGroup();
-		for (const n of graph.inspect().nodes) group.add(graph.find(n.id)!);
+		const group = topologyGroup(graph);
+		for (const n of renderSnapshot(graph).nodes) group.add(graph.find(n.id)!);
 		group.release();
 	};
 	return { graph, host, calls, sources, teardown };
 }
 function topology(graph: Graph) {
-	const snapshot = graph.inspect();
+	const snapshot = renderSnapshot(graph);
 	return {
 		nodes: snapshot.nodes.map(({ id, name, factory }) => ({ id, name, factory })),
 		edges: snapshot.edges,
@@ -116,7 +118,7 @@ for (const [label, create] of [
 	it(`${label} rejects wrong graph without allocating owned nodes`, () => {
 		const graph = new Graph();
 		const { inputs } = inputsFor(new Graph());
-		const before = graph.inspect();
+		const before = renderSnapshot(graph);
 		expect(() =>
 			create(
 				graph,
@@ -126,12 +128,12 @@ for (const [label, create] of [
 				{ name: "spending" },
 			),
 		).toThrow();
-		expect(graph.inspect()).toEqual(before);
+		expect(renderSnapshot(graph)).toEqual(before);
 	});
 	it(`${label} preserves original cold failure and cleans owned nodes`, () => {
 		const graph = new Graph();
 		const { inputs } = inputsFor(graph);
-		const before = graph.inspect();
+		const before = renderSnapshot(graph);
 		let caught: unknown;
 		try {
 			create(
@@ -147,7 +149,7 @@ for (const [label, create] of [
 		expect(caught).toBeInstanceOf(ColdConstructionError);
 		expect((caught as ColdConstructionError).originalCause).toBeInstanceOf(TypeError);
 		expect((caught as ColdConstructionError).cleanupErrors).toEqual([]);
-		expect(graph.inspect()).toEqual(before);
+		expect(renderSnapshot(graph)).toEqual(before);
 	});
 }
 it("explicit afterStart cannot schedule duplicate startup notifications", async () => {
@@ -168,8 +170,8 @@ it("explicit afterStart cannot schedule duplicate startup notifications", async 
 		expect(host.inspect().notifications).toBe(before);
 	} finally {
 		for (const root of host.owner.roots) root.unsubscribe?.();
-		const group = graph.topologyGroup();
-		for (const n of graph.inspect().nodes) group.add(graph.find(n.id)!);
+		const group = topologyGroup(graph);
+		for (const n of renderSnapshot(graph).nodes) group.add(graph.find(n.id)!);
 		group.release();
 	}
 });

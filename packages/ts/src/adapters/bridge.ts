@@ -1,3 +1,4 @@
+import { topologyGroup } from "../graph/graph-topology-group.js";
 /**
  * Graph-visible wire bridge envelope helpers (D134).
  *
@@ -412,7 +413,7 @@ export function wireBridgeAckDriver<TOutbound = unknown, TInbound = unknown>(
 	if (!Number.isFinite(opts.timeoutMs) || opts.timeoutMs < 0) {
 		throw new RangeError("wireBridgeAckDriver: timeoutMs must be a non-negative finite number");
 	}
-	const topology = graph.topologyGroup({ name: `${name}.wireBridgeAckDriver` });
+	const topology = topologyGroup(graph, { name: `${name}.wireBridgeAckDriver` });
 	const active = { current: true };
 	const events = topology.add(wireBridgeAckDriverEventsNode(graph, bridge, opts, name, active));
 	const commands = topology.add(
@@ -728,7 +729,7 @@ export function wireBridgeProtobuf(
 	opts: WireBridgeProtobufOptions = {},
 ): WireBridgeProtobufBundle {
 	const name = opts.name ?? "wireBridgeProtobuf";
-	const topology = graph.topologyGroup({ name: `${name}.wireBridgeProtobuf` });
+	const topology = topologyGroup(graph, { name: `${name}.wireBridgeProtobuf` });
 	const inboundBytes = topology.node<Uint8Array>([], null, {
 		name: `${name}/inboundBytes`,
 		factory: "wireBridgeProtobufInboundBytes",
@@ -986,7 +987,7 @@ export function remoteResponder<TRequest = unknown, TResponse = unknown>(
 ): RemoteResponderBundle<TRequest, TResponse> {
 	const name = opts.name ?? "remoteResponder";
 	const handlers = normalizeRemoteHandlers(opts.handlers ?? []);
-	const topology = graph.topologyGroup({ name: `${name}.remoteResponder` });
+	const topology = topologyGroup(graph, { name: `${name}.remoteResponder` });
 	const events = topology.add(
 		remoteResponderEventsNode(
 			graph,

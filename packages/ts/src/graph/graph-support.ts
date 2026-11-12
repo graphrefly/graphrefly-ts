@@ -1,4 +1,4 @@
-import type { InspectSnapshot } from "./describe.js";
+import type { RenderSnapshot } from "./describe.js";
 import type { TopologyEvent } from "./inspect.js";
 
 export function isNonAuthoritativeCollectionHelperMeta(
@@ -49,9 +49,9 @@ export function cloneTopologyEvent(event: TopologyEvent): TopologyEvent {
 
 /** Filter a snapshot to the causal chain from→to (forward-reachable(from) ∩ back-reachable(to)). */
 export function explainSubset(
-	snap: InspectSnapshot,
+	snap: RenderSnapshot,
 	chain: { from: string; to: string },
-): InspectSnapshot {
+): RenderSnapshot {
 	const fwd = new Map<string, string[]>();
 	const rev = new Map<string, string[]>();
 	const push = (map: Map<string, string[]>, k: string, v: string): void => {

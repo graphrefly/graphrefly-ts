@@ -46,14 +46,7 @@ import {
 } from "../node/owned-acquisition.js";
 import type { NodeDefinition, ReplaceOptions } from "../node/types.js";
 import { errorPayload, SENTINEL } from "../protocol/messages.js";
-import {
-	GRAPH_BLUEPRINT_VERSION,
-	type GraphBlueprint,
-	type GraphBlueprintOptions,
-	graphBlueprintDiagnostics,
-	normalizeTopology,
-	normalizeTopologyMeta,
-} from "./blueprint.js";
+import { normalizeTopologyMeta } from "./blueprint.js";
 import {
 	CHECKPOINT_REFUSAL,
 	checkpointBackendStateOfNode,
@@ -69,37 +62,24 @@ import {
 	notRestorable,
 	toCheckpointJson,
 } from "./checkpoint.js";
-import {
-	type DescribedNode,
-	type GraphTopologySnapshot,
-	type InspectEdge,
-	type InspectNode,
-	type InspectOpts,
-	type InspectSnapshot,
-	topologyFromInspect,
-} from "./describe.js";
+import type { DescribedNode, RenderEdge, RenderSnapshot } from "./describe.js";
 import { EnvironmentDrivers } from "./environment.js";
 import { type GraphLifecycleRegistrar, graphRegistrations } from "./graph-lifecycle.js";
 import {
 	assertCheckpointQuiescentStatus,
 	cloneTopologyEvent,
-	explainSubset,
 	isNonAuthoritativeCollectionHelperMeta,
 	prefixTopologyPath,
 	topologyPathMatches,
 } from "./graph-support.js";
-import {
-	GraphTopologyGroup,
-	type TopologyGroup,
-	type TopologyGroupOptions,
-} from "./graph-topology-group.js";
 import type { DerivedFn, EffectFn, GraphOptions, SugarOpts } from "./graph-types.js";
-import type {
-	NodeProfile,
-	ObserveEvent,
-	Profile,
-	TopologyEvent,
-	TopologyStream,
+import {
+	type NodeProfile,
+	type ObserveEvent,
+	observeTopology,
+	type Profile,
+	type TopologyEvent,
+	type TopologyStream,
 } from "./inspect.js";
 import { initNodeWithCore, type Operator } from "./operators.js";
 import { realNodeFn, receivedInNote } from "./restore-first-run.js";
@@ -152,6 +132,8 @@ export function assertGraphLocalNode(owner: Graph, n: Node<unknown>, label: stri
 	}
 }
 
+const graphsByCore = new WeakMap<NodeCore, Graph>();
+
 /**
  * Own a single graph-local topology, lifecycle, inspection index, and dispatcher boundary.
  *
@@ -178,15 +160,13 @@ export class Graph {
 	private readonly _mounts: MountedGraph[] = [];
 	private _seq = 0;
 	private _clock = 0; // graph-local monotonic clock for topology event seq (D145)
+	// biome-ignore lint/correctness/noUnusedPrivateClassMembers: internal registrar lifecycle counter.
 	private _topologyObserverSeq = 0;
 	private readonly _topologyObservers = new Map<number, TopologyObserver>();
 	private _topologyDelivering = false;
 	private readonly _topologyQueue: TopologyEvent[] = [];
-	// D51: stable synthetic ids for unregistered live deps (runtime *Map inners) auto-discovered by
-	// describe(). WeakMap-cached so successive describes agree + the inner's id is freed when it is.
-	// A dedicated counter (NOT _seq) so a describe() call never perturbs registered-node id numbering.
+	// Synthetic ids use their helper's existing runtime slot, preserving identity across rewires.
 	private _synthSeq = 0;
-	private readonly _synthIds = new WeakMap<Node<unknown>, string>();
 
 	constructor(opts: GraphOptions = {}) {
 		this.name = opts.name;
@@ -194,6 +174,7 @@ export class Graph {
 		this._environment = opts.environment ?? EnvironmentDrivers.empty();
 		if (opts.profile) this._dispatcher.setRecording(true);
 		this._core.report = opts.report;
+		graphsByCore.set(this._core, this);
 		graphRegistrations.set(this, new GraphRegistration(this));
 	}
 
@@ -228,6 +209,8 @@ export class Graph {
 	private _assertAvailableId(id: string): void {
 		if (this._byId.has(id))
 			throw new Error(`graph: duplicate node id '${id}' (checkpoint/describe ids must be unique)`);
+		if (id.startsWith("~") && this._core.hasGraphId(id))
+			throw new Error(`graph: duplicate node id '${id}' (claimed by a live helper)`);
 		if (this._retiredIds.has(id))
 			throw new Error(`graph: node id '${id}' was released and cannot be reused (D152/D153)`);
 	}
@@ -300,7 +283,10 @@ export class Graph {
 		const local = this._byId.get(id);
 		if (local !== undefined) return local;
 		const separator = id.indexOf("::");
-		if (separator < 0) return undefined;
+		if (separator < 0)
+			return id.startsWith("~")
+				? this._describedNodes().find((n) => this._idForTopologyNode(n) === id)
+				: undefined;
 		const mountPath = id.slice(0, separator);
 		const childPath = id.slice(separator + 2);
 		return this._mounts.find((mount) => mount.at === mountPath)?.graph.find(childPath);
@@ -573,7 +559,7 @@ export class Graph {
 	}
 
 	/**
-	 * R-graph-surface@1: hold a node active as a subscriber that ignores what it receives, and
+	 * R-graph-surface@2: hold a node active as a subscriber that ignores what it receives, and
 	 * return the release. Each retain is its own subscription; a release during a wave is a
 	 * request, so the subscription is gone by the wave's end (R-request-order).
 	 */
@@ -584,151 +570,11 @@ export class Graph {
 	}
 
 	/**
-	 * D152 graph-owned topology/release group. Members are ordinary registered graph nodes;
-	 * release is quiescent-only and removes ids atomically without synthesizing protocol messages.
-	 */
-	topologyGroup(opts: TopologyGroupOptions = {}): TopologyGroup {
-		return new GraphTopologyGroup(this, opts);
-	}
-
-	// ── inspection: describe / observe (R-graph-surface@1), and the package's inspect / profile ──
-
-	/**
-	 * The package's own rich inspection snapshot (graphrefly-ts:D183): names, factories, status,
-	 * values, annotations, edges and mounted subgraphs, over the same live dependencies as
-	 * describe(). It is not R-graph-surface's describe, which gives the topology alone. `_prefix`
-	 * carries the mount path.
-	 */
-	inspect(opts: InspectOpts = {}, _prefix = ""): InspectSnapshot {
-		const snap = this._inspect(_prefix);
-		return opts.explain ? explainSubset(snap, opts.explain) : snap;
-	}
-
-	/** B1: share discovery order; only materialization is local. Mount reads stay unchanged. */
-	private _inspect(_prefix: string, incoming?: ReadonlySet<Node<unknown>>): InspectSnapshot {
-		// D51: edges derive from each node's CURRENT/LIVE deps (entry.node.deps, NOT the
-		// construction-time entry.deps), so a rewire (C-8 immediate / C-11 *Map deferred) is
-		// reflected and every edge is a real current subscription (D3). A live dep absent from this
-		// graph's index (a runtime *Map inner / bare fromAny node) is AUTO-DISCOVERED as a snapshot
-		// node with a synthesized stable id (B2). B38 extends this to transitive live-reachability:
-		// discovered unregistered nodes are recursively expanded through their own live deps.
-		const discovered = new Map<Node<unknown>, string>(); // unregistered live dep → synth local id
-		const localId = (n: Node<unknown>): string => {
-			const e = this._entries.get(n);
-			if (e) return `${_prefix}${e.id}`;
-			// unregistered: a stable synthetic id, cached so successive describes + both call sites
-			// agree; the `~` prefix can't collide with a registered name or `factory#seq`.
-			let sid = this._synthIds.get(n);
-			if (sid === undefined) {
-				// the `~` prefix avoids the registered `name`/`factory#seq` space; guard the
-				// pathological case of a user node literally named `~factory#n` (bump until free).
-				do {
-					sid = `~${n.factory ?? "?"}#${this._synthSeq++}`;
-				} while (this._byId.has(sid));
-				this._synthIds.set(n, sid);
-			}
-			discovered.set(n, sid);
-			return `${_prefix}${sid}`;
-		};
-		const nodes: InspectNode[] = [];
-		const edges: InspectEdge[] = [];
-		// pass 1: registered nodes, reading LIVE deps (localId records any unregistered inner).
-		for (const entry of this._entries.values()) {
-			const id = `${_prefix}${entry.id}`;
-			const liveIds = entry.node.deps.map(localId);
-			if (incoming === undefined) {
-				const dnode: InspectNode = {
-					id,
-					factory: entry.factory,
-					status: entry.node.status,
-					deps: liveIds,
-				};
-				if (entry.name !== undefined) dnode.name = entry.name;
-				if (entry.node.cache !== undefined) dnode.value = entry.node.cache; // absent = SENTINEL
-				if (entry.meta !== undefined) dnode.meta = entry.meta;
-				nodes.push(dnode);
-			}
-			if (incoming === undefined || incoming.has(entry.node)) {
-				for (const from of liveIds) edges.push({ from, to: id });
-			}
-		}
-		// pass 2: recursively emit auto-discovered unregistered nodes (D51+B38). localId() may add
-		// further unregistered deps to `discovered` while this loop runs; a visited set keeps each
-		// discovered node emitted once (stable ids via _synthIds).
-		const visited = new Set<Node<unknown>>();
-		const queue: Node<unknown>[] = [...discovered.keys()];
-		for (let i = 0; i < queue.length; i += 1) {
-			const inner = queue[i];
-			if (visited.has(inner)) continue;
-			visited.add(inner);
-			const sid = discovered.get(inner);
-			if (sid === undefined) continue;
-			const liveIds = inner.deps.map(localId);
-			for (const dep of inner.deps) {
-				if (!this._entries.has(dep) && !visited.has(dep)) queue.push(dep);
-			}
-			if (incoming === undefined) {
-				const dnode: InspectNode = {
-					id: `${_prefix}${sid}`,
-					factory: inner.factory ?? "?",
-					status: inner.status,
-					deps: liveIds,
-				};
-				if (inner.cache !== undefined) dnode.value = inner.cache;
-				nodes.push(dnode);
-				for (const from of liveIds) edges.push({ from, to: dnode.id });
-			}
-		}
-		const snap: InspectSnapshot = { nodes, edges };
-		if (this.name !== undefined) snap.name = this.name;
-		if (this._mounts.length > 0) {
-			snap.subgraphs = this._mounts.map((m) => {
-				const child = m.graph.inspect({}, `${_prefix}${m.at}::`);
-				child.mountId = m.at;
-				return child;
-			});
-		}
-		return snap;
-	}
-
-	/**
-	 * D173 pure-structure topology snapshot over the same live truth source as inspect().
-	 * Runtime status and values remain on inspect(); blueprint metadata is a later envelope.
-	 */
-	topology(): GraphTopologySnapshot {
-		return topologyFromInspect(this.inspect());
-	}
-
-	/**
-	 * D177 synchronous audit/collaboration envelope over the pure topology snapshot.
-	 * Hashing and environment provenance enrichment stay in pure helpers outside Graph core.
-	 */
-	blueprint(opts: GraphBlueprintOptions = {}): GraphBlueprint {
-		const topology = normalizeTopology(this.topology());
-		const out: GraphBlueprint = {
-			version: GRAPH_BLUEPRINT_VERSION,
-			topology,
-		};
-		if (opts.diagnostics) {
-			(out as { diagnostics?: ReturnType<typeof graphBlueprintDiagnostics> }).diagnostics =
-				graphBlueprintDiagnostics(topology);
-		}
-		if (opts.provenance !== undefined) {
-			(out as { provenance?: GraphBlueprint["provenance"] }).provenance = normalizeTopologyMeta(
-				opts.provenance,
-				"graph blueprint provenance",
-				"provenance",
-			);
-		}
-		return out;
-	}
-
-	/**
-	 * R-graph-surface@1: the topology as data, every node in creation order as exactly
+	 * R-graph-surface@2: the topology as data, every node in creation order as exactly
 	 * `{ id, kind, deps, quiet }`. deps are the current dependencies, a ctx.rewire's included;
 	 * `definition(id)` gives the declared ones. A helper node that is not registered under a name
 	 * appears under a synthetic `~factory#n` id when a described node depends on it. Values,
-	 * status and annotations are read from the node, or from the package's own inspect().
+	 * status are read from find(id); richer metadata belongs to the blueprint/render modules.
 	 * describe activates nothing and runs nothing.
 	 */
 	describe(): DescribedNode[] {
@@ -757,17 +603,13 @@ export class Graph {
 
 	/** A node by an id find() knows or a synthetic id describe() gives. */
 	private _describedNode(id: string, op: string): Node<unknown> {
-		const node =
-			this.find(id) ??
-			(id.startsWith("~")
-				? this._describedNodes().find((n) => this._idForTopologyNode(n) === id)
-				: undefined);
+		const node = this.find(id);
 		if (node === undefined) throw new Error(`${op}: no node '${id}' in this graph`);
 		return node;
 	}
 
 	/**
-	 * R-graph-surface@1: subscribe `sink` to each node in `ids` as an ordinary subscriber, so a
+	 * R-graph-surface@2: subscribe `sink` to each node in `ids` as an ordinary subscriber, so a
 	 * cold node activates and stays active, and hand it each array a node delivers as
 	 * `{ id, msgs }`, in delivery order: the START array first, PENDING prefixes and the kernel's
 	 * RESOLVED included. Observing a whole graph is observing every id describe() gives. The
@@ -788,33 +630,15 @@ export class Graph {
 		};
 	}
 
-	/**
-	 * D145 observeTopology(path?) = read-only graph lifecycle egress over the existing
-	 * graph registry. It is not a graph node, does not subscribe to nodes, and emits no DATA.
-	 */
-	observeTopology(path?: string): TopologyStream {
-		return {
-			subscribe: (sink) => {
-				const id = this._topologyObserverSeq++;
-				this._topologyObservers.set(id, { path, sink });
-				this._ensureMountedTopologyForwarders();
-				return () => {
-					this._topologyObservers.delete(id);
-					if (this._topologyObservers.size === 0) this._releaseMountedTopologyForwarders();
-				};
-			},
-		};
-	}
-
 	private _idForTopologyNode(n: Node<unknown>): string {
 		const e = this._entries.get(n);
 		if (e) return e.id;
-		let sid = this._synthIds.get(n);
+		let sid = n[SLOT].graphId;
 		if (sid === undefined) {
 			do {
 				sid = `~${n.factory ?? "?"}#${this._synthSeq++}`;
-			} while (this._byId.has(sid));
-			this._synthIds.set(n, sid);
+			} while (this._byId.has(sid) || this._retiredIds.has(sid));
+			n[SLOT].graphId = sid;
 		}
 		return sid;
 	}
@@ -883,12 +707,13 @@ export class Graph {
 		for (const mount of this._mounts) {
 			if (mount.topologyUnsub !== undefined) continue;
 			const mountPath = mount.at;
-			mount.topologyUnsub = mount.graph.observeTopology().subscribe((event) => {
+			mount.topologyUnsub = observeTopology(mount.graph).subscribe((event) => {
 				this._emitMountedTopologyEvent(mountPath, event);
 			});
 		}
 	}
 
+	// biome-ignore lint/correctness/noUnusedPrivateClassMembers: internal registrar lifecycle hook.
 	private _releaseMountedTopologyForwarders(): void {
 		for (const mount of this._mounts) {
 			mount.topologyUnsub?.();
@@ -939,31 +764,6 @@ export class Graph {
 	}
 
 	/**
-	 * profile() = accumulated-counter snapshot (D39; package-level, R-graph-surface). invokes +
-	 * duration are dispatcher-backed (it invokes every node function) — counters never live on
-	 * the thin node (R-node-thin). Requires `graph({ profile: true })` (opt-in, F-PERF).
-	 */
-	profile(): Profile {
-		const nodes: Record<string, NodeProfile> = {};
-		let totalInvokes = 0;
-		for (const e of this._entries.values()) {
-			const h = e.node.handle;
-			const stat = h !== null ? this._dispatcher.statFor(h) : undefined;
-			const invokes = stat?.invokes ?? 0;
-			nodes[e.id] = {
-				invokes,
-				totalDurationNs: stat?.totalDurationNs ?? 0,
-				lastDurationNs: stat?.lastDurationNs ?? 0,
-				status: e.node.status,
-			};
-			// graph-scoped (QA D-2): sum THIS graph's nodes, NOT the dispatcher-global
-			// counter (which would leak invokes from other graphs sharing the dispatcher).
-			totalInvokes += invokes;
-		}
-		return { totalInvokes, nodes };
-	}
-
-	/**
 	 * Capture a checkpoint (R-checkpoint, graphrefly:D802): strict JSON, no storage I/O. It is
 	 * taken only at a wave boundary; inside a wave or an open batch body it is refused.
 	 */
@@ -984,13 +784,7 @@ export class Graph {
 		const localId = (n: Node<unknown>): string => {
 			const e = this._entries.get(n);
 			if (e) return `${_prefix}${e.id}`;
-			let sid = this._synthIds.get(n);
-			if (sid === undefined) {
-				do {
-					sid = `~${n.factory ?? "?"}#${this._synthSeq++}`;
-				} while (this._byId.has(sid));
-				this._synthIds.set(n, sid);
-			}
+			const sid = this._idForTopologyNode(n);
 			discovered.set(n, sid);
 			return `${_prefix}${sid}`;
 		};
@@ -1276,17 +1070,20 @@ export function graph(opts: GraphOptions = {}): Graph {
 	return new Graph(opts);
 }
 
-// Capture once, so instance/subclass/prototype inspect overrides keep the original call path.
-const nativeInspect = Graph.prototype.inspect;
-
-// R-invocation@2: ctx.deps[i].id is the dependency's id in its graph.
-setGraphNodeIdResolver((owner, node) =>
-	owner instanceof Graph
-		? (owner as unknown as { _idForTopologyNode(n: Node<unknown>): string })._idForTopologyNode(
+// R-invocation@3: registered nodes and graph-bound helpers share describe's identity resolver.
+setGraphNodeIdResolver((owner, node) => {
+	const graph =
+		owner instanceof Graph
+			? owner
+			: owner instanceof NodeCore
+				? graphsByCore.get(owner)
+				: undefined;
+	return graph === undefined
+		? undefined
+		: (graph as unknown as { _idForTopologyNode(n: Node<unknown>): string })._idForTopologyNode(
 				node,
-			)
-		: undefined,
-);
+			);
+});
 
 /** @internal D122 graph-owned ephemeral node-group release. */
 export function releaseGraphNodes(
@@ -1331,7 +1128,13 @@ interface GraphRuntimeHost {
 	_retiredIds: Set<string>;
 	_assertRegisteredNode(node: Node<unknown>, label: string): void;
 	_releaseNodes(nodes: readonly Node<unknown>[], opts?: { reason?: string }): void;
-	_inspect(prefix: string, nodes: ReadonlySet<Node<unknown>>): InspectSnapshot;
+	_entries: Map<Node<unknown>, Entry>;
+	_mounts: MountedGraph[];
+	_dispatcher: Dispatcher;
+	_topologyObserverSeq: number;
+	_topologyObservers: Map<number, TopologyObserver>;
+	_ensureMountedTopologyForwarders(): void;
+	_releaseMountedTopologyForwarders(): void;
 	_emitTopologyDepsChanged(
 		node: Node<unknown>,
 		prev: readonly Node<unknown>[],
@@ -1368,12 +1171,55 @@ class GraphRegistration implements GraphLifecycleRegistrar {
 	observeFailures<R>(observer: (source: string, error: unknown) => void, run: () => R): R {
 		return observeFailures(this.host._core, observer, run);
 	}
-	readIncoming(nodes: ReadonlySet<Node<unknown>>): Pick<InspectSnapshot, "edges"> {
-		const inspect = this.graph.inspect;
-		return inspect === nativeInspect
-			? this.host._inspect("", nodes)
-			: Reflect.apply(inspect, this.graph, []);
+	readIncoming(nodes: ReadonlySet<Node<unknown>>): Pick<RenderSnapshot, "edges"> {
+		const edges: RenderEdge[] = [];
+		for (const entry of this.graph.describe()) {
+			const node = this.graph.find(entry.id);
+			if (node !== undefined && nodes.has(node))
+				for (const from of entry.deps) edges.push({ from, to: entry.id });
+		}
+		return { edges };
 	}
+	metadata(
+		node: Node<unknown>,
+	): { name?: string; factory: string; meta?: Record<string, unknown> } | undefined {
+		return this.host._entries.get(node);
+	}
+	mounts(): readonly { at: string; graph: Graph }[] {
+		return this.host._mounts;
+	}
+	profile(): Profile {
+		const nodes: Record<string, NodeProfile> = {};
+		let totalInvokes = 0;
+		for (const { node, id } of this.host._entries.values()) {
+			const h = node.handle;
+			const stat = h === null ? undefined : this.host._dispatcher.statFor(h);
+			const invokes = stat?.invokes ?? 0;
+			nodes[id] = {
+				invokes,
+				totalDurationNs: stat?.totalDurationNs ?? 0,
+				lastDurationNs: stat?.lastDurationNs ?? 0,
+				status: node.status,
+			};
+			totalInvokes += invokes;
+		}
+		return { totalInvokes, nodes };
+	}
+	observeTopology(path?: string): TopologyStream {
+		return {
+			subscribe: (sink) => {
+				const id = this.host._topologyObserverSeq++;
+				this.host._topologyObservers.set(id, { path, sink });
+				this.host._ensureMountedTopologyForwarders();
+				return () => {
+					this.host._topologyObservers.delete(id);
+					if (this.host._topologyObservers.size === 0)
+						this.host._releaseMountedTopologyForwarders();
+				};
+			},
+		};
+	}
+
 	releaseNodes(nodes: readonly Node<unknown>[], opts?: { reason?: string }): void {
 		this.host._releaseNodes(nodes, opts);
 	}

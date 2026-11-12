@@ -12,6 +12,7 @@ import {
 	postgresqlToolProviderInputFromIntent,
 	postgresqlToolProviderRuntime,
 } from "../executors/postgresql-tool-provider.js";
+import { graphTopology } from "../graph/blueprint.js";
 import { graph } from "../graph/graph.js";
 import { compoundTupleKey } from "../identity.js";
 import type {
@@ -213,7 +214,7 @@ describe("PostgreSQL-compatible tool provider (D602)", () => {
 			}),
 		]);
 		expect(issues).toEqual([]);
-		expect(JSON.stringify({ outcomes, audits, topology: g.topology() })).not.toContain(
+		expect(JSON.stringify({ outcomes, audits, topology: graphTopology(g) })).not.toContain(
 			"secret_private_sql",
 		);
 		await runtime.dispose();

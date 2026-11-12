@@ -1,6 +1,6 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
-
 import { graph } from "../graph/graph.js";
+import { renderSnapshot } from "../graph/render.js";
 import * as packageRoot from "../index.js";
 import { strictCanonicalJsonBytes } from "../json/codec.js";
 import type { Node } from "../node/node.js";
@@ -985,7 +985,7 @@ describe("AgenticMemory D789 real keyed exact-use lifecycle", () => {
 		expect(allowed.values).toHaveLength(2);
 		expectTypeOf(gate).toMatchTypeOf<AgenticMemoryRecordUseGateBundle<string>>();
 		expect(
-			g.inspect().nodes.filter((node) => node.factory === "agenticMemoryRecordUseGate"),
+			renderSnapshot(g).nodes.filter((node) => node.factory === "agenticMemoryRecordUseGate"),
 		).toHaveLength(1);
 		observed.unsubscribe();
 		allowed.unsubscribe();
@@ -1146,7 +1146,7 @@ describe("AgenticMemory D789 real keyed exact-use lifecycle", () => {
 			records: selected,
 			query: g.state({ tags: ["relevant"] }),
 		});
-		const topology = g.inspect();
+		const topology = renderSnapshot(g);
 		const snapshots = collect(gate.snapshot);
 		const ranked = collect(governed.ranked);
 		expectTypeOf(governed).toMatchTypeOf<AgenticMemoryBundle<string>>();

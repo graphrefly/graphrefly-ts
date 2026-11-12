@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-
 import { Dispatcher, type Handle } from "../dispatcher/index.js";
 import {
 	ColdConstructionError,
@@ -9,6 +8,8 @@ import {
 	startConstruction,
 } from "../graph/construction-scope.js";
 import { Graph } from "../graph/graph.js";
+import { topologyGroup } from "../graph/graph-topology-group.js";
+import { renderSnapshot } from "../graph/render.js";
 import { checkpointStateOfNode, subscriberCountOfNode } from "../node/runtime-accessors.js";
 import {
 	assertCausalCapabilities,
@@ -39,8 +40,8 @@ afterEach(() => {
 	for (const g of graphs.splice(0)) {
 		for (const name of ["run", "context", "foreign", "sealed"])
 			for (const lease of constructionOf(g, name)?.roots ?? []) lease.unsubscribe?.();
-		const group = g.topologyGroup();
-		for (const n of g.inspect().nodes) group.add(g.find(n.id)!);
+		const group = topologyGroup(g);
+		for (const n of renderSnapshot(g).nodes) group.add(g.find(n.id)!);
 		group.release();
 	}
 });
@@ -143,7 +144,7 @@ function combined(
 		? f.graph.node<number>([], null, { name: "external/a" })
 		: f.graph.state(2, { name: "external/a" });
 	const b = f.graph.state(3, { name: "external/b" });
-	const before = f.graph.inspect();
+	const before = renderSnapshot(f.graph);
 	const handlesBefore = dispatcher.live.size;
 	const scope = prepareConstruction(f.graph, {
 		name: "run",
@@ -303,7 +304,9 @@ describe("D162 private shared cold assembly", () => {
 				changing,
 			),
 		).toThrow(/context/);
-		expect(f.graph.inspect().nodes.filter((n) => n.name?.startsWith("epoch/"))).toHaveLength(1);
+		expect(renderSnapshot(f.graph).nodes.filter((n) => n.name?.startsWith("epoch/"))).toHaveLength(
+			1,
+		);
 	});
 	it("validates options once before resource acquisition and never revalidates the captured snapshot", () => {
 		const f = causal(trackedGraph());
@@ -380,7 +383,7 @@ describe("D162 private shared cold assembly", () => {
 					n++;
 					if (n === 1) {
 						graph = graphs.at(-1)!;
-						baseline = graph.inspect().nodes.length - 1;
+						baseline = renderSnapshot(graph).nodes.length - 1;
 						handles = new Set(dispatchers.get(graph)!.live);
 						// Native startup has no fn handle; this is the exact external handle set.
 						const a = graph.find("external/a")!;
@@ -397,8 +400,8 @@ describe("D162 private shared cold assembly", () => {
 				});
 			}),
 		).toThrow(ColdConstructionError);
-		expect(graph!.inspect().nodes).toHaveLength(baseline);
-		expect(graph!.inspect().nodes.some((n) => n.name?.startsWith("run/"))).toBe(false);
+		expect(renderSnapshot(graph!).nodes).toHaveLength(baseline);
+		expect(renderSnapshot(graph!).nodes.some((n) => n.name?.startsWith("run/"))).toBe(false);
 		expect(constructionOf(graph!, "run")).toBeUndefined();
 		expect(shared).toEqual([2]);
 		expect(dispatchers.get(graph!)!.live).toEqual(handles!);
@@ -448,7 +451,7 @@ describe("D162 private shared cold assembly", () => {
 			);
 			return;
 		}
-		const before = g.inspect().nodes.length;
+		const before = renderSnapshot(g).nodes.length;
 		expect(() =>
 			buildCausalNodes(
 				targetGraph,
@@ -458,7 +461,7 @@ describe("D162 private shared cold assembly", () => {
 				{ ...binding, epoch },
 			),
 		).toThrow(/context/);
-		expect(g.inspect().nodes).toHaveLength(before);
+		expect(renderSnapshot(g).nodes).toHaveLength(before);
 		expect(constructionOf(g, "context")).toBeUndefined();
 	});
 	it("retains obligations across late root failure, UI unsubscribe, wrong outcome and exact replay", () => {
@@ -524,7 +527,7 @@ describe("D162 private shared cold assembly", () => {
 	it("preserves shared dependency protection before ownership or activation", () => {
 		const f = combined();
 		// Actual removal invalidates real dependency membership at the normal construction boundary.
-		const group = f.graph.topologyGroup();
+		const group = topologyGroup(f.graph);
 		group.add(f.a);
 		expect(() => group.release()).toThrow();
 		expect(f.calls()).toBe(0);

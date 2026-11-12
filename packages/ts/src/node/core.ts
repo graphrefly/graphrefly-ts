@@ -92,6 +92,8 @@ export interface LifecycleState {
 }
 
 export interface NodeSlot<_T> {
+	/** Stable graph-layer id for an unregistered helper; released with this runtime slot. */
+	graphId?: string;
 	/** R-node: the instance's declared dependencies; a lifetime's rewire goes back to them. */
 	declaredDeps: Node<unknown>[];
 	/** R-node: the current instance's function and recipe, read by definition(). */
@@ -197,6 +199,11 @@ export class NodeCore {
 		const lifetime = this.lifetimes[id];
 		if (lifetime === undefined) throw new Error("NodeCore: unknown node lifetime");
 		return lifetime;
+	}
+
+	/** Graph identity occupancy shares the runtime slot's existing release boundary. */
+	hasGraphId(id: string): boolean {
+		return this.slots.some((slot) => slot?.graphId === id);
 	}
 
 	/** @internal D122: release graph-owned ephemeral node runtime state from core retention. */

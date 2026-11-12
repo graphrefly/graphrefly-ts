@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { renderSnapshot } from "../graph/render.js";
 import {
 	audit,
 	auditTime,
@@ -6,9 +7,9 @@ import {
 	debounce,
 	delay,
 	graph,
-	inspectToAscii,
 	type Message,
 	map,
+	renderToAscii,
 	throttle,
 	timeout,
 } from "../index.js";
@@ -169,7 +170,7 @@ describe("B41 tail — audit / auditTime / timeout / bufferTime", () => {
 		const g = graph();
 		const s = g.node<number>([], null, { name: "s" });
 		g.initNode(auditTime<number>(50), [s], { name: "au" });
-		const byId = Object.fromEntries(g.inspect().nodes.map((n) => [n.id, n]));
+		const byId = Object.fromEntries(renderSnapshot(g).nodes.map((n) => [n.id, n]));
 		expect(byId.au.factory).toBe("auditTime");
 	});
 
@@ -308,13 +309,13 @@ describe("B41 tail — audit / auditTime / timeout / bufferTime", () => {
 				msgs.push(m);
 			}
 		});
-		const armed = g.inspect();
+		const armed = renderSnapshot(g);
 		expect(armed.nodes.some((node) => node.factory === "timeout")).toBe(true);
 		expect(armed.nodes.some((node) => node.factory === "timer")).toBe(true);
-		expect(inspectToAscii(armed)).toContain("timer");
+		expect(renderToAscii(armed)).toContain("timer");
 
 		s.complete();
-		const completed = g.inspect();
+		const completed = renderSnapshot(g);
 		expect(types(msgs)).toContain("COMPLETE");
 		expect(completed.nodes.some((node) => node.factory === "timeout")).toBe(true);
 		// R-lifetime: the ended timeout released its timers and is back on its declared dependencies,

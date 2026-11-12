@@ -1,3 +1,4 @@
+import { renderSnapshot } from "../graph/render.js";
 /**
  * CSP-2.8 reactive data structures (D54/D60) — reactiveList/Map/Index/Log + the shared core.
  *
@@ -173,8 +174,8 @@ describe("collectionCore two-port shape (D60) via reactiveList", () => {
 			{ kind: "trimHead", n: 2 },
 		]);
 		expect(list.toArray()).toEqual([3]);
-		expect(g.inspect().edges).toContainEqual({ from: "max", to: "list.capacityPolicy" });
-		expect(g.inspect().nodes.find((n) => n.id === "list.capacityPolicy")?.factory).toBe(
+		expect(renderSnapshot(g).edges).toContainEqual({ from: "max", to: "list.capacityPolicy" });
+		expect(renderSnapshot(g).nodes.find((n) => n.id === "list.capacityPolicy")?.factory).toBe(
 			"reactiveList.capacityPolicy",
 		);
 	});
@@ -196,8 +197,11 @@ describe("collectionCore two-port shape (D60) via reactiveList", () => {
 			{ kind: "trimHead", n: 1 },
 			{ kind: "trimHead", n: 1 },
 		]);
-		expect(g.inspect().edges).toContainEqual({ from: "max", to: "list.capacityPolicy" });
-		expect(g.inspect().edges).toContainEqual({ from: "list.bind#0", to: "list.capacityPolicy" });
+		expect(renderSnapshot(g).edges).toContainEqual({ from: "max", to: "list.capacityPolicy" });
+		expect(renderSnapshot(g).edges).toContainEqual({
+			from: "list.bind#0",
+			to: "list.capacityPolicy",
+		});
 	});
 });
 
@@ -216,8 +220,8 @@ describe("D54 Node<T> widening — in-graph producer drives the structure (decla
 			{ kind: "append", value: 2 },
 		]);
 		expect(list.toArray()).toEqual([0, 1, 2]);
-		expect(g.inspect().edges).toContainEqual({ from: "src", to: "list.bind#0" });
-		expect(g.inspect().nodes.find((n) => n.id === "list.bind#0")?.factory).toBe(
+		expect(renderSnapshot(g).edges).toContainEqual({ from: "src", to: "list.bind#0" });
+		expect(renderSnapshot(g).nodes.find((n) => n.id === "list.bind#0")?.factory).toBe(
 			"reactiveList.bindSource",
 		);
 	});
@@ -365,7 +369,7 @@ describe("reactiveMap (D60 #3) — lazy TTL + LRU + delete-reason", () => {
 		const g = graph();
 		const m = reactiveMap<string, number>(g, { name: "map", maxSize: 2, defaultTtl: 5 });
 		m.set("a", 1);
-		const snap = g.inspect();
+		const snap = renderSnapshot(g);
 		expect(snap.nodes.find((n) => n.id === "map.apply")?.factory).toBe("reactiveMap.apply");
 		expect(snap.nodes.find((n) => n.id === "map.delta")?.factory).toBe("reactiveMap.delta");
 		expect(snap.nodes.find((n) => n.id === "map.intent")?.factory).toBe("reactiveMap.intent");
@@ -393,7 +397,7 @@ describe("reactiveMap (D60 #3) — lazy TTL + LRU + delete-reason", () => {
 			{ kind: "delete", key: "b", previous: 2, reason: "lru-evict" },
 		]);
 		expect([...m.toMap()]).toEqual([["c", 3]]);
-		expect(g.inspect().edges).toContainEqual({ from: "max", to: "map.apply" });
+		expect(renderSnapshot(g).edges).toContainEqual({ from: "max", to: "map.apply" });
 	});
 
 	it("D68 Node-valued defaultTtl is a declared policy dep for subsequent sets", () => {
@@ -414,7 +418,7 @@ describe("reactiveMap (D60 #3) — lazy TTL + LRU + delete-reason", () => {
 		expect(m.get("b")).toBe(2);
 		t = 27;
 		expect(m.get("b")).toBeUndefined();
-		expect(g.inspect().edges).toContainEqual({ from: "ttl", to: "map.apply" });
+		expect(renderSnapshot(g).edges).toContainEqual({ from: "ttl", to: "map.apply" });
 	});
 
 	it("D72 retention archives lowest scores with reason:'archived'", () => {
@@ -445,7 +449,7 @@ describe("reactiveMap (D60 #3) — lazy TTL + LRU + delete-reason", () => {
 			retention: { maxSize: 2, score: ({ value }) => value },
 		});
 		m.set("a", 1);
-		const snap = g.inspect();
+		const snap = renderSnapshot(g);
 		expect(snap.nodes.find((n) => n.id === "map.retentionPolicy")?.factory).toBe(
 			"reactiveMap.retentionPolicy",
 		);
@@ -472,7 +476,7 @@ describe("reactiveMap (D60 #3) — lazy TTL + LRU + delete-reason", () => {
 			{ kind: "delete", key: "b", previous: 2, reason: "archived" },
 		]);
 		expect([...m.toMap()]).toEqual([["c", 3]]);
-		expect(g.inspect().edges).toContainEqual({ from: "keep", to: "map.apply" });
+		expect(renderSnapshot(g).edges).toContainEqual({ from: "keep", to: "map.apply" });
 	});
 
 	it("D68 graph-bound Node policy/input opts reject foreign graph nodes", () => {
@@ -607,7 +611,7 @@ describe("reactiveMap (D60 #3) — lazy TTL + LRU + delete-reason", () => {
 		const m = reactiveMap<string, number>(g, { name: "map" });
 		const view = m.select((value) => value > 1);
 
-		const snap = g.inspect();
+		const snap = renderSnapshot(g);
 		expect(snap.nodes.find((n) => n.id === "map.delta")?.factory).toBe("reactiveMap.delta");
 		expect(snap.nodes.find((n) => n.id === "map.select#0.delta")?.factory).toBe(
 			"reactiveMap.select.delta",
@@ -621,7 +625,7 @@ describe("reactiveMap (D60 #3) — lazy TTL + LRU + delete-reason", () => {
 			to: "map.select#0.snapshot",
 		});
 		view.dispose();
-		const after = g.inspect();
+		const after = renderSnapshot(g);
 		expect(after.edges).not.toContainEqual({
 			from: "map.delta",
 			to: "map.select#0.delta",
@@ -647,8 +651,7 @@ describe("reactiveMap (D60 #3) — lazy TTL + LRU + delete-reason", () => {
 		expect(g.find("map.select#0.delta")).toBeUndefined();
 		m.dispose();
 		expect(
-			g
-				.inspect()
+			renderSnapshot(g)
 				.nodes.map((n) => n.id)
 				.filter((id) => id.includes(".select#")),
 		).toEqual([]);
@@ -681,14 +684,14 @@ describe("reactiveMap (D60 #3) — lazy TTL + LRU + delete-reason", () => {
 		const src = g.node<readonly [string, number]>([], null, { name: "src" });
 		const m = reactiveMap<string, number>(g, { name: "map" });
 		m.setFrom(src as Node<readonly [string, number]>);
-		expect(g.inspect().edges).toContainEqual({ from: "map.bind#0", to: "map.apply" });
+		expect(renderSnapshot(g).edges).toContainEqual({ from: "map.bind#0", to: "map.apply" });
 
 		expect(() => src.set(1 as unknown as readonly [string, number])).not.toThrow();
 		expect(m.size).toBe(0);
-		expect(g.inspect().edges).toContainEqual({ from: "src", to: "map.bind#0" });
+		expect(renderSnapshot(g).edges).toContainEqual({ from: "src", to: "map.bind#0" });
 		// The apply node ended with the folder's ERROR; its closed lifetime is back on its declared
 		// dependencies (R-lifetime), so the attached folder is no longer one.
-		expect(g.inspect().nodes.find((n) => n.id === "map.bind#0")?.factory).toBe(
+		expect(renderSnapshot(g).nodes.find((n) => n.id === "map.bind#0")?.factory).toBe(
 			"reactiveMap.bindSource",
 		);
 	});

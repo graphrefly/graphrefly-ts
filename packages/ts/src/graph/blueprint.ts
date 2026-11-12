@@ -1,7 +1,10 @@
+import { cloneTopologyMeta } from "./describe.js";
+import type { Graph } from "./graph.js";
+import { graphRegistrations } from "./graph-lifecycle.js";
 /**
  * GraphBlueprint first slice (D173/D177).
  *
- * A blueprint is read-only audit/collaboration evidence over graph.topology(). It is not an
+ * A blueprint is read-only audit/collaboration evidence over graphTopology(graph). It is not an
  * authoring spec, checkpoint, restore input, hash owner, or collaboration ownership artifact.
  */
 
@@ -469,4 +472,58 @@ function compareIssues(a: GraphBlueprintDiagnosticIssue, b: GraphBlueprintDiagno
 		compareText(a.from ?? "", b.from ?? "") ||
 		compareText(a.to ?? "", b.to ?? "")
 	);
+}
+
+/** Package topology for blueprint/rendering; deps remain the sole edge truth. */
+export function graphTopology(graph: Graph): GraphTopologySnapshot {
+	const read = (g: Graph, prefix: string): GraphTopologySnapshot => {
+		const registrar = graphRegistrations.get(g)!;
+		const nodes = g.describe().map((entry) => {
+			const node = g.find(entry.id)!;
+			const details = registrar.metadata(node);
+			const meta = details?.meta;
+			const name = details?.name ?? node.name;
+			return {
+				id: prefix + entry.id,
+				factory: details?.factory ?? node.factory ?? "?",
+				deps: entry.deps.map((id) => prefix + id),
+				...(name === undefined ? {} : { name }),
+				...(meta === undefined ? {} : { meta: cloneTopologyMeta(meta) }),
+			};
+		});
+		const mounts = registrar.mounts();
+		return {
+			...(g.name === undefined ? {} : { name: g.name }),
+			nodes,
+			edges: nodes.flatMap((node) => node.deps.map((from) => ({ from, to: node.id }))),
+			...(mounts.length === 0
+				? {}
+				: {
+						subgraphs: mounts.map((m) => ({
+							...read(m.graph, `${prefix + m.at}::`),
+							mountId: m.at,
+						})),
+					}),
+		};
+	};
+	return read(graph, "");
+}
+
+/** Build the package's audit/collaboration envelope from the graph's current dependencies. */
+export function graphBlueprint(graph: Graph, opts: GraphBlueprintOptions = {}): GraphBlueprint {
+	const topology = normalizeTopology(graphTopology(graph));
+	return {
+		version: GRAPH_BLUEPRINT_VERSION,
+		topology,
+		...(opts.diagnostics ? { diagnostics: graphBlueprintDiagnostics(topology) } : {}),
+		...(opts.provenance === undefined
+			? {}
+			: {
+					provenance: normalizeTopologyMeta(
+						opts.provenance,
+						"graph blueprint provenance",
+						"provenance",
+					),
+				}),
+	};
 }

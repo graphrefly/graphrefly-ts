@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
-
 import { attachKeyedRateLimitAuthority, type KeyedRateLimitAuthority } from "../adapters/index.js";
 import { graph, type ObserveEvent } from "../graph/index.js";
+import { graphProfile } from "../graph/inspect.js";
+import { renderSnapshot } from "../graph/render.js";
 import { canonicalTupleKey } from "../identity.js";
 import { strictJsonCodec } from "../json/codec.js";
 import type { Node } from "../node/node.js";
@@ -592,7 +593,7 @@ describe("B111.6 inspection and injected-authority evidence", () => {
 		const policy = fixedPolicy(limitedRequest);
 		const host = new TestAtomicRateLimitAuthority([policy], [0]);
 		const instance = buildInstance(host, "inspection-graph", { profile: true });
-		const before = instance.g.inspect();
+		const before = renderSnapshot(instance.g);
 		const observedEvents: ObserveEvent[] = [];
 		const stopObserving = instance.g.observe(
 			instance.g.describe().map((n) => n.id),
@@ -602,7 +603,7 @@ describe("B111.6 inspection and injected-authority evidence", () => {
 		);
 		instance.requests.set(limitedRequest);
 		host.drainNext();
-		const after = instance.g.inspect();
+		const after = renderSnapshot(instance.g);
 		const topology = (snapshot: typeof after) => ({
 			nodes: snapshot.nodes.map(({ id, factory, deps }) => ({ id, factory, deps })),
 			edges: snapshot.edges,
@@ -646,7 +647,7 @@ describe("B111.6 inspection and injected-authority evidence", () => {
 		expect(observedMaterial).not.toContain(TEST_ATOMIC_HOST_FORMAT);
 		expect(observedMaterial).not.toContain('"receipts"');
 		expect(observedMaterial).not.toContain('"states"');
-		const profile = instance.g.profile();
+		const profile = graphProfile(instance.g);
 		expect(Object.keys(profile.nodes).every((path) => nodeIds.has(path))).toBe(true);
 		const inspectionKeys = JSON.stringify({
 			nodes: after.nodes.map(({ id, factory }) => ({ id, factory })),
@@ -737,7 +738,7 @@ describe("B111.6 inspection and injected-authority evidence", () => {
 		expect(secondary.admissions.values).toHaveLength(1);
 		expect(primary.denials.values).toHaveLength(1);
 		expect(mutations).toBe(3);
-		const topology = primary.g.inspect();
+		const topology = renderSnapshot(primary.g);
 		expect(topology.nodes.find((node) => node.id === "authority/events")?.factory).toBe(
 			"attachKeyedRateLimitAuthority",
 		);
@@ -745,7 +746,7 @@ describe("B111.6 inspection and injected-authority evidence", () => {
 			"keyedRateLimitAdmission",
 		);
 		expect(
-			secondary.g.inspect().nodes.map(({ id, factory, deps }) => ({ id, factory, deps })),
+			renderSnapshot(secondary.g).nodes.map(({ id, factory, deps }) => ({ id, factory, deps })),
 		).toEqual(topology.nodes.map(({ id, factory, deps }) => ({ id, factory, deps })));
 		primary.release();
 		secondary.release();

@@ -1,3 +1,4 @@
+import { graphTopology } from "../../src/graph/blueprint.js";
 import { type Graph, graph } from "../../src/graph/graph.js";
 import type { Node, StateNode } from "../../src/node/node.js";
 import type {
@@ -235,7 +236,7 @@ export function runD686GraphArm(
 	if (finalPlanResult === undefined) {
 		throw new Error(`D686 ${arm} did not settle ${scenario.scenarioId}`);
 	}
-	const topology = g.topology();
+	const topology = graphTopology(g);
 	return {
 		arm,
 		scenarioId: scenario.scenarioId,

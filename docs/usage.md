@@ -74,7 +74,7 @@ uses focused subpaths instead of the old root, `utils`, `base`, `compat`, and
 - Sources for values, iterables, promises, timers, events, HTTP/SSE/WebSocket
   driver boundaries, webhooks, cron-like schedules, and Node-specific process
   or filesystem bindings.
-- Inspectable graph structure via `describe()`, `inspect()`, `topology()`,
+- Inspectable graph structure via `describe()`, `find()`, and module helpers `graphTopology(graph)`,
   `observe()`, `observeTopology()`, diagnostics, renderers, and optional profiling.
 - Passive storage helpers for strict JSON, KV, append logs, WAL frames,
   content-addressed storage, read-through tiers, and observe-event logs.
@@ -92,7 +92,7 @@ messages, facts, or commands.
 Use the root for the common surface:
 
 ```ts
-import { graph, inspectToMermaid, map, memoryKv } from "@graphrefly/ts";
+import { graph, renderToMermaid, map, memoryKv } from "@graphrefly/ts";
 ```
 
 Use focused subpaths when you want clearer ownership or better bundle shape:
@@ -102,7 +102,7 @@ import { graph } from "@graphrefly/ts/graph";
 import { map, switchMap } from "@graphrefly/ts/operators";
 import { fromPromise, timer } from "@graphrefly/ts/sources";
 import { memoryKv } from "@graphrefly/ts/storage";
-import { inspectToMermaid } from "@graphrefly/ts/render";
+import { renderToMermaid } from "@graphrefly/ts/render";
 import { useNodeValue } from "@graphrefly/react";
 ```
 
@@ -161,15 +161,15 @@ leaves; call `stop()` to end the subscription.
 ### Inspection
 
 ```ts
-import { graph, inspectToMermaid } from "@graphrefly/ts";
+import { graph, renderSnapshot, renderToMermaid } from "@graphrefly/ts";
 
 const g = graph({ name: "flow" });
 const input = g.state("hello", { name: "input" });
 g.derived([input], (value) => value.toUpperCase(), { name: "upper" });
 
 const nodes = g.describe(); // [{ id, kind, deps, quiet }, ...]
-const snapshot = g.inspect(); // adds names, factories, status and values
-const mermaid = inspectToMermaid(snapshot);
+const snapshot = renderSnapshot(g); // adds names, factories, status and values
+const mermaid = renderToMermaid(snapshot);
 // flowchart LR
 //   n0["input"]
 //   n1["upper"]
@@ -182,8 +182,8 @@ input.set("bye");
 stop();
 ```
 
-`describe()` is the topology as data; `inspect()` is the package's own richer
-snapshot, which `topology()`, `blueprint()` and the `inspectTo*` renderers read.
+`describe()` is the topology as data, and `find(id)` gives the node
+for reading status and cache. `graphTopology(g)` and `graphBlueprint(g)` derive richer metadata in the blueprint module; `renderSnapshot(g)` and the `renderTo*` functions are renderer helpers.
 `observe(ids, sink)` subscribes to each named node, so a cold node activates,
 and hands on every array it delivers as `{ id, msgs }`; the returned function
 stops it. `g.retain(node)` keeps a node active without a sink and returns the

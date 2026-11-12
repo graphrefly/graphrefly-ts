@@ -1,15 +1,15 @@
 /**
- * describe() / inspect() / topology() shapes.
+ * Graph description and module presentation shapes.
  *
- * describe() is R-graph-surface@1's topology as data: exactly `{ id, kind, deps, quiet }` per
- * node. inspect() is this package's own richer snapshot over the same live dependencies (names,
+ * describe() is R-graph-surface@2's topology as data: exactly `{ id, kind, deps, quiet }` per
+ * node. renderSnapshot(graph) is this package's richer snapshot over the same live dependencies (names,
  * factories, status, values, annotations, edges and mounted subgraphs, graphrefly-ts:D183), and
  * topology() its pure-structure projection (D173).
  */
 
 import type { Status } from "../node/node.js";
 
-/** One node of describe() (R-graph-surface@1), and nothing else. */
+/** One node of describe() (R-graph-surface@2), and nothing else. */
 export interface DescribedNode {
 	/** The node's id in this graph. */
 	id: string;
@@ -48,29 +48,29 @@ export interface GraphTopologySnapshot {
 	subgraphs?: GraphTopologySnapshot[];
 }
 
-export interface InspectNode extends GraphTopologyNode {
+export interface RenderNode extends GraphTopologyNode {
 	/** The node's derived status: cache, output and lifecycle (R-node). */
 	status: Status;
 	/** Cache snapshot at call time; field ABSENT = SENTINEL / never-emitted. */
 	value?: unknown;
 }
 
-export interface InspectEdge extends GraphTopologyEdge {}
+export interface RenderEdge extends GraphTopologyEdge {}
 
-export interface InspectSnapshot extends GraphTopologySnapshot {
+export interface RenderSnapshot extends GraphTopologySnapshot {
 	name?: string;
-	nodes: InspectNode[];
-	edges: InspectEdge[];
-	subgraphs?: InspectSnapshot[];
+	nodes: RenderNode[];
+	edges: RenderEdge[];
+	subgraphs?: RenderSnapshot[];
 }
 
-export interface InspectOpts {
+export interface RenderOpts {
 	/** Causal-chain mode: filter to nodes on a path from→to (graphrefly-ts:D183). */
 	explain?: { from: string; to: string };
 }
 
-/** Project an inspect() snapshot into the D173 pure-structure topology shape. */
-export function topologyFromInspect(snapshot: InspectSnapshot): GraphTopologySnapshot {
+/** Project a render snapshot into the D173 pure-structure topology shape. */
+export function topologyFromRender(snapshot: RenderSnapshot): GraphTopologySnapshot {
 	const nodes = snapshot.nodes.map((node) => {
 		const topologyNode: GraphTopologyNode = {
 			id: node.id,
@@ -87,11 +87,12 @@ export function topologyFromInspect(snapshot: InspectSnapshot): GraphTopologySna
 	};
 	if (snapshot.mountId !== undefined) out.mountId = snapshot.mountId;
 	if (snapshot.name !== undefined) out.name = snapshot.name;
-	if (snapshot.subgraphs !== undefined) out.subgraphs = snapshot.subgraphs.map(topologyFromInspect);
+	if (snapshot.subgraphs !== undefined) out.subgraphs = snapshot.subgraphs.map(topologyFromRender);
 	return out;
 }
 
-function cloneTopologyMeta(meta: Record<string, unknown>): Record<string, unknown> {
+/** Copy metadata for a detached presentation snapshot. */
+export function cloneTopologyMeta(meta: Record<string, unknown>): Record<string, unknown> {
 	return cloneTopologyValue(meta, new WeakMap()) as Record<string, unknown>;
 }
 

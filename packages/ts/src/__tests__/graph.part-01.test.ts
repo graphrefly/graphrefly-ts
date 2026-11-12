@@ -1,4 +1,6 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
+import { graphBlueprint, graphTopology } from "../graph/blueprint.js";
+import { renderSnapshot } from "../graph/render.js";
 
 import type {
 	GraphBlueprintJson,
@@ -77,7 +79,7 @@ describe("Graph — 8-verb sugar (CSP-2)", () => {
 	});
 });
 
-describe("Graph.inspect — snapshot shape (D39)", () => {
+describe("renderSnapshot — snapshot shape (D39)", () => {
 	it("emits a flat snapshot with ids, factory names, status, value, deps, edges", () => {
 		const g = graph({ name: "demo" });
 		const count = g.state(0, { name: "count" });
@@ -85,7 +87,7 @@ describe("Graph.inspect — snapshot shape (D39)", () => {
 		collect(doubled);
 		count.set(5);
 
-		const snap = g.inspect();
+		const snap = renderSnapshot(g);
 		expect(snap.name).toBe("demo");
 		const byId = Object.fromEntries(snap.nodes.map((n) => [n.id, n]));
 		expect(byId.count.factory).toBe("state");
@@ -101,7 +103,7 @@ describe("Graph.inspect — snapshot shape (D39)", () => {
 		const g = graph();
 		const s = g.state(0, { name: "s" });
 		g.derived([s], (n) => n, { name: "d" }); // not subscribed → never runs
-		const snap = g.inspect();
+		const snap = renderSnapshot(g);
 		const dNode = snap.nodes.find((n) => n.id === "d");
 		expect(dNode && "value" in dNode).toBe(false); // SENTINEL → field absent
 	});
@@ -115,7 +117,7 @@ describe("Graph.inspect — snapshot shape (D39)", () => {
 		collect(c);
 		collect(g.derived([side], (x) => x, { name: "sideD" }));
 
-		const snap = g.inspect({ explain: { from: "a", to: "c" } });
+		const snap = renderSnapshot(g, { explain: { from: "a", to: "c" } });
 		const ids = snap.nodes.map((n) => n.id).sort();
 		expect(ids).toEqual(["a", "b", "c"]);
 	});
@@ -127,7 +129,7 @@ describe("Graph.inspect — snapshot shape (D39)", () => {
 		child.state(1, { name: "leaf" });
 		parent.mount(child, { at: "sub" });
 
-		const snap = parent.inspect();
+		const snap = renderSnapshot(parent);
 		expect(snap.subgraphs?.[0].mountId).toBe("sub");
 		expect(snap.subgraphs?.[0].nodes.some((n) => n.id === "sub::leaf")).toBe(true);
 	});
@@ -140,7 +142,7 @@ describe("Graph.inspect — snapshot shape (D39)", () => {
 	});
 });
 
-describe("Graph.topology — pure structure snapshot (D173)", () => {
+describe("graphTopology — pure structure snapshot (D173)", () => {
 	it("projects describe's live truth source without runtime status/value/version", () => {
 		const g = graph({ name: "demo" });
 		const count = g.state(0, { name: "count", meta: { role: { kind: "input" } } });
@@ -148,7 +150,7 @@ describe("Graph.topology — pure structure snapshot (D173)", () => {
 		collect(doubled);
 		count.set(5);
 
-		const topology: GraphTopologySnapshot = g.topology();
+		const topology: GraphTopologySnapshot = graphTopology(g);
 		expect(topology.name).toBe("demo");
 		const byId = Object.fromEntries(topology.nodes.map((n) => [n.id, n]));
 		expect(byId.count).toEqual({
@@ -159,7 +161,7 @@ describe("Graph.topology — pure structure snapshot (D173)", () => {
 			meta: { role: { kind: "input" } },
 		});
 		((byId.count.meta as Record<string, unknown>).role as { kind: string }).kind = "changed";
-		expect(g.topology().nodes.find((node) => node.id === "count")?.meta).toEqual({
+		expect(graphTopology(g).nodes.find((node) => node.id === "count")?.meta).toEqual({
 			role: { kind: "input" },
 		});
 		expect(byId.doubled).toEqual({
@@ -182,7 +184,7 @@ describe("Graph.topology — pure structure snapshot (D173)", () => {
 
 		g.replace(d, [b], (ctx) => ctx.down([["DATA", ctx.deps[0].value]]));
 
-		const topology = g.topology();
+		const topology = graphTopology(g);
 		expect(topology.nodes.find((node) => node.id === "d")?.deps).toEqual(["b"]);
 		expect(topology.edges).toContainEqual({ from: "b", to: "d" });
 		expect(topology.edges).not.toContainEqual({ from: "a", to: "d" });
@@ -194,7 +196,7 @@ describe("Graph.topology — pure structure snapshot (D173)", () => {
 		child.state(1, { name: "leaf" });
 		parent.mount(child, { at: "sub" });
 
-		const topology = parent.topology();
+		const topology = graphTopology(parent);
 		expect(topology.subgraphs?.[0]?.mountId).toBe("sub");
 		const leaf = topology.subgraphs?.[0]?.nodes.find((node) => node.id === "sub::leaf");
 		expect(leaf).toEqual({
@@ -226,7 +228,7 @@ describe("Graph.topology — pure structure snapshot (D173)", () => {
 	});
 });
 
-describe("Graph.blueprint — sync audit envelope (D173/D177)", () => {
+describe("graphBlueprint — sync audit envelope (D173/D177)", () => {
 	it("returns a versioned normalized topology envelope without describe runtime fields", () => {
 		const parent = graph({ name: "parent" });
 		const count = parent.state(0, { name: "count", meta: { role: "input" } });
@@ -237,7 +239,7 @@ describe("Graph.blueprint — sync audit envelope (D173/D177)", () => {
 		collect(doubled);
 		count.set(5);
 
-		const blueprint = parent.blueprint();
+		const blueprint = graphBlueprint(parent);
 		expect(blueprint.version).toBe(GRAPH_BLUEPRINT_VERSION);
 		expect(blueprint.diagnostics).toBeUndefined();
 		expect(blueprint.topology.nodes.map((node) => node.id)).toEqual(["count", "doubled"]);
@@ -275,14 +277,16 @@ describe("Graph.blueprint — sync audit envelope (D173/D177)", () => {
 		const rightB = right.state(2, { name: "b" });
 		right.derived([rightB, rightA], (b, a) => a! + b!, { name: "sum" });
 
-		expect(left.blueprint().topology.nodes.map((node) => node.id)).toEqual(["a", "b", "sum"]);
-		expect(left.blueprint().topology.edges).toEqual([
+		expect(graphBlueprint(left).topology.nodes.map((node) => node.id)).toEqual(["a", "b", "sum"]);
+		expect(graphBlueprint(left).topology.edges).toEqual([
 			{ from: "a", to: "sum" },
 			{ from: "b", to: "sum" },
 		]);
-		expect(canonicalTopologyJson(left.topology())).toBe(canonicalTopologyJson(right.topology()));
-		expect(canonicalTopologyJson(left.blueprint().topology)).toBe(
-			canonicalTopologyJson(right.blueprint().topology),
+		expect(canonicalTopologyJson(graphTopology(left))).toBe(
+			canonicalTopologyJson(graphTopology(right)),
+		);
+		expect(canonicalTopologyJson(graphBlueprint(left).topology)).toBe(
+			canonicalTopologyJson(graphBlueprint(right).topology),
 		);
 	});
 
@@ -292,10 +296,10 @@ describe("Graph.blueprint — sync audit envelope (D173/D177)", () => {
 		const a = g.state(1, { name: "a" });
 		g.derived([b, a], (right, left) => left! + right!, { name: "sum" });
 
-		const bytes = canonicalTopologyBytes(g.topology());
+		const bytes = canonicalTopologyBytes(graphTopology(g));
 
-		expect(bytes).toEqual(strictCanonicalJsonBytes(g.blueprint().topology));
-		expect(decodeTestJsonBytes(bytes)).toBe(canonicalTopologyJson(g.topology()));
+		expect(bytes).toEqual(strictCanonicalJsonBytes(graphBlueprint(g).topology));
+		expect(decodeTestJsonBytes(bytes)).toBe(canonicalTopologyJson(graphTopology(g)));
 	});
 
 	it("adds helper-only topology hash metadata without hashing provenance", async () => {
@@ -303,7 +307,7 @@ describe("Graph.blueprint — sync audit envelope (D173/D177)", () => {
 		const count = g.state(1, { name: "count" });
 		g.derived([count], (n) => n! + 1, { name: "next" });
 
-		const base = g.blueprint();
+		const base = graphBlueprint(g);
 		const withFirstProvenance = withBlueprintProvenance(base, {
 			source: "unit-test",
 			env: { b: 2, a: 1 },
@@ -335,7 +339,7 @@ describe("Graph.blueprint — sync audit envelope (D173/D177)", () => {
 	it("rejects malformed helper hash metadata", () => {
 		const g = graph();
 		g.state(1, { name: "count" });
-		const base = g.blueprint();
+		const base = graphBlueprint(g);
 
 		expect(() => withBlueprintHash(base, { algorithm: "", hash: testHash })).toThrow(
 			/algorithm must be a non-empty string/,
@@ -363,7 +367,7 @@ describe("Graph.blueprint — sync audit envelope (D173/D177)", () => {
 		const g = graph();
 		g.state(0, { name: "island" });
 
-		const blueprint = g.blueprint({
+		const blueprint = graphBlueprint(g, {
 			diagnostics: true,
 			provenance: { source: "unit-test", nested: { b: 2, a: 1 } },
 		});

@@ -16,7 +16,7 @@ export function validateDownPayloads(msgs: Wave): void {
 
 /**
  * R-wave / R-subscription@3 / R-failure@3: START, PENDING and RESOLVED are the kernel's alone. A
- * node's own output (ctx.down, or a host emission through node.down) carrying any of them is
+ * node's own output (ctx.down, or a host state update) carrying any of them is
  * rejected before anything is applied; uncaught inside a function, the throw becomes that node's
  * ERROR. Unknown types, malformed DATA and ERROR are rejected by {@link validateDownPayloads}.
  */

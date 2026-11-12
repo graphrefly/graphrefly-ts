@@ -1,3 +1,4 @@
+import { renderSnapshot } from "../graph/render.js";
 /**
  * CSP-2.8 composition helpers (D56): topologyDiff + static stratify/stratifyBranch.
  *
@@ -10,9 +11,9 @@ import type { Message, Node, Status } from "../index.js";
 import {
 	filter,
 	graph,
-	type InspectSnapshot,
 	map,
 	pipe,
+	type RenderSnapshot,
 	stratify,
 	stratifyBranch,
 	topologyDiff,
@@ -28,14 +29,14 @@ const SENTINEL: Status = { cache: "empty", output: "open", lifecycle: "active" }
 
 describe("topologyDiff (D56)", () => {
 	it("diffs D39 describe snapshots without old-core deps", () => {
-		const prev: InspectSnapshot = {
+		const prev: RenderSnapshot = {
 			nodes: [
 				{ id: "a", factory: "state", status: SETTLED, deps: [], meta: { role: "old" } },
 				{ id: "b", factory: "map", status: SENTINEL, deps: ["a"] },
 			],
 			edges: [{ from: "a", to: "b" }],
 		};
-		const next: InspectSnapshot = {
+		const next: RenderSnapshot = {
 			nodes: [
 				{ id: "a", factory: "state", status: SETTLED, deps: [], meta: { role: "new" } },
 				{ id: "c", factory: "filter", status: SENTINEL, deps: ["a"] },
@@ -53,8 +54,8 @@ describe("topologyDiff (D56)", () => {
 	});
 
 	it("detects mounted subgraph paths from prefixed child node ids", () => {
-		const prev: InspectSnapshot = { nodes: [], edges: [] };
-		const next: InspectSnapshot = {
+		const prev: RenderSnapshot = { nodes: [], edges: [] };
+		const next: RenderSnapshot = {
 			nodes: [],
 			edges: [],
 			subgraphs: [
@@ -68,8 +69,8 @@ describe("topologyDiff (D56)", () => {
 	});
 
 	it("detects nested mounted subgraph paths without collapsing to the parent", () => {
-		const prev: InspectSnapshot = { nodes: [], edges: [] };
-		const next: InspectSnapshot = {
+		const prev: RenderSnapshot = { nodes: [], edges: [] };
+		const next: RenderSnapshot = {
 			nodes: [],
 			edges: [],
 			subgraphs: [
@@ -103,7 +104,7 @@ describe("pipe (operator composition helper)", () => {
 		source.set(3);
 
 		expect(data(msgs)).toEqual(["v2", "v4"]);
-		const snap = g.inspect();
+		const snap = renderSnapshot(g);
 		expect(snap.nodes.map((n) => [n.id, n.factory])).toContainEqual(["map#0", "map"]);
 		expect(snap.nodes.map((n) => [n.id, n.factory])).toContainEqual(["filter#1", "filter"]);
 		expect(snap.nodes.map((n) => [n.id, n.factory])).toContainEqual(["map#2", "map"]);
@@ -137,7 +138,7 @@ describe("pipe (operator composition helper)", () => {
 		source.set(1);
 
 		expect(data(msgs)).toEqual([7, 8]);
-		expect(g.inspect().nodes.filter((n) => n.factory === "map")).toHaveLength(7);
+		expect(renderSnapshot(g).nodes.filter((n) => n.factory === "map")).toHaveLength(7);
 	});
 });
 
@@ -295,7 +296,7 @@ describe("stratify (D56)", () => {
 		expect(data(even.msgs)).toEqual([2, 5]);
 		expect(data(odd.msgs)).toEqual([1, 3]);
 
-		const snap = g.inspect();
+		const snap = renderSnapshot(g);
 		const evenNode = snap.nodes.find((n) => n.id === "branch/even");
 		expect(evenNode?.factory).toBe("stratifyBranch");
 		expect(evenNode?.deps).toEqual(["source", "branch/rules"]);
@@ -333,7 +334,7 @@ describe("stratify (D56)", () => {
 			},
 		);
 
-		const snap = g.inspect();
+		const snap = renderSnapshot(g);
 		expect(snap.nodes.find((n) => n.id === "branch/rules")?.meta).toEqual({
 			kind: "stratify_rules",
 			owner: "qa",

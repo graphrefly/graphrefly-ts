@@ -1,3 +1,4 @@
+import { renderSnapshot } from "../../packages/ts/src/graph/render.js";
 /**
  * Knowledge-graph extraction — clean-slate Node example.
  *
@@ -170,7 +171,7 @@ for (const topic of topics) {
 }
 
 console.log("\ncausal chain:");
-for (const edge of g.inspect({ explain: { from: "docs", to: "kg/relations" } }).edges) {
+for (const edge of renderSnapshot(g, { explain: { from: "docs", to: "kg/relations" } }).edges) {
 	console.log(`  ${edge.from} -> ${edge.to}`);
 }
 

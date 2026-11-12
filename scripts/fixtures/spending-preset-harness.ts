@@ -1,3 +1,4 @@
+import { topologyGroup } from "../../packages/ts/src/graph/graph-topology-group.js";
 /** Passive offline fixtures; explicitly no qualified host, writer, or effect dispatch. */
 
 import type {
@@ -22,7 +23,6 @@ import {
 	startConstruction,
 } from "../../packages/ts/src/graph/construction-scope.js";
 import { Graph } from "../../packages/ts/src/graph/graph.js";
-import type { Node } from "../../packages/ts/src/node/node.js";
 import { checkpointStateOfNode } from "../../packages/ts/src/node/runtime-accessors.js";
 import type {
 	CausalEffectOutcome,
@@ -294,8 +294,8 @@ export function presetRun(
 	const cleanup = () => {
 		disconnect();
 		for (const root of owner.roots) root.unsubscribe?.();
-		const group = graph.topologyGroup();
-		for (const n of graph.inspect().nodes) group.add(graph.find(n.id)!);
+		const group = topologyGroup(graph);
+		for (const n of graph.describe()) group.add(graph.find(n.id)!);
 		group.release();
 	};
 	connect();

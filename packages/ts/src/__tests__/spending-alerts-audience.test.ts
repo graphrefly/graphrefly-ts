@@ -11,6 +11,7 @@ import {
 	policyFacts,
 	presetRun,
 } from "../../../../scripts/fixtures/spending-preset-harness.js";
+import { renderSnapshot } from "../graph/render.js";
 
 const runs: ReturnType<typeof presetRun>[] = [];
 const stops: (() => void)[] = [];
@@ -24,7 +25,7 @@ for (const mode of ["off", "summary"] as const) {
 		const run = presetRun(mode);
 		runs.push(run);
 		const { view, capabilities } = run.built.consume;
-		const before = run.graph.inspect().nodes.map((node) => node.id);
+		const before = renderSnapshot(run.graph).nodes.map((node) => node.id);
 		expect(Reflect.ownKeys(view)).toEqual([
 			"assessment",
 			"publication",

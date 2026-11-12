@@ -23,6 +23,7 @@ import type { NodeFn } from "../ctx/types.js";
 import { Dispatcher, type Handle } from "../dispatcher/index.js";
 import { ColdConstructionError, ConstructionScope } from "../graph/construction-scope.js";
 import { Graph } from "../graph/graph.js";
+import { renderSnapshot } from "../graph/render.js";
 
 it("scheduler failure before write retains known no-submit without executing", async () => {
 	const run = runHost();
@@ -229,7 +230,7 @@ for (const target of ["hostGuard", "runEndReady"] as const) {
 		const dispatcher = new FailingDispatcher();
 		const graph = new Graph({ dispatcher });
 		const { inputs } = inputsFor(graph);
-		const before = graph.inspect();
+		const before = renderSnapshot(graph);
 		const original = ConstructionScope.prototype.node;
 		const spy = vi.spyOn(ConstructionScope.prototype, "node").mockImplementation(function (
 			this: ConstructionScope,
@@ -262,7 +263,7 @@ for (const target of ["hostGuard", "runEndReady"] as const) {
 		expect((caught as ColdConstructionError).originalCause).toBe(failure);
 		expect((caught as ColdConstructionError).cleanupErrors).toEqual([]);
 		expect((caught as Error).message).toContain(`cannot register spending/${target}`);
-		expect(graph.inspect()).toEqual(before);
+		expect(renderSnapshot(graph)).toEqual(before);
 		expect(dispatcher.live.size).toBe(0);
 	});
 }

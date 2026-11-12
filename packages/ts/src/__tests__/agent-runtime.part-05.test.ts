@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { DataIssue } from "../data/index.js";
 import { graph } from "../graph/graph.js";
+import { renderSnapshot } from "../graph/render.js";
 import {
 	type AgentRequestIssued,
 	buildToolProviderAdapterInputs,
@@ -455,7 +456,7 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 5", () => {
 				msg[0] === "DATA" && runtimeStatus.push(msg[1] as ToolProviderAdapterRuntimeStatus);
 			}
 		});
-		const described = g.inspect();
+		const described = renderSnapshot(g);
 		expect(
 			described.nodes.find((node) => node.id === "runtimeRetentionNode/retentionPolicy")?.factory,
 		).toBe("toolProviderAdapterRuntimeRetentionPolicy");

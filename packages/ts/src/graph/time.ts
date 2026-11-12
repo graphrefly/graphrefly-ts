@@ -38,7 +38,7 @@
  *   describe island; the array forms (buffer/bufferCount/bufferTime) are the graph-first equivalent.
  *
  * Inspection caveat (timeout/bufferTime): the helper returns a BARE node (free initNode) self-carrying
- * its factory for describe auto-discovery (D51), but it is NOT in a graph's _entries — so g.inspect()
+ * its factory for describe auto-discovery (D51), but it is NOT in a graph's _entries — so renderSnapshot(g)
  * lists it only when it is a live dep of a registered node (a first-cut limit, like the *Map inners).
  */
 

@@ -1,3 +1,4 @@
+import { topologyGroup } from "../../packages/ts/src/graph/graph-topology-group.js";
 /** Offline entry for the independent Graph arm; each lane is actual DATA to a source node. */
 
 import type {
@@ -110,8 +111,8 @@ export function referenceRun(
 	const cleanup = () => {
 		disconnect();
 		for (const root of owner.roots) root.unsubscribe?.();
-		const group = graph.topologyGroup();
-		for (const n of graph.inspect().nodes) group.add(graph.find(n.id)!);
+		const group = topologyGroup(graph);
+		for (const n of graph.describe()) group.add(graph.find(n.id)!);
 		group.release();
 	};
 	connect();

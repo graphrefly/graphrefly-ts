@@ -1,3 +1,4 @@
+import { topologyGroup } from "../graph/graph-topology-group.js";
 /**
  * Graph-visible ProcessBundle orchestration helpers (D136/D156).
  */
@@ -138,7 +139,7 @@ export function processBundle<
 					...(opts.nowRef === undefined ? {} : { nowRef: opts.nowRef }),
 				}
 			: undefined;
-	const topology = graph.topologyGroup({ name: `${name}.process` });
+	const topology = topologyGroup(graph, { name: `${name}.process` });
 	// The host's dispatches are a state input; the command node forwards it and every attached
 	// command source, which it rewires itself to (no graph-level rewire, R-request-order).
 	const dispatchInput = topology.node<ProcessCommand<TCommand>>([], null, {
@@ -264,7 +265,7 @@ export function processEffectRunner<TEffect = unknown, TResult = unknown>(
 		throw new RangeError("processEffectRunner: outcomes must contain at least one node");
 	}
 	const name = opts.name ?? "processEffectRunner";
-	const topology = graph.topologyGroup({ name: `${name}.effectRunner` });
+	const topology = topologyGroup(graph, { name: `${name}.effectRunner` });
 	const requests = topology.node<ProcessEffectRequest<TEffect>>(
 		[process.effectRequests],
 		processEffectRunnerRequestsFn(),

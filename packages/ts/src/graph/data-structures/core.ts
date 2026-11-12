@@ -1,3 +1,4 @@
+import { topologyGroup } from "../graph-topology-group.js";
 /**
  * The shared reactiveCollection core (CSP-2.8, D60).
  *
@@ -168,7 +169,7 @@ export function lightReactiveView<C, S>(
 	opts: LightReactiveViewOptions<S>,
 ): ReactiveView<C, S> {
 	const { factory, materializeSnapshot, name, onDispose } = opts;
-	const group = graph.topologyGroup({ name: name ?? factory });
+	const group = topologyGroup(graph, { name: name ?? factory });
 	const delta = group.node<C>(
 		[parentDelta],
 		(ctx: Ctx): void => {

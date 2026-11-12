@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Operator } from "../graph/operators.js";
+import { renderSnapshot } from "../graph/render.js";
 import {
 	buffer,
 	bufferCount,
@@ -399,7 +400,7 @@ describe("Slice 2 — notifier-driven (D46 first-cut)", () => {
 		const b = g.state(2, { name: "b" });
 		g.initNode(combine<[number, number]>(), [a, b], { name: "c" });
 		g.initNode(zip<[number, number]>(), [a, b], { name: "z" });
-		const byId = Object.fromEntries(g.inspect().nodes.map((n) => [n.id, n]));
+		const byId = Object.fromEntries(renderSnapshot(g).nodes.map((n) => [n.id, n]));
 		expect(byId.c.factory).toBe("combine");
 		expect(byId.z.factory).toBe("zip");
 	});

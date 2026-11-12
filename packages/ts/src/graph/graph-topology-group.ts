@@ -143,3 +143,8 @@ export class GraphTopologyGroup implements TopologyGroup {
 		}
 	}
 }
+
+/** Create a graph-owned release group without expanding Graph's query surface. */
+export function topologyGroup(graph: Graph, opts: TopologyGroupOptions = {}): TopologyGroup {
+	return new GraphTopologyGroup(graph, opts);
+}

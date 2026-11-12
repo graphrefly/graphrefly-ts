@@ -14,6 +14,7 @@ import {
 } from "../graph/graph.js";
 import { graphRegistrations } from "../graph/graph-lifecycle.js";
 import { map } from "../graph/operators.js";
+import { renderSnapshot } from "../graph/render.js";
 import { type MessageBusCommand, messageBus, toTopic } from "../messaging/index.js";
 import { attachMessageBusCommandSource } from "../messaging/internal.js";
 import { NodeCore } from "../node/core.js";
@@ -277,7 +278,7 @@ describe("D167 known cold acquisitions", () => {
 		expect(() => g.node([], idle, { name: "same" })).toThrow("duplicate node id");
 		expect(g.find("same")).toBe(winner);
 		expect(dispatcher.live.size).toBe(1);
-		expect(g.inspect().nodes).toHaveLength(1);
+		expect(renderSnapshot(g).nodes).toHaveLength(1);
 		releaseGraphNodes(g, [winner!]);
 	});
 	it("snapshots user entry properties before final publication validation", () => {
@@ -297,7 +298,7 @@ describe("D167 known cold acquisitions", () => {
 			}),
 		).toThrow("duplicate node id");
 		expect(g.find("same")).toBe(winner);
-		expect(g.inspect().nodes).toHaveLength(1);
+		expect(renderSnapshot(g).nodes).toHaveLength(1);
 		expect(dispatcher.live.size).toBe(0);
 		releaseGraphNodes(g, [winner!]);
 	});
@@ -323,7 +324,7 @@ describe("D167 known cold acquisitions", () => {
 			}),
 		).toThrow("duplicate");
 		expect(g.find("same")).toBe(winner);
-		expect(g.inspect().nodes).toHaveLength(2);
+		expect(renderSnapshot(g).nodes).toHaveLength(2);
 		expect(d.live.size).toBe(0);
 		releaseGraphNodes(g, [input, winner!]);
 	});

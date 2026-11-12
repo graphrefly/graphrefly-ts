@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { renderSnapshot } from "../graph/render.js";
 import {
 	graph,
 	type KvStorageTier,
@@ -39,7 +40,7 @@ describe("reactiveCascadingCache (D104/D105/D107)", () => {
 		request.set("user:1");
 		await flush();
 
-		const snap = g.inspect();
+		const snap = renderSnapshot(g);
 		expect(snap.nodes.map((n) => n.id).sort()).toEqual([
 			"cache.events",
 			"cache.status",

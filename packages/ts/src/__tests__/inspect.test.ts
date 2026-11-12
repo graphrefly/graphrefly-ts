@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { graphProfile } from "../graph/inspect.js";
 import type { ObserveEvent } from "../index.js";
 import { Dispatcher, graph } from "../index.js";
 import { dataValues } from "./helpers/collect.js";
@@ -49,7 +50,7 @@ describe("profile — dispatcher-backed counters, never on the thin node (R-node
 		d.subscribe(() => {});
 		s.set(1);
 		s.set(2);
-		const p = g.profile();
+		const p = graphProfile(g);
 		// d's fn ran: once on activation + once per set = 3
 		expect(p.nodes.d.invokes).toBe(3);
 		expect(p.nodes.d.status.cache).toBe("ready");
@@ -64,7 +65,7 @@ describe("profile — dispatcher-backed counters, never on the thin node (R-node
 		const d = g.derived([s], (n) => n! + 1, { name: "d" });
 		d.subscribe(() => {});
 		s.set(1);
-		expect(g.profile().nodes.d.invokes).toBe(0); // not recorded
-		expect(g.profile().totalInvokes).toBe(0);
+		expect(graphProfile(g).nodes.d.invokes).toBe(0); // not recorded
+		expect(graphProfile(g).totalInvokes).toBe(0);
 	});
 });

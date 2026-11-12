@@ -14,7 +14,6 @@ import type {
 	WireBridgeAck,
 	WireBridgeAttempt,
 	WireBridgeEnvelope,
-	WireBridgeEvent,
 	WireBridgeIndexedEvent,
 	WireBridgeInvalidIngress,
 	WireBridgeNack,

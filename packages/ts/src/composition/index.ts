@@ -1,8 +1,8 @@
 export {
-	type InspectChangeset,
-	type InspectEvent,
 	type PipeOperator,
 	pipe,
+	type RenderChangeset,
+	type RenderEvent,
 	type Stratified,
 	type StratifyOptions,
 	type StratifyRule,

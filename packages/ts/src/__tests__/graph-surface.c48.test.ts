@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from "vitest";
 import type { Ctx, ObserveEvent, Wave } from "../index.js";
-import { graph } from "../index.js";
+import { debounce, graph, graphTopology, renderSnapshot } from "../index.js";
 
 function c48() {
 	const g = graph({ name: "c48" });
@@ -25,6 +25,78 @@ function c48() {
 }
 
 describe("C-48: find, describe, observe and retain (R-graph-surface@1)", () => {
+	it("does not let an explicit name steal a live helper's described id", () => {
+		const g = graph();
+		const source = g.state(1);
+		const result = g.initNode(debounce<number>(100_000), [source]);
+		const stop = result.subscribe(() => {});
+		try {
+			const helper = g.describe().find((entry) => entry.id.startsWith("~"))!;
+			const original = g.find(helper.id);
+			expect(original).toBeDefined();
+			expect(() => g.state(99, { name: helper.id })).toThrow("claimed by a live helper");
+			expect(g.describe().filter((entry) => entry.id === helper.id)).toHaveLength(1);
+			expect(g.find(helper.id)).toBe(original);
+		} finally {
+			stop();
+		}
+	});
+
+	it("allocates helper ids around names registered before activation", () => {
+		const g = graph();
+		const named = g.state(99, { name: "~timer#1" });
+		const source = g.state(1);
+		const result = g.initNode(debounce<number>(100_000), [source]);
+		const stop = result.subscribe(() => {});
+		try {
+			const ids = g.describe().map((entry) => entry.id);
+			expect(new Set(ids).size).toBe(ids.length);
+			expect(g.find("~timer#1")).toBe(named);
+		} finally {
+			stop();
+		}
+	});
+
+	it("keeps a detached helper's published id stable when it becomes reachable again", () => {
+		const g = graph();
+		const source = g.state(1);
+		const result = g.initNode(debounce<number>(100_000), [source]);
+		const stop = result.subscribe(() => {});
+		const id = g.describe().find((entry) => entry.id.startsWith("~"))!.id;
+		const helper = g.find(id)!;
+		stop();
+		expect(g.describe().some((entry) => entry.id === id)).toBe(false);
+		expect(() => g.state(99, { name: id })).toThrow("claimed by a live helper");
+		let receivedId: string | undefined;
+		const observer = g.node([helper], (ctx) => {
+			receivedId = ctx.deps[0].id;
+		});
+		const stopObserver = observer.subscribe(() => {});
+		try {
+			expect(receivedId).toBe(id);
+			expect(g.describe().filter((entry) => entry.id === id)).toHaveLength(1);
+			expect(g.find(receivedId!)).toBe(helper);
+		} finally {
+			stopObserver();
+		}
+	});
+
+	it("keeps richer diagnostics in modules, with no Graph aliases", () => {
+		const { g, b } = c48();
+		for (const name of [
+			"inspect",
+			"topology",
+			"blueprint",
+			"profile",
+			"observeTopology",
+			"topologyGroup",
+		])
+			expect(name in g, name).toBe(false);
+		expect(graphTopology(g).edges).toContainEqual({ from: "a", to: "b" });
+		expect(renderSnapshot(g).nodes.find((n) => n.id === "b")?.status).toEqual(b.status);
+		expect(b.status.lifecycle).toBe("inactive");
+	});
+
 	it("find and describe give the nodes and activate nothing", () => {
 		const { g, b } = c48();
 		expect(g.find("b")).toBe(b);

@@ -16,14 +16,14 @@ import { validateNoIslands } from "@graphrefly/ts/graph";
 ## Signature
 
 ```ts
-function validateNoIslands(snapshot: InspectSnapshot): ValidateNoIslandsResult
+function validateNoIslands(snapshot: RenderSnapshot): ValidateNoIslandsResult
 ```
 
 ## Parameters
 
 | Parameter | Type | Description |
 |---|---|---|
-| `snapshot` | `InspectSnapshot` | snapshot value used by the helper. |
+| `snapshot` | `RenderSnapshot` | snapshot value used by the helper. |
 
 ## Returns
 

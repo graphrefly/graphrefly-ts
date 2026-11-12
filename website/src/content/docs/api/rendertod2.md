@@ -1,5 +1,5 @@
 ---
-title: "inspectToD2()"
+title: "renderToD2()"
 description: "Render a D39 describe snapshot as D2 diagram text."
 ---
 
@@ -10,15 +10,15 @@ Render a D39 describe snapshot as D2 diagram text.
 ## Import
 
 ```ts
-import { inspectToD2 } from "@graphrefly/ts/graph";
+import { renderToD2 } from "@graphrefly/ts/graph";
 ```
 
 ## Signature
 
 ```ts
-function inspectToD2(
-	snapshot: InspectSnapshot,
-	opts: InspectToD2Options = {},
+function renderToD2(
+	snapshot: RenderSnapshot,
+	opts: RenderToD2Options = {},
 ): string
 ```
 
@@ -26,8 +26,8 @@ function inspectToD2(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `snapshot` | `InspectSnapshot` | snapshot value used by the helper. |
-| `opts` | `InspectToD2Options` | Options that configure the helper. |
+| `snapshot` | `RenderSnapshot` | snapshot value used by the helper. |
+| `opts` | `RenderToD2Options` | Options that configure the helper. |
 
 ## Returns
 
@@ -36,7 +36,7 @@ A `string` value.
 ## Example
 
 ```ts
-import { inspectToD2 } from "@graphrefly/ts/graph";
+import { renderToD2 } from "@graphrefly/ts/graph";
 ```
 
 ## Source

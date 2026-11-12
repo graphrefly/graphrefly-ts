@@ -63,6 +63,14 @@ export const apiSidebar = [
 				"link": "/api/graphblueprintdiagnostics"
 			},
 			{
+				"label": "graphTopology()",
+				"link": "/api/graphtopology"
+			},
+			{
+				"label": "graphBlueprint()",
+				"link": "/api/graphblueprint"
+			},
+			{
 				"label": "reactiveCascadingCache()",
 				"link": "/api/reactivecascadingcache"
 			},
@@ -95,6 +103,10 @@ export const apiSidebar = [
 				"link": "/api/domwebsocketdriver"
 			},
 			{
+				"label": "topologyGroup()",
+				"link": "/api/topologygroup"
+			},
+			{
 				"label": "Graph",
 				"link": "/api/graph-class"
 			},
@@ -103,8 +115,16 @@ export const apiSidebar = [
 				"link": "/api/graph"
 			},
 			{
-				"label": "inspectToMermaid()",
-				"link": "/api/inspecttomermaid"
+				"label": "graphProfile()",
+				"link": "/api/graphprofile"
+			},
+			{
+				"label": "observeTopology()",
+				"link": "/api/observetopology"
+			},
+			{
+				"label": "renderToMermaid()",
+				"link": "/api/rendertomermaid"
 			},
 			{
 				"label": "blueprintToMermaid()",
@@ -115,24 +135,28 @@ export const apiSidebar = [
 				"link": "/api/mermaidliveurl"
 			},
 			{
-				"label": "inspectToMermaidUrl()",
-				"link": "/api/inspecttomermaidurl"
+				"label": "renderToMermaidUrl()",
+				"link": "/api/rendertomermaidurl"
 			},
 			{
-				"label": "inspectToD2()",
-				"link": "/api/inspecttod2"
+				"label": "renderToD2()",
+				"link": "/api/rendertod2"
 			},
 			{
-				"label": "inspectToPretty()",
-				"link": "/api/inspecttopretty"
+				"label": "renderToPretty()",
+				"link": "/api/rendertopretty"
 			},
 			{
-				"label": "inspectToAscii()",
-				"link": "/api/inspecttoascii"
+				"label": "renderToAscii()",
+				"link": "/api/rendertoascii"
 			},
 			{
-				"label": "inspectToJson()",
-				"link": "/api/inspecttojson"
+				"label": "renderToJson()",
+				"link": "/api/rendertojson"
+			},
+			{
+				"label": "renderSnapshot()",
+				"link": "/api/rendersnapshot"
 			},
 			{
 				"label": "retryPolicy()",

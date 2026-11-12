@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { graph } from "../graph/graph.js";
+import { renderSnapshot } from "../graph/render.js";
 import {
 	decideWorkspaceProposalAdmission,
 	isWorkspaceProposalProjectionReleaseMaterial,
@@ -482,8 +483,7 @@ describe("Workspace proposal family application helpers (D430)", () => {
 		]);
 		expect(Object.keys(domain).sort()).toEqual(["audit", "issues", "recorded", "status"]);
 		expect(
-			g
-				.inspect()
+			renderSnapshot(g)
 				.nodes.filter((node) => node.factory.includes("workspaceProposal"))
 				.map((node) => node.factory)
 				.sort(),

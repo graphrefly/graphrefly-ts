@@ -1,9 +1,10 @@
+import { renderSnapshot } from "../../packages/ts/src/graph/render.js";
 /**
  * Spending alerts — runnable Node example.
  *
  * Feeds a handful of transactions through the graph defined in
  * `pipeline.ts`, prints each alert, and — on the first flagged txn —
- * renders the structural causal chain via `graph.inspect({ explain })`.
+ * renders the structural causal chain via `renderSnapshot(graph, { explain })`.
  *
  * Run:
  *   pnpm --filter @graphrefly-examples/spending-alerts start
@@ -12,7 +13,7 @@
  *   npx tsx examples/spending-alerts/index.ts
  */
 
-import { inspectToPretty } from "@graphrefly/ts/render";
+import { renderToPretty } from "@graphrefly/ts/render";
 import { spendingAlertsGraph, type Transaction } from "./pipeline.js";
 
 const { graph, feed } = spendingAlertsGraph({
@@ -41,14 +42,14 @@ alertMessage.subscribe((msgs) => {
 		// answer to homepage pain-point 02 — "why was this flagged?"
 		if (!firstFlagExplained && text.includes("flagged")) {
 			firstFlagExplained = true;
-			const chain = graph.inspect({ explain: { from: "txFeed", to: "alertMessage" } });
+			const chain = renderSnapshot(graph, { explain: { from: "txFeed", to: "alertMessage" } });
 			const heavy = "═".repeat(60);
 			console.log(`\n${heavy}`);
 			console.log(
-				"Causal chain — graph.inspect({ explain: { from: 'txFeed', to: 'alertMessage' } }):",
+				"Causal chain — renderSnapshot(graph, { explain: { from: 'txFeed', to: 'alertMessage' } }):",
 			);
 			console.log(heavy);
-			console.log(inspectToPretty(chain));
+			console.log(renderToPretty(chain));
 		}
 	}
 });

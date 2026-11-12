@@ -5,6 +5,7 @@ import type {
 	LogChange,
 	MapChange,
 } from "../graph/data-structures/change.js";
+import { renderSnapshot } from "../graph/render.js";
 import {
 	type AgenticMemoryRecord,
 	graph,
@@ -328,7 +329,7 @@ describe("D161 persistReactiveCollection and openPersistentReactive*", () => {
 				changeLog: changes,
 			}),
 		).toThrow(/different graph|cross-graph/);
-		expect(other.inspect().nodes.map((node) => node.id)).not.toEqual(
+		expect(renderSnapshot(other).nodes.map((node) => node.id)).not.toEqual(
 			expect.arrayContaining([
 				"crossGraph/persistence/ready",
 				"crossGraph/persistence/status",
@@ -336,7 +337,7 @@ describe("D161 persistReactiveCollection and openPersistentReactive*", () => {
 				"crossGraph/persistence/cursor",
 			]),
 		);
-		expect(owner.inspect().nodes.map((node) => node.id)).not.toEqual(
+		expect(renderSnapshot(owner).nodes.map((node) => node.id)).not.toEqual(
 			expect.arrayContaining([
 				"crossGraph/persistence/ready",
 				"crossGraph/persistence/status",

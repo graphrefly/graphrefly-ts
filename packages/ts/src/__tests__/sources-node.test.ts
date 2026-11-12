@@ -8,6 +8,7 @@ import type {
 	DriverResult,
 	ProcessResult as EnvironmentProcessResult,
 } from "../graph/environment.js";
+import { renderSnapshot } from "../graph/render.js";
 import type { Message } from "../index.js";
 import { EnvironmentDrivers, fromProcess, graph } from "../index.js";
 import {
@@ -70,7 +71,7 @@ describe("node-only filesystem sources", () => {
 		expect(event.type).toBe("create");
 		expect(event.path.endsWith("/a.txt")).toBe(true);
 		expect(event.relativePath).toBe("a.txt");
-		expect(g.inspect().nodes.find((node) => node.id === "fs")?.factory).toBe("fromFSWatch");
+		expect(renderSnapshot(g).nodes.find((node) => node.id === "fs")?.factory).toBe("fromFSWatch");
 	});
 
 	it("fromFSWatch rejects an empty path list before constructing an operator", () => {
@@ -152,7 +153,7 @@ describe("node-only process sources", () => {
 		expect(data<ProcessResult>(msgs)).toEqual([
 			{ stdout: "driver-out", stderr: "driver-err", exitCode: 0, signal: null },
 		]);
-		expect(g.inspect().nodes.find((node) => node.id === "driver_process")?.factory).toBe(
+		expect(renderSnapshot(g).nodes.find((node) => node.id === "driver_process")?.factory).toBe(
 			"fromProcess",
 		);
 	});
@@ -199,8 +200,8 @@ describe("node-only process sources", () => {
 			"DATA",
 			{ state: "succeeded", inFlight: 0, attempt: 1, sent: 1, failed: 0 },
 		]);
-		expect(g.inspect().edges).toContainEqual({ from: "source", to: "egress_process" });
-		expect(g.inspect().edges).toContainEqual({
+		expect(renderSnapshot(g).edges).toContainEqual({ from: "source", to: "egress_process" });
+		expect(renderSnapshot(g).edges).toContainEqual({
 			from: "egress_process",
 			to: "egress_process/status",
 		});

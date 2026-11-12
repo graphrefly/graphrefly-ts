@@ -1,5 +1,5 @@
 ---
-title: "inspectToMermaid()"
+title: "renderToMermaid()"
 description: "Render a D39 describe snapshot as Mermaid flowchart text."
 ---
 
@@ -10,15 +10,15 @@ Render a D39 describe snapshot as Mermaid flowchart text.
 ## Import
 
 ```ts
-import { inspectToMermaid } from "@graphrefly/ts/graph";
+import { renderToMermaid } from "@graphrefly/ts/graph";
 ```
 
 ## Signature
 
 ```ts
-function inspectToMermaid(
-	snapshot: InspectSnapshot,
-	opts: InspectToMermaidOptions = {},
+function renderToMermaid(
+	snapshot: RenderSnapshot,
+	opts: RenderToMermaidOptions = {},
 ): string
 ```
 
@@ -26,8 +26,8 @@ function inspectToMermaid(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `snapshot` | `InspectSnapshot` | snapshot value used by the helper. |
-| `opts` | `InspectToMermaidOptions` | Options that configure the helper. |
+| `snapshot` | `RenderSnapshot` | snapshot value used by the helper. |
+| `opts` | `RenderToMermaidOptions` | Options that configure the helper. |
 
 ## Returns
 
@@ -36,7 +36,7 @@ A `string` value.
 ## Example
 
 ```ts
-import { inspectToMermaid } from "@graphrefly/ts/graph";
+import { renderToMermaid } from "@graphrefly/ts/graph";
 ```
 
 ## Source

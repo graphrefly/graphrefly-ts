@@ -17,8 +17,10 @@ import {
 	postgresqlToolProviderInputFromIntent,
 	postgresqlToolProviderRuntime,
 } from "../executors/postgresql-tool-provider.js";
+import { graphTopology } from "../graph/blueprint.js";
 import { topologyDiff } from "../graph/composition.js";
 import { graph } from "../graph/graph.js";
+import { renderSnapshot } from "../graph/render.js";
 import { compoundTupleKey } from "../identity.js";
 import {
 	type ToolProviderAdapterInput,
@@ -255,7 +257,7 @@ describe("execution environment targeting and local host gate (D603)", () => {
 		const profiles = g.node<EnvironmentPinnedExecutorProfile>([], null, { name: "profiles" });
 		const routes = g.node<EnvironmentPinnedExecutorRoute>([], null, { name: "routes" });
 		const admitted = g.node<ToolProviderAdapterRunRequested>([], null, { name: "admitted" });
-		const before = g.inspect();
+		const before = renderSnapshot(g);
 		const gate = localHostExecutionGate(g, {
 			name: "localEnvironmentGate",
 			inputs,
@@ -264,7 +266,7 @@ describe("execution environment targeting and local host gate (D603)", () => {
 			admittedRunRequests: [admitted],
 			now: () => 200,
 		});
-		const after = g.inspect();
+		const after = renderSnapshot(g);
 		const delta = topologyDiff(before, after).events;
 		expect(delta.filter((event) => event.type === "node-added")).toHaveLength(5);
 		expect(delta.filter((event) => event.type === "edge-added")).toHaveLength(8);
@@ -465,7 +467,7 @@ describe("execution environment targeting and local host gate (D603)", () => {
 		});
 		await settle();
 		expect(outcomes.at(-1)?.kind).toBe("canceled");
-		expect(JSON.stringify(g.topology())).not.toContain("host_private");
+		expect(JSON.stringify(graphTopology(g))).not.toContain("host_private");
 		await runtime.dispose();
 		gate.dispose();
 		gate.dispose();

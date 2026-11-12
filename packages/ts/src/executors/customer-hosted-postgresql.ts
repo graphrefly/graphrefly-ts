@@ -1,6 +1,7 @@
 /** Concrete customer-hosted outbound PostgreSQL endpoint binding (D606). */
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
+import { topologyGroup } from "../graph/graph-topology-group.js";
 import type { Node, StateNode } from "../node/node.js";
 import type {
 	AgentRuntimeAuditRecord,
@@ -727,7 +728,7 @@ export function customerHostedPostgresqlRuntime(
 		throw new TypeError("Customer-hosted protocol mismatch.");
 	const now = opts.now ?? Date.now,
 		name = opts.name ?? "customerHostedPostgresql",
-		group = graph.topologyGroup({ name });
+		group = topologyGroup(graph, { name });
 	const node = <T>(suffix: string, factory: string) =>
 		group.node<T>([], null, {
 			name: `${name}/${suffix}`,

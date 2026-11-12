@@ -10,15 +10,15 @@ import type { Ctx } from "../ctx/types.js";
 import { canonicalTupleKey } from "../identity.js";
 import type { Node, NodeOptions } from "../node/node.js";
 import type { Message } from "../protocol/messages.js";
-import type { InspectEdge, InspectNode, InspectSnapshot } from "./describe.js";
+import type { RenderEdge, RenderNode, RenderSnapshot } from "./describe.js";
 import type { Graph, StateNode, SugarOpts } from "./graph.js";
 import { initNodeBeside, type Operator } from "./operators.js";
 
 /** One unary operator step accepted by {@link pipe}. */
 export type PipeOperator<TIn, TOut> = Operator<TIn, TOut>;
 
-export type InspectEvent =
-	| { readonly type: "node-added"; readonly id: string; readonly node: InspectNode }
+export type RenderEvent =
+	| { readonly type: "node-added"; readonly id: string; readonly node: RenderNode }
 	| { readonly type: "node-removed"; readonly id: string }
 	| {
 			readonly type: "node-meta-changed";
@@ -31,8 +31,8 @@ export type InspectEvent =
 	| { readonly type: "subgraph-mounted"; readonly path: string }
 	| { readonly type: "subgraph-unmounted"; readonly path: string };
 
-export interface InspectChangeset {
-	readonly events: readonly InspectEvent[];
+export interface RenderChangeset {
+	readonly events: readonly RenderEvent[];
 }
 
 function metaEqual(a: unknown, b: unknown): boolean {
@@ -54,11 +54,11 @@ function metaEqual(a: unknown, b: unknown): boolean {
 	return true;
 }
 
-function edgeKey(e: InspectEdge): string {
+function edgeKey(e: RenderEdge): string {
 	return canonicalTupleKey([e.from, e.to]);
 }
 
-function cloneNode(n: InspectNode): InspectNode {
+function cloneNode(n: RenderNode): RenderNode {
 	return {
 		...n,
 		deps: [...n.deps],
@@ -66,15 +66,15 @@ function cloneNode(n: InspectNode): InspectNode {
 	};
 }
 
-function flattenSnapshot(snap: InspectSnapshot): {
-	nodes: Map<string, InspectNode>;
-	edges: Map<string, InspectEdge>;
+function flattenSnapshot(snap: RenderSnapshot): {
+	nodes: Map<string, RenderNode>;
+	edges: Map<string, RenderEdge>;
 	subgraphs: Set<string>;
 } {
-	const nodes = new Map<string, InspectNode>();
-	const edges = new Map<string, InspectEdge>();
+	const nodes = new Map<string, RenderNode>();
+	const edges = new Map<string, RenderEdge>();
 	const subgraphs = new Set<string>();
-	const visit = (s: InspectSnapshot, indexPath = ""): void => {
+	const visit = (s: RenderSnapshot, indexPath = ""): void => {
 		for (const n of s.nodes) nodes.set(n.id, n);
 		for (const e of s.edges) edges.set(edgeKey(e), e);
 		s.subgraphs?.forEach((child, i) => {
@@ -95,23 +95,23 @@ function flattenSnapshot(snap: InspectSnapshot): {
  * old-core deps (D56). Values/status changes are not topology events; use `observe()` for data.
  * @param prev - prev value used by the helper.
  * @param next - next value used by the helper.
- * @returns A InspectChangeset value for the boundary or adapter.
+ * @returns A RenderChangeset value for the boundary or adapter.
  * @category composition
  * @example
  * ```ts
  * import { topologyDiff } from "@graphrefly/ts/composition";
  * ```
  */
-export function topologyDiff(prev: InspectSnapshot, next: InspectSnapshot): InspectChangeset {
+export function topologyDiff(prev: RenderSnapshot, next: RenderSnapshot): RenderChangeset {
 	const p = flattenSnapshot(prev);
 	const n = flattenSnapshot(next);
-	const events: InspectEvent[] = [];
+	const events: RenderEvent[] = [];
 
 	for (const path of [...n.subgraphs].filter((x) => !p.subgraphs.has(x)).sort())
 		events.push({ type: "subgraph-mounted", path });
 
 	for (const id of [...n.nodes.keys()].filter((x) => !p.nodes.has(x)).sort()) {
-		events.push({ type: "node-added", id, node: cloneNode(n.nodes.get(id) as InspectNode) });
+		events.push({ type: "node-added", id, node: cloneNode(n.nodes.get(id) as RenderNode) });
 	}
 
 	for (const id of [...n.nodes.keys()].filter((x) => p.nodes.has(x)).sort()) {

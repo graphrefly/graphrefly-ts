@@ -28,6 +28,7 @@ import {
 	postgresql16ManagedCloudControlStore,
 } from "../executors/managed-cloud-postgresql.js";
 import { postgresqlToolProviderInputFromIntent } from "../executors/postgresql-tool-provider.js";
+import { graphTopology } from "../graph/blueprint.js";
 import { graph } from "../graph/graph.js";
 import { compoundTupleKey } from "../identity.js";
 import type { ExecutorOutcome, ToolProviderAdapterRunRequested } from "../orchestration/index.js";
@@ -574,7 +575,7 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 		);
 		expect(facts.map((f) => f.state)).toEqual(["queued", "claimed"]);
 		expect(
-			JSON.stringify({ envelopes, facts, sent: transport.sent, topology: g.topology() }),
+			JSON.stringify({ envelopes, facts, sent: transport.sent, topology: graphTopology(g) }),
 		).not.toMatch(/connectionString|password|secret-value|socketHandle/);
 		await runtime.dispose();
 	});

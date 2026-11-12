@@ -10,7 +10,7 @@ import type { Message, Wave } from "../protocol/messages.js";
 export type MessageSequence = readonly Wave[];
 
 /**
- * Assert that observed tier-3 settlements (DATA/RESOLVED) are preceded by PENDING.
+ * Assert that observed wave settlements (DATA/RESOLVED) are preceded by PENDING.
  *
  * This encodes R-wave (PENDING before the values of a wave) for wave-framed subscriber traces. The leading
  * START push-on-subscribe/replay handshake wave is exempt because cached/replay DATA is

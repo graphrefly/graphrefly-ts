@@ -1,5 +1,5 @@
 ---
-title: "inspectToAscii()"
+title: "renderToAscii()"
 description: "Render a D39 describe snapshot as a compact ASCII adjacency diagram."
 ---
 
@@ -10,15 +10,15 @@ Render a D39 describe snapshot as a compact ASCII adjacency diagram.
 ## Import
 
 ```ts
-import { inspectToAscii } from "@graphrefly/ts/graph";
+import { renderToAscii } from "@graphrefly/ts/graph";
 ```
 
 ## Signature
 
 ```ts
-function inspectToAscii(
-	snapshot: InspectSnapshot,
-	opts: InspectToAsciiOptions = {},
+function renderToAscii(
+	snapshot: RenderSnapshot,
+	opts: RenderToAsciiOptions = {},
 ): string
 ```
 
@@ -26,8 +26,8 @@ function inspectToAscii(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `snapshot` | `InspectSnapshot` | snapshot value used by the helper. |
-| `opts` | `InspectToAsciiOptions` | Options that configure the helper. |
+| `snapshot` | `RenderSnapshot` | snapshot value used by the helper. |
+| `opts` | `RenderToAsciiOptions` | Options that configure the helper. |
 
 ## Returns
 
@@ -36,7 +36,7 @@ A `string` value.
 ## Example
 
 ```ts
-import { inspectToAscii } from "@graphrefly/ts/graph";
+import { renderToAscii } from "@graphrefly/ts/graph";
 ```
 
 ## Source

@@ -4,6 +4,7 @@ import {
 	executorWorkQueueRecipe,
 } from "../executors/work-queue.js";
 import { graph } from "../graph/graph.js";
+import { renderSnapshot } from "../graph/render.js";
 import { canonicalTupleKey, compoundTupleKey } from "../identity.js";
 import type { AgentRequestIssued, ExecutorOutcome } from "../orchestration/agent-runtime.js";
 import type {
@@ -76,7 +77,7 @@ describe("workQueue recipes (D327/D328/D331)", () => {
 				}),
 			}),
 		);
-		expect(g.inspect().nodes).toContainEqual(
+		expect(renderSnapshot(g).nodes).toContainEqual(
 			expect.objectContaining({
 				id: "workItemWorkQueue/submitCommands",
 				factory: "workItemWorkQueueSubmitCommands",

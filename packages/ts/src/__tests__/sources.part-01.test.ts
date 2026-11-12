@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from "vitest";
 import { CTX_NODE_BINDING } from "../ctx/types.js";
 import { initNode } from "../graph/operators.js";
+import { renderSnapshot } from "../graph/render.js";
 import type { Message } from "../index.js";
 import {
 	EnvironmentDrivers,
@@ -257,7 +258,7 @@ describe("timer / interval sources (fake timers, D43)", () => {
 		ac.abort(false);
 		vi.advanceTimersByTime(50);
 
-		const byId = Object.fromEntries(g.inspect().nodes.map((node) => [node.id, node]));
+		const byId = Object.fromEntries(renderSnapshot(g).nodes.map((node) => [node.id, node]));
 		const last = msgs[msgs.length - 1];
 		expect(byId.clock.factory).toBe("fromTimer");
 		expect(last[0]).toBe("ERROR");
@@ -326,7 +327,7 @@ describe("timer / interval sources (fake timers, D43)", () => {
 	it("interval preserves its real source factory name in describe (D6)", () => {
 		const g = graph();
 		g.initNode(interval(100), [], { name: "ticks" });
-		const byId = Object.fromEntries(g.inspect().nodes.map((node) => [node.id, node]));
+		const byId = Object.fromEntries(renderSnapshot(g).nodes.map((node) => [node.id, node]));
 		expect(byId.ticks.factory).toBe("interval");
 	});
 
@@ -405,7 +406,7 @@ describe("cron sources (B60 source-boundary re-derive)", () => {
 		expect(vi.getTimerCount()).toBe(1);
 		unsubscribe();
 		expect(vi.getTimerCount()).toBe(0);
-		expect(g.inspect().nodes.find((node) => node.id === "cron")?.factory).toBe("fromCron");
+		expect(renderSnapshot(g).nodes.find((node) => node.id === "cron")?.factory).toBe("fromCron");
 	});
 
 	it("fromCron resumes from current time without catch-up or missed-status payloads", () => {
@@ -543,7 +544,9 @@ describe("environment driver-backed sources (D130/D131)", () => {
 		g.initNode(fromWebSocket("wss://example.invalid/socket"), [], { name: "from_websocket" });
 		g.initNode(fromWebhook("stripe"), [], { name: "from_webhook" });
 
-		const factories = Object.fromEntries(g.inspect().nodes.map((node) => [node.id, node.factory]));
+		const factories = Object.fromEntries(
+			renderSnapshot(g).nodes.map((node) => [node.id, node.factory]),
+		);
 		expect(factories.run_process).toBe("runProcess");
 		expect(factories.from_process).toBe("fromProcess");
 		expect(factories.from_http).toBe("fromHttp");

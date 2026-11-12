@@ -1,12 +1,12 @@
 /**
- * Pure graph diagnostics over {@link InspectSnapshot} (D39, graphrefly-ts:D183).
+ * Pure graph diagnostics over {@link RenderSnapshot} (D39, graphrefly-ts:D183).
  *
  * These helpers re-derive the useful frozen pure-ts inspection utilities without restoring
  * graph methods, path facades, actors, soft edges, or storage coupling. They operate only on the
  * public JSON-serializable describe shape; the live topology truth remains R-edges-derived.
  */
 
-import type { InspectNode, InspectSnapshot } from "./describe.js";
+import type { RenderNode, RenderSnapshot } from "./describe.js";
 
 export type ReachableDirection = "upstream" | "downstream";
 
@@ -48,7 +48,7 @@ export interface CausalStep {
 	/** Operator/verb factory name from describe. */
 	factory: string;
 	/** Status as of the source snapshot. */
-	status: InspectNode["status"];
+	status: RenderNode["status"];
 	/** Cached value when present; absence still means SENTINEL. */
 	value?: unknown;
 	/** Hop distance from the `from` node. */
@@ -90,7 +90,7 @@ export interface ValidateNoIslandsResult {
 }
 
 interface SnapshotIndex {
-	nodes: Map<string, InspectNode>;
+	nodes: Map<string, RenderNode>;
 	outgoing: Map<string, Set<string>>;
 	incoming: Map<string, Set<string>>;
 }
@@ -114,11 +114,11 @@ function addEdge(map: Map<string, Set<string>>, from: string, to: string): void 
 	set.add(to);
 }
 
-function flattenSnapshots(snapshot: InspectSnapshot): InspectSnapshot[] {
-	const out: InspectSnapshot[] = [];
+function flattenSnapshots(snapshot: RenderSnapshot): RenderSnapshot[] {
+	const out: RenderSnapshot[] = [];
 	const stack = [snapshot];
 	while (stack.length > 0) {
-		const cur = stack.pop() as InspectSnapshot;
+		const cur = stack.pop() as RenderSnapshot;
 		out.push(cur);
 		if (cur.subgraphs) {
 			for (let i = cur.subgraphs.length - 1; i >= 0; i -= 1) stack.push(cur.subgraphs[i]);
@@ -127,8 +127,8 @@ function flattenSnapshots(snapshot: InspectSnapshot): InspectSnapshot[] {
 	return out;
 }
 
-function indexSnapshot(snapshot: InspectSnapshot): SnapshotIndex {
-	const nodes = new Map<string, InspectNode>();
+function indexSnapshot(snapshot: RenderSnapshot): SnapshotIndex {
+	const nodes = new Map<string, RenderNode>();
 	const outgoing = new Map<string, Set<string>>();
 	const incoming = new Map<string, Set<string>>();
 	for (const snap of flattenSnapshots(snapshot)) {
@@ -173,7 +173,7 @@ function adjacent(
  * Return node ids reachable from `from` through describe deps/edges.
  *
  * `upstream` follows dep edges toward causes; `downstream` follows reverse deps toward effects.
- * The helper is intentionally pure over `InspectSnapshot` (D39/D51): it never reads Nodes.
+ * The helper is intentionally pure over `RenderSnapshot` (D39/D51): it never reads Nodes.
  *
  * @param snapshot - Describe snapshot to traverse.
  * @param from - Starting node id.
@@ -187,13 +187,13 @@ function adjacent(
  * @category graph
  */
 export function reachable(
-	snapshot: InspectSnapshot,
+	snapshot: RenderSnapshot,
 	from: string,
 	direction: ReachableDirection,
 	options?: ReachableOptions & { withDetail: true },
 ): ReachableResult;
 export function reachable(
-	snapshot: InspectSnapshot,
+	snapshot: RenderSnapshot,
 	from: string,
 	direction: ReachableDirection,
 	options?: ReachableOptions,
@@ -213,7 +213,7 @@ export function reachable(
  * @category graph
  */
 export function reachable(
-	snapshot: InspectSnapshot,
+	snapshot: RenderSnapshot,
 	from: string,
 	direction: ReachableDirection,
 	options: ReachableOptions = {},
@@ -259,7 +259,7 @@ export function reachable(
 	};
 }
 
-function depIndices(next: InspectNode | undefined, prevId: string): readonly number[] | undefined {
+function depIndices(next: RenderNode | undefined, prevId: string): readonly number[] | undefined {
 	if (next === undefined) return undefined;
 	const indices: number[] = [];
 	for (let i = 0; i < next.deps.length; i += 1) {
@@ -269,9 +269,9 @@ function depIndices(next: InspectNode | undefined, prevId: string): readonly num
 }
 
 function stepFor(
-	node: InspectNode,
+	node: RenderNode,
 	hop: number,
-	edgeToNext?: { next: InspectNode; prevId: string },
+	edgeToNext?: { next: RenderNode; prevId: string },
 ): CausalStep {
 	const indices = edgeToNext ? depIndices(edgeToNext.next, edgeToNext.prevId) : undefined;
 	const out: CausalStep = {
@@ -380,7 +380,7 @@ function shortestCycle(
 
 function materializePath(idx: SnapshotIndex, path: readonly string[]): readonly CausalStep[] {
 	return path.map((id, i) => {
-		const node = idx.nodes.get(id) as InspectNode;
+		const node = idx.nodes.get(id) as RenderNode;
 		const next = path[i + 1] ? idx.nodes.get(path[i + 1]) : undefined;
 		return stepFor(node, i, next ? { next, prevId: id } : undefined);
 	});
@@ -389,7 +389,7 @@ function materializePath(idx: SnapshotIndex, path: readonly string[]): readonly 
 /**
  * Explain the shortest describe-edge path from `from` to `to`.
  *
- * This is the rich companion to `Graph.inspect({ explain })`: it reports found/no-path
+ * This is the rich companion to `renderSnapshot({ explain })`: it reports found/no-path
  * status and per-hop metadata, but remains a pure helper over the snapshot.
  * @param snapshot - snapshot value used by the helper.
  * @param from - from value used by the helper.
@@ -403,7 +403,7 @@ function materializePath(idx: SnapshotIndex, path: readonly string[]): readonly 
  * ```
  */
 export function explainPath(
-	snapshot: InspectSnapshot,
+	snapshot: RenderSnapshot,
 	from: string,
 	to: string,
 	options: ExplainPathOptions = {},
@@ -415,7 +415,7 @@ export function explainPath(
 	if (options.maxDepth === 0 && from !== to) return makeChain(from, to, "no-path", []);
 
 	if (from === to && options.findCycle !== true) {
-		return makeChain(from, to, "ok", [stepFor(idx.nodes.get(from) as InspectNode, 0)]);
+		return makeChain(from, to, "ok", [stepFor(idx.nodes.get(from) as RenderNode, 0)]);
 	}
 	if (from === to && options.findCycle === true) {
 		const cycle = shortestCycle(idx, from, options.maxDepth);
@@ -423,7 +423,7 @@ export function explainPath(
 			return makeChain(from, to, "ok", materializePath(idx, cycle.path));
 		}
 		if (cycle?.truncated) return makeChain(from, to, "max-depth-exceeded", []);
-		return makeChain(from, to, "ok", [stepFor(idx.nodes.get(from) as InspectNode, 0)]);
+		return makeChain(from, to, "ok", [stepFor(idx.nodes.get(from) as RenderNode, 0)]);
 	}
 	const found = shortestPath(idx, from, to, options.maxDepth);
 	if (found !== undefined && found.path.length > 0) {
@@ -441,7 +441,7 @@ export function explainPath(
  * import { validateNoIslands } from "@graphrefly/ts/graph";
  * ```
  */
-export function validateNoIslands(snapshot: InspectSnapshot): ValidateNoIslandsResult {
+export function validateNoIslands(snapshot: RenderSnapshot): ValidateNoIslandsResult {
 	const idx = indexSnapshot(snapshot);
 	const orphans: IslandReport[] = [];
 	for (const node of idx.nodes.values()) {

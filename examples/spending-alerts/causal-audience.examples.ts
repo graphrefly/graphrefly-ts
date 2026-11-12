@@ -1,5 +1,6 @@
 /** Three consumer-private audience examples. Exposure is not a security sandbox. */
 import type { Graph } from "../../packages/ts/src/graph/graph.js";
+import { renderSnapshot } from "../../packages/ts/src/graph/render.js";
 import {
 	assertCausalCapabilities,
 	type CausalBinding,
@@ -25,7 +26,7 @@ export function frameworkExample<T>(
 }
 /** The maintainer still inspects the complete executing graph. */
 export function maintainerExample(graph: Graph) {
-	return graph.inspect();
+	return renderSnapshot(graph);
 }
 function compileOnly(view: SpendingAlertsView) {
 	// @ts-expect-error Ordinary view has no internal authority capability.

@@ -1,7 +1,9 @@
 /** Runnable application integration: node --import tsx examples/spending-alerts/causal-graded-demo.ts */
 import assert from "node:assert/strict";
 import { pathToFileURL } from "node:url";
+import { graphTopology } from "../../packages/ts/src/graph/blueprint.js";
 import { Graph } from "../../packages/ts/src/graph/graph.js";
+import { topologyGroup } from "../../packages/ts/src/graph/graph-topology-group.js";
 import {
 	evaluationFixture,
 	evaluationPack,
@@ -52,9 +54,9 @@ export async function runGradedSpendingDemo() {
 		writes.push(payload);
 		return pendingWrite;
 	});
-	const beforeConfiguration = graph.topology();
+	const beforeConfiguration = graphTopology(graph);
 	const preset = spendingAlertsFor(graph, { name: "alerts", diagnostics: "off" });
-	assert.deepEqual(graph.topology(), beforeConfiguration);
+	assert.deepEqual(graphTopology(graph), beforeConfiguration);
 	const app = preset.compose({
 		evaluations: { pack: sources.pack, arrivals: sources.arrivals, current: sources.current },
 		verification: { receipts: sources.verification },
@@ -68,9 +70,9 @@ export async function runGradedSpendingDemo() {
 		panelText = text;
 		renderCount++;
 	};
-	const beforeInitialPanel = graph.topology();
+	const beforeInitialPanel = graphTopology(graph);
 	let detachPanel = ordinarySpendingPanel(app.view, show);
-	assert.deepEqual(graph.topology(), beforeInitialPanel);
+	assert.deepEqual(graphTopology(graph), beforeInitialPanel);
 	const initialDisplay = panelText;
 	let detachB = () => {};
 	let appB: ReturnType<typeof preset.compose> | undefined;
@@ -121,7 +123,7 @@ export async function runGradedSpendingDemo() {
 		assert.equal(appB.capabilities.retained.execution, executionB);
 		assert.notEqual(executionB, execution);
 		assert.notEqual(appB.view, app.view);
-		const topology = graph.topology();
+		const topology = graphTopology(graph);
 		await drainOfflineCompletion();
 		const evaluation = evaluationFixture();
 		const facts = policyFacts(evaluation);
@@ -151,7 +153,7 @@ export async function runGradedSpendingDemo() {
 		detachB = ordinarySpendingPanel(appB.view, (text) => {
 			panelBText = text;
 		});
-		assert.deepEqual(graph.topology(), topology);
+		assert.deepEqual(graphTopology(graph), topology);
 		const evaluationB = evaluationFixture(0, "tea");
 		const factsB = policyFacts(evaluationB, bindingB);
 		sourcesB.pack.set(evaluationPack([evaluationB], bindingB));
@@ -191,7 +193,7 @@ export async function runGradedSpendingDemo() {
 		assert.ok(renderCount > rendersAtDetach);
 		assert.equal(app.inspect().writes, 1);
 		assert.match(panelText, /succeeded/);
-		assert.deepEqual(graph.topology(), topology);
+		assert.deepEqual(graphTopology(graph), topology);
 
 		// Existing local stop fact stops new work; it does not manufacture an outcome.
 		sources.local.set({ ...facts.local, stop: true });
@@ -200,7 +202,7 @@ export async function runGradedSpendingDemo() {
 		const finished = app.inspect();
 		assert.equal(finished.normalEndReady, true);
 		assert.equal(finished.records.length, 1);
-		assert.deepEqual(graph.topology(), topology);
+		assert.deepEqual(graphTopology(graph), topology);
 		const maintainer = maintainerExample(graph);
 		const record = finished.records[0];
 		const recordB = appB.inspect().records[0];
@@ -316,8 +318,8 @@ export async function runGradedSpendingDemo() {
 		// Deterministic test/example cleanup, not a newly introduced public lifecycle method.
 		for (const instance of [app, appB])
 			for (const lease of instance?.owner.roots ?? []) lease.unsubscribe?.();
-		const group = graph.topologyGroup();
-		for (const node of graph.inspect().nodes) group.add(graph.find(node.id)!);
+		const group = topologyGroup(graph);
+		for (const node of graph.describe()) group.add(graph.find(node.id)!);
 		group.release();
 	}
 }

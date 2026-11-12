@@ -9,7 +9,7 @@
 import type { Dispatcher } from "../dispatcher/index.js";
 import type { EnvironmentDrivers } from "../graph/environment.js";
 import type { Node } from "../node/node.js";
-import { SENTINEL, type Wave } from "../protocol/messages.js";
+import type { Wave } from "../protocol/messages.js";
 
 /**
  * A downstream sink (graphrefly-ts:D175): called once per array the node sends, with the whole
@@ -60,13 +60,14 @@ export function ctxRewireDiff(
 	ctx[CTX_NODE_BINDING]?.rewireDiff(add, remove);
 }
 
-/** A dependency's terminal in this invocation (R-invocation@2): COMPLETE, or ERROR with its payload. */
+/** A dependency's terminal in this invocation (R-invocation@3): COMPLETE, or ERROR with its payload. */
 export type DepTerminal =
 	| { readonly kind: "complete" }
 	| { readonly kind: "error"; readonly error: unknown };
 
 /**
- * One dependency as the function sees it in this invocation (R-invocation@2, the user's Q3).
+ * One dependency during its supplying setup/function invocation (R-invocation@3).
+ * Accessing any field after that invocation returns throws; captured plain values remain usable.
  */
 export interface CtxDep {
 	/** The dependency's id in its graph. */
@@ -117,12 +118,12 @@ export interface Ctx {
 	 * past about 120,000). When the count follows the input, build the array and use `ctx.down`.
 	 */
 	emit(...values: readonly unknown[]): void;
-	/** The dependencies, one view each, in dependency order (R-invocation@2). */
+	/** The dependencies, one view each, in dependency order (R-invocation@3). */
 	deps: readonly CtxDep[];
 	/** Private state for the current lifetime (R-invocation, R-lifetime). */
 	state: CtxState;
 	/**
-	 * R-invocation@2 / R-subscription@3: on the first run of an instance built with a seed, the
+	 * R-invocation@3 / R-subscription@3: on the first run of an instance built with a seed, the
 	 * seed's opaque note; `undefined` on every other run.
 	 */
 	readonly seed: unknown;

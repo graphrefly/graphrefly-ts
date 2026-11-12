@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { graph } from "../graph/graph.js";
+import { renderSnapshot } from "../graph/render.js";
 import { compoundTupleKey } from "../identity.js";
 import { messageBus } from "../messaging/index.js";
 import type { Message } from "../protocol/messages.js";
@@ -50,7 +51,7 @@ describe("workQueue messageBus-backed lifecycle (D299-D324/D325)", () => {
 			"DATA",
 			expect.objectContaining({ topic: "work", subscriptionId: "q-admit", nextSeq: 2 }),
 		]);
-		expect(g.inspect().nodes).toContainEqual(
+		expect(renderSnapshot(g).nodes).toContainEqual(
 			expect.objectContaining({
 				id: "workQueue/q/admissionAckCommands",
 				factory: "workQueueAdmissionAckCommands",

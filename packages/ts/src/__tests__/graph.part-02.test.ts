@@ -1,7 +1,9 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-
 import { releaseGraphNodes } from "../graph/graph.js";
+import { topologyGroup } from "../graph/graph-topology-group.js";
+import { graphProfile, observeTopology } from "../graph/inspect.js";
+import { renderSnapshot } from "../graph/render.js";
 import type { Message, TopologyEvent } from "../index.js";
 import {
 	Dispatcher,
@@ -29,11 +31,11 @@ const TEST_JSON_DECODER = new TextDecoder();
 const decodeTestJsonBytes = (bytes: Uint8Array) => TEST_JSON_DECODER.decode(bytes);
 const _testHash = (bytes: Uint8Array) => `h:${decodeTestJsonBytes(bytes)}`;
 
-describe("Graph.observeTopology — read-only topology egress (D145)", () => {
+describe("observeTopology — read-only topology egress (D145)", () => {
 	it("emits node-registered events from the existing graph registry", () => {
 		const g = graph();
 		const events: TopologyEvent[] = [];
-		const unsub = g.observeTopology().subscribe((event) => events.push(event));
+		const unsub = observeTopology(g).subscribe((event) => events.push(event));
 
 		const source = g.state(1, { name: "source" });
 		g.derived([source], (n) => n! + 1, { name: "derived" });
@@ -57,7 +59,7 @@ describe("Graph.observeTopology — read-only topology egress (D145)", () => {
 		const b = g.state(2, { name: "b" });
 		const d = g.node([a], (ctx) => ctx.down([["DATA", ctx.deps[0].value]]), { name: "d" });
 		const events: TopologyEvent[] = [];
-		const unsub = g.observeTopology("d").subscribe((event) => events.push(event));
+		const unsub = observeTopology(g, "d").subscribe((event) => events.push(event));
 
 		g.replace(d, [b], (ctx) => ctx.down([["DATA", ctx.deps[0].value]]));
 
@@ -65,7 +67,7 @@ describe("Graph.observeTopology — read-only topology egress (D145)", () => {
 		expect(events).toEqual([
 			{ kind: "deps-changed", path: "d", prevDeps: ["a"], deps: ["b"], seq: 0 },
 		]);
-		const snap = g.inspect();
+		const snap = renderSnapshot(g);
 		expect(snap.nodes.find((node) => node.id === "d")?.deps).toEqual(["b"]);
 		expect(snap.edges).toContainEqual({ from: "b", to: "d" });
 		expect(snap.edges).not.toContainEqual({ from: "a", to: "d" });
@@ -75,7 +77,7 @@ describe("Graph.observeTopology — read-only topology egress (D145)", () => {
 		const parent = graph();
 		const child = graph();
 		const events: TopologyEvent[] = [];
-		const unsub = parent.observeTopology("sub").subscribe((event) => events.push(event));
+		const unsub = observeTopology(parent, "sub").subscribe((event) => events.push(event));
 
 		parent.mount(child, { at: "sub" });
 
@@ -83,8 +85,8 @@ describe("Graph.observeTopology — read-only topology egress (D145)", () => {
 		expect(events).toEqual([
 			{ kind: "mount-changed", path: "sub", deps: [], factory: "mount", seq: 0 },
 		]);
-		expect(parent.inspect().subgraphs?.[0].name).toBeUndefined();
-		expect(parent.inspect().subgraphs?.[0].nodes).toEqual([]);
+		expect(renderSnapshot(parent).subgraphs?.[0].name).toBeUndefined();
+		expect(renderSnapshot(parent).subgraphs?.[0].nodes).toEqual([]);
 	});
 
 	it("forwards mounted child topology events through mount-aware parent paths", () => {
@@ -92,7 +94,7 @@ describe("Graph.observeTopology — read-only topology egress (D145)", () => {
 		const child = graph();
 		parent.mount(child, { at: "sub" });
 		const events: TopologyEvent[] = [];
-		const unsub = parent.observeTopology("sub").subscribe((event) => events.push(event));
+		const unsub = observeTopology(parent, "sub").subscribe((event) => events.push(event));
 
 		const a = child.state(1, { name: "a" });
 		const b = child.state(2, { name: "b" });
@@ -120,7 +122,7 @@ describe("Graph.observeTopology — read-only topology egress (D145)", () => {
 				seq: 3,
 			},
 		]);
-		const snap = parent.inspect();
+		const snap = renderSnapshot(parent);
 		expect(snap.subgraphs?.[0].nodes.find((node) => node.id === "sub::d")?.deps).toEqual([
 			"sub::b",
 		]);
@@ -131,7 +133,7 @@ describe("Graph.observeTopology — read-only topology egress (D145)", () => {
 		const child = graph();
 		parent.mount(child, { at: "sub" });
 		const events: TopologyEvent[] = [];
-		const unsub = parent.observeTopology().subscribe((event) => events.push(event));
+		const unsub = observeTopology(parent).subscribe((event) => events.push(event));
 		unsub();
 
 		child.state(1, { name: "leaf" });
@@ -151,7 +153,7 @@ describe("Graph.observeTopology — read-only topology egress (D145)", () => {
 		);
 		const topologyEvents: string[] = [];
 		const protocolEvents: string[] = [];
-		const topologyUnsub = g.observeTopology().subscribe((event) => topologyEvents.push(event.kind));
+		const topologyUnsub = observeTopology(g).subscribe((event) => topologyEvents.push(event.kind));
 
 		topologyUnsub();
 		expect(runs).toBe(0);
@@ -170,7 +172,7 @@ describe("Graph.observeTopology — read-only topology egress (D145)", () => {
 	it("stops producing topology events after unsubscribe", () => {
 		const g = graph();
 		const events: string[] = [];
-		const unsub = g.observeTopology().subscribe((event) => events.push(event.path));
+		const unsub = observeTopology(g).subscribe((event) => events.push(event.path));
 		unsub();
 
 		g.state(1, { name: "later" });
@@ -184,7 +186,7 @@ describe("Graph.observeTopology — read-only topology egress (D145)", () => {
 		const second: string[] = [];
 		const late: string[] = [];
 		let added = false;
-		g.observeTopology().subscribe((event) => {
+		observeTopology(g).subscribe((event) => {
 			first.push(`${event.path}:${event.seq}`);
 			try {
 				(event as { path: string }).path = "mutated";
@@ -198,13 +200,13 @@ describe("Graph.observeTopology — read-only topology egress (D145)", () => {
 			}
 			if (!added) {
 				added = true;
-				g.observeTopology().subscribe((lateEvent) =>
+				observeTopology(g).subscribe((lateEvent) =>
 					late.push(`${lateEvent.path}:${lateEvent.seq}`),
 				);
 				g.state(2, { name: "nested" });
 			}
 		});
-		g.observeTopology().subscribe((event) => {
+		observeTopology(g).subscribe((event) => {
 			second.push(`${event.path}:${event.seq}`);
 			throw new Error("observer failure must not veto topology mutation");
 		});
@@ -221,8 +223,8 @@ describe("Graph.observeTopology — read-only topology egress (D145)", () => {
 		const g = graph();
 		const second: string[] = [];
 		let unsubscribeSecond = () => {};
-		g.observeTopology().subscribe(() => unsubscribeSecond());
-		unsubscribeSecond = g.observeTopology().subscribe((event) => second.push(event.path));
+		observeTopology(g).subscribe(() => unsubscribeSecond());
+		unsubscribeSecond = observeTopology(g).subscribe((event) => second.push(event.path));
 
 		g.state(1, { name: "root" });
 
@@ -232,10 +234,10 @@ describe("Graph.observeTopology — read-only topology egress (D145)", () => {
 	it("emits node-released only after quiescent atomic graph release commits", () => {
 		const g = graph();
 		const source = g.state(1, { name: "source" });
-		const group = g.topologyGroup({ name: "view" });
+		const group = topologyGroup(g, { name: "view" });
 		const derived = group.derived([source], (n) => n! + 1, { name: "derived" });
 		const events: TopologyEvent[] = [];
-		const unsub = g.observeTopology("derived").subscribe((event) => events.push(event));
+		const unsub = observeTopology(g, "derived").subscribe((event) => events.push(event));
 
 		group.release();
 
@@ -250,7 +252,7 @@ describe("Graph.observeTopology — read-only topology egress (D145)", () => {
 			},
 		]);
 		expect(g.find("derived")).toBeUndefined();
-		expect(g.inspect().nodes.map((node) => node.id)).not.toContain("derived");
+		expect(renderSnapshot(g).nodes.map((node) => node.id)).not.toContain("derived");
 		expect(g.checkpoint().nodes.map((node) => node.id)).not.toContain("derived");
 		expect(() => derived.subscribe(() => {})).toThrow(/released from its graph lifecycle/);
 	});
@@ -258,18 +260,18 @@ describe("Graph.observeTopology — read-only topology egress (D145)", () => {
 	it("does not emit node-released or hide topology when release is not quiescent", () => {
 		const g = graph();
 		const source = g.state(1, { name: "source" });
-		const group = g.topologyGroup({ name: "view" });
+		const group = topologyGroup(g, { name: "view" });
 		const derived = group.derived([source], (n) => n! + 1, { name: "derived" });
 		g.derived([derived], (n) => n! + 1, { name: "consumer" });
 		const events: TopologyEvent[] = [];
-		const unsub = g.observeTopology().subscribe((event) => events.push(event));
+		const unsub = observeTopology(g).subscribe((event) => events.push(event));
 
 		expect(() => group.release()).toThrow(/consumer.*still depends.*derived/);
 
 		unsub();
 		expect(events).toEqual([]);
 		expect(g.find("derived")).toBe(derived);
-		expect(g.inspect().nodes.map((node) => node.id)).toContain("derived");
+		expect(renderSnapshot(g).nodes.map((node) => node.id)).toContain("derived");
 		expect(g.checkpoint().nodes.map((node) => node.id)).toContain("derived");
 	});
 
@@ -287,7 +289,7 @@ describe("Graph.observeTopology — read-only topology egress (D145)", () => {
 			laterCleanupRan = true;
 		};
 		const events: TopologyEvent[] = [];
-		const unsub = g.observeTopology().subscribe((event) => events.push(event));
+		const unsub = observeTopology(g).subscribe((event) => events.push(event));
 
 		expect(() => releaseGraphNodes(g, [panic, later])).toThrow(/cleanup boom/);
 
@@ -300,29 +302,29 @@ describe("Graph.observeTopology — read-only topology egress (D145)", () => {
 		expect(laterCleanupRan).toBe(true);
 		expect(g.find("panic")).toBeUndefined();
 		expect(g.find("later")).toBeUndefined();
-		expect(g.inspect().nodes.map((node) => node.id)).not.toContain("panic");
-		expect(g.inspect().nodes.map((node) => node.id)).not.toContain("later");
+		expect(renderSnapshot(g).nodes.map((node) => node.id)).not.toContain("panic");
+		expect(renderSnapshot(g).nodes.map((node) => node.id)).not.toContain("later");
 		expect(() => panic.subscribe(() => {})).toThrow(/released from its graph lifecycle/);
 	});
 });
 
-describe("Graph.topologyGroup — graph-owned dynamic topology release (D152/D153)", () => {
+describe("topologyGroup — graph-owned dynamic topology release (D152/D153)", () => {
 	it("creates registered child nodes and releases them atomically from inspection surfaces", () => {
 		const g = graph({ dispatcher: new Dispatcher(), profile: true });
 		const source = g.state(1, { name: "source" });
 		const events: TopologyEvent[] = [];
-		const unsub = g.observeTopology().subscribe((event) => events.push(event));
-		const group = g.topologyGroup({ name: "view" });
+		const unsub = observeTopology(g).subscribe((event) => events.push(event));
+		const group = topologyGroup(g, { name: "view" });
 
 		const delta = group.derived([source], (n) => n! + 1, { name: "view.delta" });
 		const snapshot = group.derived([delta], (n) => n! * 2, { name: "view.snapshot" });
 
 		expect(g.find("view.delta")).toBe(delta);
 		expect(g.find("view.snapshot")).toBe(snapshot);
-		expect(g.inspect().nodes.map((node) => node.id)).toEqual(
+		expect(renderSnapshot(g).nodes.map((node) => node.id)).toEqual(
 			expect.arrayContaining(["source", "view.delta", "view.snapshot"]),
 		);
-		expect(Object.keys(g.profile().nodes)).toEqual(
+		expect(Object.keys(graphProfile(g).nodes)).toEqual(
 			expect.arrayContaining(["source", "view.delta", "view.snapshot"]),
 		);
 		expect(g.checkpoint().nodes.map((node) => node.id)).toEqual(
@@ -366,8 +368,8 @@ describe("Graph.topologyGroup — graph-owned dynamic topology release (D152/D15
 		]);
 		expect(g.find("view.delta")).toBeUndefined();
 		expect(g.find("view.snapshot")).toBeUndefined();
-		expect(g.inspect().nodes.map((node) => node.id)).not.toContain("view.delta");
-		expect(Object.keys(g.profile().nodes)).not.toContain("view.delta");
+		expect(renderSnapshot(g).nodes.map((node) => node.id)).not.toContain("view.delta");
+		expect(Object.keys(graphProfile(g).nodes)).not.toContain("view.delta");
 		expect(g.checkpoint().nodes.map((node) => node.id)).not.toContain("view.delta");
 		expect(() => g.state(0, { name: "view.delta" })).toThrow(/released/);
 		expect(() => group.node([], null, { name: "late" })).toThrow(/released/);
@@ -376,7 +378,7 @@ describe("Graph.topologyGroup — graph-owned dynamic topology release (D152/D15
 
 	it("add only accepts ordinary graph-registered nodes from the owning graph", () => {
 		const g = graph();
-		const group = g.topologyGroup({ name: "view" });
+		const group = topologyGroup(g, { name: "view" });
 		const registered = g.state(1, { name: "registered" });
 		expect(group.add(registered)).toBe(registered);
 		expect(group.add(registered)).toBe(registered);
@@ -391,7 +393,7 @@ describe("Graph.topologyGroup — graph-owned dynamic topology release (D152/D15
 
 	it("rejects release while an external live subscriber points into the group and can retry", () => {
 		const g = graph();
-		const group = g.topologyGroup({ name: "view" });
+		const group = topologyGroup(g, { name: "view" });
 		const child = group.state(1, { name: "view.child" });
 		const unsub = child.subscribe(() => {});
 
@@ -452,7 +454,7 @@ describe("Graph.checkpoint — data shape (R-checkpoint / D802, TS layout D178)"
 
 		const byId = Object.fromEntries(g.checkpoint().nodes.map((n) => [n.id, n]));
 		expect(byId.cold.values).toEqual([]);
-		expect(byId.cold.lifetime).toBeUndefined();
+		expect(byId.cold.lifetime).toBeNull();
 		expect(byId.nil.values).toEqual([null]);
 		expect(byId.empty.values).toEqual([[]]);
 	});
@@ -620,7 +622,7 @@ describe("Graph.checkpoint — data shape (R-checkpoint / D802, TS layout D178)"
 		const byId = Object.fromEntries(checkpoint.nodes.map((n) => [n.id, n]));
 		expect(byId["list.delta"].backendState).toEqual([1]);
 		expect(byId["list.snapshot"].values).toEqual([]);
-		expect(byId["list.snapshot"].lifetime).toBeUndefined();
+		expect(byId["list.snapshot"].lifetime).toBeNull();
 		expect(byId["map.intent"].backendState).toEqual([["k", 42]]);
 		expect(byId["map.snapshotPrep"].values).toEqual([]);
 		expect(byId["map.snapshot"].values).toEqual([]);
@@ -663,7 +665,7 @@ describe("Graph.checkpoint — data shape (R-checkpoint / D802, TS layout D178)"
 describe("Graph release-local subscriber accounting — D122/D124", () => {
 	it("counts real active fan-out/fan-in subscriptions and preserves the rejected group", () => {
 		const g = graph({ dispatcher: new Dispatcher(), profile: true });
-		const group = g.topologyGroup({ name: "diamond" });
+		const group = topologyGroup(g, { name: "diamond" });
 		const a = group.state(2, { name: "a" });
 		const b = group.state(3, { name: "b" });
 		const left = group.derived([a, b], (x, y) => x! + y!, { name: "left" });
@@ -676,13 +678,13 @@ describe("Graph release-local subscriber accounting — D122/D124", () => {
 			}
 		});
 		expect(messages).toContainEqual(["DATA", 11]);
-		const before = g.inspect();
+		const before = renderSnapshot(g);
 		const events: TopologyEvent[] = [];
-		const stopEvents = g.observeTopology().subscribe((e) => events.push(e));
+		const stopEvents = observeTopology(g).subscribe((e) => events.push(e));
 
 		// a,b,left,right have internal subscribers: only the final sink prevents release.
 		expect(() => group.release()).toThrow(/'join' still has live subscribers/);
-		expect(g.inspect()).toEqual(before);
+		expect(renderSnapshot(g)).toEqual(before);
 		expect(group.released).toBe(false);
 		expect(events).toEqual([]);
 		// Live topology changes after rejection must be read again on the next attempt.
@@ -694,8 +696,8 @@ describe("Graph release-local subscriber accounting — D122/D124", () => {
 		group.release();
 		group.release();
 		expect(events.map((e) => e.kind)).toEqual(Array(5).fill("node-released"));
-		expect(g.inspect().nodes).toEqual([]);
-		expect(Object.keys(g.profile().nodes)).toEqual([]);
+		expect(renderSnapshot(g).nodes).toEqual([]);
+		expect(Object.keys(graphProfile(g).nodes)).toEqual([]);
 		expect(g.checkpoint().nodes).toEqual([]);
 		for (const name of ["a", "b", "left", "right", "join"]) {
 			expect(g.find(name)).toBeUndefined();
@@ -709,11 +711,11 @@ describe("Graph release-local subscriber accounting — D122/D124", () => {
 		const first = g.state(1, { name: "first" });
 		const later = g.node([], null, { name: "later" });
 		const disconnect = first.subscribe(() => {});
-		const before = g.inspect();
+		const before = renderSnapshot(g);
 		expect(() => releaseGraphNodes(g, [first, first, later])).toThrow(
 			/'first' still has live subscribers/,
 		);
-		expect(g.inspect()).toEqual(before);
+		expect(renderSnapshot(g)).toEqual(before);
 		disconnect();
 	});
 
@@ -723,9 +725,9 @@ describe("Graph release-local subscriber accounting — D122/D124", () => {
 		const b = g.node([], null, { name: "b" });
 		g.derived([b], (x) => x, { name: "outside" });
 		const disconnect = a.subscribe(() => {});
-		const before = g.inspect();
+		const before = renderSnapshot(g);
 		expect(() => releaseGraphNodes(g, [a, b])).toThrow(/'outside' still depends on 'b'/);
-		expect(g.inspect()).toEqual(before);
+		expect(renderSnapshot(g)).toEqual(before);
 		disconnect();
 	});
 });

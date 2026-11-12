@@ -1,3 +1,4 @@
+import { graphProfile } from "../graph/inspect.js";
 /**
  * Horizontal inspection patterns re-derived from old presets (B62 / D125).
  *
@@ -27,7 +28,7 @@ export interface ProfileSummary {
 }
 
 /**
- * Summarize an opt-in Graph.profile() snapshot while keeping describe() as the
+ * Summarize an opt-in graphProfile() snapshot while keeping describe() as the
  * source of node cardinality. No counters are stored on nodes (R-node-thin).
  * @param graph - Graph that owns the created nodes or projector.
  * @param opts - Options that configure the helper.
@@ -39,9 +40,9 @@ export interface ProfileSummary {
  * ```
  */
 export function profileSummary(graph: Graph, opts: { limit?: number } = {}): ProfileSummary {
-	const profile = graph.profile();
-	const described = graph.inspect();
-	const nodeIds = new Set(described.nodes.map((node) => node.id));
+	const profile = graphProfile(graph);
+	const described = graph.describe();
+	const nodeIds = new Set(described.map((node) => node.id));
 	for (const id of Object.keys(profile.nodes)) nodeIds.add(id);
 
 	const byStatus: Partial<Record<string, number>> = {};

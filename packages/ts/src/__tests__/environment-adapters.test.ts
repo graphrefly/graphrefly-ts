@@ -11,6 +11,7 @@ import {
 	type WebSocketSessionHandle,
 } from "../graph/environment.js";
 import { graph } from "../graph/graph.js";
+import { renderSnapshot } from "../graph/render.js";
 import { retryPolicy } from "../graph/resilience.js";
 import type { Message } from "../protocol/messages.js";
 
@@ -80,7 +81,7 @@ describe("environment outbound adapters (D130/D132)", () => {
 			"DATA",
 			{ state: "succeeded", inFlight: 0, attempt: 1, sent: 1, failed: 0 },
 		]);
-		const snap = g.inspect();
+		const snap = renderSnapshot(g);
 		expect(snap.edges).toContainEqual({ from: "source", to: "egress" });
 		expect(snap.edges).toContainEqual({ from: "egress", to: "egress/status" });
 	});
@@ -260,7 +261,7 @@ describe("environment session adapters (D133)", () => {
 		]);
 		expect(errors).toEqual([]);
 		expect(canceled).toBe(0);
-		const snap = g.inspect();
+		const snap = renderSnapshot(g);
 		expect(snap.nodes.map((node) => node.id).sort()).toEqual([
 			"session/attempts",
 			"session/command",

@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-
 import { graph } from "../graph/index.js";
+import { renderSnapshot } from "../graph/render.js";
 import { strictJsonCodec } from "../json/codec.js";
 import {
 	assertFixedWindowRateLimitPolicy,
@@ -442,12 +442,12 @@ describe("D650 keyed rate-limit reference transitions — common strict boundary
 	it("keeps graph topology unchanged and imports no graph, clock, timer, async, store, or client path", () => {
 		const g = graph();
 		g.state(1, { name: "source" });
-		const before = g.inspect();
+		const before = renderSnapshot(g);
 		const { req, policy } = tokenSetup(1, 1);
 		evaluateTokenBucketRateLimitTransition(
 			createTokenBucketRateLimitTransitionInput(req, policy, null, 0),
 		);
-		expect(g.inspect()).toEqual(before);
+		expect(renderSnapshot(g)).toEqual(before);
 
 		const source = readFileSync(
 			new URL("../rate-limit/keyed-rate-limit-algorithms.ts", import.meta.url),

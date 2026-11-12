@@ -3,6 +3,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { graph } from "../graph/graph.js";
+import { renderSnapshot } from "../graph/render.js";
 import type { Message, Wave } from "../protocol/messages.js";
 import {
 	analyzeAndMeasure,
@@ -237,7 +238,7 @@ describe("reactive-layout solution (D181) — part 2", () => {
 		});
 		const totalHeight = collect(bundle.totalHeight);
 
-		expect(bundle.graph.inspect().edges).toEqual(
+		expect(renderSnapshot(bundle.graph).edges).toEqual(
 			expect.arrayContaining([
 				{ from: "blocks", to: "blocks-measurements" },
 				{ from: "max-width", to: "blocks-measurements" },
@@ -614,7 +615,7 @@ describe("reactive-layout solution (D181) — part 2", () => {
 		});
 		const flow = collect(bundle.flowLines);
 
-		expect(bundle.graph.inspect().edges).toEqual(
+		expect(renderSnapshot(bundle.graph).edges).toEqual(
 			expect.arrayContaining([
 				{ from: "text", to: "text-measurements" },
 				{ from: "font", to: "text-measurements" },

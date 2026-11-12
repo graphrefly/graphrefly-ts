@@ -3,6 +3,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, expectTypeOf, it } from "vitest";
 import { graph } from "../graph/graph.js";
+import { renderSnapshot } from "../graph/render.js";
 import * as packageRoot from "../index.js";
 import type { Message, Wave } from "../protocol/messages.js";
 import type { ScoreSignal } from "../scoring/index.js";
@@ -424,7 +425,7 @@ describe("agentic WorkItem memory application recipe wiring (D572/D576/D577/D581
 		expect(
 			occurrenceData<readonly AgenticMemoryRecord<string>[]>(observed.messages).at(-1),
 		).toEqual([record()]);
-		expect(g.inspect().edges).toEqual(
+		expect(renderSnapshot(g).edges).toEqual(
 			expect.arrayContaining([
 				{ from: "caller/complete-occurrence", to: "recipe/input" },
 				{ from: "recipe/input", to: "recipe/bridge/projection" },
@@ -437,7 +438,7 @@ describe("agentic WorkItem memory application recipe wiring (D572/D576/D577/D581
 				{ from: "recipe/application/projection", to: "recipe/application/records" },
 			]),
 		);
-		expect(g.inspect().edges).not.toContainEqual({
+		expect(renderSnapshot(g).edges).not.toContainEqual({
 			from: "recipe/application/applicationDecisions",
 			to: "recipe/application/projection",
 		});

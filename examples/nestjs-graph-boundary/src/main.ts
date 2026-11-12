@@ -1,3 +1,4 @@
+import { renderSnapshot } from "../../../packages/ts/src/graph/render.js";
 import "reflect-metadata";
 import {
 	fromNestCron,
@@ -44,7 +45,7 @@ import {
 	provideGraphWsProviders,
 } from "@graphrefly/nestjs/websockets";
 
-import { type Graph, graph } from "@graphrefly/ts/graph";
+import { graph } from "@graphrefly/ts/graph";
 import {
 	BadRequestException,
 	Body,
@@ -448,8 +449,8 @@ class GraphBoundaryDemo {
 		return result(202, { lifecycle: "teardown-envelope-emitted" });
 	}
 
-	inspect(): ReturnType<Graph["inspect"]> {
-		return g.inspect();
+	inspect(): ReturnType<typeof renderSnapshot> {
+		return renderSnapshot(g);
 	}
 }
 

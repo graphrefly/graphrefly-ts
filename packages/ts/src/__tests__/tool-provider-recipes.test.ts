@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { toolProviderExecutionRecipe } from "../executors/tool-provider.js";
 import type { ToolProviderAdapterBinding } from "../executors/tool-provider-runtime.js";
 import { graph } from "../graph/graph.js";
+import { renderSnapshot } from "../graph/render.js";
 import {
 	type AgentRequestFact,
 	type AgentRequestIssued,
@@ -78,7 +79,7 @@ describe("tool provider execution recipe (D283/D359-D362)", () => {
 			}),
 		]);
 		expect(issues).toEqual([]);
-		expect(g.inspect().nodes).toEqual(
+		expect(renderSnapshot(g).nodes).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({
 					id: "toolProviderExecution/catalogs",

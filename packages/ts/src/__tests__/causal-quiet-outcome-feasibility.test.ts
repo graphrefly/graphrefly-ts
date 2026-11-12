@@ -1,19 +1,20 @@
 /** No-I/O mechanism probe, not a qualified causal authority or host implementation. */
 import { expect, it } from "vitest";
-
 import {
 	ColdConstructionError,
 	prepareConstruction,
 	startConstruction,
 } from "../graph/construction-scope.js";
 import { Graph } from "../graph/graph.js";
+import { topologyGroup } from "../graph/graph-topology-group.js";
+import { renderSnapshot } from "../graph/render.js";
 import { relayFirst } from "./helpers/relay.js";
 
 for (const closingEdge of ["receipt-to-guard", "authority-to-receipt"] as const) {
 	it(`rejects the proposed quiet outcome cycle while cold: ${closingEdge}`, () => {
 		const graph = new Graph();
 		const input = graph.node([], null, { name: "input" });
-		const baseline = graph.inspect();
+		const baseline = renderSnapshot(graph);
 		const scope = prepareConstruction(graph, {
 			name: "probe",
 			epoch: 1,
@@ -43,7 +44,7 @@ for (const closingEdge of ["receipt-to-guard", "authority-to-receipt"] as const)
 		expect(String(failure)).toContain("a dependency is the node itself or depends on it");
 		expect(invocations).toBe(0);
 		expect(() => scope.abort(failure)).toThrow(ColdConstructionError);
-		expect(graph.inspect()).toEqual(baseline);
+		expect(renderSnapshot(graph)).toEqual(baseline);
 	});
 }
 
@@ -95,7 +96,7 @@ it("delivers a bounded receipt frame through a quiet node in an acyclic cold gra
 		expect(received).toEqual([[1, 2]]);
 	} finally {
 		for (const root of owner.roots) root.unsubscribe?.();
-		const group = graph.topologyGroup();
+		const group = topologyGroup(graph);
 		for (const node of owner.nodes) group.add(node);
 		group.release();
 	}

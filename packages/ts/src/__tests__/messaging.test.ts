@@ -1,5 +1,6 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
 import { graph } from "../graph/graph.js";
+import { renderSnapshot } from "../graph/render.js";
 import {
 	CONTEXT_TOPIC,
 	DEFERRED_TOPIC,
@@ -50,7 +51,7 @@ describe("messageBus clean-slate retained topic log (D279/D282/D284/D285/D325)",
 		const g = graph();
 		messageBus(g, { topics: ["orders"], name: "bus", now: () => 10 });
 
-		expect(g.inspect().nodes.map((node) => [node.id, node.factory])).toEqual(
+		expect(renderSnapshot(g).nodes.map((node) => [node.id, node.factory])).toEqual(
 			expect.arrayContaining([
 				["bus/commands", "messageBusCommands"],
 				["bus/messages", "messageBusMessages"],
@@ -178,7 +179,7 @@ describe("messageBus clean-slate retained topic log (D279/D282/D284/D285/D325)",
 			"DATA",
 			{ topic: "orders", seq: 1, payload: { id: "o1" }, key: "o1", timestampMs: 30 },
 		]);
-		const snap = g.inspect();
+		const snap = renderSnapshot(g);
 		expect(snap.edges).toContainEqual({ from: "source", to: "orders/out" });
 		expect(snap.edges).toContainEqual({ from: "orders/out", to: "bus/commands" });
 	});
@@ -204,7 +205,7 @@ describe("messageBus clean-slate retained topic log (D279/D282/D284/D285/D325)",
 			"DATA",
 			expect.objectContaining({ payload: { id: "o2" } }),
 		]);
-		expect(g.inspect().edges).not.toContainEqual({ from: "orders/out", to: "bus/commands" });
+		expect(renderSnapshot(g).edges).not.toContainEqual({ from: "orders/out", to: "bus/commands" });
 	});
 
 	it("catalog/topic/deadLetter projections answer the params written to their request state", () => {

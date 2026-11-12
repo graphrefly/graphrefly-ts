@@ -29,13 +29,14 @@ import {
 	PlainPublication,
 	verifyPublicationMaterial,
 } from "../../../../scripts/fixtures/spending-publication-oracle.js";
-
 import {
 	constructionOf,
 	prepareConstruction,
 	startConstruction,
 } from "../graph/construction-scope.js";
 import { Graph } from "../graph/graph.js";
+import { topologyGroup } from "../graph/graph-topology-group.js";
+import { renderSnapshot } from "../graph/render.js";
 import type { Node, StateNode } from "../node/node.js";
 import { checkpointStateOfNode } from "../node/runtime-accessors.js";
 import type { CausalBinding } from "../solutions/causal-occurrence/capabilities.js";
@@ -78,10 +79,10 @@ afterEach(() => {
 	for (const stop of stops.splice(0)) stop();
 	for (const graph of graphs.splice(0)) {
 		for (const r of constructionOf(graph, "run")?.roots ?? []) r.unsubscribe?.();
-		const group = graph.topologyGroup();
-		for (const n of graph.inspect().nodes) group.add(graph.find(n.id)!);
+		const group = topologyGroup(graph);
+		for (const n of renderSnapshot(graph).nodes) group.add(graph.find(n.id)!);
 		group.release();
-		expect(graph.inspect().nodes).toHaveLength(0);
+		expect(renderSnapshot(graph).nodes).toHaveLength(0);
 	}
 });
 function facts(id = "A", message = `Message ${id}`) {
@@ -480,8 +481,8 @@ describe("private publication material-v1", () => {
 			else expect(out.last().rows).toEqual([]);
 		} finally {
 			stop();
-			const group = legacy.graph.topologyGroup();
-			for (const n of legacy.graph.inspect().nodes) group.add(legacy.graph.find(n.id)!);
+			const group = topologyGroup(legacy.graph);
+			for (const n of renderSnapshot(legacy.graph).nodes) group.add(legacy.graph.find(n.id)!);
 			group.release();
 		}
 	});

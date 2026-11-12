@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { graphTopology } from "../graph/blueprint.js";
 import { graph } from "../graph/graph.js";
 import { compoundTupleKey } from "../identity.js";
 import type {
@@ -437,7 +438,7 @@ describe("ClickHouse trusted-query evaluation contracts (D628)", () => {
 			decisions: [decisions],
 			now: () => 105,
 		});
-		const beforeRuntime = g.topology();
+		const beforeRuntime = graphTopology(g);
 		const approvedRuns = collect<ToolProviderAdapterRunRequested>(admission.approvedRunRequests);
 		const calls: ClickHouseTrustedQueryHostExecutionRequest[] = [];
 		const runtime = clickHouseTrustedQueryRuntime(g, {
@@ -465,7 +466,7 @@ describe("ClickHouse trusted-query evaluation contracts (D628)", () => {
 				},
 			},
 		});
-		const afterRuntime = g.topology();
+		const afterRuntime = graphTopology(g);
 		expect(afterRuntime.nodes.length - beforeRuntime.nodes.length).toBe(7);
 		expect(afterRuntime.edges.length - beforeRuntime.edges.length).toBe(0);
 		const seen = collect<ClickHouseOutcome>(runtime.outcomes);
@@ -549,13 +550,13 @@ describe("ClickHouse trusted-query evaluation contracts (D628)", () => {
 				outcome: { ...outcomeBase, kind: "blocked", needs: [] },
 			}),
 		).toThrow("blocked-is-not-execution");
-		const graphEvidence = JSON.stringify({ outcome: seen.values[0], topology: g.topology() });
+		const graphEvidence = JSON.stringify({ outcome: seen.values[0], topology: graphTopology(g) });
 		expect(graphEvidence).not.toMatch(/sql|credential|password|client|pool|rawRows/i);
 		seen.unsubscribe();
 		runtimeIssues.unsubscribe();
 		approvedRuns.unsubscribe();
 		await runtime.dispose();
-		const afterDispose = g.topology();
+		const afterDispose = graphTopology(g);
 		expect(afterDispose.nodes.length).toBe(beforeRuntime.nodes.length);
 		expect(afterDispose.edges.length).toBe(beforeRuntime.edges.length);
 	});
@@ -612,7 +613,7 @@ describe("ClickHouse trusted-query evaluation contracts (D628)", () => {
 				}),
 			}),
 		]);
-		expect(JSON.stringify({ outcomes: outcomes.values, topology: g.topology() })).not.toContain(
+		expect(JSON.stringify({ outcomes: outcomes.values, topology: graphTopology(g) })).not.toContain(
 			"do-not-leak",
 		);
 		outcomes.unsubscribe();

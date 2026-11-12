@@ -60,7 +60,9 @@ export {
 	type GraphBlueprintJson,
 	type GraphBlueprintOptions,
 	type GraphBlueprintProvenance,
+	graphBlueprint,
 	graphBlueprintDiagnostics,
+	graphTopology,
 	type NormalizedGraphTopologyNode,
 	type NormalizedGraphTopologySnapshot,
 	normalizeTopology,
@@ -110,10 +112,10 @@ export {
 	zip,
 } from "./graph/combinators.js";
 export {
-	type InspectChangeset,
-	type InspectEvent,
 	type PipeOperator,
 	pipe,
+	type RenderChangeset,
+	type RenderEvent,
 	type Stratified,
 	type StratifyOptions,
 	type StratifyRule,
@@ -163,10 +165,10 @@ export type {
 	GraphTopologyEdge,
 	GraphTopologyNode,
 	GraphTopologySnapshot,
-	InspectEdge,
-	InspectNode,
-	InspectOpts,
-	InspectSnapshot,
+	RenderEdge,
+	RenderNode,
+	RenderOpts,
+	RenderSnapshot,
 } from "./graph/describe.js";
 export {
 	type CausalChain,
@@ -230,6 +232,7 @@ export {
 	type TopologyGroupOptions,
 	type TopologyGroupReleaseOptions,
 } from "./graph/graph.js";
+export { topologyGroup } from "./graph/graph-topology-group.js";
 export {
 	concatMap,
 	exhaustMap,
@@ -247,6 +250,7 @@ export type {
 	TopologyEventKind,
 	TopologyStream,
 } from "./graph/inspect.js";
+export { graphProfile, observeTopology } from "./graph/inspect.js";
 export { operatorRestoreRegistry } from "./graph/operator-restore.js";
 export {
 	type DefineOpts,
@@ -289,21 +293,22 @@ export {
 	blueprintToMermaid,
 	type DiagramDirection,
 	type GraphBlueprintToMermaidOptions,
-	type InspectToAsciiOptions,
-	type InspectToD2Options,
-	type InspectToJsonOptions,
-	type InspectToMermaidOptions,
-	type InspectToMermaidUrlOptions,
-	type InspectToPrettyOptions,
-	inspectToAscii,
-	inspectToD2,
-	inspectToJson,
-	inspectToMermaid,
-	inspectToMermaidUrl,
-	inspectToPretty,
 	type MermaidLiveTheme,
 	type MermaidLiveUrlOptions,
 	mermaidLiveUrl,
+	type RenderToAsciiOptions,
+	type RenderToD2Options,
+	type RenderToJsonOptions,
+	type RenderToMermaidOptions,
+	type RenderToMermaidUrlOptions,
+	type RenderToPrettyOptions,
+	renderSnapshot,
+	renderToAscii,
+	renderToD2,
+	renderToJson,
+	renderToMermaid,
+	renderToMermaidUrl,
+	renderToPretty,
 } from "./graph/render.js";
 export {
 	type BackoffPolicy,

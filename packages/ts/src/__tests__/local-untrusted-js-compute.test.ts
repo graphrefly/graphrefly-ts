@@ -17,8 +17,10 @@ import {
 	localUntrustedJsComputeRuntime,
 	runLocalUntrustedJsComputeAttempt,
 } from "../executors/local-untrusted-js-compute.js";
-import type { InspectSnapshot } from "../graph/describe.js";
+import { graphTopology } from "../graph/blueprint.js";
+import type { RenderSnapshot } from "../graph/describe.js";
 import { Graph } from "../graph/graph.js";
+import { topologyGroup } from "../graph/graph-topology-group.js";
 import { strictCanonicalJsonBytes } from "../json/codec.js";
 import type {
 	AgentRuntimeAuditRecord,
@@ -207,7 +209,7 @@ const successfulDriver = (): LocalUntrustedJsComputeDriver => ({
 					},
 				],
 				edges: [{ from: "question", to: "answer" }],
-			} satisfies InspectSnapshot,
+			} satisfies RenderSnapshot,
 			provenance: {
 				sourceRevision: request.sourceRevision,
 				sourceDigest: request.sourceDigest,
@@ -615,7 +617,7 @@ describe("D667 local untrusted JS compute contract", () => {
 describe("D667 local untrusted JS compute Graph-visible runtime", () => {
 	const setup = (driver: LocalUntrustedJsComputeDriver) => {
 		const graph = new Graph();
-		const sources = graph.topologyGroup({ name: "local-untrusted-js-compute-fixtures" });
+		const sources = topologyGroup(graph, { name: "local-untrusted-js-compute-fixtures" });
 		const inputNode = sources.node<ToolProviderAdapterInput<LocalUntrustedJsComputeArguments>>();
 		const requestNode = sources.node<ToolProviderAdapterRunRequested>();
 		const admissionNode = sources.node<ToolProviderRunAdmission>();
@@ -748,9 +750,9 @@ describe("D667 local untrusted JS compute Graph-visible runtime", () => {
 
 		for (const unsubscribe of unsubscribes) unsubscribe();
 		await fixture.runtime.dispose();
-		expect(fixture.graph.topology().nodes).toHaveLength(6);
+		expect(graphTopology(fixture.graph).nodes).toHaveLength(6);
 		fixture.sources.release({ reason: "test-complete" });
-		expect(fixture.graph.topology()).toEqual({ nodes: [], edges: [] });
+		expect(graphTopology(fixture.graph)).toEqual({ nodes: [], edges: [] });
 	});
 
 	it("rejects coordinate drift and delivers only an exact admitted cancellation", async () => {
@@ -842,7 +844,7 @@ describe("D667 local untrusted JS compute Graph-visible runtime", () => {
 		for (const unsubscribe of unsubscribes) unsubscribe();
 		await fixture.runtime.dispose();
 		fixture.sources.release({ reason: "test-complete" });
-		expect(fixture.graph.topology()).toEqual({ nodes: [], edges: [] });
+		expect(graphTopology(fixture.graph)).toEqual({ nodes: [], edges: [] });
 	});
 
 	it("does not resolve disposal or release topology before active private cleanup settles", async () => {
@@ -893,12 +895,12 @@ describe("D667 local untrusted JS compute Graph-visible runtime", () => {
 		await new Promise<void>((resolve) => setTimeout(resolve, 10));
 		expect(privateCleanupSettled).toBe(false);
 		expect(disposeResolved).toBe(false);
-		expect(fixture.graph.topology().nodes).toHaveLength(15);
+		expect(graphTopology(fixture.graph).nodes).toHaveLength(15);
 
 		await disposing;
 		expect(privateCleanupSettled).toBe(true);
-		expect(fixture.graph.topology().nodes).toHaveLength(6);
+		expect(graphTopology(fixture.graph).nodes).toHaveLength(6);
 		fixture.sources.release({ reason: "test-complete" });
-		expect(fixture.graph.topology()).toEqual({ nodes: [], edges: [] });
+		expect(graphTopology(fixture.graph)).toEqual({ nodes: [], edges: [] });
 	});
 });

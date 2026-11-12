@@ -2,10 +2,11 @@
 import type { DataIssue } from "../data/index.js";
 import {
 	type GraphTopologySnapshot,
-	type InspectSnapshot,
-	topologyFromInspect,
+	type RenderSnapshot,
+	topologyFromRender,
 } from "../graph/describe.js";
 import type { Graph } from "../graph/graph.js";
+import { topologyGroup } from "../graph/graph-topology-group.js";
 import { compoundTupleKey } from "../identity.js";
 import { strictCanonicalJsonBytes } from "../json/codec.js";
 import type { Node, StateNode, Status } from "../node/node.js";
@@ -145,7 +146,7 @@ export interface LocalUntrustedJsComputeRunnerResult {
 	readonly contractVersion: "1";
 	readonly answer: LocalUntrustedJsJson;
 	readonly topology: GraphTopologySnapshot;
-	readonly describe: InspectSnapshot;
+	readonly describe: RenderSnapshot;
 	readonly provenance: LocalUntrustedJsComputeProvenance;
 	readonly cleanup: {
 		readonly graphNodesAfterDispose: 0;
@@ -348,7 +349,7 @@ export function localUntrustedJsComputeRuntime(
 	if (opts.driver.compatibility !== LOCAL_UNTRUSTED_JS_COMPUTE_COMPATIBILITY)
 		throw new TypeError("Local untrusted JS compute driver compatibility mismatch.");
 	const name = opts.name ?? "localUntrustedJsCompute";
-	const group = graph.topologyGroup({ name });
+	const group = topologyGroup(graph, { name });
 	const outputNode = <T>(suffix: string, factory: string) =>
 		group.node<T>([], null, {
 			name: `${name}/${suffix}`,
@@ -1272,12 +1273,12 @@ function runnerResult(
 		throw new TypeError("Local untrusted JS compute runner result has mismatched provenance.");
 	const answer = cloneJson(value.answer, "local untrusted JS compute answer");
 	const topology = validateTopologySnapshot(value.topology, manifest);
-	const describe = validateInspectSnapshot(value.describe, manifest);
+	const describe = validateRenderSnapshot(value.describe, manifest);
 	const answerInspectNode = describe.nodes.find(
 		(node) => node.id === value.provenance.answerNodeId,
 	);
 	if (
-		JSON.stringify(topology) !== JSON.stringify(topologyFromInspect(describe)) ||
+		JSON.stringify(topology) !== JSON.stringify(topologyFromRender(describe)) ||
 		topology.name !== value.provenance.graphName ||
 		describe.name !== value.provenance.graphName ||
 		!topology.nodes.some((node) => node.id === value.provenance.answerNodeId) ||
@@ -1498,10 +1499,10 @@ function topologyEdge(value: unknown): GraphTopologySnapshot["edges"][number] {
 	return Object.freeze({ from: value.from, to: value.to });
 }
 
-function validateInspectSnapshot(
+function validateRenderSnapshot(
 	value: unknown,
 	manifest: LocalUntrustedJsComputeManifest,
-): InspectSnapshot {
+): RenderSnapshot {
 	const budget: TopologyBudget = {
 		nodes: 0,
 		edges: 0,
@@ -1516,7 +1517,7 @@ function describeSnapshot(
 	manifest: LocalUntrustedJsComputeManifest,
 	budget: TopologyBudget,
 	depth: number,
-): InspectSnapshot {
+): RenderSnapshot {
 	if (depth > 32) throw new TypeError("Local untrusted JS compute describe is too deeply nested.");
 	exactOptionalKeys(value, ["nodes", "edges"], ["mountId", "name", "subgraphs"]);
 	if (!Array.isArray(value.nodes) || !Array.isArray(value.edges))
@@ -1550,7 +1551,7 @@ function describeSnapshot(
 		[...observedEdges].some((edge) => !expectedEdges.has(edge))
 	)
 		throw new TypeError("Local untrusted JS compute describe edges disagree with node deps.");
-	const out: InspectSnapshot = { nodes, edges };
+	const out: RenderSnapshot = { nodes, edges };
 	if (depth === 0 && value.mountId !== undefined)
 		throw new TypeError("Local untrusted JS compute root describe must not have a mount id.");
 	if (depth > 0 && value.mountId === undefined)
@@ -1576,7 +1577,7 @@ function describeSnapshot(
 	return Object.freeze(out);
 }
 
-function describeNode(value: unknown): InspectSnapshot["nodes"][number] {
+function describeNode(value: unknown): RenderSnapshot["nodes"][number] {
 	exactOptionalKeys(value, ["id", "factory", "deps", "status"], ["name", "meta", "value"]);
 	const topology = topologyNode({
 		id: value.id,
@@ -1585,7 +1586,7 @@ function describeNode(value: unknown): InspectSnapshot["nodes"][number] {
 		...(value.name === undefined ? {} : { name: value.name }),
 		...(value.meta === undefined ? {} : { meta: value.meta }),
 	});
-	const out: InspectSnapshot["nodes"][number] = {
+	const out: RenderSnapshot["nodes"][number] = {
 		...topology,
 		status: describeStatus(value.status),
 	};

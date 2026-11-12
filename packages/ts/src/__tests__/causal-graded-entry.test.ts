@@ -18,7 +18,10 @@ import {
 	presetBinding,
 } from "../../../../scripts/fixtures/spending-preset-harness.js";
 import { oracleRequest } from "../../../../scripts/fixtures/spending-preset-oracle.js";
+import { graphTopology } from "../graph/blueprint.js";
 import { Graph } from "../graph/graph.js";
+import { topologyGroup } from "../graph/graph-topology-group.js";
+import { renderSnapshot } from "../graph/render.js";
 
 type Host = ReturnType<typeof composeOfflineSpending>;
 function setup(graph = new Graph({ name: "graded-entry" })) {
@@ -32,8 +35,8 @@ function setup(graph = new Graph({ name: "graded-entry" })) {
 }
 function teardown(graph: Graph, hosts: readonly Host[] = []) {
 	for (const host of hosts) for (const lease of host.owner.roots) lease.unsubscribe?.();
-	const group = graph.topologyGroup();
-	for (const n of graph.inspect().nodes) group.add(graph.find(n.id)!);
+	const group = topologyGroup(graph);
+	for (const n of renderSnapshot(graph).nodes) group.add(graph.find(n.id)!);
 	group.release();
 }
 function drive(run: ReturnType<typeof setup>, epoch = 1) {
@@ -55,7 +58,7 @@ it("creating immutable defaults allocates no nodes and does not claim the resour
 	const graph = new Graph();
 	const preset = spendingAlertsFor(graph, { name: "spending" });
 	expect(Object.isFrozen(preset)).toBe(true);
-	expect(graph.inspect().nodes).toHaveLength(0);
+	expect(renderSnapshot(graph).nodes).toHaveLength(0);
 	expect(Object.keys(preset)).toEqual(["compose"]);
 });
 
@@ -73,7 +76,7 @@ for (const value of [
 	it(`invalid defaults leave no graph resources (${String(value)})`, () => {
 		const graph = new Graph();
 		expect(() => spendingAlertsFor(graph, value as SpendingDefaults)).toThrow();
-		expect(graph.inspect().nodes).toHaveLength(0);
+		expect(renderSnapshot(graph).nodes).toHaveLength(0);
 	});
 }
 it("accessor defaults and overrides are rejected without invoking getters or allocating", () => {
@@ -85,12 +88,12 @@ it("accessor defaults and overrides are rejected without invoking getters or all
 			return "spending";
 		},
 	};
-	const baseline = run.graph.topology();
+	const baseline = graphTopology(run.graph);
 	expect(() => spendingAlertsFor(run.graph, config)).toThrow(/accessor/);
 	const preset = spendingAlertsFor(run.graph, { name: "spending" });
 	expect(() => preset.compose(run.creation, config)).toThrow(/accessor/);
 	expect(reads).toBe(0);
-	expect(run.graph.topology()).toEqual(baseline);
+	expect(graphTopology(run.graph)).toEqual(baseline);
 	const lease = run.resource.claim();
 	lease.abort();
 	teardown(run.graph);
@@ -99,14 +102,14 @@ it("accessor defaults and overrides are rejected without invoking getters or all
 for (const override of [{ diagnostics: "bad" }, { name: "" }, { capacity: 64 }, { name: null }]) {
 	it("invalid overrides fail before claiming resource or allocating nodes", () => {
 		const run = setup();
-		const before = run.graph.topology();
+		const before = graphTopology(run.graph);
 		expect(() =>
 			spendingAlertsFor(run.graph, { name: "spending" }).compose(
 				run.creation,
 				override as SpendingOverrides,
 			),
 		).toThrow();
-		expect(run.graph.topology()).toEqual(before);
+		expect(graphTopology(run.graph)).toEqual(before);
 		const lease = run.resource.claim();
 		lease.abort();
 		teardown(run.graph);
@@ -134,7 +137,7 @@ for (const mode of ["off", "summary"] as const) {
 			expect(created.capabilities.execution.identity).toBe(created.capabilities.identity);
 			expect(created.capabilities.retained.execution).toBe(created.capabilities.execution);
 			expect(Object.isFrozen(created)).toBe(true);
-			expect(runs[0].graph.topology()).toEqual(runs[1].graph.topology());
+			expect(graphTopology(runs[0].graph)).toEqual(graphTopology(runs[1].graph));
 			const outputs: unknown[][] = [[], []];
 			hosts.forEach((host, i) => {
 				for (const [name, node] of Object.entries(host.consume.view))
@@ -187,10 +190,10 @@ it("mutable caller defaults/overrides cannot change captured configuration", asy
 it("wrong graph inputs fail cold and leave the resource reusable", () => {
 	const run = setup(),
 		other = new Graph();
-	const before = run.graph.topology();
+	const before = graphTopology(run.graph);
 	expect(() => spendingAlertsFor(other, { name: "spending" }).compose(run.creation)).toThrow();
-	expect(other.inspect().nodes).toHaveLength(0);
-	expect(run.graph.topology()).toEqual(before);
+	expect(renderSnapshot(other).nodes).toHaveLength(0);
+	expect(graphTopology(run.graph)).toEqual(before);
 	const lease = run.resource.claim();
 	lease.abort();
 	teardown(run.graph);
@@ -198,27 +201,27 @@ it("wrong graph inputs fail cold and leave the resource reusable", () => {
 it("caller outcome lane or fake resource cannot replace the host-owned source", () => {
 	const run = setup(),
 		factory = spendingAlertsFor(run.graph, { name: "spending" }),
-		before = run.graph.topology();
+		before = graphTopology(run.graph);
 	for (const inbox of [
 		{ resource: run.resource, facts: run.sources.current },
 		{ resource: { binding: presetBinding } },
 	])
 		expect(() => factory.compose({ ...run.creation, inbox } as SpendingCreationInputs)).toThrow();
-	expect(run.graph.topology()).toEqual(before);
+	expect(graphTopology(run.graph)).toEqual(before);
 	const lease = run.resource.claim();
 	lease.abort();
 	teardown(run.graph);
 });
 it("duplicate input nodes clean up partial assembly and return the untransferred resource", () => {
 	const run = setup(),
-		before = run.graph.topology();
+		before = graphTopology(run.graph);
 	expect(() =>
 		spendingAlertsFor(run.graph, { name: "spending" }).compose({
 			...run.creation,
 			verification: { receipts: run.sources.current as never },
 		}),
 	).toThrow();
-	expect(run.graph.topology()).toEqual(before);
+	expect(graphTopology(run.graph)).toEqual(before);
 	const lease = run.resource.claim();
 	lease.abort();
 	teardown(run.graph);
@@ -291,10 +294,10 @@ it("one factory composes independent names, inputs, epochs and local overrides o
 		expect(second.inspect().records[0].outcome?.state).toBe("succeeded");
 		expect(first.inspect().records[0].request.body.hostEpoch).toBe(1);
 		expect(second.inspect().records[0].request.body.hostEpoch).toBe(2);
-		const before = run.graph.topology();
+		const before = graphTopology(run.graph);
 		expect(() => factory.compose(run.creation, { name: "third" })).toThrow(/claimed/);
 		expect(() => factory.compose(secondInputs)).toThrow();
-		expect(run.graph.topology()).toEqual(before);
+		expect(graphTopology(run.graph)).toEqual(before);
 	} finally {
 		teardown(run.graph, [first, second]);
 	}
@@ -309,9 +312,9 @@ it("duplicate instance name fails before claiming another resource", async () =>
 	);
 	try {
 		await drain();
-		const before = run.graph.topology();
+		const before = graphTopology(run.graph);
 		expect(() => factory.compose({ ...run.creation, inbox: { resource } })).toThrow();
-		expect(run.graph.topology()).toEqual(before);
+		expect(graphTopology(run.graph)).toEqual(before);
 		const lease = resource.claim();
 		lease.abort();
 	} finally {

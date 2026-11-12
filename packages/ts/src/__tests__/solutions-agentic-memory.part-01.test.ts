@@ -1,5 +1,6 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
 import { graph } from "../graph/graph.js";
+import { renderSnapshot } from "../graph/render.js";
 import type {
 	MemoryFragment,
 	MemoryRetrievalError,
@@ -77,7 +78,7 @@ describe("agenticMemoryBundle solution (D164)", () => {
 		expect(bundle.retrieval.snapshot).toBe(bundle.retrievalSnapshot);
 		expect(bundle.retrieval.errors).toBe(bundle.retrievalErrors);
 
-		expect(g.inspect().edges).toEqual(
+		expect(renderSnapshot(g).edges).toEqual(
 			expect.arrayContaining([
 				{ from: "records", to: "memory/projection" },
 				{ from: "memory/projection", to: "memory/records" },
@@ -97,7 +98,7 @@ describe("agenticMemoryBundle solution (D164)", () => {
 				{ from: "memory/retrieval/snapshot", to: "memory/context" },
 			]),
 		);
-		expect(g.inspect().nodes).toEqual(
+		expect(renderSnapshot(g).nodes).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({
 					id: "memory/projection",
@@ -461,7 +462,7 @@ describe("agentic memory KG projection (D165)", () => {
 		const status = collect(bundle.status);
 		const errors = collect(bundle.errors);
 
-		expect(g.inspect().edges).toEqual(
+		expect(renderSnapshot(g).edges).toEqual(
 			expect.arrayContaining([
 				{ from: "records", to: "kg/projection" },
 				{ from: "drafts", to: "kg/projection" },
@@ -471,7 +472,7 @@ describe("agentic memory KG projection (D165)", () => {
 				{ from: "kg/projection", to: "kg/cursor" },
 			]),
 		);
-		expect(g.inspect().nodes).toEqual(
+		expect(renderSnapshot(g).nodes).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({ id: "kg/projection", factory: "agenticMemoryKgProjection" }),
 			]),
@@ -711,7 +712,7 @@ describe("agentic memory retention bundle (D167)", () => {
 		const errors = collect(bundle.errors);
 		const status = collect(bundle.status);
 
-		expect(g.inspect().edges).toEqual(
+		expect(renderSnapshot(g).edges).toEqual(
 			expect.arrayContaining([
 				{ from: "records", to: "retention/projection" },
 				{ from: "commands", to: "retention/projection" },

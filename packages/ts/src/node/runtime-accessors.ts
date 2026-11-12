@@ -4,7 +4,7 @@ import type { EnvironmentDrivers } from "../graph/environment.js";
 import type { NodeCore } from "./core.js";
 import type { Node } from "./node.js";
 import { nodeRestoreState } from "./node-checkpoint-runtime.js";
-import { LIFECYCLE, PRIVATE_STATE, RELEASED, SEED_NOTE, SLOT, VALUE } from "./node-keys.js";
+import { CORE, LIFECYCLE, PRIVATE_STATE, RELEASED, SEED_NOTE, SLOT, VALUE } from "./node-keys.js";
 import {
 	nodeIsRuntimeQuiescentForRelease,
 	nodeReleaseRuntime,
@@ -270,7 +270,7 @@ export function isNodeRuntimeReleased(n: Node<unknown>): boolean {
 	return record?.kind === "retired" || (record?.kind === "live" && n[RELEASED]);
 }
 
-/** The graph layer's id for a node, registered by the graph module (R-invocation@2 ctx.deps[i].id). */
+/** The graph layer's id for a node, registered by the graph module (R-invocation@3 ctx.deps[i].id). */
 let graphNodeIdResolver: ((owner: unknown, node: Node<unknown>) => string | undefined) | undefined;
 
 /** @internal The graph module registers how a node's id is read from its owning graph. */
@@ -283,10 +283,5 @@ export function setGraphNodeIdResolver(
 /** @internal A node's id in its graph: its registered id, or the synthetic id describe() gives. */
 export function graphNodeIdOf(node: Node<unknown>): string {
 	const owner = liveRegistration(node)?.graphAttachment?.owner;
-	return (
-		(owner === undefined ? undefined : graphNodeIdResolver?.(owner, node)) ??
-		node.name ??
-		node.factory ??
-		"node"
-	);
+	return graphNodeIdResolver?.(owner ?? node[CORE], node) ?? node.name ?? node.factory ?? "node";
 }

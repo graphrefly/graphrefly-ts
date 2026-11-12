@@ -9,6 +9,7 @@ import {
 	wireBridgeEnvelope,
 } from "../adapters/index.js";
 import { graph } from "../graph/graph.js";
+import { renderSnapshot } from "../graph/render.js";
 
 describe("remote dispatcher helpers over wireBridge facts (D147)", () => {
 	it("remoteCall emits request facts and projects later response/status/error facts", () => {
@@ -638,7 +639,7 @@ describe("remote dispatcher helpers over wireBridge facts (D147)", () => {
 			}),
 		]);
 
-		const snap = g.inspect();
+		const snap = renderSnapshot(g);
 		expect(snap.edges).toContainEqual({ from: "bridge/inbound", to: "responder/events" });
 		// D803: response commands are written into the bridge's command state, not a dependency.
 		expect(snap.edges).not.toContainEqual({
@@ -668,7 +669,7 @@ describe("remote dispatcher helpers over wireBridge facts (D147)", () => {
 		responder.release();
 		responder.release();
 		expect(g.find("responder/responseCommands")).toBeUndefined();
-		expect(g.inspect().edges).not.toContainEqual({
+		expect(renderSnapshot(g).edges).not.toContainEqual({
 			from: "responder/responseCommands",
 			to: "bridge/command",
 		});

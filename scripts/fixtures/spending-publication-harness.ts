@@ -8,6 +8,7 @@ import {
 	startConstruction,
 } from "../../packages/ts/src/graph/construction-scope.js";
 import { Graph } from "../../packages/ts/src/graph/graph.js";
+import { topologyGroup } from "../../packages/ts/src/graph/graph-topology-group.js";
 import type { Node } from "../../packages/ts/src/node/node.js";
 import { nodeDown } from "../../packages/ts/src/node/node-output-runtime.js";
 import { checkpointStateOfNode } from "../../packages/ts/src/node/runtime-accessors.js";
@@ -173,12 +174,12 @@ export function publicationRun(
 		try {
 			scope.abort(error);
 		} catch {
-			const group = graph.topologyGroup();
-			for (const n of graph.inspect().nodes) group.add(graph.find(n.id)!);
+			const group = topologyGroup(graph);
+			for (const n of graph.describe()) group.add(graph.find(n.id)!);
 			group.release();
 			if (foreign) {
-				const group = foreign.topologyGroup();
-				for (const n of foreign.inspect().nodes) group.add(foreign.find(n.id)!);
+				const group = topologyGroup(foreign);
+				for (const n of foreign.describe()) group.add(foreign.find(n.id)!);
 				group.release();
 			}
 			throw error;
@@ -257,10 +258,10 @@ export function publicationRun(
 	const close = () => {
 		disconnect();
 		for (const r of owner.roots) r.unsubscribe?.();
-		const group = graph.topologyGroup();
-		for (const n of graph.inspect().nodes) group.add(graph.find(n.id)!);
+		const group = topologyGroup(graph);
+		for (const n of graph.describe()) group.add(graph.find(n.id)!);
 		group.release();
-		assert.equal(graph.inspect().nodes.length, 0);
+		assert.equal(graph.describe().length, 0);
 	};
 	return {
 		graph,

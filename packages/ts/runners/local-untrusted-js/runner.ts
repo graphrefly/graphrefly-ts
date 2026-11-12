@@ -1,7 +1,10 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { createContext, Script, SourceTextModule } from "node:vm";
+import { graphTopology } from "../../src/graph/blueprint.js";
 import { graph } from "../../src/graph/graph.js";
+import { topologyGroup } from "../../src/graph/graph-topology-group.js";
+import { renderSnapshot } from "../../src/graph/render.js";
 import { strictCanonicalJsonBytes } from "../../src/json/codec.js";
 import type { Node } from "../../src/node/node.js";
 
@@ -444,7 +447,7 @@ function materializeResult(
 ): Record<string, unknown> {
 	const { plan } = evaluated;
 	const runtimeGraph = graph({ name: plan.graphName });
-	const group = runtimeGraph.topologyGroup({ name: "local-untrusted-js-runner" });
+	const group = topologyGroup(runtimeGraph, { name: "local-untrusted-js-runner" });
 	const nodes = new Map<string, Node<unknown>>();
 	const releases: Array<() => void> = [];
 	let result: Record<string, unknown> | undefined;
@@ -480,8 +483,8 @@ function materializeResult(
 		const answer = JSON.parse(
 			new TextDecoder().decode(strictCanonicalJsonBytes(answerNode.cache)),
 		) as unknown;
-		const topology = runtimeGraph.topology();
-		const describe = runtimeGraph.inspect();
+		const topology = graphTopology(runtimeGraph);
+		const describe = renderSnapshot(runtimeGraph);
 		result = {
 			contractVersion: "1",
 			answer,
@@ -516,7 +519,7 @@ function materializeResult(
 	} finally {
 		for (const release of releases.reverse()) release();
 		group.release({ reason: "local untrusted JS runner settled" });
-		const after = runtimeGraph.topology();
+		const after = graphTopology(runtimeGraph);
 		if (after.nodes.length !== 0 || after.edges.length !== 0 || after.subgraphs !== undefined)
 			cleanupFailure = new Error("Runner Graph did not dispose to 0N/0E.");
 	}

@@ -6,6 +6,7 @@ import {
 	wireBridgeIdempotencyKey,
 } from "../adapters/index.js";
 import { graph } from "../graph/graph.js";
+import { renderSnapshot } from "../graph/render.js";
 import { retryPolicy } from "../graph/resilience.js";
 import { canonicalTupleKey } from "../identity.js";
 import type { Message } from "../protocol/messages.js";
@@ -333,7 +334,7 @@ describe("wire bridge envelopes (D134)", () => {
 				lastSeq: 1,
 			},
 		]);
-		const snap = g.inspect();
+		const snap = renderSnapshot(g);
 		expect(snap.nodes.map((node) => node.id).sort()).toEqual([
 			"bridge/acks",
 			"bridge/attempts",
@@ -664,7 +665,7 @@ describe("wire bridge envelopes (D134)", () => {
 		]);
 		bridge.command.set({ kind: "ack-timeout", seq: 1, attempt: 1, observedAtMs: 1015 });
 		expect(outbound.filter((msg) => msg[0] === "DATA")).toHaveLength(2);
-		const snap = g.inspect();
+		const snap = renderSnapshot(g);
 		expect(snap.edges).toContainEqual({ from: "clock", to: "ackDriver/events" });
 		expect(snap.edges).toContainEqual({ from: "bridge/attempts", to: "ackDriver/events" });
 		expect(snap.edges).toContainEqual({ from: "bridge/acks", to: "ackDriver/events" });
@@ -749,8 +750,8 @@ describe("wire bridge envelopes (D134)", () => {
 		clock.set(1005);
 
 		expect(commands.filter((msg) => msg[0] === "DATA")).toEqual([]);
-		expect(g.inspect().edges).not.toContainEqual({ from: "clock", to: "ackDriver/events" });
-		expect(g.inspect().edges).not.toContainEqual({
+		expect(renderSnapshot(g).edges).not.toContainEqual({ from: "clock", to: "ackDriver/events" });
+		expect(renderSnapshot(g).edges).not.toContainEqual({
 			from: "ackDriver/commands",
 			to: "bridge/command",
 		});

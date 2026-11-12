@@ -15,7 +15,9 @@ export {
 	type GraphBlueprintJson,
 	type GraphBlueprintOptions,
 	type GraphBlueprintProvenance,
+	graphBlueprint,
 	graphBlueprintDiagnostics,
+	graphTopology,
 	type NormalizedGraphTopologyNode,
 	type NormalizedGraphTopologySnapshot,
 	normalizeTopology,
@@ -58,10 +60,10 @@ export type {
 	GraphTopologyEdge,
 	GraphTopologyNode,
 	GraphTopologySnapshot,
-	InspectEdge,
-	InspectNode,
-	InspectOpts,
-	InspectSnapshot,
+	RenderEdge,
+	RenderNode,
+	RenderOpts,
+	RenderSnapshot,
 } from "./describe.js";
 export {
 	type CausalChain,
@@ -125,6 +127,7 @@ export {
 	type TopologyGroupOptions,
 	type TopologyGroupReleaseOptions,
 } from "./graph.js";
+export { topologyGroup } from "./graph-topology-group.js";
 export type {
 	NodeProfile,
 	ObserveEvent,
@@ -133,7 +136,9 @@ export type {
 	TopologyEventKind,
 	TopologyStream,
 } from "./inspect.js";
+export { graphProfile, observeTopology } from "./inspect.js";
 export { operatorRestoreRegistry } from "./operator-restore.js";
+export { renderSnapshot } from "./render.js";
 export {
 	type BackoffPolicy,
 	backoffDelayMs,

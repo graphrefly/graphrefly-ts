@@ -430,8 +430,8 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(Object.hasOwn(sources, "fromRaf")).toBe(false);
 		expect(typeof composition.topologyDiff).toBe("function");
 		expect(typeof dataStructures.reactiveMap).toBe("function");
-		expect(typeof render.inspectToJson).toBe("function");
-		expect(typeof render.inspectToMermaidUrl).toBe("function");
+		expect(typeof render.renderToJson).toBe("function");
+		expect(typeof render.renderToMermaidUrl).toBe("function");
 		expect(typeof adapters.jotaiAtom).toBe("function");
 		expect(typeof adapters.nanoAtom).toBe("function");
 		expect(typeof adapters.recordReadableStore).toBe("function");

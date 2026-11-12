@@ -18,21 +18,21 @@ import { topologyDiff } from "@graphrefly/ts/composition";
 
 ```ts
 function topologyDiff(
-	prev: InspectSnapshot,
-	next: InspectSnapshot,
-): InspectChangeset
+	prev: RenderSnapshot,
+	next: RenderSnapshot,
+): RenderChangeset
 ```
 
 ## Parameters
 
 | Parameter | Type | Description |
 |---|---|---|
-| `prev` | `InspectSnapshot` | prev value used by the helper. |
-| `next` | `InspectSnapshot` | next value used by the helper. |
+| `prev` | `RenderSnapshot` | prev value used by the helper. |
+| `next` | `RenderSnapshot` | next value used by the helper. |
 
 ## Returns
 
-A InspectChangeset value for the boundary or adapter.
+A RenderChangeset value for the boundary or adapter.
 
 ## Example
 

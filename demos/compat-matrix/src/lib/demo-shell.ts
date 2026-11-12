@@ -1,12 +1,13 @@
 import type { Node } from "@graphrefly/ts/core";
 import { type Graph, graph } from "@graphrefly/ts/graph";
-import { inspectToMermaid } from "@graphrefly/ts/render";
+import { renderToMermaid } from "@graphrefly/ts/render";
 import {
 	analyzeAndMeasure,
 	computeLineBreaks,
 	type LineBreaksResult,
 	type MeasurementAdapter,
 } from "@graphrefly/ts/solutions/reactive-layout";
+import { renderSnapshot } from "../../../../packages/ts/src/graph/render.js";
 
 export interface DemoShellGraph {
 	resolve<T = unknown>(id: string): Node<T>;
@@ -45,7 +46,7 @@ export function demoShell(opts: DemoShellOptions): DemoShellHandle {
 		(_tick, selected) => {
 			const source = demoGraphRef.current;
 			if (!source) return "flowchart LR";
-			const rendered = inspectToMermaid(source.inspect(), { direction: "LR" });
+			const rendered = renderToMermaid(renderSnapshot(source), { direction: "LR" });
 			return selected ? `${rendered}\n%% selected: ${selected}` : rendered;
 		},
 		{ name: "graph/mermaid" },

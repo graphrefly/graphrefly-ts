@@ -1,3 +1,4 @@
+import { graphTopology } from "../../src/graph/blueprint.js";
 import { graph } from "../../src/graph/graph.js";
 import type { Node } from "../../src/node/node.js";
 import type {
@@ -187,7 +188,7 @@ export function runD687Arm(
 		}
 		admittedResults.set(resultFor(request, member, item.executionInputRevision, ordinal++));
 	}
-	const topology = g.topology();
+	const topology = graphTopology(g);
 	const stageSpecs = [
 		{ id: "d687/arm/workItems" },
 		{ id: "d687/arm/proposals" },

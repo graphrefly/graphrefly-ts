@@ -10,6 +10,7 @@ import {
 } from "../adapters/index.js";
 import type { IndexChange, ListChange, MapChange } from "../graph/data-structures/change.js";
 import type { IndexRow } from "../graph/data-structures/reactive-index.js";
+import { renderSnapshot } from "../graph/render.js";
 import {
 	type AgenticMemoryRecord,
 	agenticMemoryRecordStoreFrameCodec,
@@ -427,7 +428,7 @@ describe("D172 agentic memory record persistence sidecar", () => {
 			snapshotWrites: 1,
 			changeWrites: 1,
 		});
-		expect(g.inspect().nodes).toEqual(
+		expect(renderSnapshot(g).nodes).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({ id: "agentic/persistence/ready" }),
 				expect.objectContaining({ id: "agentic/persistence/status" }),
@@ -503,7 +504,7 @@ describe("D161 synchronous restore helpers", () => {
 		const list = restoreReactiveList(g, [1], { name: "list" });
 
 		expect(list.toArray()).toEqual([1]);
-		expect(g.inspect().nodes.map((node) => node.id)).toEqual(
+		expect(renderSnapshot(g).nodes.map((node) => node.id)).toEqual(
 			expect.arrayContaining(["list.delta", "list.snapshot"]),
 		);
 	});
@@ -552,7 +553,7 @@ describe("D161 synchronous restore helpers", () => {
 			{ primary: "b", secondary: 2, value: 20 },
 			{ primary: "c", secondary: 3, value: 30 },
 		]);
-		expect(g.inspect().nodes.map((node) => node.id)).toEqual(
+		expect(renderSnapshot(g).nodes.map((node) => node.id)).toEqual(
 			expect.arrayContaining(["map.delta", "map.snapshot", "index.delta", "index.snapshot"]),
 		);
 	});

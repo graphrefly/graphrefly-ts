@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { graph } from "../graph/graph.js";
+import { renderSnapshot } from "../graph/render.js";
 import type { Message } from "../protocol/messages.js";
 import {
 	type SolutionOccurrence,
@@ -208,7 +209,7 @@ describe("D151 exact solution occurrence join", () => {
 		f.leftInput.set(occurrence("two"));
 		f.rightInput.set(occurrence("two"));
 		expect(f.messages.filter((message) => message[0] === "DATA")).toHaveLength(2);
-		expect(f.owner.inspect().edges).toEqual(
+		expect(renderSnapshot(f.owner).edges).toEqual(
 			expect.arrayContaining([
 				{ from: "left", to: "joined/left" },
 				{ from: "right", to: "joined/right" },

@@ -1,5 +1,6 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
 import { graph } from "../graph/graph.js";
+import { renderSnapshot } from "../graph/render.js";
 import type { Message, Wave } from "../protocol/messages.js";
 import {
 	analyzeAndMeasure,
@@ -188,7 +189,7 @@ describe("reactive-layout solution (D181) — part 1", () => {
 		const height = collect(bundle.height);
 		const positions = collect(bundle.charPositions);
 
-		expect(bundle.graph.inspect().edges).toEqual(
+		expect(renderSnapshot(bundle.graph).edges).toEqual(
 			expect.arrayContaining([
 				{ from: "text", to: "text-measurements" },
 				{ from: "font", to: "text-measurements" },

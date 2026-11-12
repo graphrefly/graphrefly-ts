@@ -1,5 +1,5 @@
 ---
-title: "inspectToMermaidUrl()"
+title: "renderToMermaidUrl()"
 description: "Render a D39 describe snapshot as a mermaid.live deep link."
 ---
 
@@ -10,15 +10,15 @@ Render a D39 describe snapshot as a mermaid.live deep link.
 ## Import
 
 ```ts
-import { inspectToMermaidUrl } from "@graphrefly/ts/graph";
+import { renderToMermaidUrl } from "@graphrefly/ts/graph";
 ```
 
 ## Signature
 
 ```ts
-function inspectToMermaidUrl(
-	snapshot: InspectSnapshot,
-	opts: InspectToMermaidUrlOptions = {},
+function renderToMermaidUrl(
+	snapshot: RenderSnapshot,
+	opts: RenderToMermaidUrlOptions = {},
 ): string
 ```
 
@@ -26,8 +26,8 @@ function inspectToMermaidUrl(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `snapshot` | `InspectSnapshot` | snapshot value used by the helper. |
-| `opts` | `InspectToMermaidUrlOptions` | Options that configure the helper. |
+| `snapshot` | `RenderSnapshot` | snapshot value used by the helper. |
+| `opts` | `RenderToMermaidUrlOptions` | Options that configure the helper. |
 
 ## Returns
 
@@ -36,7 +36,7 @@ A `string` value.
 ## Example
 
 ```ts
-import { inspectToMermaidUrl } from "@graphrefly/ts/graph";
+import { renderToMermaidUrl } from "@graphrefly/ts/graph";
 ```
 
 ## Source

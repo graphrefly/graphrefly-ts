@@ -32,6 +32,7 @@ import {
 	type KeyedRateLimitTransition,
 	keyedRateLimitRequestIdentity,
 } from "@graphrefly/ts/rate-limit";
+import { graphTopology } from "../../../packages/ts/src/graph/blueprint.js";
 import { ExampleCustomAuthority } from "./custom-authority.js";
 
 function check(condition: unknown, message: string): asserts condition {
@@ -275,7 +276,7 @@ function attachGovernedConsumer(
 }
 
 function assertGovernedTopology(consumer: ReturnType<typeof attachGovernedConsumer>): void {
-	const snapshot = consumer.graph.inspect();
+	const snapshot = graphTopology(consumer.graph);
 	const id = (name: string): string => {
 		const nodeId = snapshot.nodes.find((node) => node.name === name)?.id;
 		check(nodeId !== undefined, `missing topology node ${name}`);

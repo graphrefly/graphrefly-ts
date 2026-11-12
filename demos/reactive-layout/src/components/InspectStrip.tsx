@@ -1,5 +1,6 @@
 import type { Graph } from "@graphrefly/ts/graph";
 import { useEffect, useState } from "react";
+import { graphTopology } from "../../../../packages/ts/src/graph/blueprint.js";
 import type { DemoShellHandle } from "../lib/shell";
 
 type NodeDetail = {
@@ -36,7 +37,7 @@ function readMetaSnapshot(graph: Graph | null): MetaSnapshot {
 		const described =
 			segmentsId === null
 				? undefined
-				: graph.inspect().nodes.find((node) => node.id === segmentsId);
+				: graphTopology(graph).nodes.find((node) => node.id === segmentsId);
 		const meta = described?.meta ?? {};
 		return {
 			cacheHitRate: metaCache<number>(meta, "cache-hit-rate"),

@@ -1,6 +1,8 @@
 import type { Node } from "@graphrefly/ts/core";
 import { type Graph, graph } from "@graphrefly/ts/graph";
-import { inspectToMermaid } from "@graphrefly/ts/render";
+import { renderToMermaid } from "@graphrefly/ts/render";
+import { graphTopology } from "../../../../packages/ts/src/graph/blueprint.js";
+import { renderSnapshot } from "../../../../packages/ts/src/graph/render.js";
 
 export type HoverTarget = { pane: "visual" | "graph" | "code"; id: string } | null;
 
@@ -58,10 +60,10 @@ function findNode(g: Graph | null, id: string | null): Node<unknown> | undefined
 
 function nodeDetail(g: Graph | null, id: string | null): NodeDetail | null {
 	const node = findNode(g, id);
-	if (!node || id === null) return null;
-	const described = g
-		?.inspect()
-		.nodes.find((entry) => entry.id === id || id.endsWith(`:${entry.id}`));
+	if (!node || g === null || id === null) return null;
+	const described = graphTopology(g).nodes.find(
+		(entry) => entry.id === id || id.endsWith(`:${entry.id}`),
+	);
 	return {
 		path: described?.id ?? id,
 		kind: described?.factory,
@@ -86,7 +88,7 @@ export function getShell(viewportWidth?: number): DemoShellHandle {
 		[demoGraph, graphTick],
 		(current) => {
 			if (current === null) return "";
-			return inspectToMermaid(current.inspect(), { direction: "TD" });
+			return renderToMermaid(renderSnapshot(current), { direction: "TD" });
 		},
 		{ name: "graph/mermaid" },
 	);

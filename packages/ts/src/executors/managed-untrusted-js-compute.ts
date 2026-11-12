@@ -1,6 +1,7 @@
 /** Concrete managed untrusted JavaScript compute executor (D612). */
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
+import { topologyGroup } from "../graph/graph-topology-group.js";
 import { compoundTupleKey } from "../identity.js";
 import type { Node, StateNode } from "../node/node.js";
 import {
@@ -496,7 +497,7 @@ export function managedUntrustedJsComputeRuntime(
 			"Managed untrusted JS compute cancellation requires request and decision nodes.",
 		);
 	const name = opts.name ?? "managedUntrustedJsCompute";
-	const group = graph.topologyGroup({ name });
+	const group = topologyGroup(graph, { name });
 	const admittedRunRequests = group.node<ToolProviderAdapterRunRequested>([], null, {
 		name: `${name}/admittedRunRequests`,
 		factory: "managedUntrustedJsComputeAdmittedRunRequests",

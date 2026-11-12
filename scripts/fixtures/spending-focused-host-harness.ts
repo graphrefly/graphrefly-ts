@@ -12,6 +12,7 @@ import type {
 	VerificationFrame,
 } from "../../examples/spending-alerts/causal-inputs.js";
 import { Graph } from "../../packages/ts/src/graph/graph.js";
+import { topologyGroup } from "../../packages/ts/src/graph/graph-topology-group.js";
 import { checkpointStateOfNode } from "../../packages/ts/src/node/runtime-accessors.js";
 import type { RuntimeState } from "../../packages/ts/src/solutions/causal-occurrence/contracts.js";
 import { evaluationPack, policyFacts, presetBinding } from "./spending-preset-harness.js";
@@ -102,8 +103,8 @@ export function runHost(
 	const teardown = () => {
 		disconnect();
 		for (const root of host.owner.roots) root.unsubscribe?.();
-		const group = graph.topologyGroup();
-		for (const node of graph.inspect().nodes) group.add(graph.find(node.id)!);
+		const group = topologyGroup(graph);
+		for (const node of graph.describe()) group.add(graph.find(node.id)!);
 		group.release();
 	};
 	connect();

@@ -1,3 +1,4 @@
+import { renderSnapshot } from "../graph/render.js";
 /**
  * Higher-order operators — switchMap / mergeMap / concatMap / exhaustMap / flatMap
  * (D47 / R-request-order / CSP-2.7). Per-language sugar (D6/D24); built on the node's own
@@ -570,7 +571,7 @@ describe("repeat (D47 self-rewire, factory-based — clean-slate complete design
 			[],
 			{ name: "rep" },
 		);
-		const snap = g.inspect();
+		const snap = renderSnapshot(g);
 		const rep = snap.nodes.find((dn) => dn.id === "rep");
 		expect(rep?.factory).toBe("repeat");
 	});
@@ -586,7 +587,7 @@ describe("higher-order — describe (D39 / D51): real factory name + LIVE inner 
 			[s],
 			{ name: "sw" },
 		);
-		const snap = g.inspect();
+		const snap = renderSnapshot(g);
 		const sw = snap.nodes.find((dn) => dn.id === "sw");
 		expect(sw?.factory).toBe("switchMap"); // D6: REAL operator name, not "node"
 		expect(sw?.deps).toEqual(["src"]); // no inner wired yet — just the construction edge
@@ -603,10 +604,10 @@ describe("higher-order — describe (D39 / D51): real factory name + LIVE inner 
 			{ name: "sw" },
 		);
 		collect(sw);
-		expect(g.inspect().edges).toEqual([{ from: "src", to: "sw" }]); // before: construction only
+		expect(renderSnapshot(g).edges).toEqual([{ from: "src", to: "sw" }]); // before: construction only
 
 		s.set(1); // switchMap wires inner `a` as a live dep (deferred rewire drains)
-		const snap = g.inspect();
+		const snap = renderSnapshot(g);
 		// sw's live deps now include the inner; the inner is auto-discovered as a REAL snapshot node.
 		const innerEdge = snap.edges.find((e) => e.to === "sw" && e.from !== "src");
 		expect(innerEdge).toBeDefined(); // a live edge inner→sw (truthful, not a dangling "?")

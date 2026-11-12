@@ -1,5 +1,6 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
 import { graph } from "../graph/graph.js";
+import { renderSnapshot } from "../graph/render.js";
 import { canonicalTupleKey, compoundTupleKey } from "../identity.js";
 import { stableJsonString } from "../json/codec.js";
 import type { Message } from "../protocol/messages.js";
@@ -257,7 +258,7 @@ describe("agentic WorkItem memory bridge (D581)", () => {
 			maxOccurrences: 64,
 		});
 		expectTypeOf(bundle).toMatchTypeOf<AgenticWorkItemMemoryBridgeBundle>();
-		expect(g.inspect().edges).toEqual(
+		expect(renderSnapshot(g).edges).toEqual(
 			expect.arrayContaining([
 				{ from: "bridge/occurrences", to: "bridge/projection" },
 				{ from: "bridge/occurrences", to: "bridge/projection" },

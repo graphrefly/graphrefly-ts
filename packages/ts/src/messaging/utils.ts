@@ -1,6 +1,6 @@
 import { type Ctx, depLiveBatch } from "../ctx/types.js";
 import { canonicalTupleKey } from "../identity.js";
-import type { Node, StateNode } from "../node/node.js";
+import type { StateNode } from "../node/node.js";
 import type { MessageBusCommand } from "./types.js";
 
 /**

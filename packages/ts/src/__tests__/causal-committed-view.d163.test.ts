@@ -5,6 +5,8 @@ import {
 	startConstruction,
 } from "../graph/construction-scope.js";
 import { Graph } from "../graph/graph.js";
+import { topologyGroup } from "../graph/graph-topology-group.js";
+import { renderSnapshot } from "../graph/render.js";
 import type { Node } from "../node/node.js";
 import { checkpointStateOfNode } from "../node/runtime-accessors.js";
 import type { CausalBinding } from "../solutions/causal-occurrence/capabilities.js";
@@ -37,10 +39,10 @@ afterEach(() => {
 	for (const stop of stops.splice(0)) stop();
 	for (const graph of graphs.splice(0)) {
 		for (const lease of constructionOf(graph, "run")?.roots ?? []) lease.unsubscribe?.();
-		const group = graph.topologyGroup();
-		for (const n of graph.inspect().nodes) group.add(graph.find(n.id)!);
+		const group = topologyGroup(graph);
+		for (const n of renderSnapshot(graph).nodes) group.add(graph.find(n.id)!);
 		group.release();
-		expect(graph.inspect().nodes).toHaveLength(0);
+		expect(renderSnapshot(graph).nodes).toHaveLength(0);
 	}
 });
 function facts(revision = 1, id = `e${revision}`) {
@@ -154,7 +156,7 @@ describe("D163 committed effects through ordinary DATA", () => {
 		expect(f.built.roots).toHaveLength(1);
 		expect(f.built.roots).not.toContain(f.built.committedEffects);
 		expect(Object.keys(f.built.full)).toEqual(["identity", "execution", "retained", "startup"]);
-		expect(f.graph.inspect().edges).toContainEqual(
+		expect(renderSnapshot(f.graph).edges).toContainEqual(
 			expect.objectContaining({ from: "causal/authority", to: "causal/committed-effects" }),
 		);
 	});

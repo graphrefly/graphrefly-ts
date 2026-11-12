@@ -14,6 +14,7 @@ import {
 	localContainerPostgresqlRuntime,
 } from "../executors/local-container-postgresql.js";
 import { postgresqlToolProviderInputFromIntent } from "../executors/postgresql-tool-provider.js";
+import { graphTopology } from "../graph/blueprint.js";
 import { graph } from "../graph/graph.js";
 import type { ToolProviderAdapterRunRequested } from "../orchestration/index.js";
 import { collectData } from "./helpers/collect.js";
@@ -504,7 +505,7 @@ describe("local-container PostgreSQL runtime (D604)", () => {
 		expect(calls).toEqual(["prepare", "create", "start", "wait", "remove", "cleanup"]);
 		expect(outcomes).toHaveLength(1);
 		expect(cleanup).toEqual([expect.objectContaining({ state: "succeeded" })]);
-		const visible = JSON.stringify({ topology: g.topology(), outcomes, cleanup });
+		const visible = JSON.stringify({ topology: graphTopology(g), outcomes, cleanup });
 		expect(visible).not.toContain("private-container-id");
 		expect(visible).not.toContain("private-sql");
 		await runtime.dispose();
