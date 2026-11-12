@@ -146,7 +146,7 @@ docs/design/causal-assembly-closeout-review/binding-audit.json format ━━━�
     120     │ - ······"matches":·true
     121     │ - ····},
     122     │ - ····{
-    123     │ - ······"path":·"docs/design/causal-performance-repetition-v2-implementation/README.md",
+    123     │ - ······"path":·"archive/docs/design/causal-performance-repetition-v2-implementation/README.md",
     124     │ - ······"exists":·true,
     125     │ - ······"matches":·true
     126     │ - ····},
@@ -156,7 +156,7 @@ docs/design/causal-assembly-closeout-review/binding-audit.json format ━━━�
     130     │ - ······"matches":·true
     131     │ - ····},
     132     │ - ····{
-    133     │ - ······"path":·"docs/design/causal-event-clock-repair-v1-implementation/receipt.json",
+    133     │ - ······"path":·"archive/docs/design/causal-event-clock-repair-v1-implementation/receipt.json",
     134     │ - ······"exists":·true,
     135     │ - ······"matches":·true
     136     │ - ····},

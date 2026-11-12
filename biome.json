@@ -455,9 +455,9 @@
 				"docs/design/causal-composition-v1.json",
 				"docs/design/causal-preset-audience-v1.json",
 				"docs/design/causal-performance-repetition-v2.design-check.json",
-				"docs/design/causal-event-clock-repair-v1/checks.json",
-				"docs/design/causal-event-clock-repair-v1/design-check.json",
-				"docs/design/causal-event-clock-repair-v1/vectors.json"
+				"archive/docs/design/causal-event-clock-repair-v1/checks.json",
+				"archive/docs/design/causal-event-clock-repair-v1/design-check.json",
+				"archive/docs/design/causal-event-clock-repair-v1/vectors.json"
 			],
 			"formatter": {
 				"enabled": false

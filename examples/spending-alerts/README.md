@@ -173,7 +173,7 @@ the running graph. Then distinguish these three questions:
 
 Missing source binding means uncovered; missing provenance means unknown. An old
 receipt does not verify a new implementation. Existing bounded source-change and
-mutation evidence can be inspected in the [implementation review](../../docs/design/causal-graded-entry-implementation/README.md).
+mutation evidence can be inspected in the [implementation review](../../archive/docs/design/causal-graded-entry-implementation/README.md).
 Those retained artifacts describe their own revisions; the new demo does not
 requalify them or attest the loaded production source.
 
