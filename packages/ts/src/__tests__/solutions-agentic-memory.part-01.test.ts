@@ -77,7 +77,7 @@ describe("agenticMemoryBundle solution (D164)", () => {
 		expect(bundle.retrieval.snapshot).toBe(bundle.retrievalSnapshot);
 		expect(bundle.retrieval.errors).toBe(bundle.retrievalErrors);
 
-		expect(g.describe().edges).toEqual(
+		expect(g.inspect().edges).toEqual(
 			expect.arrayContaining([
 				{ from: "records", to: "memory/projection" },
 				{ from: "memory/projection", to: "memory/records" },
@@ -97,7 +97,7 @@ describe("agenticMemoryBundle solution (D164)", () => {
 				{ from: "memory/retrieval/snapshot", to: "memory/context" },
 			]),
 		);
-		expect(g.describe().nodes).toEqual(
+		expect(g.inspect().nodes).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({
 					id: "memory/projection",
@@ -461,7 +461,7 @@ describe("agentic memory KG projection (D165)", () => {
 		const status = collect(bundle.status);
 		const errors = collect(bundle.errors);
 
-		expect(g.describe().edges).toEqual(
+		expect(g.inspect().edges).toEqual(
 			expect.arrayContaining([
 				{ from: "records", to: "kg/projection" },
 				{ from: "drafts", to: "kg/projection" },
@@ -471,7 +471,7 @@ describe("agentic memory KG projection (D165)", () => {
 				{ from: "kg/projection", to: "kg/cursor" },
 			]),
 		);
-		expect(g.describe().nodes).toEqual(
+		expect(g.inspect().nodes).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({ id: "kg/projection", factory: "agenticMemoryKgProjection" }),
 			]),
@@ -711,7 +711,7 @@ describe("agentic memory retention bundle (D167)", () => {
 		const errors = collect(bundle.errors);
 		const status = collect(bundle.status);
 
-		expect(g.describe().edges).toEqual(
+		expect(g.inspect().edges).toEqual(
 			expect.arrayContaining([
 				{ from: "records", to: "retention/projection" },
 				{ from: "commands", to: "retention/projection" },

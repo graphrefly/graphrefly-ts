@@ -13,7 +13,7 @@ for (const closingEdge of ["receipt-to-guard", "authority-to-receipt"] as const)
 	it(`rejects the proposed quiet outcome cycle while cold: ${closingEdge}`, () => {
 		const graph = new Graph();
 		const input = graph.node([], null, { name: "input" });
-		const baseline = graph.describe();
+		const baseline = graph.inspect();
 		const scope = prepareConstruction(graph, {
 			name: "probe",
 			epoch: 1,
@@ -43,7 +43,7 @@ for (const closingEdge of ["receipt-to-guard", "authority-to-receipt"] as const)
 		expect(String(failure)).toContain("would create a cycle");
 		expect(invocations).toBe(0);
 		expect(() => scope.abort(failure)).toThrow(ColdConstructionError);
-		expect(graph.describe()).toEqual(baseline);
+		expect(graph.inspect()).toEqual(baseline);
 	});
 }
 

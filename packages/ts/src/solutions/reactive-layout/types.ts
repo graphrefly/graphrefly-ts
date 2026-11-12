@@ -247,7 +247,7 @@ export interface BlockAdaptersProviderOptions {
  * Graph-visible bundle returned by `reactiveLayout`.
  *
  * The setters are state-node sugar over real graph inputs; the output nodes are ordinary
- * inspectable nodes visible through `graph.describe()`.
+ * inspectable nodes visible through `graph.inspect()`.
  */
 export interface ReactiveLayoutBundle {
 	readonly graph: Graph;

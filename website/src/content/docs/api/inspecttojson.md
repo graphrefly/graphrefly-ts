@@ -1,5 +1,5 @@
 ---
-title: "describeToJson()"
+title: "inspectToJson()"
 description: "Render a D39 describe snapshot as deterministic JSON text."
 ---
 
@@ -10,15 +10,15 @@ Render a D39 describe snapshot as deterministic JSON text.
 ## Import
 
 ```ts
-import { describeToJson } from "@graphrefly/ts/graph";
+import { inspectToJson } from "@graphrefly/ts/graph";
 ```
 
 ## Signature
 
 ```ts
-function describeToJson(
-	snapshot: DescribeSnapshot,
-	opts: DescribeToJsonOptions = {},
+function inspectToJson(
+	snapshot: InspectSnapshot,
+	opts: InspectToJsonOptions = {},
 ): string
 ```
 
@@ -26,8 +26,8 @@ function describeToJson(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `snapshot` | `DescribeSnapshot` | snapshot value used by the helper. |
-| `opts` | `DescribeToJsonOptions` | Options that configure the helper. |
+| `snapshot` | `InspectSnapshot` | snapshot value used by the helper. |
+| `opts` | `InspectToJsonOptions` | Options that configure the helper. |
 
 ## Returns
 
@@ -36,7 +36,7 @@ A `string` value.
 ## Example
 
 ```ts
-import { describeToJson } from "@graphrefly/ts/graph";
+import { inspectToJson } from "@graphrefly/ts/graph";
 ```
 
 ## Source

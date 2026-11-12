@@ -442,12 +442,12 @@ describe("D650 keyed rate-limit reference transitions — common strict boundary
 	it("keeps graph topology unchanged and imports no graph, clock, timer, async, store, or client path", () => {
 		const g = graph();
 		g.state(1, { name: "source" });
-		const before = g.describe();
+		const before = g.inspect();
 		const { req, policy } = tokenSetup(1, 1);
 		evaluateTokenBucketRateLimitTransition(
 			createTokenBucketRateLimitTransitionInput(req, policy, null, 0),
 		);
-		expect(g.describe()).toEqual(before);
+		expect(g.inspect()).toEqual(before);
 
 		const source = readFileSync(
 			new URL("../rate-limit/keyed-rate-limit-algorithms.ts", import.meta.url),

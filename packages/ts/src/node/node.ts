@@ -126,6 +126,15 @@ export type { NodeCheckpointState, NodeOptions, NodeRestoreState, Status } from 
  *   it with `graph().node`, `graph().state` or `graph().derived`. There is no standalone node.
  * @category core
  */
+/** R-graph-surface@1: describe lists nodes in creation order; this is each node's place in it. */
+const creationOrder = new WeakMap<Node<unknown>, number>();
+let nextCreation = 0;
+
+/** @internal A node's place in creation order (R-graph-surface@1). */
+export function nodeCreationIndex(node: Node<unknown>): number {
+	return creationOrder.get(node) ?? Number.MAX_SAFE_INTEGER;
+}
+
 export class Node<T = unknown> {
 	private readonly _core: NodeCore;
 	private readonly _id: NodeId;
@@ -179,6 +188,7 @@ export class Node<T = unknown> {
 		handleOrFn: Handle | NodeFn | null,
 		opts: NodeOptions<T> = {},
 	) {
+		creationOrder.set(this as Node<unknown>, nextCreation++);
 		const suppliedAcquisition = constructionAcquisitions.get(opts);
 		const acquisition: NodeAcquisition = suppliedAcquisition ?? { name: "bare node" };
 		constructionAcquisitions.delete(opts);
@@ -301,13 +311,13 @@ export class Node<T = unknown> {
 		return this._slot.name;
 	}
 
-	/** R-describe/D51: real factory name for a standalone graph-less node (a runtime *Map inner). */
+	/** D51: real factory name for a standalone graph-less node (a runtime *Map inner). */
 	get factory(): string | undefined {
 		return this._slot.factory;
 	}
 
 	/**
-	 * The node's CURRENT/LIVE deps (R-describe / R-edges-derived / D51) — readonly view of the
+	 * The node's CURRENT/LIVE deps (R-graph-surface / R-edges-derived / D51) — readonly view of the
 	 * live `_deps`, which a rewire (C-8 / C-11) mutates. The graph's describe() reads this (NOT a
 	 * construction-time snapshot) so every edge corresponds to a real current subscription (D3).
 	 * Inspection-only, like cache/status; never triggers computation.

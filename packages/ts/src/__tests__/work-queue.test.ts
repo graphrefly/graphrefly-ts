@@ -50,7 +50,7 @@ describe("workQueue messageBus-backed lifecycle (D299-D324/D325)", () => {
 			"DATA",
 			expect.objectContaining({ topic: "work", subscriptionId: "q-admit", nextSeq: 2 }),
 		]);
-		expect(g.describe().nodes).toContainEqual(
+		expect(g.inspect().nodes).toContainEqual(
 			expect.objectContaining({
 				id: "workQueue/q/admissionAckCommands",
 				factory: "workQueueAdmissionAckCommands",

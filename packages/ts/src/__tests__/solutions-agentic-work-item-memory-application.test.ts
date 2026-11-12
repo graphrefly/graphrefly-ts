@@ -424,7 +424,7 @@ describe("agentic WorkItem memory application recipe wiring (D572/D576/D577/D581
 		expect(
 			occurrenceData<readonly AgenticMemoryRecord<string>[]>(observed.messages).at(-1),
 		).toEqual([record()]);
-		expect(g.describe().edges).toEqual(
+		expect(g.inspect().edges).toEqual(
 			expect.arrayContaining([
 				{ from: "caller/complete-occurrence", to: "recipe/input" },
 				{ from: "recipe/input", to: "recipe/bridge/projection" },
@@ -437,7 +437,7 @@ describe("agentic WorkItem memory application recipe wiring (D572/D576/D577/D581
 				{ from: "recipe/application/projection", to: "recipe/application/records" },
 			]),
 		);
-		expect(g.describe().edges).not.toContainEqual({
+		expect(g.inspect().edges).not.toContainEqual({
 			from: "recipe/application/applicationDecisions",
 			to: "recipe/application/projection",
 		});

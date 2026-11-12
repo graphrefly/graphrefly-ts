@@ -592,14 +592,17 @@ describe("B111.6 inspection and injected-authority evidence", () => {
 		const policy = fixedPolicy(limitedRequest);
 		const host = new TestAtomicRateLimitAuthority([policy], [0]);
 		const instance = buildInstance(host, "inspection-graph", { profile: true });
-		const before = instance.g.describe();
+		const before = instance.g.inspect();
 		const observedEvents: ObserveEvent[] = [];
-		const stopObserving = instance.g.observe().subscribe((event) => {
-			observedEvents.push(event);
-		});
+		const stopObserving = instance.g.observe(
+			instance.g.describe().map((n) => n.id),
+			(event) => {
+				observedEvents.push(event);
+			},
+		);
 		instance.requests.set(limitedRequest);
 		host.drainNext();
-		const after = instance.g.describe();
+		const after = instance.g.inspect();
 		const topology = (snapshot: typeof after) => ({
 			nodes: snapshot.nodes.map(({ id, factory, deps }) => ({ id, factory, deps })),
 			edges: snapshot.edges,
@@ -636,7 +639,7 @@ describe("B111.6 inspection and injected-authority evidence", () => {
 			].sort(),
 		);
 		expect(observedEvents.length).toBeGreaterThan(0);
-		expect(observedEvents.every((event) => nodeIds.has(event.path))).toBe(true);
+		expect(observedEvents.every((event) => nodeIds.has(event.id))).toBe(true);
 		const observedMaterial = JSON.stringify(observedEvents);
 		expect(observedMaterial).toContain("graphrefly.keyedRateLimitRequest");
 		expect(observedMaterial).toContain("graphrefly.keyedRateLimitOutcome");
@@ -734,7 +737,7 @@ describe("B111.6 inspection and injected-authority evidence", () => {
 		expect(secondary.admissions.values).toHaveLength(1);
 		expect(primary.denials.values).toHaveLength(1);
 		expect(mutations).toBe(3);
-		const topology = primary.g.describe();
+		const topology = primary.g.inspect();
 		expect(topology.nodes.find((node) => node.id === "authority/events")?.factory).toBe(
 			"attachKeyedRateLimitAuthority",
 		);
@@ -742,7 +745,7 @@ describe("B111.6 inspection and injected-authority evidence", () => {
 			"keyedRateLimitAdmission",
 		);
 		expect(
-			secondary.g.describe().nodes.map(({ id, factory, deps }) => ({ id, factory, deps })),
+			secondary.g.inspect().nodes.map(({ id, factory, deps }) => ({ id, factory, deps })),
 		).toEqual(topology.nodes.map(({ id, factory, deps }) => ({ id, factory, deps })));
 		primary.release();
 		secondary.release();

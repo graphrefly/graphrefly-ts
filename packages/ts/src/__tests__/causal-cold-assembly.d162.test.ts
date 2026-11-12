@@ -40,7 +40,7 @@ afterEach(() => {
 		for (const name of ["run", "context", "foreign", "sealed"])
 			for (const lease of constructionOf(g, name)?.roots ?? []) lease.unsubscribe?.();
 		const group = g.topologyGroup();
-		for (const n of g.describe().nodes) group.add(g.find(n.id)!);
+		for (const n of g.inspect().nodes) group.add(g.find(n.id)!);
 		group.release();
 	}
 });
@@ -139,7 +139,7 @@ function combined(inject?: (scope: ConstructionScope) => void, empty = false) {
 		? f.graph.node<number>([], null, { name: "external/a" })
 		: f.graph.state(2, { name: "external/a" });
 	const b = f.graph.state(3, { name: "external/b" });
-	const before = f.graph.describe();
+	const before = f.graph.inspect();
 	const handlesBefore = dispatcher.live.size;
 	const scope = prepareConstruction(f.graph, {
 		name: "run",
@@ -289,7 +289,7 @@ describe("D162 private shared cold assembly", () => {
 				changing,
 			),
 		).toThrow(/context/);
-		expect(f.graph.describe().nodes.filter((n) => n.name?.startsWith("epoch/"))).toHaveLength(1);
+		expect(f.graph.inspect().nodes.filter((n) => n.name?.startsWith("epoch/"))).toHaveLength(1);
 	});
 	it("validates options once before resource acquisition and never revalidates the captured snapshot", () => {
 		const f = causal(trackedGraph());
@@ -366,7 +366,7 @@ describe("D162 private shared cold assembly", () => {
 					n++;
 					if (n === 1) {
 						graph = graphs.at(-1)!;
-						baseline = graph.describe().nodes.length - 1;
+						baseline = graph.inspect().nodes.length - 1;
 						handles = new Set(dispatchers.get(graph)!.live);
 						// Native startup has no fn handle; this is the exact external handle set.
 						const a = graph.find("external/a")!;
@@ -383,8 +383,8 @@ describe("D162 private shared cold assembly", () => {
 				});
 			}),
 		).toThrow(ColdConstructionError);
-		expect(graph!.describe().nodes).toHaveLength(baseline);
-		expect(graph!.describe().nodes.some((n) => n.name?.startsWith("run/"))).toBe(false);
+		expect(graph!.inspect().nodes).toHaveLength(baseline);
+		expect(graph!.inspect().nodes.some((n) => n.name?.startsWith("run/"))).toBe(false);
 		expect(constructionOf(graph!, "run")).toBeUndefined();
 		expect(shared).toEqual([2]);
 		expect(dispatchers.get(graph!)!.live).toEqual(handles!);
@@ -434,7 +434,7 @@ describe("D162 private shared cold assembly", () => {
 			);
 			return;
 		}
-		const before = g.describe().nodes.length;
+		const before = g.inspect().nodes.length;
 		expect(() =>
 			buildCausalNodes(
 				targetGraph,
@@ -444,7 +444,7 @@ describe("D162 private shared cold assembly", () => {
 				{ ...binding, epoch },
 			),
 		).toThrow(/context/);
-		expect(g.describe().nodes).toHaveLength(before);
+		expect(g.inspect().nodes).toHaveLength(before);
 		expect(constructionOf(g, "context")).toBeUndefined();
 	});
 	it("retains obligations across late root failure, UI unsubscribe, wrong outcome and exact replay", () => {

@@ -45,28 +45,12 @@ export const apiSidebar = [
 				"link": "/api/dispatcher"
 			},
 			{
-				"label": "Node",
-				"link": "/api/node"
-			},
-			{
 				"label": "isInvalidErrorPayload()",
 				"link": "/api/isinvaliderrorpayload"
 			},
 			{
 				"label": "errorPayload()",
 				"link": "/api/errorpayload"
-			},
-			{
-				"label": "messageTier()",
-				"link": "/api/messagetier"
-			},
-			{
-				"label": "isDeferredTier()",
-				"link": "/api/isdeferredtier"
-			},
-			{
-				"label": "isValueTier()",
-				"link": "/api/isvaluetier"
 			},
 			{
 				"label": "isTerminal()",
@@ -155,16 +139,8 @@ export const apiSidebar = [
 				"link": "/api/graph"
 			},
 			{
-				"label": "filterObserve()",
-				"link": "/api/filterobserve"
-			},
-			{
-				"label": "coalesceObserve()",
-				"link": "/api/coalesceobserve"
-			},
-			{
-				"label": "describeToMermaid()",
-				"link": "/api/describetomermaid"
+				"label": "inspectToMermaid()",
+				"link": "/api/inspecttomermaid"
 			},
 			{
 				"label": "blueprintToMermaid()",
@@ -175,24 +151,24 @@ export const apiSidebar = [
 				"link": "/api/mermaidliveurl"
 			},
 			{
-				"label": "describeToMermaidUrl()",
-				"link": "/api/describetomermaidurl"
+				"label": "inspectToMermaidUrl()",
+				"link": "/api/inspecttomermaidurl"
 			},
 			{
-				"label": "describeToD2()",
-				"link": "/api/describetod2"
+				"label": "inspectToD2()",
+				"link": "/api/inspecttod2"
 			},
 			{
-				"label": "describeToPretty()",
-				"link": "/api/describetopretty"
+				"label": "inspectToPretty()",
+				"link": "/api/inspecttopretty"
 			},
 			{
-				"label": "describeToAscii()",
-				"link": "/api/describetoascii"
+				"label": "inspectToAscii()",
+				"link": "/api/inspecttoascii"
 			},
 			{
-				"label": "describeToJson()",
-				"link": "/api/describetojson"
+				"label": "inspectToJson()",
+				"link": "/api/inspecttojson"
 			},
 			{
 				"label": "retryPolicy()",

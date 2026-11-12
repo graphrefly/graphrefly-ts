@@ -2,7 +2,7 @@ import type { NodeFn } from "../ctx/types.js";
 import type { Node } from "../node/node.js";
 import type { NodeAcquisition } from "../node/owned-acquisition.js";
 import type { OwnedConstruction } from "./construction-scope.js";
-import type { DescribeSnapshot } from "./describe.js";
+import type { InspectSnapshot } from "./describe.js";
 import type { Graph, StateNode } from "./graph.js";
 import type { SugarOpts } from "./graph-types.js";
 
@@ -23,7 +23,7 @@ export interface GraphLifecycleRegistrar extends GraphRestoreRegistrar {
 	atWaveBoundary(): boolean;
 	/** Run `run`, observing the failures this graph reports meanwhile (graphrefly-ts:D181). */
 	observeFailures<R>(observer: (source: string, error: unknown) => void, run: () => R): R;
-	readIncoming(nodes: ReadonlySet<Node<unknown>>): Pick<DescribeSnapshot, "edges">;
+	readIncoming(nodes: ReadonlySet<Node<unknown>>): Pick<InspectSnapshot, "edges">;
 	releaseNodes(nodes: readonly Node<unknown>[], opts?: { reason?: string }): void;
 	assertAvailableName(name: string): void;
 	createOwned<T>(

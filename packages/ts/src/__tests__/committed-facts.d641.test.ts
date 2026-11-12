@@ -24,6 +24,7 @@ import {
 	observeEventFrameCodec,
 } from "../storage/index.js";
 import { fileAppendLog } from "../storage/node.js";
+import { lastData } from "./helpers/collect.js";
 
 interface WorkFact extends CommittedFactJournalFact {
 	readonly kind: "work-fact";
@@ -491,16 +492,16 @@ describe("D641 explicit selected Graph DATA persistence", () => {
 		const log = memoryAppendLog<ObserveEventFrame<number>>("selected-invalid-frame");
 
 		expect(() =>
-			attachObserveEventLog(g, log, { path: "selected-frame" } as unknown as Parameters<
+			attachObserveEventLog(g, log, { ids: ["selected-frame"] } as unknown as Parameters<
 				typeof attachObserveEventLog
 			>[2]),
 		).toThrow(/explicit DATA projection/);
 
 		const errors: unknown[] = [];
 		const handle = attachObserveEventLog(g, log, {
-			path: "selected-frame",
+			ids: ["selected-frame"],
 			stream: "\ud800",
-			map: (event) => (event.msg[0] === "DATA" ? (event.msg[1] as number) : undefined),
+			map: (event) => lastData<number>(event),
 			onError(error) {
 				errors.push(error);
 			},
@@ -522,11 +523,11 @@ describe("D641 explicit selected Graph DATA persistence", () => {
 			memoryAppendLog("selected-observe");
 		const errors: Array<{ readonly error: unknown; readonly phase: string }> = [];
 		const handle = attachObserveEventLog<{ readonly value: number }>(g, log, {
-			path: "selected",
+			ids: ["selected"],
 			stream: "selected-data.v1",
 			map(event: ObserveEvent) {
-				if (event.msg[0] !== "DATA") return undefined;
-				const value = event.msg[1] as number;
+				const value = lastData<number>(event);
+				if (value === undefined) return undefined;
 				if (value === 2) {
 					return { value: 2, invalid: 1n } as unknown as { readonly value: number };
 				}
@@ -545,7 +546,8 @@ describe("D641 explicit selected Graph DATA persistence", () => {
 
 		const frames = (await log.read()).map((entry) => entry.value);
 		expect(frames.map((frame) => frame.change)).toEqual([{ value: 0 }, { value: 1 }, { value: 3 }]);
-		expect(frames.map((frame) => frame.path)).toEqual(["selected", "selected", "selected"]);
+		expect(frames.map((frame) => frame.id)).toEqual(["selected", "selected", "selected"]);
+		expect(frames.map((frame) => frame.seq)).toEqual([0, 1, 2]);
 		expect(frames.every((frame) => frame.stream === "selected-data.v1")).toBe(true);
 		expect(errors).toHaveLength(1);
 		expect(errors[0]?.phase).toBe("map");

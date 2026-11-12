@@ -45,7 +45,7 @@ export function validate(
 	assert.deepEqual(snapshot, expected);
 	assert.equal(run.owner.nodes.length, 54);
 	assert.equal(run.owner.roots.length, 2);
-	assert.equal(run.graph.describe().nodes.length, 0);
+	assert.equal(run.graph.inspect().nodes.length, 0);
 }
 export function micro(row: string) {
 	const graph = new Graph({ name: row });
@@ -71,7 +71,7 @@ export function micro(row: string) {
 		assert.ok(row === "inactive-60" || row === "inactive-1");
 		for (let i = 0; i < (row === "inactive-60" ? 60 : 1); i++) group.state(i, { name: `n${i}` });
 	}
-	const before = graph.describe();
+	const before = graph.inspect();
 	return {
 		release() {
 			group.release();
@@ -80,7 +80,7 @@ export function micro(row: string) {
 			if (row === "active-diamond-5") {
 				assert.match(String(error), /'join' still has live subscribers/);
 				assert.equal(group.released, false);
-				assert.deepEqual(graph.describe(), before);
+				assert.deepEqual(graph.inspect(), before);
 			} else {
 				assert.equal(error, undefined);
 				assert.equal(group.released, true);
@@ -91,7 +91,7 @@ export function micro(row: string) {
 			if (!group.released) group.release();
 		},
 		finished() {
-			assert.equal(graph.describe().nodes.length, 0);
+			assert.equal(graph.inspect().nodes.length, 0);
 		},
 	};
 }

@@ -370,11 +370,11 @@ describe("AgenticMemory D585 passive store-frame helpers", () => {
 		expect(data<readonly { code: string }[]>(issues.messages).at(-1)?.[0]?.code).toBe(
 			"agentic-memory.record-store-frame.invalid",
 		);
-		expect(g.describe().edges).toContainEqual({
+		expect(g.inspect().edges).toContainEqual({
 			from: "storeFrame",
 			to: "d585RecordFrame/projection",
 		});
-		expect(g.describe().edges).toContainEqual({
+		expect(g.inspect().edges).toContainEqual({
 			from: "d585RecordFrame/projection",
 			to: "d585RecordFrame/records",
 		});
@@ -479,7 +479,7 @@ describe("AgenticMemory D585 passive store-frame helpers", () => {
 		expect(data<readonly AgenticMemoryRecord<string>[]>(projected.messages).at(-1)).toEqual(
 			applicationRecords,
 		);
-		expect(later.describe().edges).toEqual(
+		expect(later.inspect().edges).toEqual(
 			expect.arrayContaining([
 				{ from: "loadedRecords", to: "laterMemory/projection" },
 				{ from: "laterMemory/projection", to: "laterMemory/records" },
@@ -2267,7 +2267,7 @@ describe("AgenticMemory D590 durable-result gate boundary", () => {
 
 		attemptResult.set(attemptResult.cache!);
 
-		expect(g.describe().edges).toEqual(
+		expect(g.inspect().edges).toEqual(
 			expect.arrayContaining([
 				{ from: "attemptResult", to: "durability/projection" },
 				{ from: "durability/projection", to: "durability/result" },
@@ -2322,7 +2322,7 @@ describe("AgenticMemory D590 durable-result gate boundary", () => {
 		unrelatedBatch.set(secondBatch);
 		unrelatedCommitResult.set(firstResult);
 
-		expect(g.describe().edges).not.toEqual(
+		expect(g.inspect().edges).not.toEqual(
 			expect.arrayContaining([
 				{ from: "unrelatedBatch", to: "durability/projection" },
 				{ from: "unrelatedCommitResult", to: "durability/projection" },
@@ -2481,7 +2481,7 @@ describe("AgenticMemory D591 fact-log read materialization re-entry boundary", (
 
 		readResult.set(read);
 
-		expect(g.describe().edges).toEqual(
+		expect(g.inspect().edges).toEqual(
 			expect.arrayContaining([
 				{ from: "readResult", to: "readMaterialization/projection" },
 				{ from: "readMaterialization/projection", to: "readMaterialization/records" },
@@ -2493,7 +2493,7 @@ describe("AgenticMemory D591 fact-log read materialization re-entry boundary", (
 				{ from: "readMaterialization/projection", to: "readMaterialization/cursor" },
 			]),
 		);
-		expect(g.describe().edges).not.toContainEqual({
+		expect(g.inspect().edges).not.toContainEqual({
 			from: "readMaterialization/records",
 			to: "callerRecords",
 		});
@@ -3039,7 +3039,7 @@ describe("AgenticMemory D593 materialized fact-log bootstrap/re-entry boundary",
 
 		materialization.set(materializationValue);
 
-		expect(g.describe().edges).toEqual(
+		expect(g.inspect().edges).toEqual(
 			expect.arrayContaining([
 				{ from: "materialization", to: "bootstrap/projection" },
 				{ from: "bootstrap/projection", to: "bootstrap/bootstrapInput" },
@@ -3052,7 +3052,7 @@ describe("AgenticMemory D593 materialized fact-log bootstrap/re-entry boundary",
 				{ from: "bootstrap/projection", to: "bootstrap/cursor" },
 			]),
 		);
-		expect(g.describe().edges).not.toContainEqual({
+		expect(g.inspect().edges).not.toContainEqual({
 			from: "bootstrap/records",
 			to: "callerRecords",
 		});
@@ -4081,7 +4081,7 @@ describe("AgenticMemory D586 complete-next-record materializer", () => {
 				"intent.operation must be create, replace, or update",
 			]),
 		);
-		expect(g.describe().edges).toEqual(
+		expect(g.inspect().edges).toEqual(
 			expect.arrayContaining([
 				{ from: "records", to: "materializer/projection" },
 				{ from: "intents", to: "materializer/projection" },
@@ -4215,7 +4215,7 @@ describe("agentic memory consolidation bundle (D171)", () => {
 			{ kind: "agentic-memory-consolidation-record-draft", id: draftId },
 		];
 
-		expect(g.describe().edges).toEqual(
+		expect(g.inspect().edges).toEqual(
 			expect.arrayContaining([
 				{ from: "consolidation/occurrences", to: "consolidation/projection" },
 				{ from: "consolidation/occurrences", to: "consolidation/projection" },
@@ -4353,7 +4353,7 @@ describe("agentic memory consolidation bundle (D171)", () => {
 		const status = collect(bundle.applicationStatus);
 		const issues = collect(bundle.applicationIssues);
 
-		expect(g.describe().edges).toEqual(
+		expect(g.inspect().edges).toEqual(
 			expect.arrayContaining([
 				{
 					from: "consolidationApplication/consolidation/recordProposals",
@@ -5273,7 +5273,7 @@ describe("agentic memory admission policy source projection (D583)", () => {
 		});
 		const selectedPolicy = collect(bundle.admissionPolicy);
 
-		expect(g.describe().edges).toEqual(
+		expect(g.inspect().edges).toEqual(
 			expect.arrayContaining([
 				{ from: "policySources", to: "policySource/projection" },
 				{ from: "policySource/projection", to: "policySource/admissionPolicy" },
@@ -5334,7 +5334,7 @@ describe("agentic memory record proposal admission (D572/D573)", () => {
 		const status = collect(bundle.status);
 		const audit = collect(bundle.audit);
 
-		expect(g.describe().edges).toEqual(
+		expect(g.inspect().edges).toEqual(
 			expect.arrayContaining([
 				{ from: "admission/occurrences", to: "admission/projection" },
 				{ from: "admission/occurrences", to: "admission/projection" },
@@ -7104,7 +7104,7 @@ describe("agentic memory record application projector (D577)", () => {
 		const operationStatuses = collect(bundle.operationStatuses);
 		const decisions = collect(bundle.applicationDecisions);
 
-		expect(g.describe().edges).toEqual(
+		expect(g.inspect().edges).toEqual(
 			expect.arrayContaining([
 				{ from: "application/occurrences", to: "application/projection" },
 				{ from: "application/occurrences", to: "application/projection" },
@@ -7496,7 +7496,7 @@ describe("agentic memory record application projector (D577)", () => {
 		const evidenceFacts = collect(evidence.evidenceFacts);
 		const decisions = collect(application.applicationDecisions);
 
-		const edges = g.describe().edges;
+		const edges = g.inspect().edges;
 		expect(edges).toEqual(
 			expect.arrayContaining([
 				{ from: "application/projection", to: "application/applicationDecisions" },
@@ -7607,7 +7607,7 @@ describe("agentic memory record application projector (D577)", () => {
 		});
 		const decisions = collect(application.applicationDecisions);
 
-		expect(g.describe().edges).toEqual(
+		expect(g.inspect().edges).toEqual(
 			expect.arrayContaining([
 				{ from: "persisted/evidenceFacts", to: "history/prior/projection" },
 				{ from: "history/prior/projection", to: "history/prior/priorEvidence" },
@@ -8680,7 +8680,7 @@ describe("agentic memory context packing (D168)", () => {
 		const errors = collect(bundle.errors);
 		const status = collect(bundle.status);
 
-		expect(g.describe().edges).toEqual(
+		expect(g.inspect().edges).toEqual(
 			expect.arrayContaining([
 				{ from: "context", to: "packing/projection" },
 				{ from: "texts", to: "packing/projection" },

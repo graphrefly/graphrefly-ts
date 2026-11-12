@@ -392,11 +392,15 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof core.Node).toBe("function");
 		expect(typeof graphLayer.Graph).toBe("function");
 		expect(typeof graphLayer.graph).toBe("function");
-		expect(typeof graphLayer.coalesceObserve).toBe("function");
 		expect(typeof graphLayer.domWebSocketDriver).toBe("function");
 		expect(typeof graphLayer.explainPath).toBe("function");
 		expect(typeof graphLayer.fetchHttpDriver).toBe("function");
-		expect(typeof graphLayer.filterObserve).toBe("function");
+		// R-graph-surface@1 / R-primary-api-clean@2 (graphrefly:D805): no observe stream helpers and no tiers.
+		expect(graphLayer).not.toHaveProperty("filterObserve");
+		expect(core).not.toHaveProperty("messageTier");
+		expect(core).not.toHaveProperty("TIER_VALUE");
+		expect(core).not.toHaveProperty("isDeferredTier");
+		expect(core).not.toHaveProperty("isValueTier");
 		expect(typeof graphLayer.GRAPH_CHECKPOINT_FORMAT).toBe("string");
 		expect(typeof graphLayer.reachable).toBe("function");
 		expect(typeof graphLayer.restoreGraph).toBe("function");
@@ -426,8 +430,8 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(Object.hasOwn(sources, "fromRaf")).toBe(false);
 		expect(typeof composition.topologyDiff).toBe("function");
 		expect(typeof dataStructures.reactiveMap).toBe("function");
-		expect(typeof render.describeToJson).toBe("function");
-		expect(typeof render.describeToMermaidUrl).toBe("function");
+		expect(typeof render.inspectToJson).toBe("function");
+		expect(typeof render.inspectToMermaidUrl).toBe("function");
 		expect(typeof adapters.jotaiAtom).toBe("function");
 		expect(typeof adapters.nanoAtom).toBe("function");
 		expect(typeof adapters.recordReadableStore).toBe("function");

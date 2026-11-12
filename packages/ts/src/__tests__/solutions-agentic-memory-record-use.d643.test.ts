@@ -113,10 +113,14 @@ function collect<T>(node: Node<T>): {
  */
 function rejectsIn(owner: ReturnType<typeof graph>, write: () => void, pattern?: RegExp): void {
 	const errors: string[] = [];
-	const stop = owner.observe().subscribe((event) => {
-		if (event.msg[0] === "ERROR")
-			errors.push(String((event.msg[1] as Error | undefined)?.message ?? event.msg[1]));
-	});
+	const stop = owner.observe(
+		owner.describe().map((n) => n.id),
+		(event) => {
+			for (const msg of event.msgs)
+				if (msg[0] === "ERROR")
+					errors.push(String((msg[1] as Error | undefined)?.message ?? msg[1]));
+		},
+	);
 	try {
 		expect(write).not.toThrow();
 	} finally {
@@ -981,7 +985,7 @@ describe("AgenticMemory D789 real keyed exact-use lifecycle", () => {
 		expect(allowed.values).toHaveLength(2);
 		expectTypeOf(gate).toMatchTypeOf<AgenticMemoryRecordUseGateBundle<string>>();
 		expect(
-			g.describe().nodes.filter((node) => node.factory === "agenticMemoryRecordUseGate"),
+			g.inspect().nodes.filter((node) => node.factory === "agenticMemoryRecordUseGate"),
 		).toHaveLength(1);
 		observed.unsubscribe();
 		allowed.unsubscribe();
@@ -1142,7 +1146,7 @@ describe("AgenticMemory D789 real keyed exact-use lifecycle", () => {
 			records: selected,
 			query: g.state({ tags: ["relevant"] }),
 		});
-		const topology = g.describe();
+		const topology = g.inspect();
 		const snapshots = collect(gate.snapshot);
 		const ranked = collect(governed.ranked);
 		expectTypeOf(governed).toMatchTypeOf<AgenticMemoryBundle<string>>();

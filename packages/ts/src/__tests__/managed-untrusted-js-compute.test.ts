@@ -388,7 +388,7 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 			},
 			now: () => 10,
 		});
-		expect(g.describe().nodes.map((node) => node.id)).toEqual(
+		expect(g.inspect().nodes.map((node) => node.id)).toEqual(
 			expect.arrayContaining([
 				"managedUntrustedJsCompute/lifecycle",
 				"managedUntrustedJsCompute/cleanup",
@@ -402,7 +402,7 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 		await settle();
 		await runtime.dispose();
 		await runtime.dispose();
-		expect(g.describe().nodes.map((node) => node.id)).not.toContain(
+		expect(g.inspect().nodes.map((node) => node.id)).not.toContain(
 			"managedUntrustedJsCompute/lifecycle",
 		);
 	});
@@ -437,12 +437,12 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 		});
 		const unsubscribe = runtime.outcomes.subscribe(() => {});
 		await runtime.dispose();
-		expect(g.describe().nodes.map((node) => node.id)).toContain(
+		expect(g.inspect().nodes.map((node) => node.id)).toContain(
 			"managedUntrustedJsCompute/outcomes",
 		);
 		unsubscribe();
 		await runtime.dispose();
-		expect(g.describe().nodes.map((node) => node.id)).not.toContain(
+		expect(g.inspect().nodes.map((node) => node.id)).not.toContain(
 			"managedUntrustedJsCompute/outcomes",
 		);
 	});

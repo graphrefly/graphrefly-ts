@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
-	type DescribeSnapshot,
 	explainPath,
 	graph,
+	type InspectSnapshot,
 	reachable,
 	type Status,
 	validateNoIslands,
@@ -11,7 +11,7 @@ import {
 /** R-node@2 status of a synthetic node that holds nothing. */
 const EMPTY: Status = { cache: "empty", output: "open", lifecycle: "inactive" };
 
-describe("graph diagnostics over DescribeSnapshot (D39/R-describe)", () => {
+describe("graph diagnostics over InspectSnapshot (D39/R-describe)", () => {
 	it("reachable walks upstream, downstream, and max-depth frontiers deterministically", () => {
 		const g = graph();
 		const a = g.state(1, { name: "a" });
@@ -20,7 +20,7 @@ describe("graph diagnostics over DescribeSnapshot (D39/R-describe)", () => {
 		const sink = g.effect([a], () => {}, { name: "sink" });
 		sink.subscribe(() => {});
 
-		const snap = g.describe();
+		const snap = g.inspect();
 		expect(reachable(snap, "c", "upstream")).toEqual(["a", "b"]);
 		expect(reachable(snap, "a", "downstream")).toEqual(["b", "c", "sink"]);
 		expect(reachable(snap, "b", "upstream", { both: true })).toEqual(["a", "c", "sink"]);
@@ -47,7 +47,7 @@ describe("graph diagnostics over DescribeSnapshot (D39/R-describe)", () => {
 		const b = g.derived([a], (x) => x! + 1, { name: "b" });
 		g.derived([b], (x) => x! + 1, { name: "c" });
 
-		const snap = g.describe();
+		const snap = g.inspect();
 		const chain = explainPath(snap, "a", "c");
 		expect(chain.found).toBe(true);
 		expect(chain.reason).toBe("ok");
@@ -74,14 +74,14 @@ describe("graph diagnostics over DescribeSnapshot (D39/R-describe)", () => {
 		child.state(9, { name: "orphan" });
 		parent.mount(child, { at: "child" });
 
-		const result = validateNoIslands(parent.describe());
+		const result = validateNoIslands(parent.inspect());
 		expect(result.ok).toBe(false);
 		expect(result.orphans).toEqual([{ id: "child::orphan", factory: "state" }]);
 		expect(result.summary()).toBe("validateNoIslands: 1 island node(s) - child::orphan (state)");
 	});
 
 	it("diagnostics also accept synthetic snapshots without requiring a Graph instance", () => {
-		const snap: DescribeSnapshot = {
+		const snap: InspectSnapshot = {
 			nodes: [
 				{ id: "x", factory: "state", status: EMPTY, deps: [] },
 				{ id: "y", factory: "derived", status: EMPTY, deps: [] },
@@ -92,7 +92,7 @@ describe("graph diagnostics over DescribeSnapshot (D39/R-describe)", () => {
 		expect(explainPath(snap, "x", "y").steps.map((s) => s.id)).toEqual(["x", "y"]);
 		expect(validateNoIslands(snap).ok).toBe(true);
 
-		const dangling: DescribeSnapshot = {
+		const dangling: InspectSnapshot = {
 			nodes: [
 				{ id: "x", factory: "state", status: EMPTY, deps: ["missing"] },
 				{ id: "y", factory: "derived", status: EMPTY, deps: [] },
@@ -107,7 +107,7 @@ describe("graph diagnostics over DescribeSnapshot (D39/R-describe)", () => {
 	});
 
 	it("explainPath findCycle searches for a non-trivial self path in synthetic snapshots", () => {
-		const snap: DescribeSnapshot = {
+		const snap: InspectSnapshot = {
 			nodes: [
 				{ id: "a", factory: "node", status: EMPTY, deps: ["b"] },
 				{ id: "b", factory: "node", status: EMPTY, deps: ["a"] },
@@ -126,7 +126,7 @@ describe("graph diagnostics over DescribeSnapshot (D39/R-describe)", () => {
 			"max-depth-exceeded",
 		);
 
-		const selfLoop: DescribeSnapshot = {
+		const selfLoop: InspectSnapshot = {
 			nodes: [{ id: "a", factory: "node", status: EMPTY, deps: ["a"] }],
 			edges: [{ from: "a", to: "a" }],
 		};

@@ -43,8 +43,8 @@ const error = (code: string): DataResult<never> => ({ kind: "error", error: prob
 // Preserve real retain/subscription behavior while making test-owned teardown explicit.
 class FixtureGraph extends Graph {
 	readonly retainedStops: Array<() => void> = [];
-	override retain<T>(node: Node<T>, opts: { reason?: string } = {}): () => void {
-		const stop = super.retain(node, opts);
+	override retain(target: Node<unknown> | string): () => void {
+		const stop = super.retain(target);
 		this.retainedStops.push(stop);
 		return stop;
 	}
@@ -104,7 +104,7 @@ function fixture(
 		// Test-owned teardown, never a production lifecycle settlement policy.
 		for (const root of constructionOf(owner, "causal")?.roots ?? []) root.unsubscribe?.();
 		const group = owner.topologyGroup({ name: "causal fixture cleanup" });
-		for (const entry of owner.describe().nodes) group.add(owner.find(entry.id)!);
+		for (const entry of owner.inspect().nodes) group.add(owner.find(entry.id)!);
 		group.release();
 		cleanups.delete(stop);
 	};
@@ -187,7 +187,7 @@ describe("D791 causal occurrence contract-v2", () => {
 	it("releases test-owned output subscriptions, retained helpers, and graph registrations", () => {
 		const f = fixture();
 		f.stop();
-		expect(f.owner.describe().nodes).toHaveLength(0);
+		expect(f.owner.inspect().nodes).toHaveLength(0);
 		expect(f.owner.retainedStops).toHaveLength(0);
 		f.stop();
 	});
@@ -1142,7 +1142,7 @@ describe("D791 causal occurrence contract-v2", () => {
 
 	it("fails a topology mutation when any occurrence, join, release, or conservation edge is deleted", () => {
 		const f = fixture();
-		const description = f.owner.describe();
+		const description = f.owner.inspect();
 		assertCausalOccurrenceTopology(description, "causal");
 		for (const deleted of causalOccurrenceRequiredEdges("causal", description)) {
 			expect(
@@ -1363,7 +1363,7 @@ describe("causal topology exact-string index", () => {
 		let changed = false;
 		let calls = 0;
 		class RewiredGraph extends FixtureGraph {
-			override describe(...args: Parameters<Graph["describe"]>): ReturnType<Graph["describe"]> {
+			override inspect(...args: Parameters<Graph["inspect"]>): ReturnType<Graph["inspect"]> {
 				const authority = this.find("causal/authority");
 				if (authority && !changed) {
 					changed = true;
@@ -1372,7 +1372,7 @@ describe("causal topology exact-string index", () => {
 						calls += 1;
 					});
 				}
-				return super.describe(...args);
+				return super.inspect(...args);
 			}
 		}
 		const owner = new RewiredGraph();
@@ -1382,6 +1382,6 @@ describe("causal topology exact-string index", () => {
 		expect(changed).toBe(true);
 		expect(calls).toBe(0);
 		expect(owner.find("causal/authority")).toBeUndefined();
-		expect(owner.describe().nodes).toHaveLength(8);
+		expect(owner.inspect().nodes).toHaveLength(8);
 	});
 });

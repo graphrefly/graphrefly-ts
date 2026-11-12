@@ -88,7 +88,7 @@ for (const mode of ["off", "summary"] as const) {
 		try {
 			await drain();
 			run.drive([evaluationFixture()]);
-			const ids = run.graph.describe().nodes.map((n) => n.id);
+			const ids = run.graph.inspect().nodes.map((n) => n.id);
 			run.disconnect();
 			expect(run.host.inspect().inFlight).toBe(1);
 			expect(run.host.inspect().records).toHaveLength(1);
@@ -99,7 +99,7 @@ for (const mode of ["off", "summary"] as const) {
 			await drain();
 			expect(run.host.inspect().records).toHaveLength(1);
 			expect(run.calls).toHaveLength(1);
-			expect(run.graph.describe().nodes.map((n) => n.id)).toEqual(ids);
+			expect(run.graph.inspect().nodes.map((n) => n.id)).toEqual(ids);
 			expect(run.publications.length).toBeGreaterThan(0);
 		} finally {
 			run.teardown();
@@ -145,7 +145,7 @@ it("normal branch completes without a host record or call", async () => {
 it("wrong resource binding rejects before touching original graph", () => {
 	const graph = new Graph();
 	const { inputs } = inputsFor(graph);
-	const before = graph.describe();
+	const before = graph.inspect();
 	expect(() =>
 		composeOfflineSpending(
 			graph,
@@ -157,12 +157,12 @@ it("wrong resource binding rejects before touching original graph", () => {
 			{ name: "spending" },
 		),
 	).toThrow("offline resource binding");
-	expect(graph.describe()).toEqual(before);
+	expect(graph.inspect()).toEqual(before);
 });
 it("invalid cold diagnostics aborts only new owned construction", () => {
 	const graph = new Graph();
 	const { inputs } = inputsFor(graph);
-	const before = graph.describe();
+	const before = graph.inspect();
 	expect(() =>
 		composeOfflineSpending(
 			graph,
@@ -172,7 +172,7 @@ it("invalid cold diagnostics aborts only new owned construction", () => {
 			{ name: "spending", diagnostics: "invalid" as "off" },
 		),
 	).toThrow();
-	expect(graph.describe()).toEqual(before);
+	expect(graph.inspect()).toEqual(before);
 });
 it("one resource epoch cannot belong to two compositions", async () => {
 	const graph = new Graph();
@@ -187,17 +187,17 @@ it("one resource epoch cannot belong to two compositions", async () => {
 		await drain();
 		const secondGraph = new Graph();
 		const secondInputs = inputsFor(secondGraph).inputs;
-		const before = secondGraph.describe();
+		const before = secondGraph.inspect();
 		expect(() =>
 			composeOfflineSpending(secondGraph, secondInputs, presetBinding, resource, {
 				name: "second",
 			}),
 		).toThrow("already claimed");
-		expect(secondGraph.describe()).toEqual(before);
+		expect(secondGraph.inspect()).toEqual(before);
 	} finally {
 		for (const root of first.owner.roots) root.unsubscribe?.();
 		const group = graph.topologyGroup();
-		for (const node of graph.describe().nodes) group.add(graph.find(node.id)!);
+		for (const node of graph.inspect().nodes) group.add(graph.find(node.id)!);
 		group.release();
 	}
 });
@@ -205,14 +205,14 @@ it("failed cold construction releases only its untransferred resource claim", as
 	const graph = new Graph();
 	const { inputs } = inputsFor(graph);
 	const resource = new OfflineAlertResource(presetBinding, async () => ({ bytesWritten: 0 }));
-	const before = graph.describe();
+	const before = graph.inspect();
 	expect(() =>
 		composeOfflineSpending(graph, inputs, presetBinding, resource, {
 			name: "spending",
 			diagnostics: "bad" as "off",
 		}),
 	).toThrow();
-	expect(graph.describe()).toEqual(before);
+	expect(graph.inspect()).toEqual(before);
 	// Aborted node IDs remain retired by the existing construction contract.
 	const retryGraph = new Graph();
 	const retryInputs = inputsFor(retryGraph).inputs;
@@ -225,7 +225,7 @@ it("failed cold construction releases only its untransferred resource claim", as
 	} finally {
 		for (const root of retried.owner.roots) root.unsubscribe?.();
 		const group = retryGraph.topologyGroup();
-		for (const node of retryGraph.describe().nodes) group.add(retryGraph.find(node.id)!);
+		for (const node of retryGraph.inspect().nodes) group.add(retryGraph.find(node.id)!);
 		group.release();
 	}
 });

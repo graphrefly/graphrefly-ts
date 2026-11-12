@@ -111,7 +111,7 @@ describe("reactiveIndex (D60 #4) — ordered snapshot + Z reverse-lookup", () =>
 		const idx = reactiveIndex<string, number>(g, { name: "idx" });
 		idx.range("a", "z");
 
-		const snap = g.describe();
+		const snap = g.inspect();
 		expect(snap.nodes.find((n) => n.id === "idx.delta")?.factory).toBe("reactiveIndex.delta");
 		expect(snap.nodes.find((n) => n.id === "idx.range#0.delta")?.factory).toBe(
 			"reactiveIndex.range.delta",
@@ -125,7 +125,7 @@ describe("reactiveIndex (D60 #4) — ordered snapshot + Z reverse-lookup", () =>
 			to: "idx.range#0.snapshot",
 		});
 		idx.range("a", "z").dispose();
-		const after = g.describe();
+		const after = g.inspect();
 		expect(after.edges).not.toContainEqual({ from: "idx.delta", to: "idx.range#0.delta" });
 		expect(after.nodes.map((n) => n.id)).not.toContain("idx.range#0.delta");
 		expect(after.nodes.map((n) => n.id)).not.toContain("idx.range#0.snapshot");
@@ -150,7 +150,7 @@ describe("reactiveIndex (D60 #4) — ordered snapshot + Z reverse-lookup", () =>
 		idx.dispose();
 		expect(
 			g
-				.describe()
+				.inspect()
 				.nodes.map((n) => n.id)
 				.filter((id) => id.includes(".range#")),
 		).toEqual([]);
@@ -311,7 +311,7 @@ describe("reactiveIndex (D60 #4) — ordered snapshot + Z reverse-lookup", () =>
 			capacity: { maxSize: 2, order: "secondary" },
 		});
 		idx.upsert("a", 1, 1);
-		const snap = g.describe();
+		const snap = g.inspect();
 		expect(snap.nodes.find((n) => n.id === "idx.maxSizePolicy")?.factory).toBe(
 			"reactiveIndex.maxSizePolicy",
 		);
@@ -341,8 +341,8 @@ describe("reactiveIndex (D60 #4) — ordered snapshot + Z reverse-lookup", () =>
 			{ kind: "delete", primary: "b" },
 		]);
 		expect(idx.toArray().map((r) => r.primary)).toEqual(["c"]);
-		expect(g.describe().edges).toContainEqual({ from: "max", to: "idx.capacityPolicy" });
-		expect(g.describe().nodes.find((n) => n.id === "idx.capacityPolicy")?.factory).toBe(
+		expect(g.inspect().edges).toContainEqual({ from: "max", to: "idx.capacityPolicy" });
+		expect(g.inspect().nodes.find((n) => n.id === "idx.capacityPolicy")?.factory).toBe(
 			"reactiveIndex.capacityPolicy",
 		);
 	});
@@ -401,8 +401,8 @@ describe("reactiveIndex (D60 #4) — ordered snapshot + Z reverse-lookup", () =>
 			{ kind: "delete", primary: "a" },
 			{ kind: "delete", primary: "b" },
 		]);
-		expect(g.describe().edges).toContainEqual({ from: "max", to: "idx.capacityPolicy" });
-		expect(g.describe().edges).toContainEqual({ from: "idx.bind#0", to: "idx.capacityPolicy" });
+		expect(g.inspect().edges).toContainEqual({ from: "max", to: "idx.capacityPolicy" });
+		expect(g.inspect().edges).toContainEqual({ from: "idx.bind#0", to: "idx.capacityPolicy" });
 	});
 });
 
@@ -471,7 +471,7 @@ describe("reactiveLog (D60 #5) — incremental view/scan + SENTINEL reject + dec
 		const log = reactiveLog<number>(g, [], { name: "log" });
 		const page = log.page(0, 2);
 
-		const snap = g.describe();
+		const snap = g.inspect();
 		expect(snap.nodes.find((n) => n.id === "log.delta")?.factory).toBe("reactiveLog.delta");
 		expect(snap.nodes.find((n) => n.id === "log.page#0.delta")?.factory).toBe(
 			"reactiveLog.page.delta",
@@ -485,7 +485,7 @@ describe("reactiveLog (D60 #5) — incremental view/scan + SENTINEL reject + dec
 			to: "log.page#0.snapshot",
 		});
 		page.dispose();
-		const after = g.describe();
+		const after = g.inspect();
 		expect(after.edges).not.toContainEqual({ from: "log.delta", to: "log.page#0.delta" });
 		expect(after.nodes.map((n) => n.id)).not.toContain("log.page#0.delta");
 		expect(after.nodes.map((n) => n.id)).not.toContain("log.page#0.snapshot");
@@ -516,7 +516,7 @@ describe("reactiveLog (D60 #5) — incremental view/scan + SENTINEL reject + dec
 		log.dispose();
 		expect(
 			g
-				.describe()
+				.inspect()
 				.nodes.map((n) => n.id)
 				.filter((id) => id.includes(".page#")),
 		).toEqual([]);
@@ -529,11 +529,11 @@ describe("reactiveLog (D60 #5) — incremental view/scan + SENTINEL reject + dec
 		const downstream = g.node([page.snapshot as Node<unknown>], null, { name: "consumer" });
 
 		expect(() => page.dispose()).toThrow(/consumer.*still depends.*log\.page#0\.snapshot/);
-		expect(g.describe().nodes.map((n) => n.id)).toContain("log.page#0.snapshot");
+		expect(g.inspect().nodes.map((n) => n.id)).toContain("log.page#0.snapshot");
 
 		rewireOwnedNode(downstream, [], () => {});
 		page.dispose();
-		const after = g.describe();
+		const after = g.inspect();
 		expect(after.nodes.map((n) => n.id)).not.toContain("log.page#0.delta");
 		expect(after.nodes.map((n) => n.id)).not.toContain("log.page#0.snapshot");
 		expect(after.nodes.map((n) => n.id).some((id) => id.startsWith("~reactiveLog.page"))).toBe(

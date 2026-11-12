@@ -80,9 +80,9 @@ afterEach(() => {
 	for (const graph of graphs.splice(0)) {
 		for (const r of constructionOf(graph, "run")?.roots ?? []) r.unsubscribe?.();
 		const group = graph.topologyGroup();
-		for (const n of graph.describe().nodes) group.add(graph.find(n.id)!);
+		for (const n of graph.inspect().nodes) group.add(graph.find(n.id)!);
 		group.release();
-		expect(graph.describe().nodes).toHaveLength(0);
+		expect(graph.inspect().nodes).toHaveLength(0);
 	}
 });
 function facts(id = "A", message = `Message ${id}`) {
@@ -482,7 +482,7 @@ describe("private publication material-v1", () => {
 		} finally {
 			stop();
 			const group = legacy.graph.topologyGroup();
-			for (const n of legacy.graph.describe().nodes) group.add(legacy.graph.find(n.id)!);
+			for (const n of legacy.graph.inspect().nodes) group.add(legacy.graph.find(n.id)!);
 			group.release();
 		}
 	});

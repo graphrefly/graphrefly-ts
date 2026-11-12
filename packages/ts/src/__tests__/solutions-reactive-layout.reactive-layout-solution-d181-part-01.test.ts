@@ -188,7 +188,7 @@ describe("reactive-layout solution (D181) — part 1", () => {
 		const height = collect(bundle.height);
 		const positions = collect(bundle.charPositions);
 
-		expect(bundle.graph.describe().edges).toEqual(
+		expect(bundle.graph.inspect().edges).toEqual(
 			expect.arrayContaining([
 				{ from: "text", to: "text-measurements" },
 				{ from: "font", to: "text-measurements" },

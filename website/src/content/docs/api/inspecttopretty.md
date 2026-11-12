@@ -1,5 +1,5 @@
 ---
-title: "describeToPretty()"
+title: "inspectToPretty()"
 description: "Render a D39 describe snapshot as compact human-readable plaintext."
 ---
 
@@ -10,15 +10,15 @@ Render a D39 describe snapshot as compact human-readable plaintext.
 ## Import
 
 ```ts
-import { describeToPretty } from "@graphrefly/ts/graph";
+import { inspectToPretty } from "@graphrefly/ts/graph";
 ```
 
 ## Signature
 
 ```ts
-function describeToPretty(
-	snapshot: DescribeSnapshot,
-	opts: DescribeToPrettyOptions = {},
+function inspectToPretty(
+	snapshot: InspectSnapshot,
+	opts: InspectToPrettyOptions = {},
 ): string
 ```
 
@@ -26,8 +26,8 @@ function describeToPretty(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `snapshot` | `DescribeSnapshot` | snapshot value used by the helper. |
-| `opts` | `DescribeToPrettyOptions` | Options that configure the helper. |
+| `snapshot` | `InspectSnapshot` | snapshot value used by the helper. |
+| `opts` | `InspectToPrettyOptions` | Options that configure the helper. |
 
 ## Returns
 
@@ -36,7 +36,7 @@ A `string` value.
 ## Example
 
 ```ts
-import { describeToPretty } from "@graphrefly/ts/graph";
+import { inspectToPretty } from "@graphrefly/ts/graph";
 ```
 
 ## Source

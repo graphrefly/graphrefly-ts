@@ -481,7 +481,7 @@ function materializeResult(
 			new TextDecoder().decode(strictCanonicalJsonBytes(answerNode.cache)),
 		) as unknown;
 		const topology = runtimeGraph.topology();
-		const describe = runtimeGraph.describe();
+		const describe = runtimeGraph.inspect();
 		result = {
 			contractVersion: "1",
 			answer,

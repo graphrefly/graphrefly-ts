@@ -78,7 +78,7 @@ describe("tool provider execution recipe (D283/D359-D362)", () => {
 			}),
 		]);
 		expect(issues).toEqual([]);
-		expect(g.describe().nodes).toEqual(
+		expect(g.inspect().nodes).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({
 					id: "toolProviderExecution/catalogs",

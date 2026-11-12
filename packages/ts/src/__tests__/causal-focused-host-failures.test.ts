@@ -225,7 +225,7 @@ for (const target of ["hostGuard", "runEndReady"] as const) {
 		const dispatcher = new FailingDispatcher();
 		const graph = new Graph({ dispatcher });
 		const { inputs } = inputsFor(graph);
-		const before = graph.describe();
+		const before = graph.inspect();
 		const original = ConstructionScope.prototype.node;
 		const spy = vi.spyOn(ConstructionScope.prototype, "node").mockImplementation(function (
 			this: ConstructionScope,
@@ -258,7 +258,7 @@ for (const target of ["hostGuard", "runEndReady"] as const) {
 		expect((caught as ColdConstructionError).originalCause).toBe(failure);
 		expect((caught as ColdConstructionError).cleanupErrors).toEqual([]);
 		expect((caught as Error).message).toContain(`cannot register spending/${target}`);
-		expect(graph.describe()).toEqual(before);
+		expect(graph.inspect()).toEqual(before);
 		expect(dispatcher.live.size).toBe(0);
 	});
 }

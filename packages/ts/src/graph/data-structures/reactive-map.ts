@@ -664,7 +664,7 @@ function createReactiveMap<K, V>(
 		registerBackendStateContributor(intent as Node<unknown>, () => backend.checkpointEntries());
 	}
 	folders.bind(apply as Node<unknown>);
-	const releaseApply = graph.retain(apply, { reason: "reactiveMap.apply" });
+	const releaseApply = graph.retain(apply);
 	const binds: Array<() => void> = [];
 
 	function doSet(key: K, value: V, ttl?: number): void {

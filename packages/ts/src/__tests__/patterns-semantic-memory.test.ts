@@ -196,7 +196,7 @@ describe("memoryRetrievalBundle graph pattern (D158)", () => {
 		const query = g.state({ tags: ["policy"] }, { name: "query" });
 		const bundle = memoryRetrievalBundle<string>(g, { name: "memory", fragments, query });
 
-		expect(g.describe().edges).toEqual(
+		expect(g.inspect().edges).toEqual(
 			expect.arrayContaining([
 				{ from: "fragments", to: "memory/snapshot" },
 				{ from: "query", to: "memory/snapshot" },
@@ -208,7 +208,7 @@ describe("memoryRetrievalBundle graph pattern (D158)", () => {
 				{ from: "memory/snapshot", to: "memory/cursor" },
 			]),
 		);
-		expect(g.describe().nodes.find((node) => node.id === "memory/snapshot")?.factory).toBe(
+		expect(g.inspect().nodes.find((node) => node.id === "memory/snapshot")?.factory).toBe(
 			"memoryRetrievalSnapshot",
 		);
 		expect(bundle.input.fragments).toBe(fragments);
@@ -511,7 +511,7 @@ describe("knowledgeGraphReducerBundle graph pattern (D170)", () => {
 		const topics = collect(bundle.topics);
 		const status = collect(bundle.status);
 
-		expect(g.describe().edges).toEqual(
+		expect(g.inspect().edges).toEqual(
 			expect.arrayContaining([
 				{ from: "assertions", to: "kg/snapshot" },
 				{ from: "policy", to: "kg/snapshot" },
@@ -524,7 +524,7 @@ describe("knowledgeGraphReducerBundle graph pattern (D170)", () => {
 				{ from: "kg/snapshot", to: "kg/cursor" },
 			]),
 		);
-		expect(g.describe().nodes.find((node) => node.id === "kg/snapshot")?.factory).toBe(
+		expect(g.inspect().nodes.find((node) => node.id === "kg/snapshot")?.factory).toBe(
 			"knowledgeGraphReducerSnapshot",
 		);
 		expect(

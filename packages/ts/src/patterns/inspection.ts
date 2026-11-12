@@ -40,7 +40,7 @@ export interface ProfileSummary {
  */
 export function profileSummary(graph: Graph, opts: { limit?: number } = {}): ProfileSummary {
 	const profile = graph.profile();
-	const described = graph.describe();
+	const described = graph.inspect();
 	const nodeIds = new Set(described.nodes.map((node) => node.id));
 	for (const id of Object.keys(profile.nodes)) nodeIds.add(id);
 

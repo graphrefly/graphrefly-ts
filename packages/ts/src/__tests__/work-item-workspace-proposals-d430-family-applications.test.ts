@@ -484,7 +484,7 @@ describe("Workspace proposal family application helpers (D430)", () => {
 		expect(Object.keys(domain).sort()).toEqual(["audit", "issues", "recorded", "status"]);
 		expect(
 			g
-				.describe()
+				.inspect()
 				.nodes.filter((node) => node.factory.includes("workspaceProposal"))
 				.map((node) => node.factory)
 				.sort(),

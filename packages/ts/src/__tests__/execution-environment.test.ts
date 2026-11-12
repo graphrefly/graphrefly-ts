@@ -265,7 +265,7 @@ describe("execution environment targeting and local host gate (D603)", () => {
 		const profiles = g.node<EnvironmentPinnedExecutorProfile>([], null, { name: "profiles" });
 		const routes = g.node<EnvironmentPinnedExecutorRoute>([], null, { name: "routes" });
 		const admitted = g.node<ToolProviderAdapterRunRequested>([], null, { name: "admitted" });
-		const before = g.describe();
+		const before = g.inspect();
 		const gate = localHostExecutionGate(g, {
 			name: "localEnvironmentGate",
 			inputs,
@@ -274,7 +274,7 @@ describe("execution environment targeting and local host gate (D603)", () => {
 			admittedRunRequests: [admitted],
 			now: () => 200,
 		});
-		const after = g.describe();
+		const after = g.inspect();
 		const delta = topologyDiff(before, after).events;
 		expect(delta.filter((event) => event.type === "node-added")).toHaveLength(5);
 		expect(delta.filter((event) => event.type === "edge-added")).toHaveLength(8);

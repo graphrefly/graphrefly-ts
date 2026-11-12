@@ -1,14 +1,14 @@
 /** D667 focused local untrusted-JavaScript compute contract. */
 import type { DataIssue } from "../data/index.js";
 import {
-	type DescribeSnapshot,
 	type GraphTopologySnapshot,
-	topologyFromDescribe,
+	type InspectSnapshot,
+	topologyFromInspect,
 } from "../graph/describe.js";
 import type { Graph } from "../graph/graph.js";
 import { compoundTupleKey } from "../identity.js";
 import { strictCanonicalJsonBytes } from "../json/codec.js";
-import type { Node, StateNode } from "../node/node.js";
+import type { Node, StateNode, Status } from "../node/node.js";
 import type {
 	AgentRuntimeAuditRecord,
 	ExecutorOutcome,
@@ -145,7 +145,7 @@ export interface LocalUntrustedJsComputeRunnerResult {
 	readonly contractVersion: "1";
 	readonly answer: LocalUntrustedJsJson;
 	readonly topology: GraphTopologySnapshot;
-	readonly describe: DescribeSnapshot;
+	readonly describe: InspectSnapshot;
 	readonly provenance: LocalUntrustedJsComputeProvenance;
 	readonly cleanup: {
 		readonly graphNodesAfterDispose: 0;
@@ -1272,20 +1272,19 @@ function runnerResult(
 		throw new TypeError("Local untrusted JS compute runner result has mismatched provenance.");
 	const answer = cloneJson(value.answer, "local untrusted JS compute answer");
 	const topology = validateTopologySnapshot(value.topology, manifest);
-	const describe = validateDescribeSnapshot(value.describe, manifest);
-	const answerDescribeNode = describe.nodes.find(
+	const describe = validateInspectSnapshot(value.describe, manifest);
+	const answerInspectNode = describe.nodes.find(
 		(node) => node.id === value.provenance.answerNodeId,
 	);
 	if (
-		JSON.stringify(topology) !== JSON.stringify(topologyFromDescribe(describe)) ||
+		JSON.stringify(topology) !== JSON.stringify(topologyFromInspect(describe)) ||
 		topology.name !== value.provenance.graphName ||
 		describe.name !== value.provenance.graphName ||
 		!topology.nodes.some((node) => node.id === value.provenance.answerNodeId) ||
-		answerDescribeNode === undefined ||
-		answerDescribeNode.value === undefined ||
-		JSON.stringify(
-			cloneJson(answerDescribeNode.value, "local untrusted JS compute answer node"),
-		) !== JSON.stringify(answer)
+		answerInspectNode === undefined ||
+		answerInspectNode.value === undefined ||
+		JSON.stringify(cloneJson(answerInspectNode.value, "local untrusted JS compute answer node")) !==
+			JSON.stringify(answer)
 	)
 		throw new TypeError("Local untrusted JS compute topology and describe snapshots disagree.");
 	const provenance = Object.freeze({
@@ -1499,10 +1498,10 @@ function topologyEdge(value: unknown): GraphTopologySnapshot["edges"][number] {
 	return Object.freeze({ from: value.from, to: value.to });
 }
 
-function validateDescribeSnapshot(
+function validateInspectSnapshot(
 	value: unknown,
 	manifest: LocalUntrustedJsComputeManifest,
-): DescribeSnapshot {
+): InspectSnapshot {
 	const budget: TopologyBudget = {
 		nodes: 0,
 		edges: 0,
@@ -1517,7 +1516,7 @@ function describeSnapshot(
 	manifest: LocalUntrustedJsComputeManifest,
 	budget: TopologyBudget,
 	depth: number,
-): DescribeSnapshot {
+): InspectSnapshot {
 	if (depth > 32) throw new TypeError("Local untrusted JS compute describe is too deeply nested.");
 	exactOptionalKeys(value, ["nodes", "edges"], ["mountId", "name", "subgraphs"]);
 	if (!Array.isArray(value.nodes) || !Array.isArray(value.edges))
@@ -1551,7 +1550,7 @@ function describeSnapshot(
 		[...observedEdges].some((edge) => !expectedEdges.has(edge))
 	)
 		throw new TypeError("Local untrusted JS compute describe edges disagree with node deps.");
-	const out: DescribeSnapshot = { nodes, edges };
+	const out: InspectSnapshot = { nodes, edges };
 	if (depth === 0 && value.mountId !== undefined)
 		throw new TypeError("Local untrusted JS compute root describe must not have a mount id.");
 	if (depth > 0 && value.mountId === undefined)
@@ -1577,12 +1576,8 @@ function describeSnapshot(
 	return Object.freeze(out);
 }
 
-function describeNode(value: unknown): DescribeSnapshot["nodes"][number] {
-	exactOptionalKeys(
-		value,
-		["id", "factory", "deps", "status"],
-		["name", "meta", "value", "version"],
-	);
+function describeNode(value: unknown): InspectSnapshot["nodes"][number] {
+	exactOptionalKeys(value, ["id", "factory", "deps", "status"], ["name", "meta", "value"]);
 	const topology = topologyNode({
 		id: value.id,
 		factory: value.factory,
@@ -1590,19 +1585,25 @@ function describeNode(value: unknown): DescribeSnapshot["nodes"][number] {
 		...(value.name === undefined ? {} : { name: value.name }),
 		...(value.meta === undefined ? {} : { meta: value.meta }),
 	});
-	if (
-		!["sentinel", "pending", "dirty", "settled", "resolved", "completed", "errored"].includes(
-			String(value.status),
-		)
-	)
-		throw new TypeError("Local untrusted JS compute describe node status is invalid.");
-	const out: DescribeSnapshot["nodes"][number] = {
+	const out: InspectSnapshot["nodes"][number] = {
 		...topology,
-		status: value.status as DescribeSnapshot["nodes"][number]["status"],
+		status: describeStatus(value.status),
 	};
 	if (Object.hasOwn(value, "value"))
 		out.value = cloneJson(value.value, "local untrusted JS compute describe node value");
 	return Object.freeze(out);
+}
+
+/** A node's Status (R-node@2): exactly its cache, output and lifecycle, each from its closed set. */
+function describeStatus(value: unknown): Status {
+	exactKeys(value, ["cache", "output", "lifecycle"]);
+	if (
+		!["empty", "stale", "ready"].includes(String(value.cache)) ||
+		!["open", "completed", "errored"].includes(String(value.output)) ||
+		!["inactive", "active", "closing"].includes(String(value.lifecycle))
+	)
+		throw new TypeError("Local untrusted JS compute describe node status is invalid.");
+	return Object.freeze({ ...value }) as unknown as Status;
 }
 
 function exactKeys(

@@ -10,7 +10,7 @@ import { rewireOwnedNode } from "./helpers/owned-rewire.js";
 const graphs: Graph[] = [];
 const bare: Node<unknown>[] = [];
 const stops: Array<() => void> = [];
-const nativeDescribe = Graph.prototype.describe;
+const nativeInspect = Graph.prototype.inspect;
 function graph() {
 	const g = new Graph();
 	graphs.push(g);
@@ -39,7 +39,7 @@ afterEach(() => {
 	vi.restoreAllMocks();
 	for (const stop of stops.splice(0)) stop();
 	for (const g of graphs.splice(0)) {
-		const nodes = nativeDescribe.call(g).nodes.flatMap(({ id }) => {
+		const nodes = nativeInspect.call(g).nodes.flatMap(({ id }) => {
 			const n = g.find(id);
 			return n ? [n] : [];
 		});
@@ -86,11 +86,11 @@ describe("D161 B1 incoming inspection", () => {
 			inspected.node([], null, { name: "~hidden#0" });
 			if (mount) f.g.mount(inspected, { at: "child" });
 			if (local) f.scope.readIncoming();
-			else f.g.describe();
+			else f.g.inspect();
 			const events: TopologyEvent[] = [];
 			stops.push(inspected.observeTopology().subscribe((e) => events.push(e)));
 			inspected.node([hidden(inspected)], null, { name: "later" });
-			return { events, snapshot: f.g.describe(), checkpoint: f.g.checkpoint() };
+			return { events, snapshot: f.g.inspect(), checkpoint: f.g.checkpoint() };
 		}
 		expect(run(true)).toEqual(run(false));
 	});
@@ -99,16 +99,16 @@ describe("D161 B1 incoming inspection", () => {
 		const f = fixture();
 		rewireOwnedNode(f.root, [hidden(f.g)]);
 		expect(f.scope.readIncoming().edges).toEqual([{ from: "~hidden#0", to: "view/root" }]);
-		expect(f.g.describe().nodes.find((n) => n.id === "view/root")?.deps).toEqual(["~hidden#0"]);
+		expect(f.g.inspect().nodes.find((n) => n.id === "view/root")?.deps).toEqual(["~hidden#0"]);
 	});
 
 	it("captures parent edges before the mounted child's overridden read changes them", () => {
 		const f = fixture();
 		const child = graph();
 		f.g.mount(child, { at: "child" });
-		const read = vi.spyOn(child, "describe").mockImplementation((opts, prefix) => {
+		const read = vi.spyOn(child, "inspect").mockImplementation((opts, prefix) => {
 			rewireOwnedNode(f.root, [f.b]);
-			return nativeDescribe.call(child, opts, prefix);
+			return nativeInspect.call(child, opts, prefix);
 		});
 		expect(f.scope.readIncoming().edges).toEqual([
 			{ from: "a", to: "view/root" },
@@ -123,7 +123,7 @@ describe("D161 B1 incoming inspection", () => {
 		const child = graph();
 		f.g.mount(child, { at: "child" });
 		const failure = new Error("child inspection");
-		vi.spyOn(child, "describe").mockImplementation(() => {
+		vi.spyOn(child, "inspect").mockImplementation(() => {
 			throw failure;
 		});
 		expect(() => f.scope.readIncoming()).toThrow(failure);
@@ -136,7 +136,7 @@ describe("D161 B1 incoming inspection", () => {
 		const f = fixture();
 		const snapshot = { nodes: [], edges: [{ from: "extra", to: "outside" }] };
 		const read = vi
-			.spyOn(kind === "instance" ? f.g : Graph.prototype, "describe")
+			.spyOn(kind === "instance" ? f.g : Graph.prototype, "inspect")
 			.mockReturnValue(snapshot);
 		expect(f.scope.readIncoming()).toBe(snapshot);
 		expect(read).toHaveBeenCalledExactlyOnceWith();
@@ -145,7 +145,7 @@ describe("D161 B1 incoming inspection", () => {
 	it("preserves subclass overrides and exceptions", () => {
 		let calls = 0;
 		class CustomGraph extends Graph {
-			override describe(): never {
+			override inspect(): never {
 				calls += 1;
 				throw new Error("custom read");
 			}
@@ -161,21 +161,21 @@ describe("D161 B1 incoming inspection", () => {
 		const f = fixture();
 		let reads = 0;
 		const snapshot = { nodes: [], edges: [] };
-		Object.defineProperty(f.g, "describe", {
+		Object.defineProperty(f.g, "inspect", {
 			configurable: true,
 			get() {
 				reads += 1;
-				if (reads > 1) throw new Error("describe was read twice");
-				const describe = function (this: Graph) {
+				if (reads > 1) throw new Error("inspect was read twice");
+				const inspect = function (this: Graph) {
 					expect(this).toBe(f.g);
 					return snapshot;
 				};
-				Object.defineProperty(describe, "call", {
+				Object.defineProperty(inspect, "call", {
 					get() {
 						throw new Error("extra call property read");
 					},
 				});
-				return describe;
+				return inspect;
 			},
 		});
 		expect(f.scope.readIncoming()).toBe(snapshot);

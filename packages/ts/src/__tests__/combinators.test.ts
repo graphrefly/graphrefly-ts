@@ -383,7 +383,7 @@ describe("Slice 2 — notifier-driven (D46 first-cut)", () => {
 		const b = g.state(2, { name: "b" });
 		g.initNode(combine<[number, number]>(), [a, b], { name: "c" });
 		g.initNode(zip<[number, number]>(), [a, b], { name: "z" });
-		const byId = Object.fromEntries(g.describe().nodes.map((n) => [n.id, n]));
+		const byId = Object.fromEntries(g.inspect().nodes.map((n) => [n.id, n]));
 		expect(byId.c.factory).toBe("combine");
 		expect(byId.z.factory).toBe("zip");
 	});

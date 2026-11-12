@@ -172,7 +172,7 @@ for (const topic of topics) {
 }
 
 console.log("\ncausal chain:");
-for (const edge of g.describe({ explain: { from: "docs", to: "kg/relations" } }).edges) {
+for (const edge of g.inspect({ explain: { from: "docs", to: "kg/relations" } }).edges) {
 	console.log(`  ${edge.from} -> ${edge.to}`);
 }
 

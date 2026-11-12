@@ -303,12 +303,12 @@ export function cqrs<TCommand = unknown, TEvent = unknown>(
 		"cqrsCursor",
 		(fact) => (fact.kind === "cursor" ? fact.cursor : undefined),
 	);
-	graph.retain(runtime, { reason: `${name}.cqrs.runtime` });
-	graph.retain(events, { reason: `${name}.cqrs.events` });
-	graph.retain(status, { reason: `${name}.cqrs.status` });
-	graph.retain(errors, { reason: `${name}.cqrs.errors` });
-	graph.retain(audit, { reason: `${name}.cqrs.audit` });
-	graph.retain(cursor, { reason: `${name}.cqrs.cursor` });
+	graph.retain(runtime);
+	graph.retain(events);
+	graph.retain(status);
+	graph.retain(errors);
+	graph.retain(audit);
+	graph.retain(cursor);
 	return {
 		command,
 		runtime,
@@ -503,10 +503,10 @@ export function cqrsProjection<TState, TEvent = unknown>(
 			error: "manual",
 		},
 	);
-	graph.retain(frames, { reason: `${name}.cqrsProjection.frames` });
-	graph.retain(value, { reason: `${name}.cqrsProjection.value` });
-	graph.retain(status, { reason: `${name}.cqrsProjection.status` });
-	graph.retain(errors, { reason: `${name}.cqrsProjection.errors` });
+	graph.retain(frames);
+	graph.retain(value);
+	graph.retain(status);
+	graph.retain(errors);
 	return { frames, value, status, errors };
 }
 

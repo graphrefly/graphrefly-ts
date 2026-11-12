@@ -33,7 +33,7 @@ reset(); // count 1 -> 0 / doubled: 0
 
 console.log(
 	"graph nodes:",
-	g.describe().nodes.map((node) => node.name ?? node.id),
+	g.inspect().nodes.map((node) => node.name ?? node.id),
 );
 console.log(
 	"graph checkpoint nodes:",

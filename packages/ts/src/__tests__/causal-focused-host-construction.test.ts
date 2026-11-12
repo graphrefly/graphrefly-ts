@@ -38,13 +38,13 @@ function fixture(create: typeof composeOfflineSpending, diagnostics: "off" | "su
 	const teardown = () => {
 		for (const root of host.owner.roots) root.unsubscribe?.();
 		const group = graph.topologyGroup();
-		for (const n of graph.describe().nodes) group.add(graph.find(n.id)!);
+		for (const n of graph.inspect().nodes) group.add(graph.find(n.id)!);
 		group.release();
 	};
 	return { graph, host, calls, sources, teardown };
 }
 function topology(graph: Graph) {
-	const snapshot = graph.describe();
+	const snapshot = graph.inspect();
 	return {
 		nodes: snapshot.nodes.map(({ id, name, factory }) => ({ id, name, factory })),
 		edges: snapshot.edges,
@@ -116,7 +116,7 @@ for (const [label, create] of [
 	it(`${label} rejects wrong graph without allocating owned nodes`, () => {
 		const graph = new Graph();
 		const { inputs } = inputsFor(new Graph());
-		const before = graph.describe();
+		const before = graph.inspect();
 		expect(() =>
 			create(
 				graph,
@@ -126,12 +126,12 @@ for (const [label, create] of [
 				{ name: "spending" },
 			),
 		).toThrow();
-		expect(graph.describe()).toEqual(before);
+		expect(graph.inspect()).toEqual(before);
 	});
 	it(`${label} preserves original cold failure and cleans owned nodes`, () => {
 		const graph = new Graph();
 		const { inputs } = inputsFor(graph);
-		const before = graph.describe();
+		const before = graph.inspect();
 		let caught: unknown;
 		try {
 			create(
@@ -147,7 +147,7 @@ for (const [label, create] of [
 		expect(caught).toBeInstanceOf(ColdConstructionError);
 		expect((caught as ColdConstructionError).originalCause).toBeInstanceOf(TypeError);
 		expect((caught as ColdConstructionError).cleanupErrors).toEqual([]);
-		expect(graph.describe()).toEqual(before);
+		expect(graph.inspect()).toEqual(before);
 	});
 }
 it("explicit afterStart cannot schedule duplicate startup notifications", async () => {
@@ -169,7 +169,7 @@ it("explicit afterStart cannot schedule duplicate startup notifications", async 
 	} finally {
 		for (const root of host.owner.roots) root.unsubscribe?.();
 		const group = graph.topologyGroup();
-		for (const n of graph.describe().nodes) group.add(graph.find(n.id)!);
+		for (const n of graph.inspect().nodes) group.add(graph.find(n.id)!);
 		group.release();
 	}
 });

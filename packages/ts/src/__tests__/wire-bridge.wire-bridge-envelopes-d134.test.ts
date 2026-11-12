@@ -333,7 +333,7 @@ describe("wire bridge envelopes (D134)", () => {
 				lastSeq: 1,
 			},
 		]);
-		const snap = g.describe();
+		const snap = g.inspect();
 		expect(snap.nodes.map((node) => node.id).sort()).toEqual([
 			"bridge/acks",
 			"bridge/attempts",
@@ -660,7 +660,7 @@ describe("wire bridge envelopes (D134)", () => {
 		]);
 		bridge.command.set({ kind: "ack-timeout", seq: 1, attempt: 1, observedAtMs: 1015 });
 		expect(outbound.filter((msg) => msg[0] === "DATA")).toHaveLength(2);
-		const snap = g.describe();
+		const snap = g.inspect();
 		expect(snap.edges).toContainEqual({ from: "clock", to: "ackDriver/events" });
 		expect(snap.edges).toContainEqual({ from: "bridge/attempts", to: "ackDriver/events" });
 		expect(snap.edges).toContainEqual({ from: "bridge/acks", to: "ackDriver/events" });
@@ -745,8 +745,8 @@ describe("wire bridge envelopes (D134)", () => {
 		clock.set(1005);
 
 		expect(commands.filter((msg) => msg[0] === "DATA")).toEqual([]);
-		expect(g.describe().edges).not.toContainEqual({ from: "clock", to: "ackDriver/events" });
-		expect(g.describe().edges).not.toContainEqual({
+		expect(g.inspect().edges).not.toContainEqual({ from: "clock", to: "ackDriver/events" });
+		expect(g.inspect().edges).not.toContainEqual({
 			from: "ackDriver/commands",
 			to: "bridge/command",
 		});

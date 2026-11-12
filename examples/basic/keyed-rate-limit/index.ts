@@ -275,7 +275,7 @@ function attachGovernedConsumer(
 }
 
 function assertGovernedTopology(consumer: ReturnType<typeof attachGovernedConsumer>): void {
-	const snapshot = consumer.graph.describe();
+	const snapshot = consumer.graph.inspect();
 	const id = (name: string): string => {
 		const nodeId = snapshot.nodes.find((node) => node.name === name)?.id;
 		check(nodeId !== undefined, `missing topology node ${name}`);

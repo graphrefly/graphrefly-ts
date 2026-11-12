@@ -1,6 +1,6 @@
 export {
-	type DescribeChangeset,
-	type DescribeEvent,
+	type InspectChangeset,
+	type InspectEvent,
 	type PipeOperator,
 	pipe,
 	type Stratified,

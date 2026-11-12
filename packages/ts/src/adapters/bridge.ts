@@ -293,7 +293,7 @@ export function wireBridge<TOutbound = unknown, TInbound = unknown>(
 	// Commands are state writes and a state keeps only its last value, so the event fold stays
 	// active for the bridge's life: two sends made while nothing subscribes are both handled
 	// (as graphrefly-rs does). The fold holds no host subscription (D651).
-	graph.retain(events, { reason: `${name}.wireBridge.events` });
+	graph.retain(events);
 	const outbound = projectOutbound(graph, events, name);
 	const acks = projectAcks(graph, events, name);
 	const nacks = projectNacks(graph, events, name);

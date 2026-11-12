@@ -174,11 +174,11 @@ export function publicationRun(
 			scope.abort(error);
 		} catch {
 			const group = graph.topologyGroup();
-			for (const n of graph.describe().nodes) group.add(graph.find(n.id)!);
+			for (const n of graph.inspect().nodes) group.add(graph.find(n.id)!);
 			group.release();
 			if (foreign) {
 				const group = foreign.topologyGroup();
-				for (const n of foreign.describe().nodes) group.add(foreign.find(n.id)!);
+				for (const n of foreign.inspect().nodes) group.add(foreign.find(n.id)!);
 				group.release();
 			}
 			throw error;
@@ -202,9 +202,11 @@ export function publicationRun(
 	const connect = () => {
 		if (ui) return;
 		if (options.observe)
-			observeStop = graph.observe("publication").subscribe((event) => {
-				events++;
-				summaryBytes += Buffer.byteLength(JSON.stringify({ path: event.path, type: event.msg[0] }));
+			observeStop = graph.observe(["publication"], (event) => {
+				for (const msg of event.msgs) {
+					events++;
+					summaryBytes += Buffer.byteLength(JSON.stringify({ id: event.id, type: msg[0] }));
+				}
 			});
 		ui = built.publication.subscribe((incoming) => {
 			for (const m of incoming) {
@@ -258,9 +260,9 @@ export function publicationRun(
 		disconnect();
 		for (const r of owner.roots) r.unsubscribe?.();
 		const group = graph.topologyGroup();
-		for (const n of graph.describe().nodes) group.add(graph.find(n.id)!);
+		for (const n of graph.inspect().nodes) group.add(graph.find(n.id)!);
 		group.release();
-		assert.equal(graph.describe().nodes.length, 0);
+		assert.equal(graph.inspect().nodes.length, 0);
 	};
 	return {
 		graph,

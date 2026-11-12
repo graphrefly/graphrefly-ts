@@ -347,7 +347,7 @@ describe("D648/D649 bounded admission and exact correlation", () => {
 	it("keeps its ledger as a declared strict-JSON state, so a checkpoint captures it (fable 2.12)", () => {
 		const t = setup();
 		expect(() => t.g.checkpoint()).not.toThrow();
-		const edges = t.g.describe().edges;
+		const edges = t.g.inspect().edges;
 		expect(edges).toContainEqual({ from: "limit/ledger", to: "limit/runtime" });
 		const req = request("checkpointed");
 		t.requests.set(req);
@@ -506,7 +506,7 @@ describe("D648/D649 host authority adapter and topology", () => {
 		requests.set(request("topology"));
 		expect(admissions.values).toHaveLength(1);
 
-		const topology = g.describe();
+		const topology = g.inspect();
 		const edge = (from: string, to: string) =>
 			topology.edges.some((candidate) => candidate.from === from && candidate.to === to);
 		expect(edge("requests", "authority/events")).toBe(true);

@@ -73,7 +73,7 @@ describe("Graph.observeTopology — read-only topology egress (D145)", () => {
 		expect(events).toEqual([
 			{ kind: "deps-changed", path: "d", prevDeps: ["a"], deps: ["b"], seq: 0 },
 		]);
-		const snap = g.describe();
+		const snap = g.inspect();
 		expect(snap.nodes.find((node) => node.id === "d")?.deps).toEqual(["b"]);
 		expect(snap.edges).toContainEqual({ from: "b", to: "d" });
 		expect(snap.edges).not.toContainEqual({ from: "a", to: "d" });
@@ -91,8 +91,8 @@ describe("Graph.observeTopology — read-only topology egress (D145)", () => {
 		expect(events).toEqual([
 			{ kind: "mount-changed", path: "sub", deps: [], factory: "mount", seq: 0 },
 		]);
-		expect(parent.describe().subgraphs?.[0].name).toBeUndefined();
-		expect(parent.describe().subgraphs?.[0].nodes).toEqual([]);
+		expect(parent.inspect().subgraphs?.[0].name).toBeUndefined();
+		expect(parent.inspect().subgraphs?.[0].nodes).toEqual([]);
 	});
 
 	it("forwards mounted child topology events through mount-aware parent paths", () => {
@@ -128,7 +128,7 @@ describe("Graph.observeTopology — read-only topology egress (D145)", () => {
 				seq: 3,
 			},
 		]);
-		const snap = parent.describe();
+		const snap = parent.inspect();
 		expect(snap.subgraphs?.[0].nodes.find((node) => node.id === "sub::d")?.deps).toEqual([
 			"sub::b",
 		]);
@@ -166,7 +166,9 @@ describe("Graph.observeTopology — read-only topology egress (D145)", () => {
 		expect(cold.cache).toBeUndefined();
 		expect(topologyEvents).toEqual([]);
 
-		const observeUnsub = g.observe("cold").subscribe((event) => protocolEvents.push(event.msg[0]));
+		const observeUnsub = g.observe(["cold"], (event) =>
+			protocolEvents.push(...event.msgs.map((m) => m[0])),
+		);
 		observeUnsub();
 		expect(runs).toBe(1);
 		expect(protocolEvents).toContain("DATA");
@@ -256,7 +258,7 @@ describe("Graph.observeTopology — read-only topology egress (D145)", () => {
 			},
 		]);
 		expect(g.find("derived")).toBeUndefined();
-		expect(g.describe().nodes.map((node) => node.id)).not.toContain("derived");
+		expect(g.inspect().nodes.map((node) => node.id)).not.toContain("derived");
 		expect(g.checkpoint().nodes.map((node) => node.id)).not.toContain("derived");
 		expect(() => derived.subscribe(() => {})).toThrow(/released from its graph lifecycle/);
 	});
@@ -275,7 +277,7 @@ describe("Graph.observeTopology — read-only topology egress (D145)", () => {
 		unsub();
 		expect(events).toEqual([]);
 		expect(g.find("derived")).toBe(derived);
-		expect(g.describe().nodes.map((node) => node.id)).toContain("derived");
+		expect(g.inspect().nodes.map((node) => node.id)).toContain("derived");
 		expect(g.checkpoint().nodes.map((node) => node.id)).toContain("derived");
 	});
 
@@ -314,8 +316,8 @@ describe("Graph.observeTopology — read-only topology egress (D145)", () => {
 		expect(laterCleanupRan).toBe(true);
 		expect(g.find("panic")).toBeUndefined();
 		expect(g.find("later")).toBeUndefined();
-		expect(g.describe().nodes.map((node) => node.id)).not.toContain("panic");
-		expect(g.describe().nodes.map((node) => node.id)).not.toContain("later");
+		expect(g.inspect().nodes.map((node) => node.id)).not.toContain("panic");
+		expect(g.inspect().nodes.map((node) => node.id)).not.toContain("later");
 		expect(() => panic.subscribe(() => {})).toThrow(/released from its graph lifecycle/);
 	});
 });
@@ -333,7 +335,7 @@ describe("Graph.topologyGroup — graph-owned dynamic topology release (D152/D15
 
 		expect(g.find("view.delta")).toBe(delta);
 		expect(g.find("view.snapshot")).toBe(snapshot);
-		expect(g.describe().nodes.map((node) => node.id)).toEqual(
+		expect(g.inspect().nodes.map((node) => node.id)).toEqual(
 			expect.arrayContaining(["source", "view.delta", "view.snapshot"]),
 		);
 		expect(Object.keys(g.profile().nodes)).toEqual(
@@ -380,7 +382,7 @@ describe("Graph.topologyGroup — graph-owned dynamic topology release (D152/D15
 		]);
 		expect(g.find("view.delta")).toBeUndefined();
 		expect(g.find("view.snapshot")).toBeUndefined();
-		expect(g.describe().nodes.map((node) => node.id)).not.toContain("view.delta");
+		expect(g.inspect().nodes.map((node) => node.id)).not.toContain("view.delta");
 		expect(Object.keys(g.profile().nodes)).not.toContain("view.delta");
 		expect(g.checkpoint().nodes.map((node) => node.id)).not.toContain("view.delta");
 		expect(() => g.state(0, { name: "view.delta" })).toThrow(/released/);
@@ -681,13 +683,13 @@ describe("Graph release-local subscriber accounting — D122/D124", () => {
 			}
 		});
 		expect(messages).toContainEqual(["DATA", 11]);
-		const before = g.describe();
+		const before = g.inspect();
 		const events: TopologyEvent[] = [];
 		const stopEvents = g.observeTopology().subscribe((e) => events.push(e));
 
 		// a,b,left,right have internal subscribers: only the final sink prevents release.
 		expect(() => group.release()).toThrow(/'join' still has live subscribers/);
-		expect(g.describe()).toEqual(before);
+		expect(g.inspect()).toEqual(before);
 		expect(group.released).toBe(false);
 		expect(events).toEqual([]);
 		// Live topology changes after rejection must be read again on the next attempt.
@@ -699,7 +701,7 @@ describe("Graph release-local subscriber accounting — D122/D124", () => {
 		group.release();
 		group.release();
 		expect(events.map((e) => e.kind)).toEqual(Array(5).fill("node-released"));
-		expect(g.describe().nodes).toEqual([]);
+		expect(g.inspect().nodes).toEqual([]);
 		expect(Object.keys(g.profile().nodes)).toEqual([]);
 		expect(g.checkpoint().nodes).toEqual([]);
 		for (const name of ["a", "b", "left", "right", "join"]) {
@@ -714,11 +716,11 @@ describe("Graph release-local subscriber accounting — D122/D124", () => {
 		const first = g.state(1, { name: "first" });
 		const later = g.node([], null, { name: "later" });
 		const disconnect = first.subscribe(() => {});
-		const before = g.describe();
+		const before = g.inspect();
 		expect(() => releaseGraphNodes(g, [first, first, later])).toThrow(
 			/'first' still has live subscribers/,
 		);
-		expect(g.describe()).toEqual(before);
+		expect(g.inspect()).toEqual(before);
 		disconnect();
 	});
 
@@ -728,9 +730,9 @@ describe("Graph release-local subscriber accounting — D122/D124", () => {
 		const b = g.node([], null, { name: "b" });
 		g.derived([b], (x) => x, { name: "outside" });
 		const disconnect = a.subscribe(() => {});
-		const before = g.describe();
+		const before = g.inspect();
 		expect(() => releaseGraphNodes(g, [a, b])).toThrow(/'outside' still depends on 'b'/);
-		expect(g.describe()).toEqual(before);
+		expect(g.inspect()).toEqual(before);
 		disconnect();
 	});
 });

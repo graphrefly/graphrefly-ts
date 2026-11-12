@@ -140,16 +140,16 @@ describe("D82 storage substrate helpers — part 3", () => {
 			),
 		).toThrow(/canonical/);
 
-		const observed: ObserveEvent = { path: "count", msg: ["DATA", 1], tier: 3, seq: 7 };
-		const frame = observeEventFrame(observed, { value: 1 }, { stream: "audit" });
+		const observed: ObserveEvent = { id: "count", msgs: [["DATA", 1]] };
+		const frame = observeEventFrame(observed, 7, { value: 1 }, { stream: "audit" });
 		const frameCodec = observeEventFrameCodec<{ value: number }>();
 		expect(frame).toMatchObject({
 			structure: "observe-event",
 			version: 1,
 			t_ns: expect.any(String),
 			stream: "audit",
-			observeSeq: 7,
-			path: "count",
+			seq: 7,
+			id: "count",
 			change: { value: 1 },
 		});
 		expect(frame.t_ns).toMatch(/^(0|[1-9]\d*)$/);
@@ -160,7 +160,7 @@ describe("D82 storage substrate helpers — part 3", () => {
 		expect(() =>
 			frameCodec.decode(
 				new TextEncoder().encode(
-					'{"lifecycle":"data","structure":"observe-event","version":1,"t_ns":"123","change":{},"observeSeq":1,"path":"count"}',
+					'{"lifecycle":"data","structure":"observe-event","version":1,"t_ns":"123","change":{},"seq":1,"id":"count"}',
 				),
 			),
 		).toThrow(/canonical/);

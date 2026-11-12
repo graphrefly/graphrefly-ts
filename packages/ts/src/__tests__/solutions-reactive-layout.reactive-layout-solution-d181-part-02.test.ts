@@ -237,7 +237,7 @@ describe("reactive-layout solution (D181) — part 2", () => {
 		});
 		const totalHeight = collect(bundle.totalHeight);
 
-		expect(bundle.graph.describe().edges).toEqual(
+		expect(bundle.graph.inspect().edges).toEqual(
 			expect.arrayContaining([
 				{ from: "blocks", to: "blocks-measurements" },
 				{ from: "max-width", to: "blocks-measurements" },
@@ -614,7 +614,7 @@ describe("reactive-layout solution (D181) — part 2", () => {
 		});
 		const flow = collect(bundle.flowLines);
 
-		expect(bundle.graph.describe().edges).toEqual(
+		expect(bundle.graph.inspect().edges).toEqual(
 			expect.arrayContaining([
 				{ from: "text", to: "text-measurements" },
 				{ from: "font", to: "text-measurements" },

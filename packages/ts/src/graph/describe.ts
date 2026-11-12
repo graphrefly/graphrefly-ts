@@ -1,12 +1,25 @@
 /**
- * topology()/describe() snapshot shapes (R-describe / D39 / D51 / D173).
+ * describe() / inspect() / topology() shapes.
  *
- * topology() is the current pure-structure snapshot direction (D173). describe()
- * remains the richer developer inspection snapshot over the same live topology
- * truth source, adding runtime status/value/version fields.
+ * describe() is R-graph-surface@1's topology as data: exactly `{ id, kind, deps, quiet }` per
+ * node. inspect() is this package's own richer snapshot over the same live dependencies (names,
+ * factories, status, values, annotations, edges and mounted subgraphs, graphrefly-ts:D183), and
+ * topology() its pure-structure projection (D173).
  */
 
 import type { Status } from "../node/node.js";
+
+/** One node of describe() (R-graph-surface@1), and nothing else. */
+export interface DescribedNode {
+	/** The node's id in this graph. */
+	id: string;
+	/** A state (no dependencies and no function, R-node) or any other node. */
+	kind: "state" | "node";
+	/** The current dependencies' ids, a ctx.rewire's included. */
+	deps: string[];
+	/** Whether the node's output is quiet (R-node). */
+	quiet: boolean;
+}
 
 export interface GraphTopologyNode {
 	/** Stable mount-aware `::` path (auto-numbered when unnamed). Edge key. */
@@ -35,29 +48,29 @@ export interface GraphTopologySnapshot {
 	subgraphs?: GraphTopologySnapshot[];
 }
 
-export interface DescribeNode extends GraphTopologyNode {
+export interface InspectNode extends GraphTopologyNode {
 	/** R-status-enum (7). */
 	status: Status;
 	/** Cache snapshot at call time; field ABSENT = SENTINEL / never-emitted. */
 	value?: unknown;
 }
 
-export interface DescribeEdge extends GraphTopologyEdge {}
+export interface InspectEdge extends GraphTopologyEdge {}
 
-export interface DescribeSnapshot extends GraphTopologySnapshot {
+export interface InspectSnapshot extends GraphTopologySnapshot {
 	name?: string;
-	nodes: DescribeNode[];
-	edges: DescribeEdge[];
-	subgraphs?: DescribeSnapshot[];
+	nodes: InspectNode[];
+	edges: InspectEdge[];
+	subgraphs?: InspectSnapshot[];
 }
 
-export interface DescribeOpts {
-	/** Causal-chain mode: filter to nodes on a path from→to (R-describe). */
+export interface InspectOpts {
+	/** Causal-chain mode: filter to nodes on a path from→to (graphrefly-ts:D183). */
 	explain?: { from: string; to: string };
 }
 
-/** Project a rich describe snapshot into the D173 pure-structure topology shape. */
-export function topologyFromDescribe(snapshot: DescribeSnapshot): GraphTopologySnapshot {
+/** Project an inspect() snapshot into the D173 pure-structure topology shape. */
+export function topologyFromInspect(snapshot: InspectSnapshot): GraphTopologySnapshot {
 	const nodes = snapshot.nodes.map((node) => {
 		const topologyNode: GraphTopologyNode = {
 			id: node.id,
@@ -74,8 +87,7 @@ export function topologyFromDescribe(snapshot: DescribeSnapshot): GraphTopologyS
 	};
 	if (snapshot.mountId !== undefined) out.mountId = snapshot.mountId;
 	if (snapshot.name !== undefined) out.name = snapshot.name;
-	if (snapshot.subgraphs !== undefined)
-		out.subgraphs = snapshot.subgraphs.map(topologyFromDescribe);
+	if (snapshot.subgraphs !== undefined) out.subgraphs = snapshot.subgraphs.map(topologyFromInspect);
 	return out;
 }
 

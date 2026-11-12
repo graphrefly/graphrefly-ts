@@ -79,7 +79,7 @@ export interface NodeOptions<T = unknown> {
 	 * Real operator/source factory name for a STANDALONE graph-less node (D43-reserved; D51).
 	 * The graph index (`_entries`) carries the factory for g.*-registered nodes, so this is only
 	 * read for a node NOT in any graph index — a runtime *Map inner (bare `fromAny`/`initNode`
-	 * node) auto-discovered by `describe` (R-describe / R-edges-derived / D51). Off the canonical
+	 * node) auto-discovered by `describe` (R-graph-surface / R-edges-derived / D51). Off the canonical
 	 * wave path (R-node-thin intact — a pure annotation, never touched by the wave machinery).
 	 */
 	factory?: string;

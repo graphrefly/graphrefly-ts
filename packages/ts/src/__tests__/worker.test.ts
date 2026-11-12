@@ -43,7 +43,7 @@ describe("workerDerived — backend-required helper-first worker slice (D148)", 
 
 		jobs[0].settle({ ok: true, value: jobs[0].job.compute(jobs[0].job.input) });
 		expect(seen).toContainEqual(["DATA", 4]);
-		expect(g.describe().edges).toContainEqual({ from: "src", to: "worker/doubled" });
+		expect(g.inspect().edges).toContainEqual({ from: "src", to: "worker/doubled" });
 	});
 
 	it("fences stale completions and prepare-empty waves before graph mutation", () => {

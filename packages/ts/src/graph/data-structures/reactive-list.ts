@@ -256,7 +256,7 @@ export function reactiveList<T>(
 			meta: { kind: "collection_policy_apply", collection: "reactiveList" },
 		});
 		folders.bind(apply as Node<unknown>);
-		releaseApply = graph.retain(apply, { reason: "reactiveList.capacityPolicy" });
+		releaseApply = graph.retain(apply);
 		return apply;
 	}
 

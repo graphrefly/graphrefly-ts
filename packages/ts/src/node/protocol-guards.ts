@@ -1,4 +1,4 @@
-import { isInvalidErrorPayload, messageTier, type Wave } from "../protocol/messages.js";
+import { isInvalidErrorPayload, isMessageType, type Wave } from "../protocol/messages.js";
 
 export function terminalView(t: unknown): unknown {
 	return t === undefined ? false : t;
@@ -6,7 +6,7 @@ export function terminalView(t: unknown): unknown {
 
 export function validateDownPayloads(msgs: Wave): void {
 	for (const m of msgs) {
-		if (messageTier(m[0]) === undefined) {
+		if (!isMessageType(m[0])) {
 			throw new Error(
 				`down: ${String(m[0])} is not in the closed message-type set (R-msg-closed-set)`,
 			);

@@ -257,7 +257,7 @@ describe("agentic WorkItem memory bridge (D581)", () => {
 			maxOccurrences: 64,
 		});
 		expectTypeOf(bundle).toMatchTypeOf<AgenticWorkItemMemoryBridgeBundle>();
-		expect(g.describe().edges).toEqual(
+		expect(g.inspect().edges).toEqual(
 			expect.arrayContaining([
 				{ from: "bridge/occurrences", to: "bridge/projection" },
 				{ from: "bridge/occurrences", to: "bridge/projection" },

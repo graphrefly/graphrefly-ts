@@ -1,33 +1,31 @@
 /**
- * CSP-2.8 render first-cut (D39/D40): pure functions over DescribeSnapshot.
+ * CSP-2.8 render first-cut (D39/D40): pure functions over InspectSnapshot.
  */
 
 import { describe, expect, it } from "vitest";
 import {
-	type DescribeSnapshot,
-	describeToAscii,
-	describeToD2,
-	describeToJson,
-	describeToMermaid,
-	describeToMermaidUrl,
-	describeToPretty,
 	graph,
+	type InspectSnapshot,
+	inspectToAscii,
+	inspectToD2,
+	inspectToJson,
+	inspectToMermaid,
+	inspectToMermaidUrl,
+	inspectToPretty,
 	mermaidLiveUrl,
 	type Status,
 } from "../index.js";
 
-// TODO(review-2.21): describeToPretty and describeToAscii interpolate `node.status` into text, but a
-// describe status is a Status object since R-node@2, so a real snapshot renders "[object Object]".
-// These hand-built snapshots keep the legacy status label the renderers were written for.
-const legacyStatus = (label: "settled" | "sentinel"): Status => label as unknown as Status;
+const settled: Status = { cache: "ready", output: "open", lifecycle: "active" };
+const empty: Status = { cache: "empty", output: "open", lifecycle: "inactive" };
 
-describe("describe renderers (D39/D40)", () => {
-	const renderSmokeOutputs = (snap: DescribeSnapshot) => ({
-		mermaid: describeToMermaid(snap),
-		d2: describeToD2(snap),
-		pretty: describeToPretty(snap),
-		ascii: describeToAscii(snap),
-		json: describeToJson(snap, { indent: 0 }),
+describe("inspect renderers (D39/D40)", () => {
+	const renderSmokeOutputs = (snap: InspectSnapshot) => ({
+		mermaid: inspectToMermaid(snap),
+		d2: inspectToD2(snap),
+		pretty: inspectToPretty(snap),
+		ascii: inspectToAscii(snap),
+		json: inspectToJson(snap, { indent: 0 }),
 	});
 
 	it("renders Mermaid from a flat + mounted describe snapshot", () => {
@@ -42,7 +40,7 @@ describe("describe renderers (D39/D40)", () => {
 		leaf.subscribe(() => {});
 		parent.mount(child, { at: "child" });
 
-		expect(describeToMermaid(parent.describe(), { direction: "TD" })).toBe(
+		expect(inspectToMermaid(parent.inspect(), { direction: "TD" })).toBe(
 			[
 				"flowchart TD",
 				'  n0["child::leaf \\"quoted\\""]',
@@ -54,43 +52,43 @@ describe("describe renderers (D39/D40)", () => {
 	});
 
 	it("renders D2 with deterministic ids and direction mapping", () => {
-		const snap: DescribeSnapshot = {
+		const snap: InspectSnapshot = {
 			nodes: [
-				{ id: "b", factory: "derived", status: legacyStatus("sentinel"), deps: ["a"] },
-				{ id: "a", factory: "state", status: legacyStatus("settled"), deps: [], value: 1 },
+				{ id: "b", factory: "derived", status: empty, deps: ["a"] },
+				{ id: "a", factory: "state", status: settled, deps: [], value: 1 },
 			],
 			edges: [{ from: "a", to: "b" }],
 		};
 
-		expect(describeToD2(snap, { direction: "RL" })).toBe(
+		expect(inspectToD2(snap, { direction: "RL" })).toBe(
 			["direction: left", 'n0: "a"', 'n1: "b"', "n0 -> n1"].join("\n"),
 		);
 	});
 
 	it("renders pretty text with SENTINEL absence", () => {
-		const snap: DescribeSnapshot = {
+		const snap: InspectSnapshot = {
 			name: "pretty",
 			nodes: [
 				{
 					id: "source",
 					factory: "state",
-					status: legacyStatus("settled"),
+					status: settled,
 					deps: [],
 					value: { ok: true },
 				},
-				{ id: "quiet", factory: "filter", status: legacyStatus("sentinel"), deps: ["source"] },
+				{ id: "quiet", factory: "filter", status: empty, deps: ["source"] },
 			],
 			edges: [{ from: "source", to: "quiet" }],
 		};
 
-		const text = describeToPretty(snap);
+		const text = inspectToPretty(snap);
 
 		expect(text).toBe(
 			[
 				"Graph pretty",
 				"Nodes:",
-				"- quiet (filter/sentinel): <SENTINEL>",
-				'- source (state/settled): {"ok":true}',
+				"- quiet (filter/empty/open/inactive): <SENTINEL>",
+				'- source (state/ready/open/active): {"ok":true}',
 				"Edges:",
 				"- source -> quiet",
 			].join("\n"),
@@ -98,33 +96,33 @@ describe("describe renderers (D39/D40)", () => {
 	});
 
 	it("renders compact ASCII adjacency with optional values", () => {
-		const snap: DescribeSnapshot = {
+		const snap: InspectSnapshot = {
 			name: "ascii",
 			nodes: [
-				{ id: "b", factory: "derived", status: legacyStatus("sentinel"), deps: ["a"] },
-				{ id: "a", factory: "state", status: legacyStatus("settled"), deps: [], value: 1 },
-				{ id: "c", factory: "effect", status: legacyStatus("sentinel"), deps: [] },
+				{ id: "b", factory: "derived", status: empty, deps: ["a"] },
+				{ id: "a", factory: "state", status: settled, deps: [], value: 1 },
+				{ id: "c", factory: "effect", status: empty, deps: [] },
 			],
 			edges: [{ from: "a", to: "b" }],
 		};
 
-		expect(describeToAscii(snap, { includeValues: true })).toBe(
+		expect(inspectToAscii(snap, { includeValues: true })).toBe(
 			[
 				"Graph ascii",
-				"a [state/settled 1] -> b",
-				"b [derived/sentinel <SENTINEL>] -> -",
-				"c [effect/sentinel <SENTINEL>] -> -",
+				"a [state/ready/open/active 1] -> b",
+				"b [derived/empty/open/inactive <SENTINEL>] -> -",
+				"c [effect/empty/open/inactive <SENTINEL>] -> -",
 			].join("\n"),
 		);
 	});
 
 	it("renders deterministic JSON and can omit edges", () => {
-		const snap: DescribeSnapshot = {
+		const snap: InspectSnapshot = {
 			nodes: [
 				{
 					id: "z",
 					factory: "node",
-					status: legacyStatus("settled"),
+					status: settled,
 					deps: [],
 					meta: { b: 2, a: 1 },
 					value: { y: 2, x: 1 },
@@ -133,57 +131,57 @@ describe("describe renderers (D39/D40)", () => {
 			edges: [{ from: "a", to: "z" }],
 		};
 
-		expect(describeToJson(snap, { includeEdges: false, indent: 0 })).toBe(
-			'{"edges":[],"nodes":[{"deps":[],"factory":"node","id":"z","meta":{"a":1,"b":2},"status":"settled","value":{"x":1,"y":2}}]}',
+		expect(inspectToJson(snap, { includeEdges: false, indent: 0 })).toBe(
+			'{"edges":[],"nodes":[{"deps":[],"factory":"node","id":"z","meta":{"a":1,"b":2},"status":{"cache":"ready","lifecycle":"active","output":"open"},"value":{"x":1,"y":2}}]}',
 		);
 	});
 
 	it("sorts labels deterministically without locale collation", () => {
-		const snap: DescribeSnapshot = {
+		const snap: InspectSnapshot = {
 			nodes: [
-				{ id: "a", factory: "state", status: legacyStatus("sentinel"), deps: [] },
-				{ id: "A", factory: "state", status: legacyStatus("sentinel"), deps: [] },
-				{ id: "á", factory: "state", status: legacyStatus("sentinel"), deps: [] },
+				{ id: "a", factory: "state", status: empty, deps: [] },
+				{ id: "A", factory: "state", status: empty, deps: [] },
+				{ id: "á", factory: "state", status: empty, deps: [] },
 			],
 			edges: [],
 		};
 
-		expect(describeToAscii(snap)).toBe(
+		expect(inspectToAscii(snap)).toBe(
 			[
 				"Graph (anonymous)",
-				"A [state/sentinel] -> -",
-				"a [state/sentinel] -> -",
-				"á [state/sentinel] -> -",
+				"A [state/empty/open/inactive] -> -",
+				"a [state/empty/open/inactive] -> -",
+				"á [state/empty/open/inactive] -> -",
 			].join("\n"),
 		);
 	});
 
 	it("escapes diagram labels without introducing physical control-character lines", () => {
-		const snap: DescribeSnapshot = {
+		const snap: InspectSnapshot = {
 			nodes: [
 				{
 					id: 'line\nbreak "quoted"',
 					factory: "state",
-					status: legacyStatus("sentinel"),
+					status: empty,
 					deps: [],
 				},
 			],
 			edges: [],
 		};
 
-		expect(describeToMermaid(snap)).toBe('flowchart LR\n  n0["line\\nbreak \\"quoted\\""]');
-		expect(describeToD2(snap)).toBe('direction: right\nn0: "line\\nbreak \\"quoted\\""');
+		expect(inspectToMermaid(snap)).toBe('flowchart LR\n  n0["line\\nbreak \\"quoted\\""]');
+		expect(inspectToD2(snap)).toBe('direction: right\nn0: "line\\nbreak \\"quoted\\""');
 	});
 
 	it("renders cyclic and bigint values in deterministic JSON", () => {
 		const circular: Record<string, unknown> = { z: 1 };
 		circular.self = circular;
-		const snap: DescribeSnapshot = {
+		const snap: InspectSnapshot = {
 			nodes: [
 				{
 					id: "cyclic",
 					factory: "state",
-					status: legacyStatus("settled"),
+					status: settled,
 					deps: [],
 					value: { circular, id: 1n },
 				},
@@ -191,17 +189,17 @@ describe("describe renderers (D39/D40)", () => {
 			edges: [],
 		};
 
-		expect(describeToJson(snap, { indent: 0 })).toBe(
-			'{"edges":[],"nodes":[{"deps":[],"factory":"state","id":"cyclic","status":"settled","value":{"circular":{"self":"[Circular]","z":1},"id":"1"}}]}',
+		expect(inspectToJson(snap, { indent: 0 })).toBe(
+			'{"edges":[],"nodes":[{"deps":[],"factory":"state","id":"cyclic","status":{"cache":"ready","lifecycle":"active","output":"open"},"value":{"circular":{"self":"[Circular]","z":1},"id":"1"}}]}',
 		);
 	});
 
 	it("smoke-renders duplicate edges without crashing and dedupes deterministically", () => {
-		const snap: DescribeSnapshot = {
+		const snap: InspectSnapshot = {
 			name: "duplicate edges",
 			nodes: [
-				{ id: "sink", factory: "derived", status: legacyStatus("sentinel"), deps: ["source"] },
-				{ id: "source", factory: "state", status: legacyStatus("settled"), deps: [], value: 1 },
+				{ id: "sink", factory: "derived", status: empty, deps: ["source"] },
+				{ id: "source", factory: "state", status: settled, deps: [], value: 1 },
 			],
 			edges: [
 				{ from: "source", to: "sink" },
@@ -218,26 +216,26 @@ describe("describe renderers (D39/D40)", () => {
 			pretty: [
 				"Graph duplicate edges",
 				"Nodes:",
-				"- sink (derived/sentinel): <SENTINEL>",
-				"- source (state/settled): 1",
+				"- sink (derived/empty/open/inactive): <SENTINEL>",
+				"- source (state/ready/open/active): 1",
 				"Edges:",
 				"- source -> sink",
 			].join("\n"),
 			ascii: [
 				"Graph duplicate edges",
-				"sink [derived/sentinel] -> -",
-				"source [state/settled] -> sink",
+				"sink [derived/empty/open/inactive] -> -",
+				"source [state/ready/open/active] -> sink",
 			].join("\n"),
-			json: '{"edges":[{"from":"source","to":"sink"}],"name":"duplicate edges","nodes":[{"deps":["source"],"factory":"derived","id":"sink","status":"sentinel"},{"deps":[],"factory":"state","id":"source","status":"settled","value":1}]}',
+			json: '{"edges":[{"from":"source","to":"sink"}],"name":"duplicate edges","nodes":[{"deps":["source"],"factory":"derived","id":"sink","status":{"cache":"empty","lifecycle":"inactive","output":"open"}},{"deps":[],"factory":"state","id":"source","status":{"cache":"ready","lifecycle":"active","output":"open"},"value":1}]}',
 		});
 	});
 
 	it("smoke-renders edges with missing endpoints without crashing", () => {
-		const snap: DescribeSnapshot = {
+		const snap: InspectSnapshot = {
 			name: "missing endpoints",
 			nodes: [
-				{ id: "a", factory: "state", status: legacyStatus("settled"), deps: [], value: "ready" },
-				{ id: "b", factory: "effect", status: legacyStatus("sentinel"), deps: ["ghost"] },
+				{ id: "a", factory: "state", status: settled, deps: [], value: "ready" },
+				{ id: "b", factory: "effect", status: empty, deps: ["ghost"] },
 			],
 			edges: [
 				{ from: "ghost", to: "b" },
@@ -253,27 +251,27 @@ describe("describe renderers (D39/D40)", () => {
 			pretty: [
 				"Graph missing endpoints",
 				"Nodes:",
-				'- a (state/settled): "ready"',
-				"- b (effect/sentinel): <SENTINEL>",
+				'- a (state/ready/open/active): "ready"',
+				"- b (effect/empty/open/inactive): <SENTINEL>",
 				"Edges:",
 				"- a -> missing",
 				"- ghost -> b",
 			].join("\n"),
 			ascii: [
 				"Graph missing endpoints",
-				"a [state/settled] -> missing",
-				"b [effect/sentinel] -> -",
+				"a [state/ready/open/active] -> missing",
+				"b [effect/empty/open/inactive] -> -",
 			].join("\n"),
-			json: '{"edges":[{"from":"a","to":"missing"},{"from":"ghost","to":"b"}],"name":"missing endpoints","nodes":[{"deps":[],"factory":"state","id":"a","status":"settled","value":"ready"},{"deps":["ghost"],"factory":"effect","id":"b","status":"sentinel"}]}',
+			json: '{"edges":[{"from":"a","to":"missing"},{"from":"ghost","to":"b"}],"name":"missing endpoints","nodes":[{"deps":[],"factory":"state","id":"a","status":{"cache":"ready","lifecycle":"active","output":"open"},"value":"ready"},{"deps":["ghost"],"factory":"effect","id":"b","status":{"cache":"empty","lifecycle":"inactive","output":"open"}}]}',
 		});
 	});
 
 	it("smoke-renders cyclic-looking back-edge snapshots without recursive traversal", () => {
-		const snap: DescribeSnapshot = {
+		const snap: InspectSnapshot = {
 			name: "back edge",
 			nodes: [
-				{ id: "tail", factory: "node", status: legacyStatus("settled"), deps: ["head"], value: 2 },
-				{ id: "head", factory: "node", status: legacyStatus("settled"), deps: ["tail"], value: 1 },
+				{ id: "tail", factory: "node", status: settled, deps: ["head"], value: 2 },
+				{ id: "head", factory: "node", status: settled, deps: ["tail"], value: 1 },
 			],
 			edges: [
 				{ from: "tail", to: "head" },
@@ -291,22 +289,24 @@ describe("describe renderers (D39/D40)", () => {
 			pretty: [
 				"Graph back edge",
 				"Nodes:",
-				"- head (node/settled): 1",
-				"- tail (node/settled): 2",
+				"- head (node/ready/open/active): 1",
+				"- tail (node/ready/open/active): 2",
 				"Edges:",
 				"- head -> tail",
 				"- tail -> head",
 			].join("\n"),
-			ascii: ["Graph back edge", "head [node/settled] -> tail", "tail [node/settled] -> head"].join(
-				"\n",
-			),
-			json: '{"edges":[{"from":"head","to":"tail"},{"from":"tail","to":"head"}],"name":"back edge","nodes":[{"deps":["tail"],"factory":"node","id":"head","status":"settled","value":1},{"deps":["head"],"factory":"node","id":"tail","status":"settled","value":2}]}',
+			ascii: [
+				"Graph back edge",
+				"head [node/ready/open/active] -> tail",
+				"tail [node/ready/open/active] -> head",
+			].join("\n"),
+			json: '{"edges":[{"from":"head","to":"tail"},{"from":"tail","to":"head"}],"name":"back edge","nodes":[{"deps":["tail"],"factory":"node","id":"head","status":{"cache":"ready","lifecycle":"active","output":"open"},"value":1},{"deps":["head"],"factory":"node","id":"tail","status":{"cache":"ready","lifecycle":"active","output":"open"},"value":2}]}',
 		});
 	});
 
 	it("rejects invalid diagram directions", () => {
-		const snap: DescribeSnapshot = { nodes: [], edges: [] };
-		expect(() => describeToMermaid(snap, { direction: "SIDEWAYS" as never })).toThrow(
+		const snap: InspectSnapshot = { nodes: [], edges: [] };
+		expect(() => inspectToMermaid(snap, { direction: "SIDEWAYS" as never })).toThrow(
 			/invalid diagram direction/,
 		);
 	});
@@ -316,13 +316,11 @@ describe("describe renderers (D39/D40)", () => {
 			"https://mermaid.live/edit#base64:eyJjb2RlIjoiZmxvd2NoYXJ0IExSIiwibWVybWFpZCI6eyJ0aGVtZSI6ImRhcmsifSwiYXV0b1N5bmMiOmZhbHNlfQ",
 		);
 
-		const snap: DescribeSnapshot = {
-			nodes: [
-				{ id: "你好", factory: "state", status: legacyStatus("settled"), deps: [], value: 1 },
-			],
+		const snap: InspectSnapshot = {
+			nodes: [{ id: "你好", factory: "state", status: settled, deps: [], value: 1 }],
 			edges: [],
 		};
-		const url = describeToMermaidUrl(snap, { direction: "TD", theme: "forest" });
+		const url = inspectToMermaidUrl(snap, { direction: "TD", theme: "forest" });
 		expect(url).toMatch(/^https:\/\/mermaid\.live\/edit#base64:/);
 		expect(url).not.toContain("=");
 	});

@@ -264,7 +264,7 @@ describe("admissionHandoff pattern (graphrefly-ts:D147)", () => {
 
 	it("describes the complete correlation and quiet-release topology (one quiet accepted node, graphrefly-ts:D172)", () => {
 		const { owner, handoff } = fixture();
-		const description = owner.describe();
+		const description = owner.inspect();
 		const nodes = Object.fromEntries(
 			description.nodes.map((node) => [node.id, { deps: node.deps, factory: node.factory }]),
 		);

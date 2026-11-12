@@ -128,8 +128,8 @@ export {
 	zip,
 } from "./graph/combinators.js";
 export {
-	type DescribeChangeset,
-	type DescribeEvent,
+	type InspectChangeset,
+	type InspectEvent,
 	type PipeOperator,
 	pipe,
 	type Stratified,
@@ -177,13 +177,14 @@ export {
 	reactiveMap,
 } from "./graph/data-structures/reactive-map.js";
 export type {
-	DescribeEdge,
-	DescribeNode,
-	DescribeOpts,
-	DescribeSnapshot,
+	DescribedNode,
 	GraphTopologyEdge,
 	GraphTopologyNode,
 	GraphTopologySnapshot,
+	InspectEdge,
+	InspectNode,
+	InspectOpts,
+	InspectSnapshot,
 } from "./graph/describe.js";
 export {
 	type CausalChain,
@@ -256,18 +257,13 @@ export {
 	repeat,
 	switchMap,
 } from "./graph/higher-order.js";
-export {
-	coalesceObserve,
-	filterObserve,
-	type NodeProfile,
-	type ObserveEvent,
-	type ObserveEventEquals,
-	type ObservePredicate,
-	type ObserveStream,
-	type Profile,
-	type TopologyEvent,
-	type TopologyEventKind,
-	type TopologyStream,
+export type {
+	NodeProfile,
+	ObserveEvent,
+	Profile,
+	TopologyEvent,
+	TopologyEventKind,
+	TopologyStream,
 } from "./graph/inspect.js";
 export {
 	catchError,
@@ -310,20 +306,20 @@ export type {
 } from "./graph/policies/types.js";
 export {
 	blueprintToMermaid,
-	type DescribeToAsciiOptions,
-	type DescribeToD2Options,
-	type DescribeToJsonOptions,
-	type DescribeToMermaidOptions,
-	type DescribeToMermaidUrlOptions,
-	type DescribeToPrettyOptions,
 	type DiagramDirection,
-	describeToAscii,
-	describeToD2,
-	describeToJson,
-	describeToMermaid,
-	describeToMermaidUrl,
-	describeToPretty,
 	type GraphBlueprintToMermaidOptions,
+	type InspectToAsciiOptions,
+	type InspectToD2Options,
+	type InspectToJsonOptions,
+	type InspectToMermaidOptions,
+	type InspectToMermaidUrlOptions,
+	type InspectToPrettyOptions,
+	inspectToAscii,
+	inspectToD2,
+	inspectToJson,
+	inspectToMermaid,
+	inspectToMermaidUrl,
+	inspectToPretty,
 	type MermaidLiveTheme,
 	type MermaidLiveUrlOptions,
 	mermaidLiveUrl,

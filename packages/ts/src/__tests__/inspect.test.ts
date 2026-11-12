@@ -1,115 +1,43 @@
 import { describe, expect, it } from "vitest";
-import type { ObserveEvent, ObserveStream } from "../index.js";
-import { coalesceObserve, Dispatcher, filterObserve, graph } from "../index.js";
+import type { ObserveEvent } from "../index.js";
+import { Dispatcher, graph } from "../index.js";
+import { dataValues } from "./helpers/collect.js";
 
-describe("observe — read-only enveloped egress (R-observe / D39)", () => {
-	it("streams ObserveEvents with path/msg/tier/seq; cached node pushes on subscribe", () => {
+describe("observe — an ordinary subscriber, one event per array (R-graph-surface@1)", () => {
+	it("hands on { id, msgs } per delivered array, START first, with no tier or sequence", () => {
 		const g = graph();
 		const count = g.state(0, { name: "count" });
-		const doubled = g.derived([count], (n) => n! * 2, { name: "doubled" });
-		doubled.subscribe(() => {}); // activate so it has a cache
+		g.derived([count], (n) => n! * 2, { name: "doubled" });
 
 		const events: ObserveEvent[] = [];
-		const stop = g.observe("doubled").subscribe((e) => events.push(e));
-		// push-on-subscribe: the cached DATA arrives immediately
-		expect(events.some((e) => e.path === "doubled" && e.msg[0] === "DATA")).toBe(true);
+		const stop = g.observe(["doubled"], (e) => events.push(e));
+		// the START array, with the value, is the first event
+		expect(events).toEqual([{ id: "doubled", msgs: [["START"], ["DATA", 0]] }]);
 
 		count.set(5);
-		const data = events.filter((e) => e.msg[0] === "DATA").map((e) => e.msg[1]);
-		expect(data).toContain(10);
-		// envelope carries tier + a monotonic seq
-		const last = events[events.length - 1];
-		expect(typeof last.seq).toBe("number");
-		expect(last.tier).toBe(3); // DATA tier
+		expect(events[1]).toEqual({ id: "doubled", msgs: [["PENDING"], ["DATA", 10]] });
+		expect(Object.keys(events[1] ?? {}).sort()).toEqual(["id", "msgs"]);
 		stop();
 	});
 
-	it("whole-graph observe (no path) taps every node; observe is NOT itself a node", () => {
+	it("observing a whole graph is observing every id describe gives; observe adds no node", () => {
 		const g = graph();
 		const a = g.state(1, { name: "a" });
 		g.derived([a], (n) => n! + 1, { name: "b" });
 		const events: ObserveEvent[] = [];
-		g.observe().subscribe((e) => events.push(e));
-		a.set(2);
-		const paths = new Set(events.map((e) => e.path));
-		expect(paths.has("a")).toBe(true);
-		expect(paths.has("b")).toBe(true);
-		// observing did not add a node to the graph (egress, not a node)
-		expect(
-			g
-				.describe()
-				.nodes.map((n) => n.id)
-				.sort(),
-		).toEqual(["a", "b"]);
-	});
-});
-
-describe("observe helpers — read-only egress sugar (R-observe / D39)", () => {
-	function observeFrom(events: readonly ObserveEvent[], onUnsubscribe?: () => void): ObserveStream {
-		return {
-			subscribe(sink) {
-				for (const event of events) {
-					sink(event);
-				}
-				return () => onUnsubscribe?.();
-			},
-		};
-	}
-
-	it("filterObserve forwards matching events and preserves source unsubscribe", () => {
-		const events: ObserveEvent[] = [
-			{ path: "a", msg: ["PENDING"], tier: 2, seq: 1 },
-			{ path: "a", msg: ["DATA", 1], tier: 3, seq: 2 },
-			{ path: "b", msg: ["DATA", 2], tier: 3, seq: 3 },
-			{ path: "a", msg: ["DATA", 3], tier: 3, seq: 4 },
-		];
-		let unsubscribes = 0;
-		const seen: ObserveEvent[] = [];
-
-		const stop = filterObserve(
-			observeFrom(events, () => {
-				unsubscribes += 1;
-			}),
-			(event) => event.path === "a" && event.msg[0] === "DATA",
-		).subscribe((event) => seen.push(event));
-
-		expect(seen.map((event) => event.seq)).toEqual([2, 4]);
-		stop();
-		expect(unsubscribes).toBe(1);
-	});
-
-	it("coalesceObserve suppresses adjacent duplicates without reordering retained seq values", () => {
-		const events: ObserveEvent[] = [
-			{ path: "a", msg: ["DATA", 1], tier: 3, seq: 1 },
-			{ path: "a", msg: ["DATA", 1], tier: 3, seq: 2 },
-			{ path: "a", msg: ["DATA", 2], tier: 3, seq: 3 },
-			{ path: "b", msg: ["DATA", 2], tier: 3, seq: 4 },
-			{ path: "b", msg: ["DATA", 2], tier: 3, seq: 5 },
-			{ path: "a", msg: ["DATA", 1], tier: 3, seq: 6 },
-			{ path: "a", msg: ["PENDING"], tier: 2, seq: 7 },
-			{ path: "a", msg: ["PENDING"], tier: 2, seq: 8 },
-		];
-		const seen: ObserveEvent[] = [];
-
-		coalesceObserve(observeFrom(events)).subscribe((event) => seen.push(event));
-
-		expect(seen.map((event) => event.seq)).toEqual([1, 3, 4, 6, 7]);
-		expect(seen.map((event) => event.msg[0])).toEqual(["DATA", "DATA", "DATA", "DATA", "PENDING"]);
-	});
-
-	it("coalesceObserve accepts a caller-owned equality for narrower egress coalescing", () => {
-		const events: ObserveEvent[] = [
-			{ path: "a", msg: ["DATA", 1], tier: 3, seq: 1 },
-			{ path: "a", msg: ["DATA", 2], tier: 3, seq: 2 },
-			{ path: "b", msg: ["DATA", 2], tier: 3, seq: 3 },
-		];
-		const seen: ObserveEvent[] = [];
-
-		coalesceObserve(observeFrom(events), (prev, next) => prev.path === next.path).subscribe(
-			(event) => seen.push(event),
+		g.observe(
+			g.describe().map((n) => n.id),
+			(e) => events.push(e),
 		);
+		a.set(2);
+		expect(new Set(events.map((e) => e.id))).toEqual(new Set(["a", "b"]));
+		expect(dataValues(events.filter((e) => e.id === "b").flatMap((e) => e.msgs))).toEqual([2, 3]);
+		expect(g.describe().map((n) => n.id)).toEqual(["a", "b"]);
+	});
 
-		expect(seen.map((event) => event.seq)).toEqual([1, 3]);
+	it("rejects an id the graph does not have", () => {
+		const g = graph();
+		expect(() => g.observe(["missing"], () => {})).toThrow(/observe: no node 'missing'/);
 	});
 });
 

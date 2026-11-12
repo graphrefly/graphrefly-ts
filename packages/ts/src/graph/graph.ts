@@ -10,7 +10,7 @@ import type { OwnedConstruction } from "./construction-scope.js";
  * (R-node-thin).
  *
  * Canonical authority: ~/src/graphrefly — D3/D5/D27/D30/D36/D37/D39, R-graph-role,
- * R-describe, R-fn-contract, R-edges-derived, R-meta-presentation.
+ * R-graph-surface, R-fn-contract, R-edges-derived, R-meta-presentation.
  */
 
 import { type BatchCtx, batchIn, currentBatch } from "../batch/batch.js";
@@ -27,6 +27,7 @@ import {
 	makeNode,
 	Node,
 	type NodeOptions,
+	nodeCreationIndex,
 	releaseRuntimeOfNode,
 	StateNode,
 	setNodeOwner,
@@ -43,7 +44,7 @@ import {
 	type NodeAcquisition,
 } from "../node/owned-acquisition.js";
 import type { NodeDefinition, ReplaceOptions } from "../node/types.js";
-import { errorPayload, messageTier, SENTINEL } from "../protocol/messages.js";
+import { errorPayload, SENTINEL } from "../protocol/messages.js";
 import {
 	GRAPH_BLUEPRINT_VERSION,
 	type GraphBlueprint,
@@ -64,12 +65,13 @@ import {
 	toCheckpointJson,
 } from "./checkpoint.js";
 import {
-	type DescribeEdge,
-	type DescribeNode,
-	type DescribeOpts,
-	type DescribeSnapshot,
+	type DescribedNode,
 	type GraphTopologySnapshot,
-	topologyFromDescribe,
+	type InspectEdge,
+	type InspectNode,
+	type InspectOpts,
+	type InspectSnapshot,
+	topologyFromInspect,
 } from "./describe.js";
 import { EnvironmentDrivers } from "./environment.js";
 import { type GraphLifecycleRegistrar, graphRegistrations } from "./graph-lifecycle.js";
@@ -89,7 +91,7 @@ import {
 import type { DepValues, DerivedFn, EffectFn, GraphOptions, SugarOpts } from "./graph-types.js";
 import type {
 	NodeProfile,
-	ObserveStream,
+	ObserveEvent,
 	Profile,
 	TopologyEvent,
 	TopologyStream,
@@ -168,7 +170,7 @@ export class Graph {
 	private readonly _retiredIds = new Set<string>();
 	private readonly _mounts: MountedGraph[] = [];
 	private _seq = 0;
-	private _clock = 0; // graph-local monotonic clock for observe seq (D26)
+	private _clock = 0; // graph-local monotonic clock for topology event seq (D145)
 	private _topologyObserverSeq = 0;
 	private readonly _topologyObservers = new Map<number, TopologyObserver>();
 	private _topologyDelivering = false;
@@ -561,7 +563,7 @@ export class Graph {
 	// g.initNode is the single graph-bound entry for the whole operator/source catalog (D40):
 	// it delegates to the FREE initNode (graph/operators.ts — the D30 throw→ERROR boundary +
 	// dispatcher binding live there) and records the operator's REAL factory name in the
-	// inspection index (_add) so describe shows it (D6/R-describe) while the node stays thin
+	// inspection index (_add) so describe shows it (D6/inspect) while the node stays thin
 	// (R-node-thin). Operators are free-standing factory definitions (graph/operators.ts,
 	// graph/sources.ts) usable bare via the free initNode(); this funnel is the inspectable
 	// path. Replaces the per-operator methods.
@@ -590,11 +592,13 @@ export class Graph {
 	}
 
 	/**
-	 * Graph-owned activation root for internal helper nodes. This is the sanctioned keepalive shape:
-	 * a graph, not a helper closure, owns the subscription and returns the release handle.
+	 * R-graph-surface@1: hold a node active as a subscriber that ignores what it receives, and
+	 * return the release. Each retain is its own subscription; a release during a wave is a
+	 * request, so the subscription is gone by the wave's end (R-request-order).
 	 */
-	retain<T>(node: Node<T>, opts: { reason?: string } = {}): () => void {
-		assertGraphLocalNode(this, node as Node<unknown>, opts.reason ?? "retained node");
+	retain(target: Node<unknown> | string): () => void {
+		const node = typeof target === "string" ? this._describedNode(target, "retain") : target;
+		assertGraphLocalNode(this, node, "retained node");
 		return node.subscribe(() => {});
 	}
 
@@ -606,16 +610,21 @@ export class Graph {
 		return new GraphTopologyGroup(this, opts);
 	}
 
-	// ── inspection: describe / observe / profile (D39) ──
+	// ── inspection: describe / observe (R-graph-surface@1), and the package's inspect / profile ──
 
-	/** Live point-in-time structure snapshot (R-describe / D39 / D51). `_prefix` carries the mount path. */
-	describe(opts: DescribeOpts = {}, _prefix = ""): DescribeSnapshot {
-		const snap = this._describe(_prefix);
+	/**
+	 * The package's own rich inspection snapshot (graphrefly-ts:D183): names, factories, status,
+	 * values, annotations, edges and mounted subgraphs, over the same live dependencies as
+	 * describe(). It is not R-graph-surface's describe, which gives the topology alone. `_prefix`
+	 * carries the mount path.
+	 */
+	inspect(opts: InspectOpts = {}, _prefix = ""): InspectSnapshot {
+		const snap = this._inspect(_prefix);
 		return opts.explain ? explainSubset(snap, opts.explain) : snap;
 	}
 
 	/** B1: share discovery order; only materialization is local. Mount reads stay unchanged. */
-	private _describe(_prefix: string, incoming?: ReadonlySet<Node<unknown>>): DescribeSnapshot {
+	private _inspect(_prefix: string, incoming?: ReadonlySet<Node<unknown>>): InspectSnapshot {
 		// D51: edges derive from each node's CURRENT/LIVE deps (entry.node.deps, NOT the
 		// construction-time entry.deps), so a rewire (C-8 immediate / C-11 *Map deferred) is
 		// reflected and every edge is a real current subscription (D3). A live dep absent from this
@@ -640,14 +649,14 @@ export class Graph {
 			discovered.set(n, sid);
 			return `${_prefix}${sid}`;
 		};
-		const nodes: DescribeNode[] = [];
-		const edges: DescribeEdge[] = [];
+		const nodes: InspectNode[] = [];
+		const edges: InspectEdge[] = [];
 		// pass 1: registered nodes, reading LIVE deps (localId records any unregistered inner).
 		for (const entry of this._entries.values()) {
 			const id = `${_prefix}${entry.id}`;
 			const liveIds = entry.node.deps.map(localId);
 			if (incoming === undefined) {
-				const dnode: DescribeNode = {
+				const dnode: InspectNode = {
 					id,
 					factory: entry.factory,
 					status: entry.node.status,
@@ -678,7 +687,7 @@ export class Graph {
 				if (!this._entries.has(dep) && !visited.has(dep)) queue.push(dep);
 			}
 			if (incoming === undefined) {
-				const dnode: DescribeNode = {
+				const dnode: InspectNode = {
 					id: `${_prefix}${sid}`,
 					factory: inner.factory ?? "?",
 					status: inner.status,
@@ -689,11 +698,11 @@ export class Graph {
 				for (const from of liveIds) edges.push({ from, to: dnode.id });
 			}
 		}
-		const snap: DescribeSnapshot = { nodes, edges };
+		const snap: InspectSnapshot = { nodes, edges };
 		if (this.name !== undefined) snap.name = this.name;
 		if (this._mounts.length > 0) {
 			snap.subgraphs = this._mounts.map((m) => {
-				const child = m.graph.describe({}, `${_prefix}${m.at}::`);
+				const child = m.graph.inspect({}, `${_prefix}${m.at}::`);
 				child.mountId = m.at;
 				return child;
 			});
@@ -702,11 +711,11 @@ export class Graph {
 	}
 
 	/**
-	 * D173 pure-structure topology snapshot over the same live truth source as describe().
-	 * Runtime status/value/version remain on describe(); blueprint metadata is a later envelope.
+	 * D173 pure-structure topology snapshot over the same live truth source as inspect().
+	 * Runtime status and values remain on inspect(); blueprint metadata is a later envelope.
 	 */
 	topology(): GraphTopologySnapshot {
-		return topologyFromDescribe(this.describe());
+		return topologyFromInspect(this.inspect());
 	}
 
 	/**
@@ -733,41 +742,68 @@ export class Graph {
 		return out;
 	}
 
-	private _observeTargets(path?: string): Array<[string, Node<unknown>]> {
-		const all: Array<[string, Node<unknown>]> = [...this._entries.values()].map((e) => [
-			e.id,
-			e.node,
-		]);
-		if (path === undefined) return all; // whole graph
-		const exact = this._byId.get(path);
-		if (exact) return [[path, exact]]; // single node
-		return all.filter(([id]) => id.startsWith(`${path}::`)); // subtree (mount-aware :: boundary, QA A-1)
+	/**
+	 * R-graph-surface@1: the topology as data, every node in creation order as exactly
+	 * `{ id, kind, deps, quiet }`. deps are the current dependencies, a ctx.rewire's included;
+	 * `definition(id)` gives the declared ones. A helper node that is not registered under a name
+	 * appears under a synthetic `~factory#n` id when a described node depends on it. Values,
+	 * status and annotations are read from the node, or from the package's own inspect().
+	 * describe activates nothing and runs nothing.
+	 */
+	describe(): DescribedNode[] {
+		return this._describedNodes().map((n) => ({
+			id: this._idForTopologyNode(n),
+			kind: n instanceof StateNode ? "state" : "node",
+			deps: this._topologyDeps(n.deps),
+			quiet: nodeDefinition(nodeRuntimeHost(n)).quiet,
+		}));
+	}
+
+	/** The registered nodes and the helper nodes they depend on, in creation order. */
+	private _describedNodes(): Node<unknown>[] {
+		const nodes: Node<unknown>[] = [];
+		const seen = new Set<Node<unknown>>();
+		const pending: Node<unknown>[] = [...this._entries.keys()];
+		while (pending.length > 0) {
+			const n = pending.pop() as Node<unknown>;
+			if (seen.has(n)) continue;
+			seen.add(n);
+			nodes.push(n);
+			for (const dep of n.deps) if (!seen.has(dep)) pending.push(dep);
+		}
+		return nodes.sort((x, y) => nodeCreationIndex(x) - nodeCreationIndex(y));
+	}
+
+	/** A node by an id find() knows or a synthetic id describe() gives. */
+	private _describedNode(id: string, op: string): Node<unknown> {
+		const node =
+			this.find(id) ??
+			(id.startsWith("~")
+				? this._describedNodes().find((n) => this._idForTopologyNode(n) === id)
+				: undefined);
+		if (node === undefined) throw new Error(`${op}: no node '${id}' in this graph`);
+		return node;
 	}
 
 	/**
-	 * observe(path?) = read-only enveloped EGRESS (R-observe / D39). NOT a graph node — it
-	 * taps the target node(s) via subscribe and forwards each Message as an ObserveEvent.
-	 * No path = whole graph; an exact id = a single node; otherwise a `::`-prefix subtree.
+	 * R-graph-surface@1: subscribe `sink` to each node in `ids` as an ordinary subscriber, so a
+	 * cold node activates and stays active, and hand it each array a node delivers as
+	 * `{ id, msgs }`, in delivery order: the START array first, PENDING prefixes and the kernel's
+	 * RESOLVED included. Observing a whole graph is observing every id describe() gives. The
+	 * returned stop takes effect at once: nothing more is handed on, also within a wave.
 	 */
-	// NOTE (R-observe/D19): observe is a real, lazily-ACTIVATING subscriber — observing a
-	// cold node runs its fn (and activates upstream); whole-graph observe() activates the
-	// graph. "Read-only" means it never emits/mutates node state, NOT that it avoids
-	// activation. Use it knowing inspection of a cold graph wakes it.
-	observe(path?: string): ObserveStream {
-		const targets = this._observeTargets(path);
-		return {
-			subscribe: (sink) => {
-				const unsubs = targets.map(([id, n]) =>
-					n.subscribe((incoming) => {
-						for (const msg of incoming) {
-							sink({ path: id, msg, tier: messageTier(msg[0]), seq: this._clock++ });
-						}
-					}),
-				);
-				return () => {
-					for (const u of unsubs) u();
-				};
-			},
+	observe(ids: readonly string[], sink: (event: ObserveEvent) => void): () => void {
+		const targets = ids.map((id) => [id, this._describedNode(id, "observe")] as const);
+		let stopped = false;
+		const unsubs = targets.map(([id, n]) =>
+			n.subscribe((msgs) => {
+				if (!stopped) sink({ id, msgs });
+			}),
+		);
+		return () => {
+			if (stopped) return;
+			stopped = true;
+			for (const unsub of unsubs) unsub();
 		};
 	}
 
@@ -1144,8 +1180,8 @@ export function graph(opts: GraphOptions = {}): Graph {
 	return new Graph(opts);
 }
 
-// Capture once, so instance/subclass/prototype describe overrides keep the original call path.
-const nativeDescribe = Graph.prototype.describe;
+// Capture once, so instance/subclass/prototype inspect overrides keep the original call path.
+const nativeInspect = Graph.prototype.inspect;
 
 /** @internal D122 graph-owned ephemeral node-group release. */
 export function releaseGraphNodes(
@@ -1190,7 +1226,7 @@ interface GraphRuntimeHost {
 	_retiredIds: Set<string>;
 	_assertRegisteredNode(node: Node<unknown>, label: string): void;
 	_releaseNodes(nodes: readonly Node<unknown>[], opts?: { reason?: string }): void;
-	_describe(prefix: string, nodes: ReadonlySet<Node<unknown>>): DescribeSnapshot;
+	_inspect(prefix: string, nodes: ReadonlySet<Node<unknown>>): InspectSnapshot;
 	_emitTopologyDepsChanged(
 		node: Node<unknown>,
 		prev: readonly Node<unknown>[],
@@ -1227,11 +1263,11 @@ class GraphRegistration implements GraphLifecycleRegistrar {
 	observeFailures<R>(observer: (source: string, error: unknown) => void, run: () => R): R {
 		return observeFailures(this.host._core, observer, run);
 	}
-	readIncoming(nodes: ReadonlySet<Node<unknown>>): Pick<DescribeSnapshot, "edges"> {
-		const describe = this.graph.describe;
-		return describe === nativeDescribe
-			? this.host._describe("", nodes)
-			: Reflect.apply(describe, this.graph, []);
+	readIncoming(nodes: ReadonlySet<Node<unknown>>): Pick<InspectSnapshot, "edges"> {
+		const inspect = this.graph.inspect;
+		return inspect === nativeInspect
+			? this.host._inspect("", nodes)
+			: Reflect.apply(inspect, this.graph, []);
 	}
 	releaseNodes(nodes: readonly Node<unknown>[], opts?: { reason?: string }): void {
 		this.host._releaseNodes(nodes, opts);

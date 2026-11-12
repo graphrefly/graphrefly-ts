@@ -6,8 +6,8 @@ import {
 	debounce,
 	debounceTime,
 	delay,
-	describeToAscii,
 	graph,
+	inspectToAscii,
 	type Message,
 	map,
 	throttle,
@@ -67,7 +67,7 @@ describe("Slice 4 — wall-clock time operators (D52, *Map + timer)", () => {
 		const g = graph();
 		const s = g.node<number>([], null, { name: "s" });
 		g.initNode(debounceTime<number>(50), [s], { name: "db" });
-		const byId = Object.fromEntries(g.describe().nodes.map((n) => [n.id, n]));
+		const byId = Object.fromEntries(g.inspect().nodes.map((n) => [n.id, n]));
 		expect(byId.db.factory).toBe("debounceTime");
 	});
 
@@ -93,7 +93,7 @@ describe("Slice 4 — wall-clock time operators (D52, *Map + timer)", () => {
 		const g = graph();
 		const s = g.node<number>([], null, { name: "s" });
 		g.initNode(throttleTime<number>(50), [s], { name: "th" });
-		const byId = Object.fromEntries(g.describe().nodes.map((n) => [n.id, n]));
+		const byId = Object.fromEntries(g.inspect().nodes.map((n) => [n.id, n]));
 		expect(byId.th.factory).toBe("throttleTime");
 	});
 });
@@ -187,7 +187,7 @@ describe("B41 tail — audit / auditTime / timeout / bufferTime", () => {
 		const g = graph();
 		const s = g.node<number>([], null, { name: "s" });
 		g.initNode(auditTime<number>(50), [s], { name: "au" });
-		const byId = Object.fromEntries(g.describe().nodes.map((n) => [n.id, n]));
+		const byId = Object.fromEntries(g.inspect().nodes.map((n) => [n.id, n]));
 		expect(byId.au.factory).toBe("auditTime");
 	});
 
@@ -326,13 +326,13 @@ describe("B41 tail — audit / auditTime / timeout / bufferTime", () => {
 				msgs.push(m);
 			}
 		});
-		const armed = g.describe();
+		const armed = g.inspect();
 		expect(armed.nodes.some((node) => node.factory === "timeout")).toBe(true);
 		expect(armed.nodes.some((node) => node.factory === "timer")).toBe(true);
-		expect(describeToAscii(armed)).toContain("timer");
+		expect(inspectToAscii(armed)).toContain("timer");
 
 		s.complete();
-		const completed = g.describe();
+		const completed = g.inspect();
 		expect(types(msgs)).toContain("COMPLETE");
 		expect(completed.nodes.some((node) => node.factory === "timeout")).toBe(true);
 		// R-lifetime: the ended timeout released its timers and is back on its declared dependencies,

@@ -10,7 +10,7 @@ import { constructionAcquisitions, type NodeAcquisition } from "../node/owned-ac
  *   - {@link initNode}(op, deps, opts?) — bare, no Graph; returns a working `Node<T>`.
  *   - `g.initNode(op, deps, opts?)` — graph-bound; the SAME call, plus inspection registration
  *     (the real factory name lands in the graph's `_entries`, so describe/observe/profile
- *     show it — D6/R-describe — while the node stays thin, R-node-thin).
+ *     show it — D6/inspect — while the node stays thin, R-node-thin).
  *
  * The D30 throw→ERROR boundary lives once, in the free {@link initNode} (which `g.initNode`
  * funnels through). The pure-ts `operatorOpts/partialOperatorOpts/gatedOperatorOpts` trio is

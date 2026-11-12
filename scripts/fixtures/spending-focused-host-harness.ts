@@ -103,7 +103,7 @@ export function runHost(
 		disconnect();
 		for (const root of host.owner.roots) root.unsubscribe?.();
 		const group = graph.topologyGroup();
-		for (const node of graph.describe().nodes) group.add(graph.find(node.id)!);
+		for (const node of graph.inspect().nodes) group.add(graph.find(node.id)!);
 		group.release();
 	};
 	connect();

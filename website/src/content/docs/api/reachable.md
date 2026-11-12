@@ -17,7 +17,7 @@ import { reachable } from "@graphrefly/ts/graph";
 
 ```ts
 function reachable(
-	snapshot: DescribeSnapshot,
+	snapshot: InspectSnapshot,
 	from: string,
 	direction: ReachableDirection,
 	options: ReachableOptions = {},
@@ -28,7 +28,7 @@ function reachable(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `snapshot` | `DescribeSnapshot` | Describe snapshot to traverse. |
+| `snapshot` | `InspectSnapshot` | Describe snapshot to traverse. |
 | `from` | `string` | Starting node id. |
 | `direction` | `ReachableDirection` | Direction to follow when `both` is not set. |
 | `options` | `ReachableOptions` | Optional depth and detail controls. |

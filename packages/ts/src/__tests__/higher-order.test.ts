@@ -600,7 +600,7 @@ describe("repeat (D47 self-rewire, factory-based — clean-slate complete design
 			[],
 			{ name: "rep" },
 		);
-		const snap = g.describe();
+		const snap = g.inspect();
 		const rep = snap.nodes.find((dn) => dn.id === "rep");
 		expect(rep?.factory).toBe("repeat");
 	});
@@ -616,7 +616,7 @@ describe("higher-order — describe (D39 / D51): real factory name + LIVE inner 
 			[s],
 			{ name: "sw" },
 		);
-		const snap = g.describe();
+		const snap = g.inspect();
 		const sw = snap.nodes.find((dn) => dn.id === "sw");
 		expect(sw?.factory).toBe("switchMap"); // D6/R-describe: REAL operator name, not "node"
 		expect(sw?.deps).toEqual(["src"]); // no inner wired yet — just the construction edge
@@ -633,10 +633,10 @@ describe("higher-order — describe (D39 / D51): real factory name + LIVE inner 
 			{ name: "sw" },
 		);
 		collect(sw);
-		expect(g.describe().edges).toEqual([{ from: "src", to: "sw" }]); // before: construction only
+		expect(g.inspect().edges).toEqual([{ from: "src", to: "sw" }]); // before: construction only
 
 		s.set(1); // switchMap wires inner `a` as a live dep (deferred rewire drains)
-		const snap = g.describe();
+		const snap = g.inspect();
 		// sw's live deps now include the inner; the inner is auto-discovered as a REAL snapshot node.
 		const innerEdge = snap.edges.find((e) => e.to === "sw" && e.from !== "src");
 		expect(innerEdge).toBeDefined(); // a live edge inner→sw (truthful, not a dangling "?")

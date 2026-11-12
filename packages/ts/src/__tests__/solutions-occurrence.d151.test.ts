@@ -208,7 +208,7 @@ describe("D151 exact solution occurrence join", () => {
 		f.leftInput.set(occurrence("two"));
 		f.rightInput.set(occurrence("two"));
 		expect(f.messages.filter((message) => message[0] === "DATA")).toHaveLength(2);
-		expect(f.owner.describe().edges).toEqual(
+		expect(f.owner.inspect().edges).toEqual(
 			expect.arrayContaining([
 				{ from: "left", to: "joined/left" },
 				{ from: "right", to: "joined/right" },

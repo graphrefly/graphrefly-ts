@@ -7,7 +7,7 @@ import {
 	type RuntimeReleaseFailure,
 } from "../node/owned-acquisition.js";
 import { isNodeRuntimeReleased, runtimeReleaseFailuresOfNode } from "../node/runtime-accessors.js";
-import type { DescribeSnapshot } from "./describe.js";
+import type { InspectSnapshot } from "./describe.js";
 import type { Graph } from "./graph.js";
 import { type GraphLifecycleRegistrar, graphRegistrations } from "./graph-lifecycle.js";
 import type { SugarOpts } from "./graph-types.js";
@@ -199,7 +199,7 @@ export class ConstructionScope {
 	}
 
 	/** Cold inspection only: actual acquired members, never edges synthesized from the manifest. */
-	readIncoming(): Pick<DescribeSnapshot, "edges"> {
+	readIncoming(): Pick<InspectSnapshot, "edges"> {
 		stableBoundary(this.registrar);
 		if (this.phase !== "cold") throw new Error("construction is sealed");
 		const nodes = new Set<Node<unknown>>();

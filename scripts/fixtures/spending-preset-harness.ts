@@ -295,7 +295,7 @@ export function presetRun(
 		disconnect();
 		for (const root of owner.roots) root.unsubscribe?.();
 		const group = graph.topologyGroup();
-		for (const n of graph.describe().nodes) group.add(graph.find(n.id)!);
+		for (const n of graph.inspect().nodes) group.add(graph.find(n.id)!);
 		group.release();
 	};
 	connect();

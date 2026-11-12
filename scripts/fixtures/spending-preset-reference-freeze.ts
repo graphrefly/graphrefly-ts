@@ -49,7 +49,7 @@ for (const mode of ["off", "summary"] as const)
 		const run = arm === "candidate" ? presetRun(mode) : referenceRun(mode, presetBinding);
 		try {
 			const nodes = run.graph
-				.describe()
+				.inspect()
 				.nodes.map(({ id, factory, deps }) => ({ id, factory, deps }));
 			put(`${arm}-${mode}-topology.json`, {
 				owned: run.owner.nodes.length,

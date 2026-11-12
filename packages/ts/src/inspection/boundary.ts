@@ -1,13 +1,13 @@
 /**
  * Framework-neutral graph boundary projection (D238).
  *
- * The manifest is derived from describe()/live topology (R-describe,
+ * The manifest is derived from inspect()/live topology (graphrefly-ts:D183,
  * R-edges-derived). It does not own widgets, layouts, capabilities, or product
  * metadata; those layers consume this structural boundary.
  */
 
 import type { WritableNode } from "../adapters/store.js";
-import type { DescribeSnapshot } from "../graph/describe.js";
+import type { InspectSnapshot } from "../graph/describe.js";
 import type { Graph } from "../graph/graph.js";
 import type { Node } from "../node/node.js";
 
@@ -68,7 +68,7 @@ export interface BoundaryManifest {
  * ```
  */
 export function boundaryManifest(graph: Graph): BoundaryManifest {
-	const described = graph.describe();
+	const described = graph.inspect();
 	const consumed = new Set<string>();
 	for (const snapshot of walkSnapshots(described)) {
 		for (const edge of snapshot.edges ?? []) consumed.add(edge.from);
@@ -97,7 +97,7 @@ export function boundaryManifest(graph: Graph): BoundaryManifest {
 	return { inputs, outputs };
 }
 
-function* walkSnapshots(snapshot: DescribeSnapshot): Generator<DescribeSnapshot> {
+function* walkSnapshots(snapshot: InspectSnapshot): Generator<InspectSnapshot> {
 	yield snapshot;
 	for (const child of snapshot.subgraphs ?? []) yield* walkSnapshots(child);
 }

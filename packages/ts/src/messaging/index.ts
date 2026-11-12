@@ -186,7 +186,7 @@ export function messageBus<TTopic extends string>(
 			error: "manual",
 		},
 	);
-	graph.retain(runtime, { reason: `${name}.messageBus.runtime` });
+	graph.retain(runtime);
 	const messages = graph.node<MessageBusMessage>(
 		[runtime],
 		oneArrayPerRun((ctx) => {

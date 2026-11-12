@@ -80,7 +80,7 @@ describe("environment outbound adapters (D130/D132)", () => {
 			"DATA",
 			{ state: "succeeded", inFlight: 0, attempt: 1, sent: 1, failed: 0 },
 		]);
-		const snap = g.describe();
+		const snap = g.inspect();
 		expect(snap.edges).toContainEqual({ from: "source", to: "egress" });
 		expect(snap.edges).toContainEqual({ from: "egress", to: "egress/status" });
 	});
@@ -260,7 +260,7 @@ describe("environment session adapters (D133)", () => {
 		]);
 		expect(errors).toEqual([]);
 		expect(canceled).toBe(0);
-		const snap = g.describe();
+		const snap = g.inspect();
 		expect(snap.nodes.map((node) => node.id).sort()).toEqual([
 			"session/attempts",
 			"session/command",

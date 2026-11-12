@@ -33,7 +33,7 @@ function setup(graph = new Graph({ name: "graded-entry" })) {
 function teardown(graph: Graph, hosts: readonly Host[] = []) {
 	for (const host of hosts) for (const lease of host.owner.roots) lease.unsubscribe?.();
 	const group = graph.topologyGroup();
-	for (const n of graph.describe().nodes) group.add(graph.find(n.id)!);
+	for (const n of graph.inspect().nodes) group.add(graph.find(n.id)!);
 	group.release();
 }
 function drive(run: ReturnType<typeof setup>, epoch = 1) {
@@ -55,7 +55,7 @@ it("creating immutable defaults allocates no nodes and does not claim the resour
 	const graph = new Graph();
 	const preset = spendingAlertsFor(graph, { name: "spending" });
 	expect(Object.isFrozen(preset)).toBe(true);
-	expect(graph.describe().nodes).toHaveLength(0);
+	expect(graph.inspect().nodes).toHaveLength(0);
 	expect(Object.keys(preset)).toEqual(["compose"]);
 });
 
@@ -73,7 +73,7 @@ for (const value of [
 	it(`invalid defaults leave no graph resources (${String(value)})`, () => {
 		const graph = new Graph();
 		expect(() => spendingAlertsFor(graph, value as SpendingDefaults)).toThrow();
-		expect(graph.describe().nodes).toHaveLength(0);
+		expect(graph.inspect().nodes).toHaveLength(0);
 	});
 }
 it("accessor defaults and overrides are rejected without invoking getters or allocating", () => {
@@ -189,7 +189,7 @@ it("wrong graph inputs fail cold and leave the resource reusable", () => {
 		other = new Graph();
 	const before = run.graph.topology();
 	expect(() => spendingAlertsFor(other, { name: "spending" }).compose(run.creation)).toThrow();
-	expect(other.describe().nodes).toHaveLength(0);
+	expect(other.inspect().nodes).toHaveLength(0);
 	expect(run.graph.topology()).toEqual(before);
 	const lease = run.resource.claim();
 	lease.abort();

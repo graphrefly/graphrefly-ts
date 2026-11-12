@@ -254,9 +254,7 @@ export function admissionHandoff<T, R = unknown>(
 			meta: { pattern: "admission-handoff", role: "quiet-causal-boundary" },
 		},
 	);
-	let releaseKeepalive: (() => void) | undefined = graph.retain(accepted, {
-		reason: `${name}.accepted`,
-	});
+	let releaseKeepalive: (() => void) | undefined = graph.retain(accepted);
 
 	return {
 		candidates: opts.candidates,

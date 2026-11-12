@@ -33,14 +33,14 @@ describe("observe terminal egress (Worker C)", () => {
 		g.initNode(throwError(err), [], { name: "failed" });
 		const events: ObserveEvent[] = [];
 
-		g.observe().subscribe((e) => events.push(e));
+		g.observe(
+			g.describe().map((n) => n.id),
+			(e) => events.push(e),
+		);
 
-		expect(events).toContainEqual(
-			expect.objectContaining({ path: "done", msg: ["COMPLETE"], tier: 5 }),
-		);
-		expect(events).toContainEqual(
-			expect.objectContaining({ path: "failed", msg: ["ERROR", err], tier: 5 }),
-		);
-		expect(new Set(events.map((e) => e.path))).toEqual(new Set(["done", "failed"]));
+		const msgs = (id: string) => events.filter((e) => e.id === id).flatMap((e) => e.msgs);
+		expect(msgs("done")).toContainEqual(["COMPLETE"]);
+		expect(msgs("failed")).toContainEqual(["ERROR", err]);
+		expect(new Set(events.map((e) => e.id))).toEqual(new Set(["done", "failed"]));
 	});
 });

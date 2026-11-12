@@ -28,3 +28,9 @@ export function collect(node: Subscribable): Collected {
 export function dataValues<T = unknown>(msgs: readonly Message[]): T[] {
 	return msgs.filter((m) => m[0] === "DATA").map((m) => (m as readonly ["DATA", unknown])[1] as T);
 }
+
+/** The last DATA value of one observed array, if it carries one. */
+export function lastData<T = unknown>(event: { readonly msgs: Wave }): T | undefined {
+	const values = dataValues<T>(event.msgs);
+	return values.length === 0 ? undefined : values[values.length - 1];
+}

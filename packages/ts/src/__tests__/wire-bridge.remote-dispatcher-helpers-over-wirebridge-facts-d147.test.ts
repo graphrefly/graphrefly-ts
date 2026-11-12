@@ -638,7 +638,7 @@ describe("remote dispatcher helpers over wireBridge facts (D147)", () => {
 			}),
 		]);
 
-		const snap = g.describe();
+		const snap = g.inspect();
 		expect(snap.edges).toContainEqual({ from: "bridge/inbound", to: "responder/events" });
 		// D803: response commands are written into the bridge's command state, not a dependency.
 		expect(snap.edges).not.toContainEqual({
@@ -668,7 +668,7 @@ describe("remote dispatcher helpers over wireBridge facts (D147)", () => {
 		responder.release();
 		responder.release();
 		expect(g.find("responder/responseCommands")).toBeUndefined();
-		expect(g.describe().edges).not.toContainEqual({
+		expect(g.inspect().edges).not.toContainEqual({
 			from: "responder/responseCommands",
 			to: "bridge/command",
 		});

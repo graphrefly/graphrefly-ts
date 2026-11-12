@@ -258,7 +258,7 @@ export function workQueue<T = unknown>(graph: Graph, opts: WorkQueueOptions<T>):
 		},
 	);
 	attachMessageBusDeferredCommandSink(graph, opts.bus, admissionAckCommands);
-	graph.retain(runtime, { reason: `${name}.workQueue.runtime` });
+	graph.retain(runtime);
 	const queue: WorkQueue<T> = {
 		commands,
 		records,

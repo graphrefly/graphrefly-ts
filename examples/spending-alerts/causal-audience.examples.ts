@@ -25,7 +25,7 @@ export function frameworkExample<T>(
 }
 /** The maintainer still inspects the complete executing graph. */
 export function maintainerExample(graph: Graph) {
-	return graph.describe();
+	return graph.inspect();
 }
 function compileOnly(view: SpendingAlertsView) {
 	// @ts-expect-error Ordinary view has no internal authority capability.

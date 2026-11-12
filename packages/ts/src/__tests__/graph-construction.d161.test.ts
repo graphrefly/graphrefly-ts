@@ -198,9 +198,9 @@ describe("D161 graph construction ownership", () => {
 		expect(f.graph.find("causal/authority")).toBeUndefined();
 		expect(constructionOf(f.graph, "causal")).toBeUndefined();
 		// Only the fixture's input nodes remain: eight lanes plus the watermark's host input.
-		expect(f.graph.describe().nodes).toHaveLength(9);
+		expect(f.graph.inspect().nodes).toHaveLength(9);
 		const group = f.graph.topologyGroup();
-		for (const node of f.graph.describe().nodes) group.add(f.graph.find(node.id)!);
+		for (const node of f.graph.inspect().nodes) group.add(f.graph.find(node.id)!);
 		group.release();
 	});
 
@@ -241,7 +241,7 @@ describe("D161 graph construction ownership", () => {
 		expect(() =>
 			prepareConstruction(g, { name: "bad", epoch: 1, names: ["retired"], inputs: [] }),
 		).toThrow(/retired/);
-		expect(g.describe().nodes).toHaveLength(0);
+		expect(g.inspect().nodes).toHaveLength(0);
 	});
 
 	it("rejects active batch and reactive entry before any resource acquisition", () => {
@@ -256,7 +256,7 @@ describe("D161 graph construction ownership", () => {
 			{ name: "source" },
 		);
 		source.subscribe(() => {});
-		expect(g.describe().nodes).toHaveLength(1);
+		expect(g.inspect().nodes).toHaveLength(1);
 	});
 
 	it("cleans a failed constructor handle before a Node is returned", () => {
@@ -282,15 +282,15 @@ describe("D161 graph construction ownership", () => {
 		expect(caught).toBeDefined();
 		expect(() => scope.abort(caught)).toThrow(ColdConstructionError);
 		expect(dispatcher.live.size).toBe(expectedResources(false, 1, 1).coldRemaining);
-		expect(g.describe().nodes).toHaveLength(0);
+		expect(g.inspect().nodes).toHaveLength(0);
 	});
 
 	it("cleans already registered cold nodes when a later acquisition throws", () => {
 		const f = simple();
-		const before = f.graph.describe().nodes.length;
+		const before = f.graph.inspect().nodes.length;
 		expect(before).toBe(6);
 		expect(() => f.scope.abort(new Error("seal failed"))).toThrow(/cleanup complete/);
-		expect(f.graph.describe().nodes.map((n) => n.id)).toEqual(["a", "b"]);
+		expect(f.graph.inspect().nodes.map((n) => n.id)).toEqual(["a", "b"]);
 		expect(f.dispatcher.live.size).toBe(0);
 		expect(subscriberCountOfNode(f.a)).toBe(0);
 		expect(() => f.graph.node([], null, { name: "view/join" })).toThrow(/cannot be reused/);
@@ -498,11 +498,11 @@ describe("D161 graph construction ownership", () => {
 	it("returns exact narrow handles with real payload projection and rejects wrong bindings", () => {
 		const f = causal();
 		const setup = causalComposition(f.graph);
-		const before = f.graph.describe().nodes.length;
+		const before = f.graph.inspect().nodes.length;
 		expect(() =>
 			setup.composeFull(f.options, { ...binding, scope: "identity" } as never),
 		).toThrow();
-		expect(f.graph.describe().nodes.length).toBe(before);
+		expect(f.graph.inspect().nodes.length).toBe(before);
 		const full = setup.composeFull(f.options, binding);
 		assertCausalCapabilities(f.graph, full, binding);
 		expect(full.execution.identity).toBe(full.identity);
@@ -791,7 +791,7 @@ describe("D161 graph construction ownership", () => {
 		}
 		source.set(2);
 		expect(seen).toEqual([1, 2]);
-		expect(g.describe().nodes).toHaveLength(1);
+		expect(g.inspect().nodes).toHaveLength(1);
 	});
 
 	it.each([

@@ -231,14 +231,14 @@ export function processBundle<
 		(fact) => (fact.kind === "cursor" ? fact.cursor : undefined),
 	);
 	const retainProcessNodes = () => [
-		graph.retain(runtime, { reason: `${name}.process.runtime` }),
-		graph.retain(events, { reason: `${name}.process.events` }),
-		graph.retain(state, { reason: `${name}.process.state` }),
-		graph.retain(audit, { reason: `${name}.process.audit` }),
-		graph.retain(effectRequests, { reason: `${name}.process.effectRequests` }),
-		graph.retain(status, { reason: `${name}.process.status` }),
-		graph.retain(errors, { reason: `${name}.process.errors` }),
-		graph.retain(cursor, { reason: `${name}.process.cursor` }),
+		graph.retain(runtime),
+		graph.retain(events),
+		graph.retain(state),
+		graph.retain(audit),
+		graph.retain(effectRequests),
+		graph.retain(status),
+		graph.retain(errors),
+		graph.retain(cursor),
 	];
 	let releaseRetains = retainProcessNodes();
 	let released = false;
@@ -443,11 +443,11 @@ export function processEffectRunner<TEffect = unknown, TResult = unknown>(
 		},
 	);
 	const retainRunnerNodes = () => [
-		graph.retain(requests, { reason: `${name}.effectRunner.requests` }),
-		graph.retain(outcomes, { reason: `${name}.effectRunner.outcomes` }),
-		graph.retain(commands, { reason: `${name}.effectRunner.commands` }),
-		graph.retain(status, { reason: `${name}.effectRunner.status` }),
-		graph.retain(errors, { reason: `${name}.effectRunner.errors` }),
+		graph.retain(requests),
+		graph.retain(outcomes),
+		graph.retain(commands),
+		graph.retain(status),
+		graph.retain(errors),
 	];
 	let releaseRetains = retainRunnerNodes();
 	try {

@@ -317,7 +317,7 @@ export async function runGradedSpendingDemo() {
 		for (const instance of [app, appB])
 			for (const lease of instance?.owner.roots ?? []) lease.unsubscribe?.();
 		const group = graph.topologyGroup();
-		for (const node of graph.describe().nodes) group.add(graph.find(node.id)!);
+		for (const node of graph.inspect().nodes) group.add(graph.find(node.id)!);
 		group.release();
 	}
 }

@@ -333,7 +333,7 @@ describe("core operators (free-standing factories via g.initNode, D43/D6)", () =
 			[s],
 			{ name: "pos" },
 		);
-		const snap = g.describe();
+		const snap = g.inspect();
 		const byId = Object.fromEntries(snap.nodes.map((n) => [n.id, n]));
 		expect(byId.inc.factory).toBe("map");
 		expect(byId.pos.factory).toBe("filter");
@@ -689,7 +689,7 @@ describe("Slice 1 — single-dep transform/take/control (CSP-2.7)", () => {
 		const s = g.state(0, { name: "s" });
 		g.initNode(skip<number>(1), [s], { name: "sk" });
 		g.initNode(pairwise<number>(), [s], { name: "pw" });
-		const byId = Object.fromEntries(g.describe().nodes.map((n) => [n.id, n]));
+		const byId = Object.fromEntries(g.inspect().nodes.map((n) => [n.id, n]));
 		expect(byId.sk.factory).toBe("skip");
 		expect(byId.pw.factory).toBe("pairwise");
 	});

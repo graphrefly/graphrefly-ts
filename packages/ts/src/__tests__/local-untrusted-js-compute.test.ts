@@ -17,7 +17,7 @@ import {
 	localUntrustedJsComputeRuntime,
 	runLocalUntrustedJsComputeAttempt,
 } from "../executors/local-untrusted-js-compute.js";
-import type { DescribeSnapshot } from "../graph/describe.js";
+import type { InspectSnapshot } from "../graph/describe.js";
 import { Graph } from "../graph/graph.js";
 import { strictCanonicalJsonBytes } from "../json/codec.js";
 import type {
@@ -194,7 +194,7 @@ const successfulDriver = (): LocalUntrustedJsComputeDriver => ({
 						name: "question",
 						factory: "source",
 						deps: [],
-						status: "resolved",
+						status: { cache: "ready", output: "open", lifecycle: "active" },
 						value: { text: "count rows" },
 					},
 					{
@@ -202,14 +202,12 @@ const successfulDriver = (): LocalUntrustedJsComputeDriver => ({
 						name: "answer",
 						factory: "map",
 						deps: ["question"],
-						status: "resolved",
+						status: { cache: "ready", output: "open", lifecycle: "active" },
 						value: { rows: 2 },
 					},
 				],
 				edges: [{ from: "question", to: "answer" }],
-				// TODO(review-2.21): the runtime's describe validator (describeNode) still accepts only
-				// the retired string statuses, while DescribeNode.status is the R-node@2 object.
-			} as unknown as DescribeSnapshot,
+			} satisfies InspectSnapshot,
 			provenance: {
 				sourceRevision: request.sourceRevision,
 				sourceDigest: request.sourceDigest,

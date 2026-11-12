@@ -734,7 +734,7 @@ describe("CQRS application infrastructure (B63 / D125 / D129)", () => {
 			reducer: (state) => state + 1,
 		});
 
-		const snap = g.describe();
+		const snap = g.inspect();
 
 		expect(snap.nodes.map((node) => [node.id, node.factory])).toEqual(
 			expect.arrayContaining([

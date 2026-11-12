@@ -50,7 +50,7 @@ describe("messageBus clean-slate retained topic log (D279/D282/D284/D285/D325)",
 		const g = graph();
 		messageBus(g, { topics: ["orders"], name: "bus", now: () => 10 });
 
-		expect(g.describe().nodes.map((node) => [node.id, node.factory])).toEqual(
+		expect(g.inspect().nodes.map((node) => [node.id, node.factory])).toEqual(
 			expect.arrayContaining([
 				["bus/commands", "messageBusCommands"],
 				["bus/messages", "messageBusMessages"],
@@ -178,7 +178,7 @@ describe("messageBus clean-slate retained topic log (D279/D282/D284/D285/D325)",
 			"DATA",
 			{ topic: "orders", seq: 1, payload: { id: "o1" }, key: "o1", timestampMs: 30 },
 		]);
-		const snap = g.describe();
+		const snap = g.inspect();
 		expect(snap.edges).toContainEqual({ from: "source", to: "orders/out" });
 		expect(snap.edges).toContainEqual({ from: "orders/out", to: "bus/commands" });
 	});
@@ -204,7 +204,7 @@ describe("messageBus clean-slate retained topic log (D279/D282/D284/D285/D325)",
 			"DATA",
 			expect.objectContaining({ payload: { id: "o2" } }),
 		]);
-		expect(g.describe().edges).not.toContainEqual({ from: "orders/out", to: "bus/commands" });
+		expect(g.inspect().edges).not.toContainEqual({ from: "orders/out", to: "bus/commands" });
 	});
 
 	it("catalog/topic/deadLetter projections answer the params written to their request state", () => {

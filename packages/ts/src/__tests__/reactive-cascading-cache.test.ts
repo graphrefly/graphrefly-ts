@@ -39,7 +39,7 @@ describe("reactiveCascadingCache (D104/D105/D107)", () => {
 		request.set("user:1");
 		await flush();
 
-		const snap = g.describe();
+		const snap = g.inspect();
 		expect(snap.nodes.map((n) => n.id).sort()).toEqual([
 			"cache.events",
 			"cache.status",

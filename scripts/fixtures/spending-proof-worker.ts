@@ -193,8 +193,8 @@ try {
 			checkpoints,
 			topology: graph
 				? {
-						nodes: graph.describe().nodes.map((n) => ({ id: n.id, factory: n.factory })),
-						edges: graph.describe().edges,
+						nodes: graph.inspect().nodes.map((n) => ({ id: n.id, factory: n.factory })),
+						edges: graph.inspect().edges,
 					}
 				: null,
 			readback: { before: [], after: [...after] },
@@ -206,7 +206,7 @@ try {
 	if (host && graph) {
 		for (const lease of host.owner.roots) lease.unsubscribe?.();
 		const group = graph.topologyGroup();
-		for (const node of graph.describe().nodes) group.add(graph.find(node.id)!);
+		for (const node of graph.inspect().nodes) group.add(graph.find(node.id)!);
 		group.release();
 	}
 	// A pending case remains pending evidence. Forced process teardown is not normal run completion.

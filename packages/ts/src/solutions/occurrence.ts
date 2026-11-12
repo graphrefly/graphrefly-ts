@@ -166,7 +166,7 @@ export function solutionOccurrenceJoin<L, R, O>(
 			},
 		},
 	);
-	graph.retain(accepted, { reason: `${opts.name} only releases complete matched occurrences` });
+	graph.retain(accepted);
 	return accepted;
 }
 

@@ -1,27 +1,28 @@
 /**
- * Pure renderers over `DescribeSnapshot` (D39 / D40 tail).
+ * Pure renderers over `InspectSnapshot` (D39 / D40 tail).
  *
  * Render is graph-layer presentation: no Graph method, no topology mutation, no substrate behavior.
  */
 
 import { canonicalTupleKey } from "../identity.js";
+import type { Status } from "../node/types.js";
 import {
 	type GraphBlueprintEvidence,
 	graphBlueprintDiagnostics,
 	type NormalizedGraphTopologySnapshot,
 } from "./blueprint.js";
 import { parseGraphBlueprint } from "./blueprint-evidence.js";
-import type { DescribeEdge, DescribeNode, DescribeSnapshot } from "./describe.js";
+import type { InspectEdge, InspectNode, InspectSnapshot } from "./describe.js";
 
 export type DiagramDirection = "TD" | "LR" | "BT" | "RL";
 
-export interface DescribeToMermaidOptions {
+export interface InspectToMermaidOptions {
 	/** Diagram direction; default "LR". */
 	direction?: DiagramDirection;
 }
 
 /** Diagram options for Blueprint-direct Mermaid rendering. */
-export type GraphBlueprintToMermaidOptions = DescribeToMermaidOptions;
+export type GraphBlueprintToMermaidOptions = InspectToMermaidOptions;
 
 export type MermaidLiveTheme = "default" | "dark" | "forest" | "neutral" | "base";
 
@@ -32,26 +33,26 @@ export interface MermaidLiveUrlOptions {
 	autoSync?: boolean;
 }
 
-export interface DescribeToMermaidUrlOptions
-	extends DescribeToMermaidOptions,
+export interface InspectToMermaidUrlOptions
+	extends InspectToMermaidOptions,
 		MermaidLiveUrlOptions {}
 
-export interface DescribeToD2Options {
+export interface InspectToD2Options {
 	/** Diagram direction; default "LR". */
 	direction?: DiagramDirection;
 }
 
-export interface DescribeToPrettyOptions {
+export interface InspectToPrettyOptions {
 	/** Include the Edges section; default true. */
 	includeEdges?: boolean;
 }
 
-export interface DescribeToAsciiOptions {
+export interface InspectToAsciiOptions {
 	/** Include cached values; default false. */
 	includeValues?: boolean;
 }
 
-export interface DescribeToJsonOptions {
+export interface InspectToJsonOptions {
 	/** Include edges; default true. */
 	includeEdges?: boolean;
 	/** JSON indent; default 2. */
@@ -60,8 +61,8 @@ export interface DescribeToJsonOptions {
 
 interface FlatSnapshot {
 	name?: string;
-	nodes: DescribeNode[];
-	edges: DescribeEdge[];
+	nodes: InspectNode[];
+	edges: InspectEdge[];
 }
 
 /** Render a D39 describe snapshot as Mermaid flowchart text.
@@ -71,12 +72,12 @@ interface FlatSnapshot {
  * @category graph
  * @example
  * ```ts
- * import { describeToMermaid } from "@graphrefly/ts/graph";
+ * import { inspectToMermaid } from "@graphrefly/ts/graph";
  * ```
  */
-export function describeToMermaid(
-	snapshot: DescribeSnapshot,
-	opts: DescribeToMermaidOptions = {},
+export function inspectToMermaid(
+	snapshot: InspectSnapshot,
+	opts: InspectToMermaidOptions = {},
 ): string {
 	const direction = normalizeDirection(opts.direction);
 	const flat = flattenDescribe(snapshot);
@@ -99,7 +100,7 @@ export function describeToMermaid(
 
 /** Render a portable D629/D630 GraphBlueprint directly as deterministic Mermaid source.
  *
- * Unlike {@link describeToMermaid}, this helper consumes only the versioned Blueprint evidence
+ * Unlike {@link inspectToMermaid}, this helper consumes only the versioned Blueprint evidence
  * envelope. It never reads runtime values, status, or a live Graph.
  *
  * @param blueprint - Portable GraphBlueprint evidence.
@@ -183,14 +184,14 @@ export function mermaidLiveUrl(mermaidSource: string, opts: MermaidLiveUrlOption
  * @category graph
  * @example
  * ```ts
- * import { describeToMermaidUrl } from "@graphrefly/ts/graph";
+ * import { inspectToMermaidUrl } from "@graphrefly/ts/graph";
  * ```
  */
-export function describeToMermaidUrl(
-	snapshot: DescribeSnapshot,
-	opts: DescribeToMermaidUrlOptions = {},
+export function inspectToMermaidUrl(
+	snapshot: InspectSnapshot,
+	opts: InspectToMermaidUrlOptions = {},
 ): string {
-	return mermaidLiveUrl(describeToMermaid(snapshot, opts), opts);
+	return mermaidLiveUrl(inspectToMermaid(snapshot, opts), opts);
 }
 
 /** Render a D39 describe snapshot as D2 diagram text.
@@ -200,10 +201,10 @@ export function describeToMermaidUrl(
  * @category graph
  * @example
  * ```ts
- * import { describeToD2 } from "@graphrefly/ts/graph";
+ * import { inspectToD2 } from "@graphrefly/ts/graph";
  * ```
  */
-export function describeToD2(snapshot: DescribeSnapshot, opts: DescribeToD2Options = {}): string {
+export function inspectToD2(snapshot: InspectSnapshot, opts: InspectToD2Options = {}): string {
 	const direction = normalizeDirection(opts.direction);
 	const flat = flattenDescribe(snapshot);
 	const nodes = sortedNodes(flat.nodes);
@@ -223,6 +224,11 @@ export function describeToD2(snapshot: DescribeSnapshot, opts: DescribeToD2Optio
 	return lines.join("\n");
 }
 
+/** A Status (R-node@2) as `cache/output/lifecycle`, for the text renderers. */
+function statusLabel(status: Status): string {
+	return `${status.cache}/${status.output}/${status.lifecycle}`;
+}
+
 /** Render a D39 describe snapshot as compact human-readable plaintext.
  * @param snapshot - snapshot value used by the helper.
  * @param opts - Options that configure the helper.
@@ -230,18 +236,18 @@ export function describeToD2(snapshot: DescribeSnapshot, opts: DescribeToD2Optio
  * @category graph
  * @example
  * ```ts
- * import { describeToPretty } from "@graphrefly/ts/graph";
+ * import { inspectToPretty } from "@graphrefly/ts/graph";
  * ```
  */
-export function describeToPretty(
-	snapshot: DescribeSnapshot,
-	opts: DescribeToPrettyOptions = {},
+export function inspectToPretty(
+	snapshot: InspectSnapshot,
+	opts: InspectToPrettyOptions = {},
 ): string {
 	const flat = flattenDescribe(snapshot);
 	const includeEdges = opts.includeEdges ?? true;
 	const lines: string[] = [`Graph ${flat.name ?? "(anonymous)"}`, "Nodes:"];
 	for (const node of sortedNodes(flat.nodes)) {
-		lines.push(`- ${node.id} (${node.factory}/${node.status}): ${formatValue(node)}`);
+		lines.push(`- ${node.id} (${node.factory}/${statusLabel(node.status)}): ${formatValue(node)}`);
 	}
 	if (includeEdges) {
 		lines.push("Edges:");
@@ -257,12 +263,12 @@ export function describeToPretty(
  * @category graph
  * @example
  * ```ts
- * import { describeToAscii } from "@graphrefly/ts/graph";
+ * import { inspectToAscii } from "@graphrefly/ts/graph";
  * ```
  */
-export function describeToAscii(
-	snapshot: DescribeSnapshot,
-	opts: DescribeToAsciiOptions = {},
+export function inspectToAscii(
+	snapshot: InspectSnapshot,
+	opts: InspectToAsciiOptions = {},
 ): string {
 	const flat = flattenDescribe(snapshot);
 	const outgoing = new Map<string, string[]>();
@@ -275,7 +281,7 @@ export function describeToAscii(
 	for (const node of sortedNodes(flat.nodes)) {
 		const value = opts.includeValues ? ` ${formatValue(node)}` : "";
 		const to = outgoing.get(node.id)?.join(", ") ?? "-";
-		lines.push(`${node.id} [${node.factory}/${node.status}${value}] -> ${to}`);
+		lines.push(`${node.id} [${node.factory}/${statusLabel(node.status)}${value}] -> ${to}`);
 	}
 	return lines.join("\n");
 }
@@ -287,27 +293,24 @@ export function describeToAscii(
  * @category graph
  * @example
  * ```ts
- * import { describeToJson } from "@graphrefly/ts/graph";
+ * import { inspectToJson } from "@graphrefly/ts/graph";
  * ```
  */
-export function describeToJson(
-	snapshot: DescribeSnapshot,
-	opts: DescribeToJsonOptions = {},
-): string {
+export function inspectToJson(snapshot: InspectSnapshot, opts: InspectToJsonOptions = {}): string {
 	const includeEdges = opts.includeEdges ?? true;
 	const flat = flattenDescribe(snapshot);
 	const payload: FlatSnapshot = {
 		...(flat.name !== undefined ? { name: flat.name } : {}),
-		nodes: sortedNodes(flat.nodes).map((node) => sortJsonValue(node) as DescribeNode),
+		nodes: sortedNodes(flat.nodes).map((node) => sortJsonValue(node) as InspectNode),
 		edges: includeEdges ? sortedEdges(flat.edges) : [],
 	};
 	return JSON.stringify(sortJsonValue(payload), null, opts.indent ?? 2);
 }
 
-function flattenDescribe(snapshot: DescribeSnapshot): FlatSnapshot {
-	const nodes: DescribeNode[] = [];
-	const edges: DescribeEdge[] = [];
-	const visit = (snap: DescribeSnapshot): void => {
+function flattenDescribe(snapshot: InspectSnapshot): FlatSnapshot {
+	const nodes: InspectNode[] = [];
+	const edges: InspectEdge[] = [];
+	const visit = (snap: InspectSnapshot): void => {
 		nodes.push(...snap.nodes);
 		edges.push(...snap.edges);
 		for (const child of snap.subgraphs ?? []) visit(child);
@@ -316,13 +319,13 @@ function flattenDescribe(snapshot: DescribeSnapshot): FlatSnapshot {
 	return { ...(snapshot.name !== undefined ? { name: snapshot.name } : {}), nodes, edges };
 }
 
-function sortedNodes(nodes: readonly DescribeNode[]): DescribeNode[] {
+function sortedNodes(nodes: readonly InspectNode[]): InspectNode[] {
 	return [...nodes].sort((a, b) => compareText(a.id, b.id));
 }
 
-function sortedEdges(edges: readonly DescribeEdge[]): DescribeEdge[] {
+function sortedEdges(edges: readonly InspectEdge[]): InspectEdge[] {
 	const seen = new Set<string>();
-	const out: DescribeEdge[] = [];
+	const out: InspectEdge[] = [];
 	for (const edge of edges) {
 		const key = canonicalTupleKey([edge.from, edge.to]);
 		if (seen.has(key)) continue;
@@ -365,7 +368,7 @@ function escapeQuotedLabel(value: string): string {
 	return JSON.stringify(value).slice(1, -1);
 }
 
-function formatValue(node: DescribeNode): string {
+function formatValue(node: InspectNode): string {
 	if (!("value" in node)) return "<SENTINEL>";
 	const value = node.value;
 	if (typeof value === "string") return JSON.stringify(value);

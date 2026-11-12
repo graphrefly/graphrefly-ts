@@ -328,7 +328,7 @@ describe("D161 persistReactiveCollection and openPersistentReactive*", () => {
 				changeLog: changes,
 			}),
 		).toThrow(/different graph|cross-graph/);
-		expect(other.describe().nodes.map((node) => node.id)).not.toEqual(
+		expect(other.inspect().nodes.map((node) => node.id)).not.toEqual(
 			expect.arrayContaining([
 				"crossGraph/persistence/ready",
 				"crossGraph/persistence/status",
@@ -336,7 +336,7 @@ describe("D161 persistReactiveCollection and openPersistentReactive*", () => {
 				"crossGraph/persistence/cursor",
 			]),
 		);
-		expect(owner.describe().nodes.map((node) => node.id)).not.toEqual(
+		expect(owner.inspect().nodes.map((node) => node.id)).not.toEqual(
 			expect.arrayContaining([
 				"crossGraph/persistence/ready",
 				"crossGraph/persistence/status",

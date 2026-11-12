@@ -304,7 +304,7 @@ export function collectionCore<S, C>(
 			name: name ? `${name}.bind#${bindSeq++}` : undefined,
 			meta: { kind: "collection_bind_source", collection: factory },
 		});
-		return graph.retain(folder, { reason: `${factory}.bindSource` });
+		return graph.retain(folder);
 	}
 
 	return { delta, snapshot, request, emit, bindSource };

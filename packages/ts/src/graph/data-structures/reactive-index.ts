@@ -423,7 +423,7 @@ function createReactiveIndex<K, V = unknown>(
 			meta: { kind: "collection_policy_apply", collection: "reactiveIndex" },
 		});
 		folders.bind(apply as Node<unknown>);
-		releaseApply = graph.retain(apply, { reason: "reactiveIndex.capacityPolicy" });
+		releaseApply = graph.retain(apply);
 		return apply;
 	}
 

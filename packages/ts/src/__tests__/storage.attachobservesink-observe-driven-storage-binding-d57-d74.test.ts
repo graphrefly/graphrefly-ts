@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import { attachObserveSink, type ObserveSinkErrorContext } from "../adapters/observe-storage.js";
 import type { ObserveEvent } from "../index.js";
 import { graph } from "../index.js";
+import { dataValues, lastData } from "./helpers/collect.js";
 
 interface TestStorage {
 	entries: Record<string, string>;
@@ -68,20 +69,17 @@ describe("attachObserveSink — observe-driven storage binding (D57/D74)", () =>
 		const handle = attachObserveSink(
 			g,
 			{ write: (event) => void events.push(event) },
-			{ path: "b" },
+			{ ids: ["b"] },
 		);
 
 		a.set(1);
 		a.set(2);
 		handle.flush();
 
-		expect(events.every((event) => event.path === "b")).toBe(true);
-		expect(events.map((event) => event.seq)).toEqual(
-			[...events.map((event) => event.seq)].sort((x, y) => x - y),
-		);
-		expect(events.filter((event) => event.msg[0] === "DATA").map((event) => event.msg[1])).toEqual([
-			1, 2, 3,
-		]);
+		expect(events.every((event) => event.id === "b")).toBe(true);
+		// One event per delivered array, in delivery order: the START array first.
+		expect(events[0]?.msgs[0]).toEqual(["START"]);
+		expect(dataValues(events.flatMap((event) => event.msgs))).toEqual([1, 2, 3]);
 
 		handle.dispose();
 	});
@@ -107,8 +105,8 @@ describe("attachObserveSink — observe-driven storage binding (D57/D74)", () =>
 				},
 			},
 			{
-				path: "count",
-				map: (event) => (event.msg[0] === "DATA" ? (event.msg[1] as number) : undefined),
+				ids: ["count"],
+				map: (event) => lastData<number>(event),
 			},
 		);
 
@@ -148,8 +146,8 @@ describe("attachObserveSink — observe-driven storage binding (D57/D74)", () =>
 				},
 			},
 			{
-				path: "count",
-				map: (event) => (event.msg[0] === "DATA" ? (event.msg[1] as number) : undefined),
+				ids: ["count"],
+				map: (event) => lastData<number>(event),
 				onError: (error, ctx) => {
 					errors.push({ message: (error as Error).message, ctx });
 				},
@@ -195,8 +193,8 @@ describe("attachObserveSink — observe-driven storage binding (D57/D74)", () =>
 				},
 			},
 			{
-				path: "count",
-				map: (event) => (event.msg[0] === "DATA" ? (event.msg[1] as number) : undefined),
+				ids: ["count"],
+				map: (event) => lastData<number>(event),
 				onError: (error, ctx) => {
 					errors.push({ message: (error as Error).message, ctx });
 				},
@@ -229,8 +227,8 @@ describe("attachObserveSink — observe-driven storage binding (D57/D74)", () =>
 				dispose: () => void calls.push("dispose"),
 			},
 			{
-				path: "count",
-				map: (event) => (event.msg[0] === "DATA" ? (event.msg[1] as number) : undefined),
+				ids: ["count"],
+				map: (event) => lastData<number>(event),
 			},
 		);
 
@@ -271,8 +269,8 @@ describe("attachObserveSink — observe-driven storage binding (D57/D74)", () =>
 				},
 			},
 			{
-				path: "count",
-				map: (event) => (event.msg[0] === "DATA" ? (event.msg[1] as number) : undefined),
+				ids: ["count"],
+				map: (event) => lastData<number>(event),
 			},
 		);
 
@@ -306,10 +304,10 @@ describe("attachObserveSink — observe-driven storage binding (D57/D74)", () =>
 			g,
 			{ write },
 			{
-				path: "count",
+				ids: ["count"],
 				map: (event) => {
-					if (event.msg[0] !== "DATA") return undefined;
-					const value = event.msg[1] as number;
+					const value = lastData<number>(event);
+					if (value === undefined) return undefined;
 					if (value === 1) throw new Error("bad map");
 					return value;
 				},
@@ -324,7 +322,7 @@ describe("attachObserveSink — observe-driven storage binding (D57/D74)", () =>
 		handle.flush();
 
 		expect(write.mock.calls.map(([value]) => value)).toEqual([0, 2]);
-		expect(errors).toEqual([{ phase: "map", event: expect.objectContaining({ path: "count" }) }]);
+		expect(errors).toEqual([{ phase: "map", event: expect.objectContaining({ id: "count" }) }]);
 
 		handle.dispose();
 	});
@@ -347,8 +345,8 @@ describe("attachObserveSink — observe-driven storage binding (D57/D74)", () =>
 				dispose: () => Promise.reject(new Error("dispose fail")),
 			},
 			{
-				path: "count",
-				map: (event) => (event.msg[0] === "DATA" ? (event.msg[1] as number) : undefined),
+				ids: ["count"],
+				map: (event) => lastData<number>(event),
 				onError: (_error, ctx) => {
 					phases.push(ctx.phase);
 				},

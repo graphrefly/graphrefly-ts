@@ -256,7 +256,7 @@ describe("ProcessBundle — graph-visible facts-plus-reducer orchestration (D136
 			reduce: (_command, state) => ({ state }),
 		});
 
-		const snap = g.describe();
+		const snap = g.inspect();
 		const byId = Object.fromEntries(snap.nodes.map((node) => [node.id, node]));
 		expect(byId["process/command"].factory).toBe("processCommand");
 		expect(byId["process/runtime"].deps).toEqual(["process/command"]);
@@ -559,7 +559,7 @@ describe("ProcessBundle effect runner — visible outcome-command adapter (D156)
 			metadata: undefined,
 		});
 		expect(process.state.cache).toEqual({ notified: true });
-		const snap = g.describe();
+		const snap = g.inspect();
 		expect(snap.edges).toContainEqual({ from: "order/effectRequests", to: "notify/requests" });
 		expect(snap.edges).toContainEqual({ from: "notify/outcomeFacts", to: "notify/runtime" });
 		expect(snap.edges).toContainEqual({ from: "notify/commands", to: "order/command" });
@@ -596,6 +596,6 @@ describe("ProcessBundle effect runner — visible outcome-command adapter (D156)
 		runner.release();
 		runner.release();
 		expect(g.find("work/commands")).toBeUndefined();
-		expect(g.describe().edges).not.toContainEqual({ from: "work/commands", to: "process/command" });
+		expect(g.inspect().edges).not.toContainEqual({ from: "work/commands", to: "process/command" });
 	});
 });

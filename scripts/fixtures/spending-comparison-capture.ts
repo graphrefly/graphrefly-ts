@@ -145,7 +145,7 @@ for (const arm of ["graph", "plain"] as const) {
 				evaluations,
 				snapshots,
 				writePayloads: writes,
-				topology: graph ? graph.describe() : null,
+				topology: graph ? graph.inspect() : null,
 				scope:
 					caseId === "C3"
 						? "External verification lane withheld. Internal synchronous business branches are NOT paused; no claim of missing internal branch coverage."
@@ -158,7 +158,7 @@ for (const arm of ["graph", "plain"] as const) {
 			if (host && graph) {
 				for (const root of host.owner.roots) root.unsubscribe?.();
 				const group = graph.topologyGroup();
-				for (const node of graph.describe().nodes) group.add(graph.find(node.id)!);
+				for (const node of graph.inspect().nodes) group.add(graph.find(node.id)!);
 				group.release();
 			}
 		}

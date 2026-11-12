@@ -57,13 +57,14 @@ export {
 	type GraphCheckpointTerminal,
 } from "./checkpoint.js";
 export type {
-	DescribeEdge,
-	DescribeNode,
-	DescribeOpts,
-	DescribeSnapshot,
+	DescribedNode,
 	GraphTopologyEdge,
 	GraphTopologyNode,
 	GraphTopologySnapshot,
+	InspectEdge,
+	InspectNode,
+	InspectOpts,
+	InspectSnapshot,
 } from "./describe.js";
 export {
 	type CausalChain,
@@ -126,18 +127,13 @@ export {
 	type TopologyGroupOptions,
 	type TopologyGroupReleaseOptions,
 } from "./graph.js";
-export {
-	coalesceObserve,
-	filterObserve,
-	type NodeProfile,
-	type ObserveEvent,
-	type ObserveEventEquals,
-	type ObservePredicate,
-	type ObserveStream,
-	type Profile,
-	type TopologyEvent,
-	type TopologyEventKind,
-	type TopologyStream,
+export type {
+	NodeProfile,
+	ObserveEvent,
+	Profile,
+	TopologyEvent,
+	TopologyEventKind,
+	TopologyStream,
 } from "./inspect.js";
 export {
 	type BackoffPolicy,

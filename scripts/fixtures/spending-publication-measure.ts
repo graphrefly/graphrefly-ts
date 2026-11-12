@@ -220,7 +220,7 @@ try {
 							committed: a.view,
 							actual: a.latest,
 							expected: plain.project(),
-							graph: a.graph.describe(),
+							graph: a.graph.inspect(),
 						});
 					a.close();
 					b.close();

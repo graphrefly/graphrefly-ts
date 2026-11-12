@@ -455,7 +455,7 @@ describe("CSP-8 experimental agent runtime kernel (D236) — part 5", () => {
 				msg[0] === "DATA" && runtimeStatus.push(msg[1] as ToolProviderAdapterRuntimeStatus);
 			}
 		});
-		const described = g.describe();
+		const described = g.inspect();
 		expect(
 			described.nodes.find((node) => node.id === "runtimeRetentionNode/retentionPolicy")?.factory,
 		).toBe("toolProviderAdapterRuntimeRetentionPolicy");

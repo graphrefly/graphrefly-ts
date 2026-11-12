@@ -427,7 +427,7 @@ describe("D172 agentic memory record persistence sidecar", () => {
 			snapshotWrites: 1,
 			changeWrites: 1,
 		});
-		expect(g.describe().nodes).toEqual(
+		expect(g.inspect().nodes).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({ id: "agentic/persistence/ready" }),
 				expect.objectContaining({ id: "agentic/persistence/status" }),
@@ -503,7 +503,7 @@ describe("D161 synchronous restore helpers", () => {
 		const list = restoreReactiveList(g, [1], { name: "list" });
 
 		expect(list.toArray()).toEqual([1]);
-		expect(g.describe().nodes.map((node) => node.id)).toEqual(
+		expect(g.inspect().nodes.map((node) => node.id)).toEqual(
 			expect.arrayContaining(["list.delta", "list.snapshot"]),
 		);
 	});
@@ -552,7 +552,7 @@ describe("D161 synchronous restore helpers", () => {
 			{ primary: "b", secondary: 2, value: 20 },
 			{ primary: "c", secondary: 3, value: 30 },
 		]);
-		expect(g.describe().nodes.map((node) => node.id)).toEqual(
+		expect(g.inspect().nodes.map((node) => node.id)).toEqual(
 			expect.arrayContaining(["map.delta", "map.snapshot", "index.delta", "index.snapshot"]),
 		);
 	});

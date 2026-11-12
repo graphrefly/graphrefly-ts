@@ -51,7 +51,7 @@ function collect(n: Node<unknown> | undefined): Message[] {
 const stop = (msgs: Message[]) => stops.get(msgs)?.();
 /** The graph ids of nodes (graph-registered nodes carry no name of their own). */
 const ids = (g: Graph, nodes: readonly Node<unknown>[] | undefined) =>
-	(nodes ?? []).map((n) => g.describe().nodes.find((d) => g.find(d.id) === n)?.id);
+	(nodes ?? []).map((n) => g.inspect().nodes.find((d) => g.find(d.id) === n)?.id);
 const types = (msgs: readonly Message[]) => msgs.map((m) => m[0]);
 const asState = <T>(n: Node<unknown> | undefined) => n as unknown as StateNode<T>;
 const privateStateOf = (n: Node<unknown> | undefined) =>
@@ -159,11 +159,11 @@ describe("C-38 restore keeps the saved state, refreshes once on a changed input,
 		const r = f.restore(checkpoint);
 		expect(f.counts).toEqual(before);
 		const shape = (g: Graph) =>
-			g.describe().nodes.map((n) => ({ id: n.id, factory: n.factory, deps: n.deps }));
+			g.inspect().nodes.map((n) => ({ id: n.id, factory: n.factory, deps: n.deps }));
 		// The live graph's rew went back to its declared dependencies when its lifetime closed; the
 		// checkpoint saved the lifetime's.
 		expect(shape(r).map((n) => n.id)).toEqual(shape(o.g).map((n) => n.id));
-		expect(r.describe().edges).toContainEqual({ from: "b", to: "rew" });
+		expect(r.inspect().edges).toContainEqual({ from: "b", to: "rew" });
 		expect(ids(r, r.definition("rew").deps)).toEqual(["a"]);
 		for (const id of ["a", "b", "p", "ended", "rew", "tick"])
 			expect(checkpointStateOfNode(r.find(id) as Node<unknown>).activated).toBe(false);
@@ -405,7 +405,7 @@ describe("checkpoint and restore: ported cases (TS layout, graphrefly-ts:D178)",
 		count.set(7);
 		const restored = restoreGraph(g.checkpoint(), { registry: defaultRestoreRegistry });
 		expect(restored.find("count")?.cache).toBe(7);
-		expect(restored.describe().nodes.find((n) => n.id === "count")).toMatchObject({
+		expect(restored.inspect().nodes.find((n) => n.id === "count")).toMatchObject({
 			id: "count",
 			name: "count",
 			factory: "state",
@@ -592,8 +592,8 @@ describe("checkpoint and restore: ported cases (TS layout, graphrefly-ts:D178)",
 		const checkpoint = parent.checkpoint();
 		expect(checkpoint.mounts?.[0].checkpoint.nodes.map((n) => n.id)).toEqual(["leaf"]);
 		const restored = restoreGraph(checkpoint, { registry: defaultRestoreRegistry });
-		expect(restored.describe().subgraphs?.[0].nodes.map((n) => n.id)).toEqual(["child::leaf"]);
-		expect(restored.describe().subgraphs?.[0].nodes[0]?.value).toBe(2);
+		expect(restored.inspect().subgraphs?.[0].nodes.map((n) => n.id)).toEqual(["child::leaf"]);
+		expect(restored.inspect().subgraphs?.[0].nodes[0]?.value).toBe(2);
 	});
 
 	it("rejects bad options, duplicate ids, missing dependencies and bad mount ids", () => {

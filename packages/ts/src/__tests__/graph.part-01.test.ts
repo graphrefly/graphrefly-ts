@@ -109,7 +109,7 @@ describe("Graph.describe — snapshot shape (R-describe / D39)", () => {
 		collect(doubled);
 		count.set(5);
 
-		const snap = g.describe();
+		const snap = g.inspect();
 		expect(snap.name).toBe("demo");
 		const byId = Object.fromEntries(snap.nodes.map((n) => [n.id, n]));
 		expect(byId.count.factory).toBe("state");
@@ -125,7 +125,7 @@ describe("Graph.describe — snapshot shape (R-describe / D39)", () => {
 		const g = graph();
 		const s = g.state(0, { name: "s" });
 		g.derived([s], (n) => n, { name: "d" }); // not subscribed → never runs
-		const snap = g.describe();
+		const snap = g.inspect();
 		const dNode = snap.nodes.find((n) => n.id === "d");
 		expect(dNode && "value" in dNode).toBe(false); // SENTINEL → field absent
 	});
@@ -139,7 +139,7 @@ describe("Graph.describe — snapshot shape (R-describe / D39)", () => {
 		collect(c);
 		collect(g.derived([side], (x) => x, { name: "sideD" }));
 
-		const snap = g.describe({ explain: { from: "a", to: "c" } });
+		const snap = g.inspect({ explain: { from: "a", to: "c" } });
 		const ids = snap.nodes.map((n) => n.id).sort();
 		expect(ids).toEqual(["a", "b", "c"]);
 	});
@@ -151,7 +151,7 @@ describe("Graph.describe — snapshot shape (R-describe / D39)", () => {
 		child.state(1, { name: "leaf" });
 		parent.mount(child, { at: "sub" });
 
-		const snap = parent.describe();
+		const snap = parent.inspect();
 		expect(snap.subgraphs?.[0].mountId).toBe("sub");
 		expect(snap.subgraphs?.[0].nodes.some((n) => n.id === "sub::leaf")).toBe(true);
 	});

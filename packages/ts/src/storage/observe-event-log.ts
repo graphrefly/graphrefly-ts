@@ -4,24 +4,27 @@ import { assertChangeEnvelope, type ChangeEnvelope, envelopeChange } from "./cha
 import type { Codec } from "./codec.js";
 import { strictJsonCodecFor } from "./codec.js";
 
+/** The part of a Graph.observe() event (R-graph-surface@1) a frame records. */
 export interface ObserveEventLike {
-	readonly seq: number;
-	readonly path: string;
+	readonly id: string;
 }
 
-/** Storage frame for one Graph.observe() event, preserving graph observe sequence. */
+/**
+ * Storage frame for one Graph.observe() event. observe events carry no sequence number; `seq` is
+ * the frame's place among the frames this attachment wrote, starting at 0.
+ */
 export interface ObserveEventFrame<T = unknown> extends ChangeEnvelope<T> {
 	readonly structure: "observe-event";
-	readonly observeSeq: number;
-	readonly path: string;
+	readonly id: string;
 	readonly stream?: string;
 }
 
 /** One ordered observe-event log page. It is not graph projection or restore replay. */
 export type ObserveEventLogPage<T = unknown> = AppendLogPage<ObserveEventFrame<T>>;
 
-/** Create a storage frame from one observe event and mapped payload.
+/** Create a storage frame from one observe event, its place and its mapped payload.
  * @param event - event value used by the helper.
+ * @param seq - The frame's place among the frames this attachment wrote.
  * @param value - Unknown value to check or decode.
  * @param opts - Options that configure the helper.
  * @returns A `ObserveEventFrame<T>` value.
@@ -33,6 +36,7 @@ export type ObserveEventLogPage<T = unknown> = AppendLogPage<ObserveEventFrame<T
  */
 export function observeEventFrame<T>(
 	event: ObserveEventLike,
+	seq: number,
 	value: T,
 	opts: { stream?: string } = {},
 ): ObserveEventFrame<T> {
@@ -41,11 +45,10 @@ export function observeEventFrame<T>(
 			lifecycle: "data",
 			structure: "observe-event",
 			version: 1,
-			seq: event.seq,
+			seq,
 		}),
 		structure: "observe-event",
-		observeSeq: event.seq,
-		path: event.path,
+		id: event.id,
 		...(opts.stream === undefined ? {} : { stream: opts.stream }),
 	};
 }
@@ -65,11 +68,8 @@ export function assertObserveEventFrame<T = unknown>(value: unknown): ObserveEve
 	if (frame.structure !== "observe-event") {
 		throw new TypeError("observeEventFrameCodec: structure must be observe-event");
 	}
-	if (!Number.isSafeInteger(record.observeSeq) || (record.observeSeq as number) < 0) {
-		throw new TypeError("observeEventFrameCodec: observeSeq must be a non-negative safe integer");
-	}
-	if (typeof record.path !== "string") {
-		throw new TypeError("observeEventFrameCodec: path must be a string");
+	if (typeof record.id !== "string") {
+		throw new TypeError("observeEventFrameCodec: id must be a string");
 	}
 	if (record.stream !== undefined && typeof record.stream !== "string") {
 		throw new TypeError("observeEventFrameCodec: stream must be a string when present");

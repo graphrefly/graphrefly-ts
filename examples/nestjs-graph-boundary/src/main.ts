@@ -447,7 +447,7 @@ class GraphBoundaryDemo {
 	}
 
 	describe(): ReturnType<Graph["describe"]> {
-		return g.describe();
+		return g.inspect();
 	}
 }
 
@@ -544,7 +544,7 @@ class DemoController {
 
 	@Get("graph")
 	graph(): ReturnType<GraphBoundaryDemo["describe"]> {
-		return this.demo.describe();
+		return this.demo.inspect();
 	}
 }
 

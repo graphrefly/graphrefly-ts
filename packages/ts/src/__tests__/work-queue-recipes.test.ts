@@ -75,7 +75,7 @@ describe("workQueue recipes (D327/D328/D331)", () => {
 				}),
 			}),
 		);
-		expect(g.describe().nodes).toContainEqual(
+		expect(g.inspect().nodes).toContainEqual(
 			expect.objectContaining({
 				id: "workItemWorkQueue/submitCommands",
 				factory: "workItemWorkQueueSubmitCommands",

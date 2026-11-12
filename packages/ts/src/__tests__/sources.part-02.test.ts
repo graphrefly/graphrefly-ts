@@ -508,7 +508,7 @@ describe("promise / iterable / coercion sources (D43)", () => {
 	it("describe shows the source factory name (D6)", () => {
 		const g = graph();
 		g.initNode(timer(1000), [], { name: "clock" });
-		const snap = g.describe();
+		const snap = g.inspect();
 		const byId = Object.fromEntries(snap.nodes.map((n) => [n.id, n]));
 		expect(byId.clock.factory).toBe("timer");
 	});
@@ -697,7 +697,7 @@ describe("external callback sources (D43)", () => {
 			["add", "message", opts],
 			["remove", "message", opts],
 		]);
-		expect(g.describe().nodes.find((node) => node.id === "events")?.factory).toBe("fromEvent");
+		expect(g.inspect().nodes.find((node) => node.id === "events")?.factory).toBe("fromEvent");
 	});
 
 	it("fromPushNotification delivers host pushes and calls the returned unsubscribe", () => {
@@ -727,7 +727,7 @@ describe("external callback sources (D43)", () => {
 
 		expect(data(msgs)).toEqual(["a"]);
 		expect(unsubscribed).toBe(true);
-		expect(g.describe().nodes.find((node) => node.id === "pushes")?.factory).toBe(
+		expect(g.inspect().nodes.find((node) => node.id === "pushes")?.factory).toBe(
 			"fromPushNotification",
 		);
 	});

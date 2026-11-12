@@ -2,7 +2,8 @@
  * Graph-bound observe storage adapters.
  *
  * Passive storage lives under ../storage. This subpath owns bridges that need
- * Graph.observe() and therefore sit above both graph and passive storage (D125).
+ * Graph.observe() (R-graph-surface@1) and therefore sit above both graph and passive storage
+ * (D125).
  */
 
 import type { Graph } from "../graph/graph.js";
@@ -39,8 +40,8 @@ export type ObserveSinkDone = () => void;
 
 /** Options for attaching a sink to the read-only observe egress (D74/D125). */
 export interface AttachObserveSinkOptions<T = ObserveEvent> {
-	/** Optional exact-id or subtree path filter; forwarded to `graph.observe(path?)`. */
-	path?: string;
+	/** The ids to observe; every id `graph.describe()` gives at attach time when omitted. */
+	ids?: readonly string[];
 	/** Optional projection/filter. Return `undefined` to drop an observed event. */
 	map?: (event: ObserveEvent) => T | undefined;
 	/** Optional error hook for mapper, write, and lifecycle failures. */
@@ -62,8 +63,8 @@ type QueueItem<T> =
 
 /** Options for persisting Graph.observe() events into an append log. */
 export interface AttachObserveEventLogOptions<T = ObserveEvent> {
-	/** Required exact node id or subtree path. Whole-graph persistence is never implicit (D641). */
-	path: string;
+	/** Required non-empty ids to observe. Whole-graph persistence is never implicit (D641). */
+	ids: readonly string[];
 	stream?: string;
 	/** Required bounded projection/filter into durable strict DATA (D641). */
 	map: (event: ObserveEvent) => T | undefined;
@@ -97,7 +98,8 @@ export function attachObserveSink<T = ObserveEvent>(
 	sink: ObserveSink<T>,
 	opts: AttachObserveSinkOptions<T> = {},
 ): ObserveSinkHandle {
-	const { map, onError, path } = opts;
+	const { map, onError } = opts;
+	const ids = opts.ids ?? graph.describe().map((node) => node.id);
 	const queue: QueueItem<T>[] = [];
 	const disposeDone: ObserveSinkDone[] = [];
 	let draining = false;
@@ -207,7 +209,7 @@ export function attachObserveSink<T = ObserveEvent>(
 		drain();
 	}
 
-	const stop = graph.observe(path).subscribe((event) => {
+	const stop = graph.observe(ids, (event) => {
 		if (disposeRequested) return;
 		let value: T | undefined;
 		try {
@@ -263,17 +265,18 @@ export function attachObserveEventLog<T = ObserveEvent>(
 	log: AppendLogStorageTier<ObserveEventFrame<T>>,
 	opts: AttachObserveEventLogOptions<T>,
 ): ObserveEventLogHandle {
-	if (typeof opts.path !== "string" || opts.path.length === 0) {
-		throw new TypeError("attachObserveEventLog: path must be a non-empty exact id or subtree path");
+	if (!Array.isArray(opts.ids) || opts.ids.length === 0) {
+		throw new TypeError("attachObserveEventLog: ids must be a non-empty list of node ids");
 	}
 	if (typeof opts.map !== "function") {
 		throw new TypeError("attachObserveEventLog: map must be an explicit DATA projection/filter");
 	}
+	let nextSeq = 0;
 	return attachObserveSink<ObserveEventFrame<T>>(
 		graph,
 		{ write: (frame) => log.append(frame).then(() => undefined) },
 		{
-			path: opts.path,
+			ids: opts.ids,
 			map: (event) => {
 				const value = opts.map(event);
 				if (value === undefined) return undefined;
@@ -281,10 +284,12 @@ export function attachObserveEventLog<T = ObserveEvent>(
 					value,
 					"attachObserveEventLog.mappedValue",
 				) as unknown as T;
-				return cloneStrictJsonValue(
-					observeEventFrame(event, canonical, opts),
+				const frame = cloneStrictJsonValue(
+					observeEventFrame(event, nextSeq, canonical, opts),
 					"attachObserveEventLog.frame",
 				) as unknown as ObserveEventFrame<T>;
+				nextSeq += 1;
+				return frame;
 			},
 			onError: opts.onError,
 		},

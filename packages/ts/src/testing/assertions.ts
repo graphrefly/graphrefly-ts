@@ -4,7 +4,7 @@
  * These helpers validate captured protocol output; they do not participate in propagation.
  */
 
-import { isValueTier, type Message, type Wave } from "../protocol/messages.js";
+import type { Message, Wave } from "../protocol/messages.js";
 
 /** Captured subscriber messages grouped by wave. START/replay handshake messages occupy one wave. */
 export type MessageSequence = readonly Wave[];
@@ -48,7 +48,7 @@ export function assertPendingPrecedesTerminalData(messages: MessageSequence): vo
 				continue;
 			}
 
-			if (isValueTier(type)) {
+			if (type === "DATA" || type === "RESOLVED") {
 				if (!openedByPending) {
 					throw new Error(
 						`assertPendingPrecedesTerminalData: ${type} at wave ${waveIndex}, index ${msgIndex} arrived without a preceding PENDING in the same wave (R-dirty-before-data). Wave: ${describeWave(wave, msgIndex)}`,

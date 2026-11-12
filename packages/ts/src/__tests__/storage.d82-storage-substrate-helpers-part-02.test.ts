@@ -35,6 +35,7 @@ import {
 	walFramePrefix,
 } from "../index.js";
 import { sqliteBackend, sqliteKv } from "../storage/node.js";
+import { lastData } from "./helpers/collect.js";
 
 interface TestStorage {
 	entries: Record<string, string>;
@@ -871,14 +872,14 @@ describe("D82 storage substrate helpers — part 2", () => {
 		expect((await log.read()).map((entry) => entry.value.value)).toEqual(["a", "b"]);
 	});
 
-	it("attachObserveEventLog persists observe DATA frames in observe sequence order", async () => {
+	it("attachObserveEventLog persists observe DATA frames in observe order", async () => {
 		const g = graph();
 		const count = g.state(0, { name: "count" });
 		const log = memoryAppendLog<ObserveEventFrame<number>>("observe");
 
 		const handle = attachObserveEventLog<number>(g, log, {
-			path: "count",
-			map: (event) => (event.msg[0] === "DATA" ? (event.msg[1] as number) : undefined),
+			ids: ["count"],
+			map: (event) => lastData<number>(event),
 		});
 
 		count.set(1);
@@ -887,10 +888,8 @@ describe("D82 storage substrate helpers — part 2", () => {
 
 		const frames = (await log.read()).map((entry) => entry.value);
 		expect(frames.map((frame) => frame.change)).toEqual([0, 1, 2]);
-		expect(frames.map((frame) => frame.path)).toEqual(["count", "count", "count"]);
-		expect(frames.map((frame) => frame.observeSeq)).toEqual(
-			[...frames.map((frame) => frame.observeSeq)].sort((a, b) => a - b),
-		);
+		expect(frames.map((frame) => frame.id)).toEqual(["count", "count", "count"]);
+		expect(frames.map((frame) => frame.seq)).toEqual([0, 1, 2]);
 
 		await awaitDone((done) => handle.dispose(done));
 		count.set(3);
@@ -900,12 +899,12 @@ describe("D82 storage substrate helpers — part 2", () => {
 
 	it("readObserveEventLogPage returns ordered observe frames without projection", async () => {
 		const log = memoryAppendLog<ObserveEventFrame<number>>("observe-page");
-		await log.append(observeEventFrame({ path: "count", seq: 1 }, 1));
-		await log.append(observeEventFrame({ path: "count", seq: 2 }, 2));
+		await log.append(observeEventFrame({ id: "count" }, 1, 1));
+		await log.append(observeEventFrame({ id: "count" }, 2, 2));
 
 		const page = await readObserveEventLogPage(log, { limit: 1 });
 		expect(page.entries.map((entry) => entry.value.change)).toEqual([1]);
-		expect(page.entries[0]?.value.observeSeq).toBe(1);
+		expect(page.entries[0]?.value.seq).toBe(1);
 		expect(page.done).toBe(false);
 
 		const rest = await readObserveEventLogPage(log, { after: page.nextAfter, limit: 1 });
@@ -915,9 +914,9 @@ describe("D82 storage substrate helpers — part 2", () => {
 
 	it("readObserveEventLogPage orders by append sequence, not graph projection semantics", async () => {
 		const entries = new Map<string, ObserveEventFrame<number>>([
-			[appendLogKey("observe-unordered", 10), observeEventFrame({ path: "count", seq: 7 }, 3)],
-			[appendLogKey("observe-unordered", 0), observeEventFrame({ path: "count", seq: 10 }, 1)],
-			[appendLogKey("observe-unordered", 2), observeEventFrame({ path: "count", seq: 5 }, 2)],
+			[appendLogKey("observe-unordered", 10), observeEventFrame({ id: "count" }, 7, 3)],
+			[appendLogKey("observe-unordered", 0), observeEventFrame({ id: "count" }, 10, 1)],
+			[appendLogKey("observe-unordered", 2), observeEventFrame({ id: "count" }, 5, 2)],
 		]);
 		const kv: KvStorageTier<ObserveEventFrame<number>> = {
 			get: (key) => Promise.resolve(entries.get(key)),
@@ -940,7 +939,7 @@ describe("D82 storage substrate helpers — part 2", () => {
 			[2, 2],
 			[10, 3],
 		]);
-		expect(page.entries.map((entry) => entry.value.observeSeq)).toEqual([10, 5, 7]);
+		expect(page.entries.map((entry) => entry.value.seq)).toEqual([10, 5, 7]);
 		expect(page.done).toBe(true);
 	});
 
@@ -956,10 +955,7 @@ describe("D82 storage substrate helpers — part 2", () => {
 		await expect(readObserveEventLogPage(tornLog)).rejects.toThrow(/listed key is missing/);
 
 		const malformed = memoryKv<ObserveEventFrame<number>>();
-		await malformed.set(
-			"observe-bad/not-a-sequence",
-			observeEventFrame({ path: "count", seq: 1 }, 1),
-		);
+		await malformed.set("observe-bad/not-a-sequence", observeEventFrame({ id: "count" }, 1, 1));
 		const malformedLog = appendLogStorage({ kv: malformed, prefix: "observe-bad" });
 
 		await expect(readObserveEventLogPage(malformedLog)).rejects.toThrow(/non-numeric sequence/);
