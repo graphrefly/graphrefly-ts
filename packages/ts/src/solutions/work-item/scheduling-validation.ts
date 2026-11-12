@@ -51,7 +51,7 @@ export function validateWorkItemDraft<TInput>(
 			),
 		);
 	}
-	out.push(...validateAcceptanceCriteria(criteria ?? [], opts));
+	for (const issue of validateAcceptanceCriteria(criteria ?? [], opts)) out.push(issue);
 	if (draft.verificationPlan !== undefined && !isVerificationPlanShape(draft.verificationPlan)) {
 		out.push(
 			issue("malformed-draft", "WorkItemDraft.verificationPlan is malformed", opts.workItemId),
@@ -64,7 +64,7 @@ export function validateWorkItemDraft<TInput>(
 	}
 	const plan = normalizePlanFromUnknown(draft);
 	if (plan !== undefined) {
-		out.push(...validateVerificationPlan(plan, criteria ?? [], opts));
+		for (const issue of validateVerificationPlan(plan, criteria ?? [], opts)) out.push(issue);
 	}
 	return out;
 }

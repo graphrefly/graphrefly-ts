@@ -764,7 +764,7 @@ export function materializeAgenticMemoryCommittedFacts<
 				applicationDecisionFacts += 1;
 				const decisions = decodeSingleApplicationDecision(fact.material.decision);
 				const projected = projectAgenticMemoryRecordApplicationEvidenceFacts(decisions);
-				evidence.push(...projected.priorEvidence.entries);
+				for (const entry of projected.priorEvidence.entries) evidence.push(entry);
 				auditEntries.push(
 					materializationAudit("application-decision-evidence-projected", {
 						factId: fact.identity.key,
@@ -785,7 +785,7 @@ export function materializeAgenticMemoryCommittedFacts<
 				continue;
 			}
 			priorEvidenceFacts += 1;
-			evidence.push(...fact.material.priorEvidence.entries);
+			for (const entry of fact.material.priorEvidence.entries) evidence.push(entry);
 			auditEntries.push(
 				materializationAudit("prior-evidence-materialized", { factId: fact.identity.key }),
 			);
@@ -802,7 +802,7 @@ export function materializeAgenticMemoryCommittedFacts<
 	}
 
 	const priorProjection = projectAgenticMemoryRecordApplicationPriorEvidence(evidence);
-	issues.push(...priorProjection.issues);
+	for (const issue of priorProjection.issues) issues.push(issue);
 	const cursor = materializationCursor({
 		facts: facts.length,
 		recordMaterialFacts,

@@ -72,7 +72,7 @@ export function validateAndProjectRecords<T>(value: unknown): {
 		const result = validateAndSnapshotRecord<T>(raw, i);
 		if (result.errors.length > 0) {
 			invalidRecordIndexes.add(i);
-			errors.push(...result.errors);
+			for (const error of result.errors) errors.push(error);
 			continue;
 		}
 		if (result.record === undefined) continue;
@@ -347,7 +347,8 @@ export function validateRecordMetadata(value: unknown): {
 	}
 	const scopeValidation = validateScope(value.scope);
 	if (!scopeValidation.ok) {
-		errors.push(...scopeValidation.errors.map((error) => `record.${error}`));
+		for (const entry of scopeValidation.errors.map((error) => `record.${error}`))
+			errors.push(entry);
 	}
 	if (errors.length > 0) return { ok: false, errors };
 	return {
@@ -461,7 +462,8 @@ export function validateAgenticMemoryContextAttribution(
 	if (containerErrors.length > 0) return { ok: false, errors: containerErrors };
 	const recordValue = value as Record<string, unknown>;
 	const errors: string[] = [];
-	errors.push(...forbiddenAgenticMemoryDataFields(recordValue, "attribution"));
+	for (const error of forbiddenAgenticMemoryDataFields(recordValue, "attribution"))
+		errors.push(error);
 	const extra = unexpectedFields(recordValue, [
 		"kind",
 		"fragmentId",
@@ -475,7 +477,8 @@ export function validateAgenticMemoryContextAttribution(
 		"policyRefs",
 		"metadata",
 	]);
-	errors.push(...extra.map((field) => `attribution.${field} is not part of attribution`));
+	for (const error of extra.map((field) => `attribution.${field} is not part of attribution`))
+		errors.push(error);
 	if (recordValue.kind !== undefined && recordValue.kind !== "agentic-memory-context-attribution") {
 		errors.push("attribution.kind must be agentic-memory-context-attribution when present");
 	}
@@ -507,7 +510,8 @@ export function validateAgenticMemoryContextAttribution(
 	}
 	const truncation = validateContextTruncation(recordValue.truncation);
 	if (!truncation.ok) {
-		errors.push(...truncation.errors.map((error) => `attribution.${error}`));
+		for (const entry of truncation.errors.map((error) => `attribution.${error}`))
+			errors.push(entry);
 	}
 	if (recordValue.truncation !== undefined && recordValue.truncated === false) {
 		errors.push("attribution.truncation requires attribution.truncated to be true or omitted");
@@ -590,7 +594,7 @@ export function validateAgenticMemoryFactRefs(value: unknown): readonly string[]
 		}
 		const containerErrors = dataRecordContainerErrors(ref, `[${i}]`);
 		if (containerErrors.length > 0) {
-			errors.push(...containerErrors);
+			for (const error of containerErrors) errors.push(error);
 			continue;
 		}
 		const extraFields = unexpectedFields(ref, ["id", "kind", "metadata"]);
@@ -599,7 +603,7 @@ export function validateAgenticMemoryFactRefs(value: unknown): readonly string[]
 		}
 		if (!isNonEmptyString(ref.kind)) errors.push(`[${i}].kind must be non-empty`);
 		if (!isNonEmptyString(ref.id)) errors.push(`[${i}].id must be non-empty`);
-		errors.push(...forbiddenAgenticMemoryDataFields(ref, `[${i}]`));
+		for (const error of forbiddenAgenticMemoryDataFields(ref, `[${i}]`)) errors.push(error);
 		if (ref.metadata !== undefined && !isStrictJsonObject(ref.metadata)) {
 			errors.push(`[${i}].metadata must be a strict JSON object`);
 		}
@@ -881,7 +885,8 @@ function validateContextTruncation(value: unknown): {
 	if (containerErrors.length > 0) return { ok: false, errors: containerErrors };
 	const recordValue = value as Record<string, unknown>;
 	const errors: string[] = [];
-	errors.push(...forbiddenAgenticMemoryDataFields(recordValue, "truncation"));
+	for (const error of forbiddenAgenticMemoryDataFields(recordValue, "truncation"))
+		errors.push(error);
 	const extra = unexpectedFields(recordValue, [
 		"originalChars",
 		"packedChars",
@@ -892,7 +897,8 @@ function validateContextTruncation(value: unknown): {
 		"reason",
 		"metadata",
 	]);
-	errors.push(...extra.map((field) => `truncation.${field} is not part of truncation`));
+	for (const error of extra.map((field) => `truncation.${field} is not part of truncation`))
+		errors.push(error);
 	for (const field of ["originalChars", "packedChars", "omittedChars"] as const) {
 		const current = recordValue[field];
 		if (

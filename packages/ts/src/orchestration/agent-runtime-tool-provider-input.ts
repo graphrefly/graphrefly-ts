@@ -288,7 +288,8 @@ export function buildToolProviderAdapterInput(opts: {
 				},
 			),
 		);
-		issues.push(...(catalog.issues ?? []).map((issue) => sanitizeAdapterInputIssue(issue)));
+		for (const entry of (catalog.issues ?? []).map((issue) => sanitizeAdapterInputIssue(issue)))
+			issues.push(entry);
 	}
 	const toolCall = request === undefined ? undefined : toolCallFromRequest(request);
 	if (request !== undefined && toolCall === undefined) {
@@ -334,7 +335,7 @@ export function buildToolProviderAdapterInput(opts: {
 		}
 	}
 	for (const policy of policies) {
-		issues.push(...validateToolProviderExecutionPolicy(policy));
+		for (const issue of validateToolProviderExecutionPolicy(policy)) issues.push(issue);
 		if (catalog !== undefined)
 			issues.push(...validateToolProviderPolicyProviderScope(policy, catalog.providerId));
 	}

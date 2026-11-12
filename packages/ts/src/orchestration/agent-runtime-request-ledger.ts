@@ -315,7 +315,7 @@ export function reduceAgentRequestViews(
 	} else if (fact.kind === "status") {
 		const status = sanitizeAgentRequestStatusChanged(fact);
 		state.statusByRequest.set(status.requestId, status);
-		if (status.issues !== undefined) state.issues.push(...status.issues);
+		if (status.issues !== undefined) for (const issue of status.issues) state.issues.push(issue);
 	} else if (fact.kind === "rejected") {
 		state.issues.push(sanitizeAdapterInputIssue(fact.issue));
 	}

@@ -176,7 +176,8 @@ export function messageBus<TTopic extends string>(
 		(ctx) => {
 			const events: RuntimeEvent[] = [];
 			for (const command of ctx.deps[0].waves.flat()) {
-				events.push(...reduceMessageBusCommand(state, command as MessageBusCommand));
+				for (const event of reduceMessageBusCommand(state, command as MessageBusCommand))
+					events.push(event);
 			}
 			ctx.down(events.map((v) => ["DATA", v] as const));
 		},
@@ -627,7 +628,7 @@ function publishMessage(
 			commandId: command.commandId,
 		}),
 	});
-	events.push(...trimRetention(state, command.topic, topic));
+	for (const event of trimRetention(state, command.topic, topic)) events.push(event);
 	return events;
 }
 

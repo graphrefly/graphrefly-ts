@@ -228,7 +228,7 @@ export function mapAgenticWorkItemMemoryBridge<TInput = unknown, TRecord = unkno
 	if (policyIssues.length === 0 && workItemIssues.length === 0) {
 		for (const rule of scoreRules) {
 			const mapped = mapScoreRule(rule, input.policy, inputs);
-			issues.push(...mapped.issues);
+			for (const issue of mapped.issues) issues.push(issue);
 			if (mapped.signal !== undefined) {
 				scoreSignals.push(mapped.signal);
 				audit.push(
@@ -242,13 +242,13 @@ export function mapAgenticWorkItemMemoryBridge<TInput = unknown, TRecord = unkno
 		}
 		for (const rule of recordRules) {
 			const mapped = mapRecordRule(rule, input.policy, inputs);
-			issues.push(...mapped.issues);
+			for (const issue of mapped.issues) issues.push(issue);
 			if (mapped.draft !== undefined) candidates.push(mapped.draft);
 			else invalidCandidates += mapped.invalidCandidate;
 		}
 		for (const candidate of candidateLane.items) {
 			const mapped = mapExplicitCandidate(candidate, input.policy, inputs);
-			issues.push(...mapped.issues);
+			for (const issue of mapped.issues) issues.push(issue);
 			if (mapped.draft !== undefined) candidates.push(mapped.draft);
 			else invalidCandidates += mapped.invalidCandidate;
 		}
@@ -301,8 +301,10 @@ function mapScoreRule<TInput>(
 			issue("missing-score-dimension", "Score mapping rule requires dimension", rule.ruleId),
 		);
 	}
-	issues.push(...refIssues(rule.sourceRefs, "scoreRule.sourceRefs", rule.ruleId));
-	issues.push(...refIssues(rule.policyRefs, "scoreRule.policyRefs", rule.ruleId));
+	for (const issue of refIssues(rule.sourceRefs, "scoreRule.sourceRefs", rule.ruleId))
+		issues.push(issue);
+	for (const issue of refIssues(rule.policyRefs, "scoreRule.policyRefs", rule.ruleId))
+		issues.push(issue);
 	const value = numericMappingValue(rule.value, rule.valueFrom, inputs, "value", issues);
 	if (value.value === undefined) return { issues };
 	const confidence = numericMappingValue(
@@ -391,9 +393,12 @@ function mapRecordRule<TInput, TRecord>(
 			issue("missing-candidate-id", "Record mapping rule requires candidateId or ruleId"),
 		);
 	}
-	issues.push(...refIssues(rule.sourceRefs, "recordRule.sourceRefs", candidateId));
-	issues.push(...refIssues(rule.policyRefs, "recordRule.policyRefs", candidateId));
-	issues.push(...refIssues(rule.evidenceRefs, "recordRule.evidenceRefs", candidateId));
+	for (const issue of refIssues(rule.sourceRefs, "recordRule.sourceRefs", candidateId))
+		issues.push(issue);
+	for (const issue of refIssues(rule.policyRefs, "recordRule.policyRefs", candidateId))
+		issues.push(issue);
+	for (const issue of refIssues(rule.evidenceRefs, "recordRule.evidenceRefs", candidateId))
+		issues.push(issue);
 	const material = materialFromRule(rule, inputs, issues);
 	if (issues.length > 0 || material.material === undefined || !isNonEmptyString(candidateId)) {
 		return { issues, invalidCandidate: 1 };
@@ -477,8 +482,18 @@ function mapExplicitCandidate<TInput, TRecord>(
 			),
 		);
 	}
-	issues.push(...refIssues(candidate.sourceRefs, "candidate.sourceRefs", candidate.candidateId));
-	issues.push(...refIssues(candidate.policyRefs, "candidate.policyRefs", candidate.candidateId));
+	for (const issue of refIssues(
+		candidate.sourceRefs,
+		"candidate.sourceRefs",
+		candidate.candidateId,
+	))
+		issues.push(issue);
+	for (const issue of refIssues(
+		candidate.policyRefs,
+		"candidate.policyRefs",
+		candidate.candidateId,
+	))
+		issues.push(issue);
 	if (issues.length > 0) return { issues, invalidCandidate: 1 };
 	const sourceRefs = uniqueRefs([
 		...workItemSourceRefs(inputs.workItem),
@@ -800,9 +815,9 @@ function validatePolicy(policy: unknown): readonly DataIssue[] {
 		issues.push(issue("missing-policy-id", "Mapping policy requires policyId"));
 	}
 	if (isRecord(policy)) {
-		issues.push(...forbiddenPolicyKeyIssues(policy));
-		issues.push(...refIssues(sourceRefs, "policy.sourceRefs"));
-		issues.push(...refIssues(policyRefs, "policy.policyRefs"));
+		for (const issue of forbiddenPolicyKeyIssues(policy)) issues.push(issue);
+		for (const issue of refIssues(sourceRefs, "policy.sourceRefs")) issues.push(issue);
+		for (const issue of refIssues(policyRefs, "policy.policyRefs")) issues.push(issue);
 		if (scoreRules !== undefined && !Array.isArray(scoreRules)) {
 			issues.push(issue("invalid-score-rules", "Mapping policy scoreRules must be an array"));
 		}
@@ -814,9 +829,9 @@ function validatePolicy(policy: unknown): readonly DataIssue[] {
 				recordValue(policy, "scoreRules"),
 				"policy.scoreRules",
 			);
-			issues.push(...scoreRules.issues);
+			for (const issue of scoreRules.issues) issues.push(issue);
 			for (let i = 0; i < scoreRules.items.length; i += 1) {
-				issues.push(...validateScoreRuleData(scoreRules.items[i]!, i));
+				for (const issue of validateScoreRuleData(scoreRules.items[i]!, i)) issues.push(issue);
 			}
 		}
 		if (policyIsData && Array.isArray(recordRules)) {
@@ -824,9 +839,9 @@ function validatePolicy(policy: unknown): readonly DataIssue[] {
 				recordValue(policy, "recordRules"),
 				"policy.recordRules",
 			);
-			issues.push(...recordRules.issues);
+			for (const issue of recordRules.issues) issues.push(issue);
 			for (let i = 0; i < recordRules.items.length; i += 1) {
-				issues.push(...validateRecordRuleData(recordRules.items[i]!, i));
+				for (const issue of validateRecordRuleData(recordRules.items[i]!, i)) issues.push(issue);
 			}
 		}
 	}
@@ -892,14 +907,23 @@ function validateScoreRuleData(
 ): readonly DataIssue[] {
 	const issues: DataIssue[] = [];
 	if (!isRecord(rule)) return [issue("invalid-score-rule", "Score mapping rule must be an object")];
-	issues.push(...selectorIssues(rule.valueFrom, `policy.scoreRules[${index}].valueFrom`));
-	issues.push(...selectorIssues(rule.confidenceFrom, `policy.scoreRules[${index}].confidenceFrom`));
-	issues.push(...selectorIssues(rule.weightFrom, `policy.scoreRules[${index}].weightFrom`));
+	for (const issue of selectorIssues(rule.valueFrom, `policy.scoreRules[${index}].valueFrom`))
+		issues.push(issue);
+	for (const issue of selectorIssues(
+		rule.confidenceFrom,
+		`policy.scoreRules[${index}].confidenceFrom`,
+	))
+		issues.push(issue);
+	for (const issue of selectorIssues(rule.weightFrom, `policy.scoreRules[${index}].weightFrom`))
+		issues.push(issue);
 	if (isRecord(rule.subjectId)) {
-		issues.push(...selectorIssues(rule.subjectId, `policy.scoreRules[${index}].subjectId`));
+		for (const issue of selectorIssues(rule.subjectId, `policy.scoreRules[${index}].subjectId`))
+			issues.push(issue);
 	}
-	issues.push(...refIssues(rule.sourceRefs, `policy.scoreRules[${index}].sourceRefs`));
-	issues.push(...refIssues(rule.policyRefs, `policy.scoreRules[${index}].policyRefs`));
+	for (const issue of refIssues(rule.sourceRefs, `policy.scoreRules[${index}].sourceRefs`))
+		issues.push(issue);
+	for (const issue of refIssues(rule.policyRefs, `policy.scoreRules[${index}].policyRefs`))
+		issues.push(issue);
 	return Object.freeze(issues);
 }
 
@@ -921,9 +945,12 @@ function validateRecordRuleData(
 			...selectorIssues(rule.targetRecordId, `policy.recordRules[${index}].targetRecordId`),
 		);
 	}
-	issues.push(...refIssues(rule.sourceRefs, `policy.recordRules[${index}].sourceRefs`));
-	issues.push(...refIssues(rule.policyRefs, `policy.recordRules[${index}].policyRefs`));
-	issues.push(...refIssues(rule.evidenceRefs, `policy.recordRules[${index}].evidenceRefs`));
+	for (const issue of refIssues(rule.sourceRefs, `policy.recordRules[${index}].sourceRefs`))
+		issues.push(issue);
+	for (const issue of refIssues(rule.policyRefs, `policy.recordRules[${index}].policyRefs`))
+		issues.push(issue);
+	for (const issue of refIssues(rule.evidenceRefs, `policy.recordRules[${index}].evidenceRefs`))
+		issues.push(issue);
 	return Object.freeze(issues);
 }
 
@@ -998,7 +1025,8 @@ function forbiddenPolicyKeyIssues(
 			continue;
 		}
 		const next = descriptor.value;
-		issues.push(...forbiddenPolicyKeyIssues(next, `${path}.${key}`, seen, depth + 1));
+		for (const issue of forbiddenPolicyKeyIssues(next, `${path}.${key}`, seen, depth + 1))
+			issues.push(issue);
 	}
 	seen.delete(value);
 	return Object.freeze(issues);
@@ -1056,7 +1084,8 @@ function validateCandidateMaterial(
 		);
 	}
 	for (const field of ["sourceRefs", "policyRefs", "evidenceRefs"] as const) {
-		issues.push(...refIssues(material[field], `candidateMaterial.${field}`, candidateId));
+		for (const issue of refIssues(material[field], `candidateMaterial.${field}`, candidateId))
+			issues.push(issue);
 	}
 	return Object.freeze(issues);
 }

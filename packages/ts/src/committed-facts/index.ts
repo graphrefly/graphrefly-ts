@@ -678,7 +678,8 @@ function flattenBatches<
 	profile: CommittedFactJournalProfile<TFact, TBatch, TCursor>,
 ): readonly TFact[] {
 	const facts: TFact[] = [];
-	for (const batch of batches) facts.push(...canonicalBatch(batch, profile).facts);
+	for (const batch of batches)
+		for (const fact of canonicalBatch(batch, profile).facts) facts.push(fact);
 	assertCommittedFactStreamIntegrity(facts);
 	return Object.freeze(facts);
 }

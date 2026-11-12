@@ -311,8 +311,8 @@ function flattenDescribe(snapshot: InspectSnapshot): FlatSnapshot {
 	const nodes: InspectNode[] = [];
 	const edges: InspectEdge[] = [];
 	const visit = (snap: InspectSnapshot): void => {
-		nodes.push(...snap.nodes);
-		edges.push(...snap.edges);
+		for (const node of snap.nodes) nodes.push(node);
+		for (const edge of snap.edges) edges.push(edge);
 		for (const child of snap.subgraphs ?? []) visit(child);
 	};
 	visit(snapshot);

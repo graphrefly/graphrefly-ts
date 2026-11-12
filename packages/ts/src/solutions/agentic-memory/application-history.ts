@@ -488,7 +488,7 @@ function projectEvidenceFactsFromDecisions<T>(
 			const projected = evidenceFromDecision(decision, index);
 			if (projected.evidence === undefined) {
 				invalidEvidenceFacts += 1;
-				issues.push(...projected.issues);
+				for (const issue of projected.issues) issues.push(issue);
 				continue;
 			}
 			evidenceFacts.push(projected.evidence);
@@ -829,7 +829,7 @@ function validatePriorEvidenceInputInner(value: unknown): {
 			const validation = validateApplicationEvidence(rawEntries[index], index);
 			if (validation.evidence === undefined) {
 				invalidEntries += 1;
-				issues.push(...validation.issues);
+				for (const issue of validation.issues) issues.push(issue);
 				continue;
 			}
 			entries.push(validation.evidence);
@@ -1400,7 +1400,7 @@ function snapshotFactRefs(
 ): readonly AgenticMemoryFactRef[] | undefined {
 	const validationErrors = validateAgenticMemoryFactRefs(value);
 	if (validationErrors.length > 0) {
-		errors.push(...validationErrors.map((error) => `${label}: ${error}`));
+		for (const entry of validationErrors.map((error) => `${label}: ${error}`)) errors.push(entry);
 		return undefined;
 	}
 	return snapshotAgenticMemoryFactRefs(value);

@@ -182,7 +182,7 @@ export function buildCausalNodes<T>(
 			for (const wave of waves.length > 0 ? waves : [[]]) {
 				const step = transitionCausalAuthority(state, wave as Arrival<T>[], opts);
 				state = step.state;
-				outputs.push(...step.outputs);
+				for (const output of step.outputs) outputs.push(output);
 				committedViewChanged ||= step.committedViewChanged;
 			}
 			if (state === undefined) return;

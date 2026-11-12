@@ -425,8 +425,8 @@ export function decideWorkspaceProposalAdmission(
 	options: WorkspaceProposalProjectorOptions = {},
 ): WorkspaceProposalAdmissionResult {
 	const issues: WorkspaceProposalRecordedIssue[] = [];
-	issues.push(...dataOnlyIssues(record, "record"));
-	issues.push(...dataOnlyIssues(material, "admissionMaterial"));
+	for (const issue of dataOnlyIssues(record, "record")) issues.push(issue);
+	for (const issue of dataOnlyIssues(material, "admissionMaterial")) issues.push(issue);
 	if (
 		issues.some(
 			(entry) =>
@@ -689,9 +689,9 @@ export function projectWorkspaceProposalApplicationStatus(
 	options: WorkspaceProposalApplicationOptions,
 ): WorkspaceProposalApplicationResult {
 	const issues: WorkspaceProposalRecordedIssue[] = [];
-	issues.push(...dataOnlyIssues(record, "record"));
-	issues.push(...dataOnlyIssues(decision, "decision"));
-	issues.push(...dataOnlyIssues(options, "applicationOptions"));
+	for (const issue of dataOnlyIssues(record, "record")) issues.push(issue);
+	for (const issue of dataOnlyIssues(decision, "decision")) issues.push(issue);
+	for (const issue of dataOnlyIssues(options, "applicationOptions")) issues.push(issue);
 	if (
 		issues.some(
 			(entry) =>
@@ -755,9 +755,9 @@ export function projectWorkspaceProposalApplicationStatus(
 			),
 		);
 	}
-	issues.push(...immutableClone(options.familyIssues ?? []));
+	for (const issue of immutableClone(options.familyIssues ?? [])) issues.push(issue);
 	const emittedFactRefs = immutableClone(options.emittedFactRefs ?? []);
-	issues.push(...applicationFamilyRefIssues(emittedFactRefs, record));
+	for (const issue of applicationFamilyRefIssues(emittedFactRefs, record)) issues.push(issue);
 	const pendingFamilyRefs =
 		emittedFactRefs.length === 0 &&
 		familySupported(record.proposalFamily, options) &&
@@ -849,8 +849,8 @@ export function validateWorkspaceProposalApplicationEnvelope(
 	options: WorkspaceProposalApplicationEnvelopeValidationOptions = {},
 ): readonly WorkspaceProposalRecordedIssue[] {
 	const issues: WorkspaceProposalRecordedIssue[] = [];
-	issues.push(...dataOnlyIssues(record, "record"));
-	issues.push(...dataOnlyIssues(decision, "decision"));
+	for (const issue of dataOnlyIssues(record, "record")) issues.push(issue);
+	for (const issue of dataOnlyIssues(decision, "decision")) issues.push(issue);
 	if (decision.kind !== "workspace-proposal-admission-decision") {
 		issues.push(
 			issue(

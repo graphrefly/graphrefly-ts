@@ -737,7 +737,7 @@ ${runtimeAssertions.replaceAll("await load", "load")}
 	});
 	const messages = [];
 	// A sink receives whole arrays; keep their messages in order.
-	const unsubscribe = measured.subscribe((msgs) => messages.push(...msgs));
+	const unsubscribe = measured.subscribe((msgs) => { for (const message of msgs) messages.push(message); });
 	assert.match(JSON.stringify(messages), /"code":"measurement.failed"/);
 	assert.equal(
 		messages[1]?.[1]?.[0]?.details?.message,

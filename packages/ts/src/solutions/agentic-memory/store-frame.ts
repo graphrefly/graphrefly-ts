@@ -522,7 +522,8 @@ function snapshotStoreFrameOptions(opts: StoreFrameOptions): StoreFrameOptions {
 	const metadata =
 		opts.metadata === undefined ? undefined : cloneAgenticStrictJsonObject(opts.metadata);
 	if (metadata !== undefined) {
-		errors.push(...forbiddenStoreFrameMetadataFields(metadata, "storeFrame.metadata"));
+		for (const error of forbiddenStoreFrameMetadataFields(metadata, "storeFrame.metadata"))
+			errors.push(error);
 	}
 	if (errors.length > 0) {
 		throw new TypeError(`agenticMemoryStoreFrame: invalid options: ${errors.join("; ")}`);
@@ -542,7 +543,7 @@ function snapshotOptionalRefs(
 	if (value === undefined) return undefined;
 	const validation = validateAgenticMemoryFactRefs(value);
 	if (validation.length > 0) {
-		errors.push(...validation.map((error) => `${label}: ${error}`));
+		for (const entry of validation.map((error) => `${label}: ${error}`)) errors.push(entry);
 		return undefined;
 	}
 	return snapshotAgenticMemoryFactRefs(value);
@@ -1048,11 +1049,12 @@ function validateDecisionFrameCandidateMaterial(
 				? forbiddenStoreFrameMetadataFields(value.metadata, "candidateMaterial.metadata")
 				: []),
 		];
-		errors.push(...metadataErrors.map((error) => `decision.${error}`));
+		for (const entry of metadataErrors.map((error) => `decision.${error}`)) errors.push(entry);
 	}
 	const attribution = validateAgenticMemoryContextAttribution(value.attribution);
 	if (!attribution.ok) {
-		errors.push(...attribution.errors.map((error) => `decision.candidateMaterial.${error}`));
+		for (const entry of attribution.errors.map((error) => `decision.candidateMaterial.${error}`))
+			errors.push(entry);
 	}
 	try {
 		agenticMemoryRecordFrame(value.record as AgenticMemoryRecord<StrictJsonValue>);

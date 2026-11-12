@@ -121,7 +121,7 @@ export function forbiddenDataKeys(
 	const issues: { readonly path: readonly (string | number)[]; readonly reason: string }[] = [];
 	if (Array.isArray(value)) {
 		value.forEach((item, index) => {
-			issues.push(...forbiddenDataKeys(item, [...path, index], seen));
+			for (const issue of forbiddenDataKeys(item, [...path, index], seen)) issues.push(issue);
 		});
 		return issues;
 	}
@@ -139,7 +139,7 @@ export function forbiddenDataKeys(
 		) {
 			issues.push({ path: nextPath, reason: "forbidden-runtime-key" });
 		}
-		issues.push(...forbiddenDataKeys(child, nextPath, seen));
+		for (const issue of forbiddenDataKeys(child, nextPath, seen)) issues.push(issue);
 	}
 	return issues;
 }
@@ -233,7 +233,8 @@ export function publicMaterialForbiddenKeys(
 	mode: PublicMaterialMode,
 ): readonly { readonly path: readonly (string | number)[]; readonly reason: string }[] {
 	const forbidden = [...forbiddenDataKeys(value)];
-	if (mode === "provider") forbidden.push(...forbiddenProviderRawMaterialKeys(value));
+	if (mode === "provider")
+		for (const key of forbiddenProviderRawMaterialKeys(value)) forbidden.push(key);
 	return forbidden;
 }
 
@@ -620,7 +621,7 @@ export function boundRecordStringsWithEvidence(
 				}
 				if (isPlainRecord(item)) {
 					const nested = boundRecordStringsWithEvidence(item, limitChars, itemPath, seen);
-					truncated.push(...nested.truncated);
+					for (const entry of nested.truncated) truncated.push(entry);
 					return nested.value;
 				}
 				return item;
@@ -628,7 +629,7 @@ export function boundRecordStringsWithEvidence(
 		} else if (isPlainRecord(child)) {
 			const nested = boundRecordStringsWithEvidence(child, limitChars, childPath, seen);
 			record[key] = nested.value;
-			truncated.push(...nested.truncated);
+			for (const entry of nested.truncated) truncated.push(entry);
 		} else {
 			record[key] = child;
 		}
@@ -693,7 +694,7 @@ export function boundUnknownStringsWithEvidence(
 	if (Array.isArray(value)) {
 		const out = value.map((item, index) => {
 			const bounded = boundUnknownStringsWithEvidence(item, limitChars, [...path, index], seen);
-			truncated.push(...bounded.truncated);
+			for (const entry of bounded.truncated) truncated.push(entry);
 			return bounded.value;
 		});
 		return { value: out, truncated };
@@ -701,7 +702,7 @@ export function boundUnknownStringsWithEvidence(
 	const out = Object.entries(value).reduce<Record<string, unknown>>((record, [key, child]) => {
 		const bounded = boundUnknownStringsWithEvidence(child, limitChars, [...path, key], seen);
 		record[key] = bounded.value;
-		truncated.push(...bounded.truncated);
+		for (const entry of bounded.truncated) truncated.push(entry);
 		return record;
 	}, {});
 	return { value: out, truncated };
@@ -726,12 +727,14 @@ export function oversizedInlineTextKeys(
 	const issues: { readonly path: readonly (string | number)[]; readonly reason: string }[] = [];
 	if (Array.isArray(value)) {
 		value.forEach((item, index) => {
-			issues.push(...oversizedInlineTextKeys(item, limitChars, [...path, index], seen));
+			for (const issue of oversizedInlineTextKeys(item, limitChars, [...path, index], seen))
+				issues.push(issue);
 		});
 		return issues;
 	}
 	for (const [key, child] of Object.entries(value)) {
-		issues.push(...oversizedInlineTextKeys(child, limitChars, [...path, key], seen));
+		for (const issue of oversizedInlineTextKeys(child, limitChars, [...path, key], seen))
+			issues.push(issue);
 	}
 	return issues;
 }
@@ -811,7 +814,8 @@ export function forbiddenProviderRawMaterialKeys(
 	const issues: { readonly path: readonly (string | number)[]; readonly reason: string }[] = [];
 	if (Array.isArray(value)) {
 		value.forEach((item, index) => {
-			issues.push(...forbiddenProviderRawMaterialKeys(item, [...path, index], seen));
+			for (const issue of forbiddenProviderRawMaterialKeys(item, [...path, index], seen))
+				issues.push(issue);
 		});
 		return issues;
 	}
@@ -824,7 +828,7 @@ export function forbiddenProviderRawMaterialKeys(
 		) {
 			issues.push({ path: nextPath, reason: "raw-provider-material" });
 		}
-		issues.push(...forbiddenProviderRawMaterialKeys(child, nextPath, seen));
+		for (const issue of forbiddenProviderRawMaterialKeys(child, nextPath, seen)) issues.push(issue);
 	}
 	return issues;
 }

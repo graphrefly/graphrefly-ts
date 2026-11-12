@@ -229,7 +229,7 @@ export function applyAgenticMemoryRecordAdmissions<T = unknown>(
 			);
 			applicationDecisions.push(decision.decision);
 			audit.push(applicationAudit(decision.decision));
-			issues.push(...decision.issues);
+			for (const issue of decision.issues) issues.push(issue);
 			if (decision.decision.state !== "applied" || decision.decision.record === undefined) {
 				continue;
 			}
@@ -949,7 +949,7 @@ function validateApplicationAdmissions<T>(value: unknown): ValidatedAdmissions<T
 			const validation = validateApplicationAdmission<T>(value[index], index);
 			if (validation.admission === undefined) {
 				invalidAdmissions += 1;
-				issues.push(...validation.issues);
+				for (const issue of validation.issues) issues.push(issue);
 				continue;
 			}
 			admissions.push(validation.admission);
@@ -1195,7 +1195,8 @@ function validateCandidateMaterial<T>(
 		recordId: candidate.record?.id,
 	});
 	if (!attribution.ok) {
-		validationErrors.push(...attribution.errors.map((error) => `candidateMaterial.${error}`));
+		for (const entry of attribution.errors.map((error) => `candidateMaterial.${error}`))
+			validationErrors.push(entry);
 	}
 	if (validationErrors.length > 0 || candidate.record === undefined) {
 		return {
@@ -1450,7 +1451,7 @@ function validateApplicationPriorEvidenceInner(value: unknown): ValidatedPriorEv
 			const validation = validateApplicationEvidence(rawEntries[index], index);
 			if (validation.evidence === undefined) {
 				invalidEntries += 1;
-				issues.push(...validation.issues);
+				for (const issue of validation.issues) issues.push(issue);
 				continue;
 			}
 			entries.push(validation.evidence);

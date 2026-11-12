@@ -206,7 +206,7 @@ function projectRetention<T>(
 			const result = validateRetentionCommand(raw, i);
 			if (result.errors.length > 0 || result.command === undefined) {
 				invalidCommands += 1;
-				errors.push(...result.errors);
+				for (const error of result.errors) errors.push(error);
 				continue;
 			}
 			const command = result.command;

@@ -305,7 +305,8 @@ function collectCandidatesInner(value: unknown): CandidateCollection {
 
 function collectSelectionInput(value: Record<string, unknown>): CandidateCollection {
 	const validationErrors: string[] = [];
-	validationErrors.push(...forbiddenAgenticMemoryDataFields(value, "selectionInput"));
+	for (const error of forbiddenAgenticMemoryDataFields(value, "selectionInput"))
+		validationErrors.push(error);
 	if (value.selectedSourceId !== undefined && !isNonEmptyString(value.selectedSourceId)) {
 		validationErrors.push("selectionInput.selectedSourceId must be non-empty when present");
 	}
@@ -429,7 +430,8 @@ function validateSource(value: unknown, index: number): CandidateValidation {
 		return invalidCandidate(index, "policy source must be plain DATA", { refs: containerErrors });
 	}
 	const validationErrors: string[] = [];
-	validationErrors.push(...forbiddenAgenticMemoryDataFields(value, "policySource"));
+	for (const error of forbiddenAgenticMemoryDataFields(value, "policySource"))
+		validationErrors.push(error);
 	if (value.kind !== "agentic-memory-record-admission-policy-source") {
 		validationErrors.push(
 			"policySource.kind must be agentic-memory-record-admission-policy-source",
@@ -457,7 +459,8 @@ function validateSource(value: unknown, index: number): CandidateValidation {
 		value.policyRefs,
 		metadata,
 	);
-	validationErrors.push(...material.issues.flatMap((issue) => issue.refs ?? [issue.message]));
+	for (const error of material.issues.flatMap((issue) => issue.refs ?? [issue.message]))
+		validationErrors.push(error);
 	if (
 		validationErrors.length > 0 ||
 		sourceId === undefined ||
@@ -505,7 +508,8 @@ function validatePolicyMaterial(
 		});
 	}
 	const validationErrors: string[] = [];
-	validationErrors.push(...forbiddenAgenticMemoryDataFields(value, "policyMaterial"));
+	for (const error of forbiddenAgenticMemoryDataFields(value, "policyMaterial"))
+		validationErrors.push(error);
 	if (value.kind !== "agentic-memory-record-admission-policy-material") {
 		validationErrors.push(
 			"policyMaterial.kind must be agentic-memory-record-admission-policy-material",
@@ -559,7 +563,8 @@ function validateCandidate(value: unknown, index: number): CandidateValidation {
 		});
 	}
 	const validationErrors: string[] = [];
-	validationErrors.push(...forbiddenAgenticMemoryDataFields(value, "policyCandidate"));
+	for (const error of forbiddenAgenticMemoryDataFields(value, "policyCandidate"))
+		validationErrors.push(error);
 	if (value.kind !== "agentic-memory-record-admission-policy-candidate") {
 		validationErrors.push(
 			"policyCandidate.kind must be agentic-memory-record-admission-policy-candidate",
@@ -582,7 +587,7 @@ function validateCandidate(value: unknown, index: number): CandidateValidation {
 		validationErrors,
 	);
 	const policy = validateAdmissionPolicy(value.admissionPolicy);
-	validationErrors.push(...policy.errors);
+	for (const error of policy.errors) validationErrors.push(error);
 	if (
 		validationErrors.length > 0 ||
 		candidateId === undefined ||
@@ -656,7 +661,8 @@ function validateAdmissionPolicy(value: unknown): {
 	const containerErrors = dataRecordContainerErrors(value, "admissionPolicy");
 	if (containerErrors.length > 0) return { errors: containerErrors };
 	const validationErrors: string[] = [];
-	validationErrors.push(...forbiddenAgenticMemoryDataFields(value, "admissionPolicy"));
+	for (const error of forbiddenAgenticMemoryDataFields(value, "admissionPolicy"))
+		validationErrors.push(error);
 	if (value.kind !== "agentic-memory-record-admission-policy") {
 		validationErrors.push("admissionPolicy.kind must be agentic-memory-record-admission-policy");
 	}
@@ -876,8 +882,8 @@ function collectionFromValidations(
 	for (const validation of validations) {
 		if (validation.candidate === undefined) invalidCandidates += 1;
 		else candidates.push(validation.candidate);
-		issues.push(...validation.issues);
-		audit.push(...validation.audit);
+		for (const issue of validation.issues) issues.push(issue);
+		for (const entry of validation.audit) audit.push(entry);
 	}
 	return {
 		candidates: Object.freeze(candidates),
@@ -1053,7 +1059,8 @@ function snapshotOptionalRefs(value: unknown): readonly AgenticMemoryFactRef[] {
 
 function validateOptionalRefs(value: unknown, label: string, errors: string[]): void {
 	if (value === undefined) return;
-	errors.push(...validateAgenticMemoryFactRefs(value).map((error) => `${label}: ${error}`));
+	for (const entry of validateAgenticMemoryFactRefs(value).map((error) => `${label}: ${error}`))
+		errors.push(entry);
 }
 
 function validateOptionalMetadata(

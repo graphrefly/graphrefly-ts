@@ -844,7 +844,7 @@ export function policyIssuesForRefs(
 			);
 			continue;
 		}
-		issues.push(...validateToolProviderExecutionPolicy(policy));
+		for (const issue of validateToolProviderExecutionPolicy(policy)) issues.push(issue);
 		issues.push(...validateToolProviderPolicyProviderScope(policy, catalog.providerId));
 	}
 	return Object.freeze(issues);

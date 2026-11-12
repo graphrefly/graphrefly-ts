@@ -149,7 +149,7 @@ function join<T>(
 				}
 				const f = raw as BusinessFrame<any>;
 				state.valid[i] = f.valid;
-				problems.push(...f.issues);
+				for (const problem of f.issues) problems.push(problem);
 				if (!f.valid) {
 					state.maps[i].clear();
 					continue;

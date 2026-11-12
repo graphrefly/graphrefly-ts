@@ -157,7 +157,7 @@ export function materializeAgenticMemoryRecordChanges<T = unknown>(
 					);
 					if (result.intent === undefined) {
 						invalidIntents += 1;
-						issues.push(...result.issues);
+						for (const issue of result.issues) issues.push(issue);
 						continue;
 					}
 					validated.push(result.intent);
@@ -675,7 +675,7 @@ function snapshotRefs(
 	if (value === undefined) return Object.freeze([]);
 	const refErrors = validateAgenticMemoryFactRefs(value);
 	if (refErrors.length > 0) {
-		errors.push(...refErrors.map((error) => `${label}: ${error}`));
+		for (const entry of refErrors.map((error) => `${label}: ${error}`)) errors.push(entry);
 		return Object.freeze([]);
 	}
 	return snapshotAgenticMemoryFactRefs(value);

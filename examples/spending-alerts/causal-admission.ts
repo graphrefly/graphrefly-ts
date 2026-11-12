@@ -333,7 +333,9 @@ export function buildAdmission(
 		[business.evaluationSelections],
 		(ctx) => {
 			const outputs: Message[] = [];
-			const emit = (messages: Message[]) => outputs.push(...messages);
+			const emit = (messages: Message[]) => {
+				for (const output of messages) outputs.push(output);
+			};
 			for (const f of ctx.deps[0].waves.flat() as BusinessFrame<Evaluation>[])
 				if (f.valid)
 					for (const { evaluation: e } of f.rows) {
@@ -348,7 +350,9 @@ export function buildAdmission(
 		[business.evaluationSelections, currentFacts],
 		(ctx) => {
 			const outputs: Message[] = [];
-			const emit = (messages: Message[]) => outputs.push(...messages);
+			const emit = (messages: Message[]) => {
+				for (const output of messages) outputs.push(output);
+			};
 			const s = collect(ctx, 1);
 			if (!s.valid[0]) return;
 			const frames = ((ctx.deps[1]?.waves.length ? (ctx.deps[1]?.waves.flat() ?? []) : null) ?? [
@@ -386,7 +390,9 @@ export function buildAdmission(
 		[business.assessment, business.alertMessage, publicationPolicy],
 		(ctx) => {
 			const outputs: Message[] = [];
-			const emit = (messages: Message[]) => outputs.push(...messages);
+			const emit = (messages: Message[]) => {
+				for (const output of messages) outputs.push(output);
+			};
 			for (let i = 0; i < 3; i++)
 				for (const f of ctx.deps[i].waves.flat() as BusinessFrame<unknown>[])
 					if (f.valid)
@@ -410,7 +416,9 @@ export function buildAdmission(
 		[publicationPolicy],
 		(ctx) => {
 			const outputs: Message[] = [];
-			const emit = (messages: Message[]) => outputs.push(...messages);
+			const emit = (messages: Message[]) => {
+				for (const output of messages) outputs.push(output);
+			};
 			for (const f of ctx.deps[0].waves.flat() as BusinessFrame<PolicyDecision>[])
 				if (f.valid)
 					for (const row of f.rows) if (row.value.admission) emit([["DATA", row.value.admission]]);
@@ -419,7 +427,9 @@ export function buildAdmission(
 	);
 	const effectOutcomes = make<CausalEffectOutcome>("effectOutcomes", [inboxFacts], (ctx) => {
 		const outputs: Message[] = [];
-		const emit = (messages: Message[]) => outputs.push(...messages);
+		const emit = (messages: Message[]) => {
+			for (const output of messages) outputs.push(output);
+		};
 		for (const f of ctx.deps[0].waves.flat() as Checked<InboxObservationFrame>[])
 			if (f.valid) for (const outcome of f.value.outcomes) emit([["DATA", outcome]]);
 		if (outputs.length) ctx.down(outputs);
@@ -430,7 +440,9 @@ export function buildAdmission(
 		[business.evaluationSelections, materials.materialStore, verificationFacts],
 		(ctx) => {
 			const outputs: Message[] = [];
-			const emit = (messages: Message[]) => outputs.push(...messages);
+			const emit = (messages: Message[]) => {
+				for (const output of messages) outputs.push(output);
+			};
 			const s = collect(ctx, 2) as RowsState & { receipts?: Map<string, VerificationReceipt> };
 			s.receipts ??= new Map();
 			const verificationFrames = (((ctx.deps[2]?.waves ?? []).length === 0
@@ -517,7 +529,9 @@ export function buildAdmission(
 	);
 	const watermarks = make<CausalWatermark>("watermarks", [currentFacts], (ctx) => {
 		const outputs: Message[] = [];
-		const emit = (messages: Message[]) => outputs.push(...messages);
+		const emit = (messages: Message[]) => {
+			for (const output of messages) outputs.push(output);
+		};
 		for (const f of ctx.deps[0].waves.flat() as Checked<CurrentFrame>[])
 			if (f.valid)
 				for (const c of f.value.current)

@@ -483,7 +483,7 @@ function applyListChange<T>(state: T[], change: ListChange<T>): void {
 			state.push(change.value);
 			return;
 		case "appendMany":
-			state.push(...change.values);
+			for (const value of change.values) state.push(value);
 			return;
 		case "insert":
 			if (change.index > state.length)
@@ -560,7 +560,7 @@ function applyLogChange<T>(state: T[], change: LogChange<T>): void {
 			state.push(change.value);
 			return;
 		case "appendMany":
-			state.push(...change.values);
+			for (const value of change.values) state.push(value);
 			return;
 		case "trimHead":
 			if (change.n > state.length) throw new Error("reactiveLog trimHead change is out of range");

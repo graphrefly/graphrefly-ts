@@ -179,7 +179,7 @@ function validateAndProjectKgDrafts(
 			const result = validateKgDraft(raw, i);
 			if (result.errors.length > 0 || result.draft === undefined) {
 				invalidDrafts += 1;
-				errors.push(...result.errors);
+				for (const error of result.errors) errors.push(error);
 				continue;
 			}
 			const draft = result.draft;
@@ -307,11 +307,11 @@ function validateKgDraft(
 	if (fragmentId === undefined) {
 		shapeErrors.push("draft.fragmentId must be a non-empty string");
 	}
-	shapeErrors.push(...subject.errors);
+	for (const error of subject.errors) shapeErrors.push(error);
 	if (typeof raw.predicate !== "string" || raw.predicate.length === 0) {
 		shapeErrors.push("draft.predicate must be a non-empty string");
 	}
-	shapeErrors.push(...object.errors);
+	for (const error of object.errors) shapeErrors.push(error);
 	if (
 		raw.confidence !== undefined &&
 		(!Number.isFinite(raw.confidence) || raw.confidence < 0 || raw.confidence > 1)

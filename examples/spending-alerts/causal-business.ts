@@ -120,7 +120,7 @@ export function join<T>(
 				}
 				const f = raw as BusinessFrame<unknown>;
 				state.valid[i] = f.valid;
-				issues.push(...f.issues);
+				for (const issue of f.issues) issues.push(issue);
 				if (!f.valid) {
 					state.maps[i].clear();
 					continue;

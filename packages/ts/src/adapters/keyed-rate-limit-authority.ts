@@ -172,7 +172,7 @@ export function attachKeyedRateLimitAuthority(
 			let inRun = true;
 			const pending: Message[] = [];
 			const send = (msgs: readonly Message[]): void => {
-				if (inRun) pending.push(...msgs);
+				if (inRun) for (const entry of msgs) pending.push(entry);
 				else ctx.down(msgs);
 			};
 			for (const raw of ctx.deps[0].waves.flat()) {

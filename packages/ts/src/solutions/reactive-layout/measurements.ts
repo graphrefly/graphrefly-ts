@@ -756,7 +756,7 @@ export function mergeMeasurements(opts: MergeMeasurementsOptions): Node<Measurem
 		(ctx: Ctx) => {
 			const facts: MeasurementFact[] = [];
 			for (let i = 0; i < sources.length; i += 1) {
-				facts.push(...(ctx.deps[i].value as Measurements));
+				for (const fact of ctx.deps[i].value as Measurements) facts.push(fact);
 			}
 			ctx.down([["DATA", facts]]);
 		},

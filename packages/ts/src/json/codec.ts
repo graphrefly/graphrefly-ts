@@ -297,7 +297,7 @@ function strictJsonDataErrorsInner(
 					continue;
 				}
 				const nested = strictJsonDataErrorsInner(descriptor.value, `${label}[${index}]`, seen);
-				errors.push(...nested.errors);
+				for (const error of nested.errors) errors.push(error);
 				if (nested.errors.length === 0 && nested.value !== undefined) out.push(nested.value);
 			}
 			if (errors.length > 0) return { errors };
@@ -325,7 +325,7 @@ function strictJsonDataErrorsInner(
 			const descriptor = Object.getOwnPropertyDescriptor(value, key);
 			if (descriptor === undefined || "get" in descriptor || "set" in descriptor) continue;
 			const nested = strictJsonDataErrorsInner(descriptor.value, `${label}.${key}`, seen);
-			errors.push(...nested.errors);
+			for (const error of nested.errors) errors.push(error);
 			if (nested.errors.length === 0 && nested.value !== undefined) {
 				Object.defineProperty(out, key, {
 					value: nested.value,

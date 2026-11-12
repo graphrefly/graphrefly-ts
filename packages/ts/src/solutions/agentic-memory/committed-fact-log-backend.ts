@@ -262,7 +262,7 @@ export function normalizeAgenticMemoryCommittedFactLogBackendAppendResult(
 		);
 	}
 	const backendStatus = normalizeOptionalBackendStatus(raw.backendStatus, issues);
-	issues.push(...normalizeIssues(raw.issues));
+	for (const issue of normalizeIssues(raw.issues)) issues.push(issue);
 	const audit = normalizeFactLogAudit(raw.audit, issues);
 	let backendCursor: AgenticMemoryCommittedFactLogBackendCursor | undefined;
 	if (raw.backendCursor !== undefined) {
@@ -283,7 +283,7 @@ export function normalizeAgenticMemoryCommittedFactLogBackendAppendResult(
 			}),
 		);
 	}
-	if (backendStatus !== undefined) issues.push(...backendStatus.issues);
+	if (backendStatus !== undefined) for (const issue of backendStatus.issues) issues.push(issue);
 
 	const publicStatus = committedFactsMismatch
 		? "uncertain"
@@ -387,7 +387,7 @@ export function normalizeAgenticMemoryCommittedFactLogBackendReadResult<
 		}
 	}
 	const backendStatus = normalizeOptionalBackendStatus(raw.backendStatus, issues);
-	issues.push(...normalizeIssues(raw.issues));
+	for (const issue of normalizeIssues(raw.issues)) issues.push(issue);
 	const audit = normalizeFactLogAudit(raw.audit, issues);
 	let backendCursor: AgenticMemoryCommittedFactLogBackendCursor | undefined;
 	if (raw.backendCursor !== undefined) {
@@ -408,7 +408,7 @@ export function normalizeAgenticMemoryCommittedFactLogBackendReadResult<
 			}),
 		);
 	}
-	if (backendStatus !== undefined) issues.push(...backendStatus.issues);
+	if (backendStatus !== undefined) for (const issue of backendStatus.issues) issues.push(issue);
 	const validFacts = issues.some((item) =>
 		item.code.startsWith("agentic-memory.fact-log-backend.invalid-read-fact"),
 	)

@@ -355,8 +355,8 @@ function validateReadResult<TJson extends StrictJsonValue>(
 	const audit = Array.isArray(read.audit)
 		? normalizeFactLogAuditEntries(read.audit as readonly unknown[])
 		: undefined;
-	if (issues !== undefined) errors.push(...issues.errors);
-	if (audit !== undefined) errors.push(...audit.errors);
+	if (issues !== undefined) for (const error of issues.errors) errors.push(error);
+	if (audit !== undefined) for (const error of audit.errors) errors.push(error);
 	if (errors.length > 0 || cursor === undefined) {
 		return {
 			ok: false,

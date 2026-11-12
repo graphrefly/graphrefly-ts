@@ -3449,7 +3449,8 @@ export function prepareWorkspaceProposalRepairReviewDecisionRecordingInput(
 		expectedCurrentState: options.expectedCurrentState ?? validation.intent.expectedCurrentState,
 	};
 	if (decisionIntent !== undefined) {
-		issues.push(...repairReviewDecisionRecordingIssues(options.request, recordingOptions));
+		for (const issue of repairReviewDecisionRecordingIssues(options.request, recordingOptions))
+			issues.push(issue);
 	}
 	if (issues.length > 0 || decisionIntent === undefined) {
 		return {
@@ -3539,8 +3540,10 @@ export function projectWorkspaceProposalRepairSuccessorProposalIntakePreview(
 			),
 		);
 	}
-	diagnostics.push(...repairActionSuggestedDraftPatchIssues(normalized, options));
-	diagnostics.push(...repairActionPreviewMetadataIssues(normalized, options));
+	for (const diagnostic of repairActionSuggestedDraftPatchIssues(normalized, options))
+		diagnostics.push(diagnostic);
+	for (const diagnostic of repairActionPreviewMetadataIssues(normalized, options))
+		diagnostics.push(diagnostic);
 	const targetRefs = repairActionSourceRefs([
 		...(options.request === undefined
 			? []
@@ -9560,8 +9563,10 @@ function familyOutcomeBaseIssues(
 	options: WorkspaceProposalFamilyOutcomeOptions,
 ): readonly WorkspaceProposalRecordedIssue[] {
 	const issues: WorkspaceProposalRecordedIssue[] = [];
-	issues.push(...familyOutcomeDataOnlyIssues(status, "familyOutcomeApplicationStatus", status));
-	issues.push(...familyOutcomeDataOnlyIssues(status, "familyOutcomeOptions", options));
+	for (const issue of familyOutcomeDataOnlyIssues(status, "familyOutcomeApplicationStatus", status))
+		issues.push(issue);
+	for (const issue of familyOutcomeDataOnlyIssues(status, "familyOutcomeOptions", options))
+		issues.push(issue);
 	if (status.kind !== "workspace-proposal-application-status") {
 		issues.push(
 			familyOutcomeIssue(

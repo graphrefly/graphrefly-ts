@@ -347,7 +347,7 @@ function flattenBatches<TJson extends StrictJsonValue>(
 	const facts: AgenticMemoryCommittedFact<TJson>[] = [];
 	for (const batch of batches) {
 		const canonical = assertAgenticMemoryCommittedFactBatch<TJson>(batch);
-		facts.push(...canonical.facts);
+		for (const fact of canonical.facts) facts.push(fact);
 	}
 	assertCommittedFactStreamIntegrity(facts);
 	return Object.freeze(facts);

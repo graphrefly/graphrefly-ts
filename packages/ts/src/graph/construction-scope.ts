@@ -78,7 +78,7 @@ function checkInputs(registrar: GraphLifecycleRegistrar, inputs: readonly Node<u
 		seen.add(node);
 		registrar.assertRegisteredNode(node, "construction input/dependency");
 		// R-terminals: an ended input can be depended on; its snapshot carries its terminal.
-		pending.push(...node.deps);
+		for (const entry of node.deps) pending.push(entry);
 	}
 }
 
@@ -306,7 +306,7 @@ export class ConstructionScope {
 				)
 					errors.splice(i, 1);
 			}
-			errors.push(...detailed);
+			for (const error of detailed) errors.push(error);
 		}
 
 		throw new ColdConstructionError(this.manifest.name, cause, Object.freeze(errors));

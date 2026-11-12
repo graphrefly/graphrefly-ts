@@ -251,7 +251,7 @@ function projectProposalAdmissions<T>(
 			const result = validateProposal<T>(raw, index);
 			if (result.proposal === undefined) {
 				invalidProposals += 1;
-				issues.push(...result.issues);
+				for (const issue of result.issues) issues.push(issue);
 				continue;
 			}
 			proposal = result.proposal;
@@ -366,7 +366,8 @@ function validateProposal<T>(
 		};
 	}
 	const validationErrors: string[] = [];
-	validationErrors.push(...forbiddenAgenticMemoryDataFields(value, "proposal"));
+	for (const error of forbiddenAgenticMemoryDataFields(value, "proposal"))
+		validationErrors.push(error);
 	if (value.kind !== "agentic-memory-record-proposal") {
 		validationErrors.push("proposal.kind must be agentic-memory-record-proposal");
 	}
@@ -392,7 +393,8 @@ function validateProposal<T>(
 		if (refs !== undefined) {
 			const refErrors = validateAgenticMemoryFactRefs(refs);
 			if (refErrors.length > 0) {
-				validationErrors.push(...refErrors.map((error) => `proposal.${field}: ${error}`));
+				for (const entry of refErrors.map((error) => `proposal.${field}: ${error}`))
+					validationErrors.push(entry);
 			}
 		}
 	}
@@ -590,7 +592,8 @@ function validateCandidateMaterial<T>(
 		};
 	}
 	const validationErrors: string[] = [];
-	validationErrors.push(...forbiddenAgenticMemoryDataFields(value, "candidateMaterial"));
+	for (const error of forbiddenAgenticMemoryDataFields(value, "candidateMaterial"))
+		validationErrors.push(error);
 	if (value.kind !== "agentic-memory-record-candidate-material") {
 		validationErrors.push(
 			"candidateMaterial.kind must be agentic-memory-record-candidate-material",
@@ -616,7 +619,8 @@ function validateCandidateMaterial<T>(
 		if (refs !== undefined) {
 			const refErrors = validateAgenticMemoryFactRefs(refs);
 			if (refErrors.length > 0) {
-				validationErrors.push(...refErrors.map((error) => `candidateMaterial.${field}: ${error}`));
+				for (const entry of refErrors.map((error) => `candidateMaterial.${field}: ${error}`))
+					validationErrors.push(entry);
 			}
 		}
 	}
@@ -638,7 +642,8 @@ function validateCandidateMaterial<T>(
 		recordId: candidate.record?.id,
 	});
 	if (!attribution.ok) {
-		validationErrors.push(...attribution.errors.map((error) => `candidateMaterial.${error}`));
+		for (const entry of attribution.errors.map((error) => `candidateMaterial.${error}`))
+			validationErrors.push(entry);
 	}
 	if (validationErrors.length > 0 || candidate.record === undefined) {
 		return {
@@ -740,7 +745,8 @@ function validateAdmissionPolicy(value: unknown): {
 		};
 	}
 	const validationErrors: string[] = [];
-	validationErrors.push(...forbiddenAgenticMemoryDataFields(value, "policy"));
+	for (const error of forbiddenAgenticMemoryDataFields(value, "policy"))
+		validationErrors.push(error);
 	if (value.kind !== "agentic-memory-record-admission-policy") {
 		validationErrors.push("policy.kind must be agentic-memory-record-admission-policy");
 	}

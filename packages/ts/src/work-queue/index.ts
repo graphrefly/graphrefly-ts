@@ -652,7 +652,8 @@ function claimWork<T>(
 		);
 	}
 	if (requested.size > 0) {
-		events.push(...claimMissEvents(queueId, state, command, requested, claimed, nowMs));
+		for (const event of claimMissEvents(queueId, state, command, requested, claimed, nowMs))
+			events.push(event);
 	}
 	return events;
 }
