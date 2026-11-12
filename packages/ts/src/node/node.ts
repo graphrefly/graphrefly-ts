@@ -465,12 +465,8 @@ export class Node<T = unknown> {
 			);
 	}
 
-	private _rewire(
-		newDeps: Node<unknown>[],
-		fn?: NodeFn,
-		opts: { declare?: boolean } = {},
-	): boolean {
-		return nodeRewire(nodeRuntimeHost(this), newDeps, fn, opts);
+	private _rewire(newDeps: Node<unknown>[]): boolean {
+		return nodeRewire(nodeRuntimeHost(this), newDeps);
 	}
 
 	// ── activation / deactivation (lazy; R-rom-ram) ──

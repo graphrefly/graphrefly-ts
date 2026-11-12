@@ -34,7 +34,7 @@ export interface NodeRuntimeHost<T = unknown> {
 	_dedupDeps(deps: Node<unknown>[]): Node<unknown>[];
 	_reachableUpstream(from: Node<unknown>, target: Node<unknown>): boolean;
 	_assertRewireDepOwner(dep: Node<unknown>): void;
-	_rewire(newDeps: Node<unknown>[], fn?: NodeFn, opts?: { declare?: boolean }): boolean;
+	_rewire(newDeps: Node<unknown>[]): boolean;
 	_activate(): void;
 	_subscribeOwned(subscriber: Subscriber, acquisition?: SubscriptionAcquisition): () => void;
 	_subscribeDepAt(

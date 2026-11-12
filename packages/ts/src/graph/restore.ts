@@ -924,11 +924,7 @@ function constructPrepared(
 			const lifetime = node.lifetime;
 			// A ctx.rewire's lifetime dependencies; the declared ones come back when it closes.
 			if (lifetime?.deps !== undefined)
-				nodeRuntimeHost(made)._rewire(
-					lifetime.deps.map((dep) => built.get(dep) as Node<unknown>),
-					undefined,
-					{ declare: false },
-				);
+				nodeRuntimeHost(made)._rewire(lifetime.deps.map((dep) => built.get(dep) as Node<unknown>));
 			const received: NodeReceived[] | undefined = lifetime?.received.map((r) => ({
 				values: r.values,
 				terminal: restoredTerminal(r.terminal, `node '${id}' received`),

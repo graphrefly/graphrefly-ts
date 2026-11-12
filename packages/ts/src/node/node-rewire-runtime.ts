@@ -79,12 +79,12 @@ export function nodeApplyRewireDiff<T>(
 	self._rewire(deps);
 }
 
-export function nodeRewire<T>(
-	self: NodeRuntimeHost<T>,
-	newDeps: Node<unknown>[],
-	fn?: NodeFn,
-	opts: { declare?: boolean } = {},
-): boolean {
+/**
+ * Internal: change a live instance's dependencies for its current lifetime (ctx.rewire, and the
+ * restore of a lifetime that had rewired). The declared dependencies and the function stay; a new
+ * definition goes through replace (R-node).
+ */
+export function nodeRewire<T>(self: NodeRuntimeHost<T>, newDeps: Node<unknown>[]): boolean {
 	const node = self as unknown as Node<unknown>;
 	validateNodeRewire(self, newDeps);
 	const oldDeps = self._slot.deps;
@@ -92,7 +92,7 @@ export function nodeRewire<T>(
 
 	if (
 		deferAfterBatchForTarget(self._core, node, () => {
-			self._rewire(newDeps, fn, opts);
+			self._rewire(newDeps);
 		})
 	) {
 		return true;
@@ -103,18 +103,6 @@ export function nodeRewire<T>(
 	self._wave.rewireRunPending = false;
 	let zeroDepUnDirty = false;
 	try {
-		// fn swap (SD-1): re-register against the same pool, then release the old handle
-		// (B15) so the rewired-away fn closure is GC'd and its dispatcher slot is reused —
-		// a rewire-heavy graph (CSP-2.7 *Map) no longer leaks a handle per swap. Register
-		// first, then unregister the old: self._slot.handle never points at a freed slot, and a
-		// null old handle (a passthrough/state node gaining a fn) has nothing to free.
-		if (fn !== undefined) {
-			const oldHandle = self._slot.handle;
-			self._slot.handle = self._slot.dispatcher.register(fn, self._slot.pool);
-			if (oldHandle !== null) self._slot.dispatcher.unregister(oldHandle);
-			self._slot.fn = fn;
-		}
-
 		const removed = oldDeps.filter((d) => !newDeps.includes(d));
 		let removedDirtyContributor = false;
 		for (const d of removed) {
@@ -160,7 +148,6 @@ export function nodeRewire<T>(
 			}
 		}
 		self._slot.deps = newDeps;
-		if (opts.declare === true) self._slot.declaredDeps = newDeps;
 		self._dep.batch = newBatch;
 		self._dep.prev = newPrev;
 		self._dep.hasData = newHasData;

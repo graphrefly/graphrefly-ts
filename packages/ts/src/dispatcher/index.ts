@@ -142,9 +142,9 @@ export class Dispatcher {
 	/**
 	 * Release a handle (B15): frees the pool slot (closure GC'd, id reusable) and drops any
 	 * accumulated profile stat so a reused id never inherits the previous tenant's counters.
-	 * Called on rewire fn-swap (node._rewire) — the old handle is dropped before the node
-	 * adopts the new one. Idempotent. NOT called on deactivate (a node's handle survives
-	 * activate↔deactivate and is reused on reactivation; only a rewire swaps it).
+	 * Called when replace gives a node a new function (the old handle is dropped after the new one
+	 * is registered) and when a node is released. Idempotent. NOT called on deactivate (a node's
+	 * handle survives activate↔deactivate and is reused on reactivation).
 	 */
 	unregister(handle: Handle): void {
 		this.pools[handle.poolId].unregister(handle.handleId);
