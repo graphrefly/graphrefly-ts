@@ -279,13 +279,8 @@ describe("admissionHandoff pattern (graphrefly-ts:D147)", () => {
 				factory: "admissionHandoffAdmitted",
 			},
 			"verified-work/accepted": {
-				deps: ["verified-work/admitted", "verified-work/accepted/ledger"],
+				deps: ["verified-work/admitted"],
 				factory: "admissionHandoffAccepted",
-			},
-			// graphrefly-ts:D180: the accepted keys are a declared dedupe ledger.
-			"verified-work/accepted/ledger": {
-				deps: [],
-				factory: "state",
 			},
 			"verified-work/rejected": {
 				deps: ["verified-work/correlation"],
@@ -309,30 +304,6 @@ describe("admissionHandoff pattern (graphrefly-ts:D147)", () => {
 			handoff.release();
 			handoff.release();
 		}).not.toThrow();
-	});
-
-	it("keeps the accepted keys in a declared ledger across lifetimes (graphrefly-ts:D180)", () => {
-		const { owner, candidates, decisions, handoff } = fixture();
-		const first: Message[] = [];
-		const stopFirst = handoff.accepted.subscribe((msgs) => first.push(...msgs));
-		candidates.set(candidate());
-		decisions.set(decision("admitted"));
-		expect(first.filter((m) => m[0] === "DATA")).toHaveLength(1);
-
-		// Closing the lifetime writes the working copy back to the ledger state.
-		stopFirst();
-		handoff.release();
-		expect(handoff.accepted.status.lifecycle).toBe("inactive");
-		const ledger = owner.find("verified-work/accepted/ledger") as Node<{ order: string[] }>;
-		expect(ledger.cache?.order).toEqual([
-			JSON.stringify(["candidate-fingerprint-1", "admitted-fingerprint-work-item-1"]),
-		]);
-
-		// A later lifetime is seeded from it, so a replay of the same admission is not released.
-		const later = collect(handoff.accepted);
-		candidates.set(candidate());
-		decisions.set(decision("admitted"));
-		expect(later.filter((m) => m[0] === "DATA")).toEqual([]);
 	});
 
 	it("release drops the retained accepted port and is idempotent", () => {

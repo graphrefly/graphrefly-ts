@@ -8,7 +8,6 @@
 import { depBatch } from "../ctx/types.js";
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
-import { declaredLedger } from "../graph/ledger.js";
 import { canonicalTupleKey, compoundTupleKey } from "../identity.js";
 import type {
 	MessageBusAvailablePage,
@@ -167,23 +166,8 @@ export function workQueue<T = unknown>(graph: Graph, opts: WorkQueueOptions<T>):
 			error: "manual",
 		},
 	);
-	// D180: the sequences and dedupe ids are the bundle's ledger, a state the runtime declares
-	// (Rust's QueueLedger). The queue's content (works and their payloads, leases, records, dead
-	// letters) stays in the runtime state the projections read; the runtime's private state only
-	// marks that this lifetime was seeded from the ledger.
-	const { ledger, setupWith } = declaredLedger<QueueLedger>(graph, {
-		name: `${name}/ledger`,
-		factory: "workQueueLedger",
-		initial: () => ({
-			recordSeq: 0,
-			leaseSeq: 0,
-			sourceSeqs: [],
-			commandIds: [],
-			idempotencyKeys: [],
-		}),
-	});
 	const runtime = graph.node<QueueEvent<T>>(
-		[commands, admissionPages, ledger],
+		[commands, admissionPages],
 		oneArrayPerRun((ctx) => {
 			for (const page of depBatch(ctx, 1) ?? []) {
 				for (const msg of (page as MessageBusAvailablePage<T>).messages) {
@@ -207,13 +191,6 @@ export function workQueue<T = unknown>(graph: Graph, opts: WorkQueueOptions<T>):
 		{
 			name: `${name}/runtime`,
 			factory: "workQueueRuntime",
-			setup: setupWith<true>(2, {
-				seed(seeded) {
-					seedFromLedger(state, seeded);
-					return true;
-				},
-				extract: () => ledgerOf(state),
-			}),
 			complete: "manual",
 			error: "manual",
 		},
@@ -434,35 +411,6 @@ export function workQueue<T = unknown>(graph: Graph, opts: WorkQueueOptions<T>):
 		},
 	};
 	return queue;
-}
-
-/** The work queue's ledger (graphrefly-ts:D180): strict JSON, so the sets are arrays. */
-interface QueueLedger {
-	readonly recordSeq: number;
-	readonly leaseSeq: number;
-	readonly sourceSeqs: readonly string[];
-	readonly commandIds: readonly string[];
-	readonly idempotencyKeys: readonly string[];
-}
-
-/** A lifetime's first setup takes the sequences and dedupe ids from the ledger. */
-function seedFromLedger<T>(state: RuntimeState<T>, ledger: QueueLedger): void {
-	state.recordSeq = ledger.recordSeq;
-	state.leaseSeq = ledger.leaseSeq;
-	state.sourceSeqs = new Set(ledger.sourceSeqs);
-	state.commandIds = new Set(ledger.commandIds);
-	state.idempotencyKeys = new Set(ledger.idempotencyKeys);
-}
-
-/** The ledger part of the runtime state, written back when a lifetime closes. */
-function ledgerOf<T>(state: RuntimeState<T>): QueueLedger {
-	return {
-		recordSeq: state.recordSeq,
-		leaseSeq: state.leaseSeq,
-		sourceSeqs: [...state.sourceSeqs],
-		commandIds: [...state.commandIds],
-		idempotencyKeys: [...state.idempotencyKeys],
-	};
 }
 
 /**

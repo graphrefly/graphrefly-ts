@@ -8,7 +8,6 @@
 import { depBatch, depCount, type NodeFn } from "../ctx/types.js";
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
-import { declaredLedger } from "../graph/ledger.js";
 import { canonicalTupleKey } from "../identity.js";
 import { attachableInput } from "../node/attachable-input.js";
 import type { Node, StateNode } from "../node/node.js";
@@ -170,16 +169,8 @@ export function messageBus<TTopic extends string>(
 		commandSources,
 		publish,
 	};
-	// The user's Q13 (graphrefly-ts:D180): sequences, cursors, dedupe ids and the dead-letter
-	// sequence are the bus's ledger, a state the runtime declares; the topics' messages and the
-	// dead letters are the bus's content and stay in the runtime's state (Rust BusLedger).
-	const { ledger, setupWith } = declaredLedger<MessageBusLedger>(graph, {
-		name: `${name}/ledger`,
-		factory: "messageBusLedger",
-		initial: emptyMessageBusLedger,
-	});
 	const runtime = graph.node<RuntimeEvent>(
-		[commands, ledger as Node<unknown>],
+		[commands],
 		oneArrayPerRun((ctx) => {
 			for (const command of depBatch(ctx, 0) ?? []) {
 				for (const event of reduceMessageBusCommand(state, command as MessageBusCommand)) {
@@ -192,14 +183,6 @@ export function messageBus<TTopic extends string>(
 			factory: "messageBusRuntime",
 			complete: "manual",
 			error: "manual",
-			// The private state only marks a seeded lifetime; the working copy is the bus state.
-			setup: setupWith<true>(1, {
-				seed(seed) {
-					seedMessageBusLedger(state, seed);
-					return true;
-				},
-				extract: () => messageBusLedgerOf(state),
-			}),
 		},
 	);
 	graph.retain(runtime);
@@ -536,71 +519,6 @@ function projectionRequest<P>(graph: Graph, projectionName: string, factory: str
 		complete: "manual",
 		error: "manual",
 	});
-}
-
-/** A topic's sequence position, part of the bus ledger (Rust TopicLedger). */
-interface MessageBusTopicLedger {
-	topic: string;
-	closed: boolean;
-	headSeq: number;
-	nextSeq: number;
-}
-
-/** The bus's ledger (strict JSON; Rust BusLedger): positions, cursors, dedupe ids, sequences. */
-interface MessageBusLedger {
-	topics: MessageBusTopicLedger[];
-	subscriptions: SubscriptionState[];
-	seenCommandIds: string[];
-	seenIdempotencyKeys: string[];
-	deadLetterSeq: number;
-}
-
-function emptyMessageBusLedger(): MessageBusLedger {
-	return {
-		topics: [],
-		subscriptions: [],
-		seenCommandIds: [],
-		seenIdempotencyKeys: [],
-		deadLetterSeq: 0,
-	};
-}
-
-/** Merge a ledger into the bus state; a known subscription is updated in place (projections hold it). */
-function seedMessageBusLedger(state: MessageBusState, ledger: MessageBusLedger): void {
-	for (const position of ledger.topics) {
-		let topic = state.topics.get(position.topic);
-		if (topic === undefined) {
-			topic = makeTopicState();
-			state.topics.set(position.topic, topic);
-		}
-		topic.closed = position.closed;
-		topic.headSeq = position.headSeq;
-		topic.nextSeq = position.nextSeq;
-	}
-	for (const sub of ledger.subscriptions) {
-		const key = canonicalTupleKey([sub.topic, sub.subscriptionId]);
-		const existing = state.subscriptions.get(key);
-		if (existing === undefined) state.subscriptions.set(key, { ...sub });
-		else Object.assign(existing, sub);
-	}
-	for (const id of ledger.seenCommandIds) state.seenCommandIds.add(id);
-	for (const key of ledger.seenIdempotencyKeys) state.seenIdempotencyKeys.add(key);
-	state.deadLetterSeq = Math.max(state.deadLetterSeq, ledger.deadLetterSeq);
-}
-
-function messageBusLedgerOf(state: MessageBusState): MessageBusLedger {
-	return {
-		topics: [...state.topics.entries()].map(([topic, value]) => ({
-			topic,
-			closed: value.closed,
-			headSeq: value.headSeq,
-			nextSeq: value.nextSeq,
-		})),
-		subscriptions: [...state.subscriptions.values()].map((sub) => ({ ...sub })),
-		seenCommandIds: [...state.seenCommandIds].sort(),
-		seenIdempotencyKeys: [...state.seenIdempotencyKeys].sort(),
-		deadLetterSeq: state.deadLetterSeq,
-	};
 }
 
 function reduceMessageBusCommand(

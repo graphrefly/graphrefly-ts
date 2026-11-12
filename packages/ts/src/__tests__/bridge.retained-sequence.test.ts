@@ -1,16 +1,15 @@
 /**
- * graphrefly-ts:D180: the wire bridge's ledger (its outbound sequence and inbound cursors) is a
- * state the bundle owns and the event fold declares, so the relation is a drawable edge and a
- * checkpoint holds it as strict JSON. The fold is retained for the graph's life, so within it the
- * bridge state is the working copy and the ledger keeps its seed until the lifetime closes.
+ * The wire bridge's event fold is retained for the graph's life and keeps its outbound sequence
+ * and inbound cursors in its working state (graphrefly-ts:D180: a retained runtime declares no
+ * ledger state); within that life the sequence continues and inbound replays are reported.
  */
 
 import { describe, expect, it } from "vitest";
 import { wireBridge, wireBridgeEnvelope } from "../adapters/index.js";
 import { graph } from "../graph/graph.js";
 
-describe("wireBridge ledger (D180)", () => {
-	it("declares the ledger as the event fold's last dependency and keeps its sequence and cursor", () => {
+describe("wireBridge sequence and cursor while retained (D180)", () => {
+	it("continues the outbound sequence and reports inbound replays", () => {
 		const g = graph({ name: "bridge-ledger" });
 		const bridge = wireBridge<string, string>(g, {
 			name: "bridge",
@@ -27,12 +26,6 @@ describe("wireBridge ledger (D180)", () => {
 				if (event.kind === "outbound" && event.envelope) seqs.push(event.envelope.metadata.seq);
 			}
 		});
-
-		expect(g.describe().find((n) => n.id === "bridge/events")?.deps).toEqual([
-			"bridge/command",
-			"bridge/inbound",
-			"bridge/ledger",
-		]);
 
 		bridge.send("one");
 		bridge.send("two");
@@ -54,12 +47,5 @@ describe("wireBridge ledger (D180)", () => {
 
 		bridge.send("three");
 		expect(seqs).toEqual([1, 2, 3]);
-
-		const ledger = g.describe().find((n) => n.id === "bridge/ledger");
-		expect(ledger?.kind).toBe("state");
-		// Mid-lifetime the ledger still holds its seed: the bridge state is the working copy.
-		const value = g.find("bridge/ledger")?.cache;
-		expect(value).toEqual({ nextSeq: 1, cursor: 0, remoteCursor: 0 });
-		expect(JSON.parse(JSON.stringify(value))).toEqual(value);
 	});
 });

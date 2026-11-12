@@ -342,10 +342,10 @@ describe("wire bridge envelopes (D134)", () => {
 			"bridge/errors",
 			"bridge/events",
 			"bridge/inbound",
-			"bridge/ledger",
 			"bridge/nacks",
 			"bridge/outbound",
 			"bridge/status",
+			"bridge/statusLedger",
 		]);
 		expect(snap.edges).toContainEqual({ from: "bridge/command", to: "bridge/events" });
 		expect(snap.edges).toContainEqual({ from: "bridge/inbound", to: "bridge/events" });

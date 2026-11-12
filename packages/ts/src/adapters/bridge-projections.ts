@@ -8,6 +8,7 @@
 
 import { depBatch } from "../ctx/types.js";
 import type { Graph } from "../graph/graph.js";
+import { declaredLedger } from "../graph/ledger.js";
 import type { Node, StateNode } from "../node/node.js";
 import { errorPayload, type Wave } from "../protocol/messages.js";
 import type {
@@ -84,22 +85,27 @@ export function projectStatus<TOutbound, TInbound>(
 	name: string,
 	sessionId: string,
 ): Node<WireBridgeStatus> {
+	// D180: the status counters are an audit ledger the bundle owns. The status deactivates when
+	// nothing reads it, so the ledger carries them across lifetimes (Rust bridge/statusLedger).
+	const { ledger, setup } = declaredLedger<WireBridgeStatus>(graph, {
+		name: `${name}/statusLedger`,
+		factory: "wireBridgeStatusLedger",
+		initial: () => ({
+			sessionId,
+			state: "idle",
+			cursor: 0,
+			nextSeq: 1,
+			pending: 0,
+			attempts: 0,
+			acked: 0,
+			nacked: 0,
+			errors: 0,
+		}),
+	});
 	return graph.node<WireBridgeStatus>(
-		[events],
+		[events, ledger],
 		(ctx) => {
-			let next =
-				ctx.state.get<WireBridgeStatus>() ??
-				({
-					sessionId,
-					state: "idle",
-					cursor: 0,
-					nextSeq: 1,
-					pending: 0,
-					attempts: 0,
-					acked: 0,
-					nacked: 0,
-					errors: 0,
-				} satisfies WireBridgeStatus);
+			let next = ctx.state.get<WireBridgeStatus>() as WireBridgeStatus;
 			for (const raw of depBatch(ctx, 0) ?? []) {
 				const event = raw as WireBridgeEvent<TOutbound, TInbound>;
 				if (event.kind === "outbound") {
@@ -177,7 +183,7 @@ export function projectStatus<TOutbound, TInbound>(
 			ctx.state.set(next);
 			ctx.down([["DATA", next]]);
 		},
-		{ name: `${name}/status`, factory: "wireBridgeStatus" },
+		{ name: `${name}/status`, factory: "wireBridgeStatus", setup: setup(1) },
 	);
 }
 

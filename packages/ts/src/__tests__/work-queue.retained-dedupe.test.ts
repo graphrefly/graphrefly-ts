@@ -1,6 +1,7 @@
 /**
- * graphrefly-ts:D180: the work queue's sequences and dedupe ids are a ledger state the bundle owns
- * and the runtime declares as its last dependency; the runtime still dedupes within its lifetime.
+ * The work queue is retained for the graph's life and keeps its sequences and dedupe ids in its
+ * working state (graphrefly-ts:D180: a retained runtime declares no ledger state); within that
+ * life a repeated command id or idempotency key is still rejected.
  */
 
 import { describe, expect, it } from "vitest";
@@ -9,8 +10,8 @@ import { messageBus } from "../messaging/index.js";
 import type { Message } from "../protocol/messages.js";
 import { workQueue } from "../work-queue/index.js";
 
-describe("work-queue ledger (D180)", () => {
-	it("declares the ledger as the runtime's last dependency and still dedupes commands", () => {
+describe("work-queue dedupe while retained (D180)", () => {
+	it("rejects a repeated command id and idempotency key", () => {
 		const g = graph();
 		const bus = messageBus(g, { topics: ["work"], name: "bus", now: () => 0 });
 		const queue = workQueue<{ id: string }>(g, {
@@ -20,10 +21,6 @@ describe("work-queue ledger (D180)", () => {
 			subscriptionId: "q-admit",
 			now: () => 0,
 		});
-		const runtime = g.describe().find((n) => n.id === "workQueue/q/runtime");
-		expect(runtime?.deps.at(-1)).toBe("workQueue/q/ledger");
-		expect(g.describe().find((n) => n.id === "workQueue/q/ledger")?.kind).toBe("state");
-
 		const records: Message[] = [];
 		const issues: Message[] = [];
 		queue.records.subscribe((incoming) => {

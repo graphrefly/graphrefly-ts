@@ -1,7 +1,7 @@
 /**
- * graphrefly-ts:D180: a ProcessBundle's sequences, counts and dedupe ids are a declared ledger
- * state the runtime depends on; the effect runner's status counts are a ledger its status node
- * depends on. The reducer state stays in the runtime's lifetime.
+ * A ProcessBundle and its effect runner are retained for the graph's life and keep their
+ * sequences, counts and dedupe ids in their working state (graphrefly-ts:D180: a retained runtime
+ * declares no ledger state); within that life sequences continue and duplicates are rejected.
  */
 
 import { describe, expect, it } from "vitest";
@@ -12,8 +12,8 @@ import {
 	processEffectRunner,
 } from "../orchestration/index.js";
 
-describe("process ledger (D180)", () => {
-	it("declares the ledgers as dependencies and keeps sequence and dedupe behaviour", () => {
+describe("process sequences and dedupe while retained (D180)", () => {
+	it("continues sequences and rejects a duplicate effect id", () => {
 		const g = graph();
 		const process = processBundle<{ id: string }, { count: number }, never, { task: string }>(g, {
 			name: "p",
@@ -25,12 +25,6 @@ describe("process ledger (D180)", () => {
 		});
 		const outcomes = g.node<ProcessEffectOutcome<string>>([], null, { name: "w/outcomeFacts" });
 		const runner = processEffectRunner(g, process, { name: "w", outcomes: [outcomes] });
-
-		const byId = Object.fromEntries(g.describe().map((n) => [n.id, n]));
-		expect(byId["p/runtime"]?.deps).toEqual(["p/command", "p/ledger"]);
-		expect(byId["p/ledger"]).toMatchObject({ kind: "state", deps: [] });
-		expect(byId["w/status"]?.deps).toEqual(["w/requests", "w/runtime", "w/ledger"]);
-		expect(byId["w/ledger"]).toMatchObject({ kind: "state", deps: [] });
 
 		process.dispatch({ id: "c1", type: "run", payload: { id: "e1" } });
 		process.dispatch({ id: "c2", type: "run", payload: { id: "e1" } });
@@ -50,10 +44,5 @@ describe("process ledger (D180)", () => {
 			auditSeq: 3,
 		});
 		expect(runner.status.cache).toMatchObject({ state: "requested", effectId: "e2", requested: 2 });
-
-		runner.release();
-		process.release();
-		expect(g.find("p/ledger")).toBeUndefined();
-		expect(g.find("w/ledger")).toBeUndefined();
 	});
 });
