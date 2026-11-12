@@ -15,12 +15,7 @@ import type { Ctx } from "../ctx/types.js";
 import { graph } from "../graph/graph.js";
 import { subscriberCountOfNode } from "../node/runtime-accessors.js";
 import type { Wave } from "../protocol/messages.js";
-
-/** A sink that records every array it receives, as the kernel delivers it. */
-function arrays(): { log: Wave[]; sink: (msgs: Wave) => void } {
-	const log: Wave[] = [];
-	return { log, sink: (msgs) => log.push(msgs) };
-}
+import { arraySink, collect, types } from "./helpers/collect.js";
 
 const forward = (ctx: Ctx) => {
 	for (const v of ctx.deps[0].waves.flat()) ctx.down([["DATA", v]]);
@@ -51,7 +46,7 @@ describe("C-3: INVALIDATE through a diamond: one INVALIDATE out, private state k
 			},
 			{ invalidate },
 		);
-		const sink = arrays();
+		const sink = arraySink();
 		d.subscribe(sink.sink);
 		return { g, s, d, runs, sink };
 	}
@@ -109,7 +104,7 @@ describe("C-15: a dependency's terminal settles its pending mark", () => {
 			},
 			{ complete: "manual", error: "manual" },
 		);
-		const sink = arrays();
+		const sink = arraySink();
 		d.subscribe(sink.sink);
 		runs.length = 0;
 		return { g, a, a2, b, c, d, runs, sink };
@@ -170,8 +165,8 @@ describe("C-17: an ended dependency counts toward auto COMPLETE, in any order", 
 			},
 			{},
 		);
-		const ds = arrays();
-		const cs = arrays();
+		const ds = arraySink();
+		const cs = arraySink();
 		d.subscribe(ds.sink);
 		dctrl.subscribe(cs.sink);
 		runs.length = 0;
@@ -331,7 +326,7 @@ describe("C-36: input arrays and terminal admission in one invocation", () => {
 		const g = graph();
 		const a = g.node<number>([], null);
 		const d = g.node<number>([a], (ctx) => ctx.down([["DATA", (ctx.deps[0].value as number) * 2]]));
-		const sink = arrays();
+		const sink = arraySink();
 		d.subscribe(sink.sink);
 		sink.log.length = 0;
 		g.batch(() => {
@@ -353,8 +348,8 @@ describe("C-36: input arrays and terminal admission in one invocation", () => {
 			const v = ctx.deps[0].value as number | undefined;
 			if (v !== undefined) ctx.down([["DATA", v]]);
 		});
-		const as = arrays();
-		const ds = arrays();
+		const as = arraySink();
+		const ds = arraySink();
 		a.subscribe(as.sink);
 		d.subscribe(ds.sink);
 		a.set(1);
@@ -370,6 +365,7 @@ describe("C-36: input arrays and terminal admission in one invocation", () => {
 		expect(runs).toBe(0);
 		expect(a.cache).toBeUndefined();
 		expect(d.cache).toBeUndefined();
+		expect(d.status.cache).toBe("empty");
 	});
 });
 
@@ -383,16 +379,17 @@ describe("C-40: an ended node can be subscribed and depended on", () => {
 		const t = g.node<number>([], null);
 		t.error(e);
 
-		const sink = arrays();
+		const sink = arraySink();
 		s.subscribe(sink.sink);
 		expect(sink.log).toEqual([[["START"], ["DATA", 1], ["COMPLETE"]]]);
+		expect(s.status.output).toBe("completed");
 
 		let dRuns = 0;
 		const d = g.node<number>([s], (ctx) => {
 			dRuns++;
 			ctx.down([["DATA", ctx.deps[0].value as number]]);
 		});
-		const ds = arrays();
+		const ds = arraySink();
 		d.subscribe(ds.sink);
 		expect(dRuns).toBe(1);
 		expect(d.status.output).toBe("completed");
@@ -429,7 +426,7 @@ describe("C-44: a wave of terminals or INVALIDATEs holds a fan-in", () => {
 		const s = g.node<number>([], null, { initial: 0 });
 		const b = g.node<number>([s], forward);
 		const c = g.node<number>([s], forward);
-		const bs = arrays();
+		const bs = arraySink();
 		const runs: unknown[][] = [];
 		const d = g.node<number>(
 			[b, c],
@@ -475,8 +472,8 @@ describe("C-44: a wave of terminals or INVALIDATEs holds a fan-in", () => {
 			(ctx) => ctx.down([["DATA", ctx.deps[0].value as number]]),
 			{},
 		);
-		const qs = arrays();
-		const ds = arrays();
+		const qs = arraySink();
+		const ds = arraySink();
 		q.subscribe(qs.sink);
 		d.subscribe(ds.sink);
 		a.set(2);
@@ -485,5 +482,82 @@ describe("C-44: a wave of terminals or INVALIDATEs holds a fan-in", () => {
 		a.invalidate();
 		expect(qs.log).toEqual([[["PENDING"], ["INVALIDATE"]]]);
 		expect(ds.log).toEqual([[["PENDING"], ["INVALIDATE"]]]);
+	});
+});
+
+describe("R-terminals: the auto policies, and host input to an ended node", () => {
+	it("auto-COMPLETE when ALL deps complete", () => {
+		const g = graph();
+		const a = g.node<number>([], null, { initial: 1 });
+		const d = g.node<number>([a], (ctx: Ctx) =>
+			ctx.down([["DATA", (ctx.deps[0].value as number) + 1]]),
+		);
+		const { msgs } = collect(d);
+		msgs.length = 0;
+		a.complete();
+		// graphrefly:D806 (1): under auto COMPLETE the run that sees the last terminal calls the
+		// function, also when the terminal is its only input; this function sends on every run, so
+		// it sends once more before the COMPLETE. Each array carries the kernel's PENDING.
+		expect(types(msgs)).toEqual(["PENDING", "DATA", "PENDING", "COMPLETE"]);
+		expect(d.status.output).toBe("completed");
+	});
+
+	it("auto-ERROR when any dep errors (errorWhenDepsError)", () => {
+		const g = graph();
+		const a = g.node<number>([], null, { initial: 1 });
+		const d = g.node<number>([a], (ctx: Ctx) => ctx.down([["DATA", 1]]));
+		const { msgs } = collect(d);
+		msgs.length = 0;
+		const err = new Error("boom");
+		a.error(err);
+		expect(msgs).toContainEqual(["ERROR", err]);
+		expect(d.status.output).toBe("errored");
+	});
+
+	it("host input to an ended node is refused and changes nothing", () => {
+		const g = graph();
+		const s = g.node<number>([], null, { initial: 1 });
+		const { msgs } = collect(s);
+		s.complete();
+		expect(s.status.output).toBe("completed");
+		msgs.length = 0;
+
+		expect(() => s.set(42)).toThrow(/ended/);
+		expect(msgs).toEqual([]);
+		expect(s.cache).toBe(1);
+		expect(s.status.output).toBe("completed");
+
+		const e = g.node<number>([], null, { initial: 7 });
+		const ce = collect(e);
+		e.error(new Error("boom"));
+		ce.msgs.length = 0;
+		expect(() => e.set(99)).toThrow(/ended/);
+		expect(() => e.invalidate()).toThrow(/ended/);
+		expect(ce.msgs).toEqual([]);
+		expect(e.cache).toBe(7);
+		expect(e.status.output).toBe("errored");
+	});
+});
+
+describe("R-invalidation: an INVALIDATE with nothing to clear, and two in one array", () => {
+	it("never-populated INVALIDATE is a no-op", () => {
+		const g = graph();
+		const s = g.node<number>([], null); // no cache
+		const { msgs } = collect(s);
+		msgs.length = 0;
+		s.invalidate();
+		expect(msgs).toEqual([]);
+	});
+
+	it("INVALIDATE + INVALIDATE collapse to one (Q9)", () => {
+		const g = graph();
+		const s = g.node<number>([], null, { initial: 1 });
+		const { msgs } = collect(s);
+		msgs.length = 0;
+		g.batch(() => {
+			s.invalidate();
+			s.invalidate();
+		});
+		expect(types(msgs)).toEqual(["PENDING", "INVALIDATE"]);
 	});
 });

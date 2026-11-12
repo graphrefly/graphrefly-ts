@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { graph } from "../graph/graph.js";
-import type { Node } from "../node/node.js";
 import type {
 	WorkItemEffectRequested,
 	WorkItemEvidenceRecorded,
@@ -22,16 +21,7 @@ import {
 	workItemVerificationRequestLowerer,
 	workItemVerificationResultMapper,
 } from "../solutions/work-item/scheduling.js";
-
-function collectData<T>(node: Node<T>): T[] {
-	const out: T[] = [];
-	node.subscribe((incoming) => {
-		for (const msg of incoming) {
-			if (msg[0] === "DATA") out.push(msg[1] as T);
-		}
-	});
-	return out;
-}
+import { collectData } from "./helpers/collect.js";
 
 function draft(opts: Partial<ReturnType<typeof baseDraft>> = {}) {
 	return { ...baseDraft(), ...opts };

@@ -20,22 +20,12 @@ import { graph } from "../graph/graph.js";
 import type { Message } from "../index.js";
 import type { Node } from "../node/node.js";
 import { asState } from "./helpers/as-state.js";
-import type { Subscribable } from "./helpers/collect.js";
+import { collect } from "./helpers/collect.js";
 import { relayFirst } from "./helpers/relay.js";
 
 const _types = (m: Message[]) => m.map((x) => x[0]);
 const data = <T>(m: Message[]): T[] =>
 	m.filter((x) => x[0] === "DATA").map((x) => (x as readonly ["DATA", T])[1]);
-
-function collect(n: Subscribable) {
-	const msgs: Message[] = [];
-	const unsub = n.subscribe((incoming) => {
-		for (const m of incoming) {
-			msgs.push(m);
-		}
-	});
-	return { msgs, unsub };
-}
 
 class CountingDispatcher extends Dispatcher {
 	register(...args: Parameters<Dispatcher["register"]>): ReturnType<Dispatcher["register"]> {
@@ -81,8 +71,8 @@ describe("reactiveIndex (D60 #4) — ordered snapshot + Z reverse-lookup", () =>
 		const g = graph();
 		const idx = reactiveIndex<string, number>(g);
 		const view = idx.range("a", "c");
-		const { msgs: deltaMsgs, unsub: unsubDelta } = collect(view.delta);
-		const { msgs: snapshotMsgs, unsub: unsubSnapshot } = collect(view.snapshot);
+		const { msgs: deltaMsgs, stop: unsubDelta } = collect(view.delta);
+		const { msgs: snapshotMsgs, stop: unsubSnapshot } = collect(view.snapshot);
 
 		idx.upsert("b", 1, 2);
 		idx.upsert("d", 1, 4);
@@ -448,8 +438,8 @@ describe("reactiveLog (D60 #5) — incremental view/scan + SENTINEL reject + dec
 		const g = graph();
 		const log = reactiveLog<number>(g, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
 		const page = log.page(2, 3);
-		const { msgs: deltaMsgs, unsub: unsubDelta } = collect(page.delta);
-		const { msgs: snapshotMsgs, unsub: unsubSnapshot } = collect(page.snapshot);
+		const { msgs: deltaMsgs, stop: unsubDelta } = collect(page.delta);
+		const { msgs: snapshotMsgs, stop: unsubSnapshot } = collect(page.snapshot);
 
 		log.append(10);
 

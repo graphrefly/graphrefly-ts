@@ -23,6 +23,7 @@ import {
 	workItemWorkQueueRecipe,
 } from "../solutions/work-item/work-queue.js";
 import type { WorkQueueCommand, WorkQueueRecord } from "../work-queue/index.js";
+import { collectData } from "./helpers/collect.js";
 
 describe("workQueue recipes (D327/D328/D331)", () => {
 	it("lowers WorkItem effect facts to queue submit command facts", () => {
@@ -549,18 +550,6 @@ describe("workQueue recipes (D327/D328/D331)", () => {
 });
 
 type ExecutorPayload = ExecutorQueuedDispatchPayload;
-
-function collectData<T>(node: {
-	subscribe(sink: (msgs: readonly (readonly [string, unknown?])[]) => void): unknown;
-}): T[] {
-	const out: T[] = [];
-	node.subscribe((incoming) => {
-		for (const msg of incoming) {
-			if (msg[0] === "DATA") out.push(msg[1] as T);
-		}
-	});
-	return out;
-}
 
 function workItemPayload(): WorkItemQueuedWorkPayload {
 	return {

@@ -16,7 +16,6 @@ import {
 } from "../executors/tool-provider-adapters.js";
 import { graph } from "../graph/graph.js";
 import { compoundTupleKey } from "../identity.js";
-import type { Node } from "../node/node.js";
 import type {
 	AgentRequestFact,
 	AgentRequestIssued,
@@ -30,6 +29,7 @@ import {
 	requestToolProviderAdapterRun,
 	toolProviderRunAdmissionProjector,
 } from "../orchestration/index.js";
+import { collectData } from "./helpers/collect.js";
 
 describe("tool-provider concrete adapters (D283/D359-D362)", () => {
 	it("local builtin binding exposes deterministic pure tools without fallback tools", () => {
@@ -907,14 +907,4 @@ function approvalInput<TArgs>(
 
 function processInput(args: ProcessToolArguments): ToolProviderAdapterInput<ProcessToolArguments> {
 	return readyInput("process", "process.execFile", args);
-}
-
-function collectData<T>(node: Node<T>): T[] {
-	const out: T[] = [];
-	node.subscribe((incoming) => {
-		for (const msg of incoming) {
-			if (msg[0] === "DATA") out.push(msg[1] as T);
-		}
-	});
-	return out;
 }

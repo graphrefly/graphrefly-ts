@@ -12,19 +12,45 @@ import type { Ctx } from "../ctx/types.js";
 import { graph } from "../graph/graph.js";
 import { subscriberCountOfNode } from "../node/runtime-accessors.js";
 import type { Wave } from "../protocol/messages.js";
+import { arraySink } from "./helpers/collect.js";
 
-function arrays(): { log: Wave[]; sink: (msgs: Wave) => void } {
-	const log: Wave[] = [];
-	return { log, sink: (msgs) => log.push(msgs) };
-}
+const plus1 = (ctx: Ctx) => ctx.down([["DATA", (ctx.deps[0].value as number) + 1]]);
+
+describe("C-6: a function's write to its own upstream is a later request, never a reentry", () => {
+	it("runs as a request after the wave; the loop ends when the composition stops writing", () => {
+		// state S -> D (= n+1) -> E; E writes S while D is below 3, closing S->D->E->S.
+		const g = graph();
+		const s = g.node<number>([], null, { initial: 0 });
+		const d = g.node<number>([s], plus1);
+		const runs: number[] = [];
+		const e = g.node<number>([d], (ctx: Ctx) => {
+			const v = ctx.deps[0].value as number;
+			runs.push(v);
+			if (v < 3) s.set(v);
+		});
+		expect(() => e.subscribe(() => {})).not.toThrow();
+		expect(runs).toEqual([1, 2, 3]);
+		expect(d.cache).toBe(3);
+		expect(e.status.output).toBe("open");
+	});
+
+	it("an acyclic chain does NOT throw (the guard does not false-positive)", () => {
+		const g = graph();
+		const s = g.node<number>([], null, { initial: 1 });
+		const d = g.node<number>([s], plus1);
+		const e = g.node<number>([d], (ctx: Ctx) => ctx.down([["DATA", ctx.deps[0].value as number]]));
+		expect(() => e.subscribe(() => {})).not.toThrow();
+		expect(e.cache).toBe(2);
+	});
+});
 
 describe("C-28: sink requests run after the whole fanout", () => {
 	it("a set and a subscribe from a sink wait until every sink has its array", () => {
 		const g = graph();
 		const a = g.state(0, { name: "a" });
-		const first = arrays();
-		const second = arrays();
-		const late = arrays();
+		const first = arraySink();
+		const second = arraySink();
+		const late = arraySink();
 		let done = false;
 		a.subscribe((msgs) => {
 			first.log.push(msgs);
@@ -50,7 +76,7 @@ describe("C-28: sink requests run after the whole fanout", () => {
 	it("a batch opened from a sink stages at once and commits after the wave as one wave", () => {
 		const g = graph();
 		const a = g.state(0, { name: "a" });
-		const log = arrays();
+		const log = arraySink();
 		let result: unknown;
 		let readInBody: unknown;
 		a.subscribe((msgs) => {
@@ -82,8 +108,8 @@ describe("C-29: a batch delivers nothing before commit; its requests follow the 
 		const b = g.node<number>([a], (ctx) => ctx.down([["DATA", ctx.deps[0].value as number]]), {
 			name: "b",
 		});
-		const s = arrays();
-		const t = arrays();
+		const s = arraySink();
+		const t = arraySink();
 		b.subscribe(s.sink);
 		s.log.length = 0;
 		g.batch(() => {
@@ -100,8 +126,8 @@ describe("C-29: a batch delivers nothing before commit; its requests follow the 
 	it("a throwing body commits nothing and drops its requests", () => {
 		const g = graph();
 		const a = g.state(0, { name: "a" });
-		const s = arrays();
-		const t = arrays();
+		const s = arraySink();
+		const t = arraySink();
 		a.subscribe(s.sink);
 		s.log.length = 0;
 		expect(() =>
@@ -139,7 +165,7 @@ describe("C-29: a batch delivers nothing before commit; its requests follow the 
 		const g = graph();
 		const a = g.state(0, { name: "a" });
 		const b = g.state(0, { name: "b" });
-		const s = arrays();
+		const s = arraySink();
 		g.node<number>([a, b], (ctx) => ctx.down([["DATA", 1]]), { name: "n" }).subscribe(s.sink);
 		s.log.length = 0;
 		let inner: unknown;
@@ -194,7 +220,7 @@ describe("C-29: a batch delivers nothing before commit; its requests follow the 
 	it("a function returning its argument writes nothing; an equal plain value is written", () => {
 		const g = graph();
 		const a = g.state(1, { name: "a" });
-		const s = arrays();
+		const s = arraySink();
 		a.subscribe(s.sink);
 		s.log.length = 0;
 		a.set((v) => v as number);
@@ -215,7 +241,7 @@ describe("C-34: a subscribe made during a fanout runs after it", () => {
 			},
 			{ name: "s" },
 		);
-		const z = arrays();
+		const z = arraySink();
 		const order: string[] = [];
 		let subscribed = false;
 		s.subscribe((msgs) => {

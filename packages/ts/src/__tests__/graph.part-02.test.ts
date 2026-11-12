@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import { releaseGraphNodes } from "../graph/graph.js";
-import type { Message, TopologyEvent, Wave } from "../index.js";
+import type { Message, TopologyEvent } from "../index.js";
 import {
 	Dispatcher,
 	defaultRestoreRegistry,
@@ -19,16 +19,8 @@ import {
 import { buildBeside } from "../node/node.js";
 import { LIFECYCLE, LIFETIME } from "../node/node-keys.js";
 import { asState } from "./helpers/as-state.js";
+import { collect } from "./helpers/collect.js";
 
-function collect(n: { subscribe(s: (msgs: Wave) => void): () => void }) {
-	const msgs: Message[] = [];
-	n.subscribe((incoming) => {
-		for (const m of incoming) {
-			msgs.push(m);
-		}
-	});
-	return msgs;
-}
 function demand(request: Node<true>): void {
 	asState(request).set(true);
 }

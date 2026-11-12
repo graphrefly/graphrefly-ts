@@ -6,7 +6,8 @@
 
 import { describe, expect, it } from "vitest";
 
-import { graph, type Message } from "../index.js";
+import { graph } from "../index.js";
+import { collect } from "./helpers/collect.js";
 
 describe("D806 kernel corrections", () => {
 	it("auto COMPLETE: the run that sees the last terminal calls the function once (Q12, C-17)", () => {
@@ -23,11 +24,12 @@ describe("D806 kernel corrections", () => {
 			},
 			{ name: "d" },
 		);
-		const out: Message[] = [];
-		d.subscribe((msgs) => out.push(...msgs));
+		const out = collect(d).msgs;
 		runs.length = 0;
-		b.complete(); // an earlier terminal alone does not run it
+		b.complete(); // an earlier terminal alone does not run it, nor ends d: ALL deps, not ANY
 		expect(runs).toEqual([]);
+		expect(out.filter((m) => m[0] === "COMPLETE")).toHaveLength(0);
+		expect(d.status.output).toBe("open");
 		c.complete(); // the last terminal, the run's only input: one run, then COMPLETE
 		expect(runs).toEqual(["b=none c=complete"]);
 		expect(d.status.output).toBe("completed");

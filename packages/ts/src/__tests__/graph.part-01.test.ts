@@ -4,7 +4,6 @@ import type {
 	GraphBlueprintJson,
 	GraphCheckpointJson,
 	GraphTopologySnapshot,
-	Message,
 	StrictJsonValue,
 } from "../index.js";
 import {
@@ -18,18 +17,8 @@ import {
 	withBlueprintHash,
 	withBlueprintProvenance,
 } from "../index.js";
-import type { Wave } from "../protocol/messages.js";
+import { collect, types } from "./helpers/collect.js";
 
-function collect(n: { subscribe(s: (m: Wave) => void): () => void }) {
-	const msgs: Message[] = [];
-	n.subscribe((incoming) => {
-		for (const m of incoming) {
-			msgs.push(m);
-		}
-	});
-	return msgs;
-}
-const types = (msgs: Message[]) => msgs.map((m) => m[0]);
 const TEST_JSON_DECODER = new TextDecoder();
 const decodeTestJsonBytes = (bytes: Uint8Array) => TEST_JSON_DECODER.decode(bytes);
 const testHash = (bytes: Uint8Array) => `h:${decodeTestJsonBytes(bytes)}`;
@@ -82,21 +71,9 @@ describe("Graph — 8-verb sugar (CSP-2)", () => {
 			if (n! > 0) throw new Error("boom");
 			return n;
 		});
-		const msgs = collect(bad);
+		const { msgs } = collect(bad);
 		expect(types(msgs)).toContain("ERROR");
 		expect(bad.status.output).toBe("errored");
-	});
-
-	it("C-6 via graph: an effect's write to its upstream is a later request and the loop can end", () => {
-		const g = graph();
-		const s = g.state(0);
-		const d = g.derived([s], (n) => (n as number) + 1);
-		const e = g.effect([d], (n) => {
-			if ((n as number) < 3) s.set(n as number);
-		});
-		expect(() => e.subscribe(() => {})).not.toThrow();
-		expect(d.cache).toBe(3);
-		expect(e.status.output).toBe("open");
 	});
 });
 

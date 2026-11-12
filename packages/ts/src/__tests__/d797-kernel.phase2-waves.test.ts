@@ -11,12 +11,8 @@ import { describe, expect, it } from "vitest";
 import type { Ctx } from "../ctx/types.js";
 import { graph } from "../graph/graph.js";
 import type { Message, Wave } from "../protocol/messages.js";
-
-/** A sink that records every array it receives, as the kernel delivers it. */
-function arrays(): { log: Wave[]; sink: (msgs: Wave) => void } {
-	const log: Wave[] = [];
-	return { log, sink: (msgs) => log.push(msgs) };
-}
+import { arraySink, collect, types } from "./helpers/collect.js";
+import { relayFirst } from "./helpers/relay.js";
 
 const cloneWaves = (ctx: Ctx) => ctx.deps.map((d) => d.waves.map((wave) => [...wave]));
 
@@ -24,7 +20,7 @@ describe("C-12: occurrences stay DATA; RESOLVED only settles a node that sent no
 	it("(a) equal values are distinct occurrences", () => {
 		const g = graph();
 		const source = g.node<number>([], null);
-		const s = arrays();
+		const s = arraySink();
 		source.subscribe(s.sink);
 		source.set(1);
 		source.set(1);
@@ -37,6 +33,7 @@ describe("C-12: occurrences stay DATA; RESOLVED only settles a node that sent no
 			[["PENDING"], ["DATA", 1]],
 			[["PENDING"], ["COMPLETE"]],
 		]);
+		expect(source.cache).toBe(1);
 	});
 
 	it("(b) a silent pending node settles with exactly one kernel RESOLVED per wave", () => {
@@ -44,7 +41,7 @@ describe("C-12: occurrences stay DATA; RESOLVED only settles a node that sent no
 		const source = g.node<number>([], null, { initial: 0 });
 		const silent = g.node<number>([source], () => {});
 		const below = g.node<number>([silent], (ctx) => ctx.down([["DATA", 1]]));
-		const s = arrays();
+		const s = arraySink();
 		silent.subscribe(s.sink);
 		below.subscribe(() => {});
 		s.log.length = 0;
@@ -77,7 +74,7 @@ describe("C-16: a quiet node absorbs its input waves without leaving dependents 
 			eRuns++;
 			ctx.down([["DATA", ctx.deps[0].waves.flat().length]]);
 		});
-		const s = arrays();
+		const s = arraySink();
 		q.subscribe(s.sink);
 		e.subscribe(() => {});
 		s.log.length = 0;
@@ -93,7 +90,7 @@ describe("C-16: a quiet node absorbs its input waves without leaving dependents 
 		expect(s.log).toEqual([[["PENDING"], ...held.map((v) => ["DATA", v])]]);
 		expect(eRuns).toBe(1);
 
-		const late = arrays();
+		const late = arraySink();
 		q.subscribe(late.sink);
 		expect(late.log).toEqual([[["START"], ...held.map((v) => ["DATA", v])]]);
 	});
@@ -105,7 +102,7 @@ describe("R-subscription: subscribing activates first; the first array is START 
 		const source = g.node<number>([], (ctx) =>
 			ctx.down([["DATA", 1], ["DATA", 1], ["DATA", 1], ["COMPLETE"]]),
 		);
-		const s = arrays();
+		const s = arraySink();
 		source.subscribe(s.sink);
 		expect(s.log).toEqual([[["START"], ["DATA", 1], ["DATA", 1], ["DATA", 1], ["COMPLETE"]]]);
 	});
@@ -116,9 +113,46 @@ describe("R-subscription: subscribing activates first; the first array is START 
 			ctx.down([["DATA", 1]]);
 			ctx.down([["DATA", 2]]);
 		});
-		const s = arrays();
+		const s = arraySink();
 		source.subscribe(s.sink);
 		expect(s.log).toEqual([[["START"], ["DATA", 2]]]);
+	});
+
+	it("BH6: INVALIDATE clears the retained value (no stale push-on-subscribe)", () => {
+		// The node's retained value is the only thing a late subscriber is sent; there is no
+		// separate replay buffer.
+		const g = graph();
+		const s = g.node<number>([], null);
+		collect(s);
+		s.set(1);
+		s.set(2);
+		expect(collect(s).msgs).toEqual([["START"], ["DATA", 2]]); // retained before INVALIDATE
+		s.invalidate();
+		expect(s.cache).toBeUndefined();
+		const { msgs } = collect(s); // late subscriber
+		expect(types(msgs)).toEqual(["START"]); // no stale DATA sent
+	});
+});
+
+describe("R-wave: a node whose only input settled with RESOLVED settles with RESOLVED too", () => {
+	it("WEDGE: a relay over a RESOLVED-only dependency balances its PENDING (D49)", () => {
+		// Regression for the D49-widened wedge: a relay that was marked pending and then gets only
+		// a RESOLVED from its dependency (no DATA in the wave) must settle with RESOLVED, not leave
+		// a dangling PENDING. Under D49 a dependency sends a bare RESOLVED on every filter reject,
+		// distinctUntilChanged duplicate or silent function, so this fires constantly.
+		const g = graph();
+		const src = g.node<number>([], null, { initial: 0 });
+		// dep sends nothing for an odd value, so the kernel settles it with RESOLVED.
+		const dep = g.node<number>([src], (ctx: Ctx) => {
+			const v = ctx.deps[0].value as number;
+			if (v % 2 === 0) ctx.down([["DATA", v]]);
+		});
+		const pass = g.node<number>([dep], relayFirst); // a node that relays its dependency
+		const { msgs } = collect(pass);
+		msgs.length = 0;
+		src.set(1); // dep settles with no value: PENDING then RESOLVED to the relay
+		expect(types(msgs)).toEqual(["PENDING", "RESOLVED"]); // balanced, not a dangling ["PENDING"]
+		expect(pass.status.cache).not.toBe("stale"); // un-wedged
 	});
 });
 
@@ -215,8 +249,8 @@ describe("C-28: intact output arrays, kernel-only PENDING prefixes and written o
 			},
 			{ name: "d" },
 		);
-		const s1 = arrays();
-		const s2 = arrays();
+		const s1 = arraySink();
+		const s2 = arraySink();
 		a.subscribe(s1.sink);
 		a.subscribe(s2.sink);
 		d.subscribe(() => {});
@@ -274,7 +308,7 @@ describe("C-28: intact output arrays, kernel-only PENDING prefixes and written o
 	it("a host batch delivers one accumulated array per node at commit; rejections leave staging", () => {
 		const g = graph();
 		const s = g.node<number>([], null, { initial: 0 });
-		const log = arrays();
+		const log = arraySink();
 		s.subscribe(log.sink);
 		log.log.length = 0;
 		g.batch(() => {
@@ -291,7 +325,7 @@ describe("C-28: intact output arrays, kernel-only PENDING prefixes and written o
 		const reported: unknown[] = [];
 		const g = graph({ report: (failure) => reported.push(failure.error) });
 		const a = g.state(0);
-		const other = arrays();
+		const other = arraySink();
 		a.subscribe((msgs) => {
 			if (msgs.some((m) => m[0] === "DATA" && m[1] === 1)) throw new Error("sink");
 		});
@@ -322,7 +356,7 @@ describe("C-41: the snapshot is the node's last array that carried DATA", () => 
 		});
 		n.subscribe(() => {});
 		for (const v of [1, 2, 3]) a.set(v);
-		const late = arrays();
+		const late = arraySink();
 		n.subscribe(late.sink);
 		expect(late.log).toEqual([[["START"], ["DATA", 2], ["DATA", 3]]]);
 
@@ -334,7 +368,7 @@ describe("C-41: the snapshot is the node's last array that carried DATA", () => 
 		expect(firstRun).toEqual([[[2, 3]]]);
 
 		a.set(4);
-		const afterInvalidate = arrays();
+		const afterInvalidate = arraySink();
 		n.subscribe(afterInvalidate.sink);
 		expect(afterInvalidate.log).toEqual([[["START"]]]);
 	});
@@ -350,7 +384,7 @@ describe("C-41: the snapshot is the node's last array that carried DATA", () => 
 			q.set(1);
 			q.set(2);
 		});
-		const late = arrays();
+		const late = arraySink();
 		const stopLate = q.subscribe(late.sink);
 		expect(late.log).toEqual([[["START"], ["DATA", 1], ["DATA", 2]]]);
 		stopLate();
@@ -373,7 +407,7 @@ describe("C-4: a sync leg and an async leg: the async result is a later wave, no
 		const c = g.node<number>([a], (ctx) => {
 			cctx = ctx; // async leg: the result comes later through this ctx
 		});
-		const cs = arrays();
+		const cs = arraySink();
 		c.subscribe(cs.sink);
 		// Waiting for both legs is sugar (a gate), not kernel behaviour; derived holds it
 		// (graphrefly-ts:D184), so its function first runs once c has a value.
@@ -381,7 +415,7 @@ describe("C-4: a sync leg and an async leg: the async result is a later wave, no
 			dRuns++;
 			return (bv as number) + (cv as number);
 		});
-		const ds = arrays();
+		const ds = arraySink();
 		d.subscribe(ds.sink);
 		expect(dRuns).toBe(0);
 		(cctx as Ctx).down([["DATA", 21]]);
@@ -435,9 +469,9 @@ describe("C-44 (value and quiet-node clauses): the kernel adds only the settling
 			},
 			{},
 		);
-		const fs = arrays();
-		const qs = arrays();
-		const ds = arrays();
+		const fs = arraySink();
+		const qs = arraySink();
+		const ds = arraySink();
 		f.subscribe(fs.sink);
 		q.subscribe(qs.sink);
 		d.subscribe(ds.sink);
@@ -490,7 +524,7 @@ describe("an empty ctx.down sends nothing (R-wave, as in Rust and Python)", () =
 			},
 			{ name: "n" },
 		);
-		const s = arrays();
+		const s = arraySink();
 		n.subscribe(s.sink);
 		return { g, a, n, s, held: () => held as Ctx };
 	}

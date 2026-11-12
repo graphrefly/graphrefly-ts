@@ -16,7 +16,7 @@ import {
 import { postgresqlToolProviderInputFromIntent } from "../executors/postgresql-tool-provider.js";
 import { graph } from "../graph/graph.js";
 import type { ToolProviderAdapterRunRequested } from "../orchestration/index.js";
-import type { Wave } from "../protocol/messages.js";
+import { collectData } from "./helpers/collect.js";
 
 const digest = `sha256:${"a".repeat(64)}`;
 const d613DockerEngineApiV0ProofRefs = [
@@ -196,15 +196,6 @@ const run = (): ToolProviderAdapterRunRequested => ({
 		executionManifestFingerprint: "fingerprint:pg:1",
 	},
 });
-const collect = <T>(node: { subscribe(cb: (messages: Wave) => void): () => void }) => {
-	const values: T[] = [];
-	node.subscribe((incoming) => {
-		for (const m of incoming) {
-			if (m[0] === "DATA") values.push(m[1] as T);
-		}
-	});
-	return values;
-};
 const settle = async () => {
 	await Promise.resolve();
 	await Promise.resolve();
@@ -503,8 +494,8 @@ describe("local-container PostgreSQL runtime (D604)", () => {
 			driver,
 			now: () => 10,
 		});
-		const outcomes = collect(runtime.outcomes);
-		const cleanup = collect<{ state: string }>(runtime.cleanup);
+		const outcomes = collectData(runtime.outcomes);
+		const cleanup = collectData<{ state: string }>(runtime.cleanup);
 		inputs.set(input());
 		manifests.set(manifest());
 		postures.set(readiness());
@@ -545,8 +536,8 @@ describe("local-container PostgreSQL runtime (D604)", () => {
 			driver,
 			now: () => 10,
 		});
-		const outcomes = collect<{ kind: string; error?: { code: string } }>(runtime.outcomes);
-		const movement = collect<{ artifactRefs?: readonly unknown[] }>(runtime.movement);
+		const outcomes = collectData<{ kind: string; error?: { code: string } }>(runtime.outcomes);
+		const movement = collectData<{ artifactRefs?: readonly unknown[] }>(runtime.movement);
 		inputs.set(input());
 		manifests.set(manifest());
 		postures.set(readiness());
@@ -613,7 +604,7 @@ describe("local-container PostgreSQL runtime (D604)", () => {
 				driver,
 				now: () => 10,
 			});
-			const issues = collect<{ code: string }>(runtime.issues);
+			const issues = collectData<{ code: string }>(runtime.issues);
 			inputs.set(input());
 			manifests.set(manifest());
 			postures.set(readiness(patch));
@@ -642,7 +633,7 @@ describe("local-container PostgreSQL runtime (D604)", () => {
 			}),
 			now: () => 10,
 		});
-		const issues = collect<{ code: string }>(runtime.issues);
+		const issues = collectData<{ code: string }>(runtime.issues);
 		inputs.set(input());
 		manifests.set(manifest());
 		postures.set(
@@ -674,7 +665,7 @@ describe("local-container PostgreSQL runtime (D604)", () => {
 			}),
 			now: () => 10,
 		});
-		const issues = collect<{ code: string }>(runtime.issues);
+		const issues = collectData<{ code: string }>(runtime.issues);
 		inputs.set(input());
 		manifests.set(manifest());
 		postures.set(readiness());
@@ -708,7 +699,7 @@ describe("local-container PostgreSQL runtime (D604)", () => {
 			}),
 			now: () => 10,
 		});
-		const issues = collect<{ code: string }>(runtime.issues);
+		const issues = collectData<{ code: string }>(runtime.issues);
 		inputs.set(input());
 		manifests.set(manifest());
 		postures.set(readiness({ backendCertificationRevision: "docker-certification:other:v0" }));
@@ -754,10 +745,10 @@ describe("local-container PostgreSQL runtime (D604)", () => {
 			driver,
 			now: () => 10,
 		});
-		const proposals = collect<{ proposalId: string }>(runtime.cancellationProposals);
-		const admissions = collect<{ state: string }>(runtime.cancellationAdmissions);
-		const acks = collect(runtime.cancellationAcknowledgements);
-		const outcomes = collect(runtime.outcomes);
+		const proposals = collectData<{ proposalId: string }>(runtime.cancellationProposals);
+		const admissions = collectData<{ state: string }>(runtime.cancellationAdmissions);
+		const acks = collectData(runtime.cancellationAcknowledgements);
+		const outcomes = collectData(runtime.outcomes);
 		inputs.set(input());
 		manifests.set(manifest());
 		postures.set(readiness());
@@ -820,7 +811,7 @@ describe("local-container PostgreSQL runtime (D604)", () => {
 			driver: inertDriver(() => prepared++),
 			now: () => 10,
 		});
-		const issues = collect<{ code: string }>(runtime.issues);
+		const issues = collectData<{ code: string }>(runtime.issues);
 		inputs.set(input());
 		manifests.set(manifest());
 		manifests.set({ ...manifest(), imageDigest: `sha256:${"b".repeat(64)}` });
@@ -866,9 +857,9 @@ describe("local-container PostgreSQL runtime (D604)", () => {
 			},
 			now: () => 10,
 		});
-		const outcomes = collect<{ kind: string }>(runtime.outcomes);
-		const cleanup = collect<{ state: string }>(runtime.cleanup);
-		const issues = collect<{ code: string; message: string }>(runtime.issues);
+		const outcomes = collectData<{ kind: string }>(runtime.outcomes);
+		const cleanup = collectData<{ state: string }>(runtime.cleanup);
+		const issues = collectData<{ code: string; message: string }>(runtime.issues);
 		inputs.set(input());
 		manifests.set(manifest());
 		postures.set(readiness());
@@ -919,8 +910,8 @@ describe("local-container PostgreSQL runtime (D604)", () => {
 			},
 			now: () => 10,
 		});
-		const outcomes = collect<{ kind: string; reason?: string }>(runtime.outcomes);
-		const statuses = collect<{ status: string }>(runtime.runStatus);
+		const outcomes = collectData<{ kind: string; reason?: string }>(runtime.outcomes);
+		const statuses = collectData<{ status: string }>(runtime.runStatus);
 		inputs.set(input());
 		manifests.set(manifest());
 		postures.set(readiness());

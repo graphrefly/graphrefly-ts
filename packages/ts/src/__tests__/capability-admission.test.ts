@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { graph } from "../graph/graph.js";
 import type { BoundaryCapabilityRef } from "../inspection/boundary.js";
-import type { Node } from "../node/node.js";
 import type { Wave } from "../protocol/messages.js";
 import {
 	type CapabilityAdmission,
@@ -12,6 +11,7 @@ import {
 	capabilityAdmissionProjector,
 	capabilityAdmissionProposal,
 } from "../solutions/capability-admission.js";
+import { collectData } from "./helpers/collect.js";
 
 describe("solution capability admission (D357)", () => {
 	it("projects product-owned capability admission facts instead of AutoPanel security", () => {
@@ -254,16 +254,6 @@ function admissionSetup() {
 		audit: collectData(bundle.audit),
 		views: collectData(bundle.views),
 	};
-}
-
-function collectData<T>(node: Node<T>) {
-	const values: T[] = [];
-	node.subscribe((incoming) => {
-		for (const msg of incoming) {
-			if (msg[0] === "DATA") values.push(msg[1] as T);
-		}
-	});
-	return values;
 }
 
 function collectMessages<T>(node: { subscribe(sink: (msgs: Wave) => void): () => void }) {

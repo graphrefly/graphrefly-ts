@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { graph, type Node } from "../index.js";
+import { graph } from "../index.js";
 import {
 	type EventMessage,
 	eventMessage,
@@ -8,16 +8,7 @@ import {
 } from "../messaging/index.js";
 import { type EventFlowRecord, eventFlow, eventFlowProjection } from "../patterns/event-flow.js";
 import { asState } from "./helpers/as-state.js";
-
-function collect<T>(node: Node<T>): T[] {
-	const seen: T[] = [];
-	node.subscribe((incoming) => {
-		for (const msg of incoming) {
-			if (msg[0] === "DATA") seen.push(msg[1] as T);
-		}
-	});
-	return seen;
-}
+import { collectData } from "./helpers/collect.js";
 
 describe("eventFlow pattern (D326/D329/D331)", () => {
 	it("keeps EventMessage passive and validates only the vocabulary shape", () => {
@@ -41,8 +32,8 @@ describe("eventFlow pattern (D326/D329/D331)", () => {
 			sources: [{ source: "direct", node: source }],
 			now: () => 100,
 		});
-		const records = collect(flow.records);
-		const highWater = collect(flow.highWater);
+		const records = collectData(flow.records);
+		const highWater = collectData(flow.highWater);
 		records.length = 0;
 		highWater.length = 0;
 
@@ -73,8 +64,8 @@ describe("eventFlow pattern (D326/D329/D331)", () => {
 			sources: [{ source: "direct", node: source }],
 			now: () => 10,
 		});
-		const issues = collect(flow.issues);
-		const status = collect(flow.status);
+		const issues = collectData(flow.issues);
+		const status = collectData(flow.status);
 		issues.length = 0;
 		status.length = 0;
 
@@ -108,8 +99,8 @@ describe("eventFlow pattern (D326/D329/D331)", () => {
 			sources: [{ source: "messageBus", node: bus.messages }],
 			now: () => 2,
 		});
-		const records = collect(flow.records);
-		const pages = collect<MessageBusAvailablePage<EventMessage>>(sub.available);
+		const records = collectData(flow.records);
+		const pages = collectData<MessageBusAvailablePage<EventMessage>>(sub.available);
 
 		bus.publish("events", eventMessage("order.created", { orderId: "o1" }, { id: "evt-1" }));
 		sub.available.subscribe(() => {}); // R-lifetime: an inactive projection does not run
@@ -146,8 +137,8 @@ describe("eventFlow pattern (D326/D329/D331)", () => {
 			},
 			now: () => 2,
 		});
-		const snapshots = collect(projection.snapshot);
-		const highWater = collect(projection.highWater);
+		const snapshots = collectData(projection.snapshot);
+		const highWater = collectData(projection.highWater);
 		snapshots.length = 0;
 		highWater.length = 0;
 
@@ -180,7 +171,7 @@ describe("eventFlow pattern (D326/D329/D331)", () => {
 			},
 			now: () => 2,
 		});
-		const highWater = collect(projection.highWater);
+		const highWater = collectData(projection.highWater);
 		highWater.length = 0;
 
 		orders.set(eventMessage("order.created", {}, { id: "order-1" }));

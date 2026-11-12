@@ -17,22 +17,12 @@ import { graph } from "../graph/graph.js";
 import { selectRetentionVictims } from "../graph/policies/collection.js";
 import { Dispatcher, type Message } from "../index.js";
 import type { Node } from "../node/node.js";
-import type { Wave } from "../protocol/messages.js";
 import { asState } from "./helpers/as-state.js";
+import { collect } from "./helpers/collect.js";
 
 const types = (m: Message[]) => m.map((x) => x[0]);
 const data = <T>(m: Message[]): T[] =>
 	m.filter((x) => x[0] === "DATA").map((x) => (x as readonly ["DATA", T])[1]);
-
-function collect(n: { subscribe(s: (m: Wave) => void): () => void }) {
-	const msgs: Message[] = [];
-	const unsub = n.subscribe((incoming) => {
-		for (const m of incoming) {
-			msgs.push(m);
-		}
-	});
-	return { msgs, unsub };
-}
 
 class _CountingDispatcher extends Dispatcher {
 	register(...args: Parameters<Dispatcher["register"]>): ReturnType<Dispatcher["register"]> {
@@ -587,8 +577,8 @@ describe("reactiveMap (D60 #3) — lazy TTL + LRU + delete-reason", () => {
 		expect(m.select(isEven)).toBe(view);
 		expect(() => m.select(null as never)).toThrow(TypeError);
 		// A graph releases a view's node group only when it is quiescent (D124).
-		deltaMsgs.unsub();
-		snapshotMsgs.unsub();
+		deltaMsgs.stop();
+		snapshotMsgs.stop();
 		view.dispose();
 		expect(m.select(isEven)).not.toBe(view);
 		expect(() => view.delta.subscribe(() => {})).toThrow(/released from its graph lifecycle/);

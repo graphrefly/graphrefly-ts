@@ -13,7 +13,7 @@
 import { describe, expect, it } from "vitest";
 import type { Ctx } from "../ctx/types.js";
 import { graph } from "../graph/graph.js";
-import type { Wave } from "../protocol/messages.js";
+import { collect } from "./helpers/collect.js";
 
 describe("C-33: a closed lifetime revokes old ctx, and cleanup failures stay isolated", () => {
 	it("runs setup once per lifetime, closes in order, and drops the old ctx", () => {
@@ -52,8 +52,7 @@ describe("C-33: a closed lifetime revokes old ctx, and cleanup failures stay iso
 				},
 			},
 		);
-		const log: Wave[] = [];
-		const stop = n.subscribe((msgs) => log.push(msgs));
+		const { arrays: log, stop } = collect(n);
 		a.set(2); // a second run: no setup, no cleanup
 		expect(order).toEqual(["p:setup", "n:setup"]);
 		const oldCtx = ctxs.at(-1) as Ctx;
@@ -65,6 +64,9 @@ describe("C-33: a closed lifetime revokes old ctx, and cleanup failures stay iso
 		expect(readAtCleanup).toEqual({ ranOn: 2 });
 		expect(reports).toEqual([boom]);
 		expect(signals[0]?.aborted).toBe(true);
+		// A computed node drops its value when its lifetime closes.
+		expect(n.cache).toBeUndefined();
+		expect(n.status.cache).toBe("empty");
 
 		// Output through the closed lifetime's ctx is dropped.
 		const after = log.length;
@@ -72,8 +74,7 @@ describe("C-33: a closed lifetime revokes old ctx, and cleanup failures stay iso
 		expect(log).toHaveLength(after);
 
 		// A new lifetime: a distinct ctx and signal, setup again, fresh snapshots and private state.
-		const log2: Wave[] = [];
-		n.subscribe((msgs) => log2.push(msgs));
+		collect(n);
 		expect(order.slice(4)).toEqual(["p:setup", "n:setup"]);
 		expect(signals).toHaveLength(2);
 		expect(signals[1]).not.toBe(signals[0]);
@@ -150,10 +151,14 @@ describe("C-4: an async result after its lifetime closed is dropped", () => {
 			},
 			{ name: "c" },
 		);
-		const log: Wave[] = [];
-		const stop = c.subscribe((msgs) => log.push(msgs));
+		const { arrays: log, stop } = collect(c);
+		// c ran on activation and sent nothing yet.
+		expect(c.cache).toBeUndefined();
+		expect(log).toEqual([[["START"]]]);
+		// The late ctx.down is a later wave of its own: the kernel's PENDING, then the value.
 		late?.down([["DATA", 1]]);
-		expect(log.at(-1)).toEqual([["PENDING"], ["DATA", 1]]);
+		expect(c.cache).toBe(1);
+		expect(log).toEqual([[["START"]], [["PENDING"], ["DATA", 1]]]);
 		a.set(2);
 		const kept = late as Ctx;
 		stop();

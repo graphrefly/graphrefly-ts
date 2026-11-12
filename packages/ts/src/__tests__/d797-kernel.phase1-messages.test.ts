@@ -7,16 +7,11 @@
  */
 
 import { describe, expect, it } from "vitest";
-import type { Ctx, Message, Wave } from "../index.js";
+import type { Ctx, Wave } from "../index.js";
 import { fromPromise, graph } from "../index.js";
+import { collect, types } from "./helpers/collect.js";
 
 const flush = () => new Promise((r) => setTimeout(r, 0));
-const types = (msgs: readonly Message[]) => msgs.map((m) => m[0]);
-
-function recorder(): { msgs: Message[]; sink: (m: Message) => void } {
-	const msgs: Message[] = [];
-	return { msgs, sink: (m) => msgs.push(m) };
-}
 
 /** Arrays a function might try to send that are not in the closed set (cast past the type). */
 const retired = {
@@ -38,10 +33,7 @@ describe("C-26: the message set is closed: PULL, PAUSE, RESUME and TEARDOWN are 
 			ctx.down(retired[type] as Wave);
 			ctx.down([["DATA", 99]]);
 		});
-		const s = recorder();
-		n.subscribe((incoming) => {
-			for (const message of incoming) s.sink(message);
-		});
+		const s = collect(n);
 
 		expect(runs).toBe(1);
 		expect(n.status.output).toBe("errored");
@@ -63,6 +55,7 @@ describe("C-42: the message set is closed and nothing travels upstream", () => {
 		const g = graph();
 		const a = g.node<number>([], null, { initial: 1 });
 		const rejected: string[] = [];
+		const reasons: string[] = [];
 		const attempts: Wave[] = [
 			...Object.values(retired),
 			[["PENDING"]],
@@ -81,14 +74,12 @@ describe("C-42: the message set is closed and nothing travels upstream", () => {
 				} catch (e) {
 					rejected.push(String(attempt[attempt.length - 1]?.[0]));
 					expect(e).toBeInstanceOf(Error);
+					reasons.push((e as Error).message);
 				}
 			}
 			ctx.down([["DATA", 42]]);
 		});
-		const s = recorder();
-		n.subscribe((incoming) => {
-			for (const message of incoming) s.sink(message);
-		});
+		const s = collect(n);
 
 		expect(rejected).toEqual([
 			"PULL",
@@ -100,6 +91,10 @@ describe("C-42: the message set is closed and nothing travels upstream", () => {
 			"NOT_A_MESSAGE",
 			"PAUSE",
 		]);
+		// An unknown tag is named as outside the closed set.
+		expect(reasons[6]).toBe(
+			"down: NOT_A_MESSAGE is not in the closed message-type set (R-messages)",
+		);
 		expect(n.cache).toBe(42);
 		expect(n.status.output).not.toBe("errored");
 		expect(s.msgs.filter((m) => m[0] === "DATA")).toEqual([["DATA", 42]]);
@@ -113,10 +108,7 @@ describe("C-42: the message set is closed and nothing travels upstream", () => {
 		const n = g.node<number>([a], (ctx) => {
 			ctx.down([["PENDING"]]);
 		});
-		const s = recorder();
-		n.subscribe((incoming) => {
-			for (const message of incoming) s.sink(message);
-		});
+		const s = collect(n);
 		expect(n.status.output).toBe("errored");
 		expect(types(s.msgs).at(-1)).toBe("ERROR");
 		expect(types(s.msgs).filter((t) => t === "ERROR")).toHaveLength(1);
@@ -135,6 +127,7 @@ describe("C-42: the message set is closed and nothing travels upstream", () => {
 		expect("upNext" in (seen as object)).toBe(false);
 		expect("pull" in (seen as object)).toBe(false);
 		expect("up" in n).toBe(false);
+		expect("down" in n).toBe(false);
 	});
 
 	it("a host emission is held to the same closed set", () => {
@@ -142,10 +135,7 @@ describe("C-42: the message set is closed and nothing travels upstream", () => {
 		const g = graph();
 		const a = g.state(1);
 		expect("down" in a).toBe(false);
-		const s = recorder();
-		a.subscribe((incoming) => {
-			for (const message of incoming) s.sink(message);
-		});
+		const s = collect(a);
 		expect(() => a.set(undefined as unknown as number)).toThrow(
 			"down: DATA requires a non-SENTINEL payload (R-messages)",
 		);
@@ -193,10 +183,7 @@ describe("C-42: the message set is closed and nothing travels upstream", () => {
 					rejected = error;
 				}
 			});
-			const out = recorder();
-			n.subscribe((incoming) => {
-				for (const m of incoming) out.sink(m);
-			});
+			const out = collect(n);
 			expect(rejected).toBeInstanceOf(Error);
 			expect((rejected as Error).message).toBe(message);
 			expect(n.cache).toBeUndefined();
@@ -216,14 +203,8 @@ describe("C-12 (c): RESOLVED is the kernel's alone", () => {
 		const d = g.node<number>([n], (ctx) => {
 			ctx.down([["DATA", 1]]);
 		});
-		const s = recorder();
-		const ds = recorder();
-		n.subscribe((incoming) => {
-			for (const message of incoming) s.sink(message);
-		});
-		d.subscribe((incoming) => {
-			for (const message of incoming) ds.sink(message);
-		});
+		const s = collect(n);
+		collect(d);
 		s.msgs.length = 0;
 		a.set(2);
 		expect(n.status.output).toBe("errored");
@@ -238,10 +219,7 @@ describe("C-12 (c): RESOLVED is the kernel's alone", () => {
 		const g = graph();
 		const a = g.node<number>([], null, { initial: 1 });
 		const n = g.node<number>([a], () => {});
-		const s = recorder();
-		n.subscribe((incoming) => {
-			for (const message of incoming) s.sink(message);
-		});
+		const s = collect(n);
 		s.msgs.length = 0;
 		a.set(2);
 		expect(types(s.msgs)).toEqual(["PENDING", "RESOLVED"]);
@@ -252,10 +230,7 @@ describe("R-messages (C-23 (f), its ERROR side): an ERROR payload that is a bool
 	it("rejects it at the host input, also inside a batch body; a host source coerces such a failure", async () => {
 		const g = graph();
 		const s = g.node<number>([], null);
-		const msgs: Message[] = [];
-		s.subscribe((incoming) => {
-			for (const m of incoming) msgs.push(m);
-		});
+		const { msgs } = collect(s);
 		msgs.length = 0;
 		expect(() => s.error(undefined)).toThrow(/non-SENTINEL/);
 		expect(() => s.error(false)).toThrow(/non-boolean/);
@@ -271,10 +246,7 @@ describe("R-messages (C-23 (f), its ERROR side): an ERROR payload that is a bool
 
 		for (const reason of [undefined, false, true]) {
 			const n = g.initNode(fromPromise(Promise.reject(reason)), []);
-			const out: Message[] = [];
-			n.subscribe((incoming) => {
-				for (const m of incoming) out.push(m);
-			});
+			const out = collect(n).msgs;
 			await flush();
 			const last = out.at(-1);
 			expect(last?.[0]).toBe("ERROR");

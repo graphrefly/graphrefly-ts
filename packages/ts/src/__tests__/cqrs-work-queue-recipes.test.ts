@@ -7,8 +7,8 @@ import {
 	cqrsWorkQueueRecipe,
 } from "../cqrs/work-queue.js";
 import { graph } from "../graph/graph.js";
-import type { Node } from "../node/node.js";
 import type { WorkQueueRecord } from "../work-queue/index.js";
+import { collectData } from "./helpers/collect.js";
 
 describe("CQRS workQueue recipe (D350/D352/D353)", () => {
 	it("maps a queue claim to a CQRS command fact, then accepted status to queue complete", () => {
@@ -203,16 +203,6 @@ describe("CQRS workQueue recipe (D350/D352/D353)", () => {
 		);
 	});
 });
-
-function collectData<T>(node: Node<T>): T[] {
-	const out: T[] = [];
-	node.subscribe((incoming) => {
-		for (const msg of incoming) {
-			if (msg[0] === "DATA") out.push(msg[1] as T);
-		}
-	});
-	return out;
-}
 
 function payload(): CqrsQueuedCommandPayload {
 	return {

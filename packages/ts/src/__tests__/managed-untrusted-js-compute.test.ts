@@ -27,6 +27,7 @@ import type {
 	ToolProviderAdapterRunRequested,
 } from "../orchestration/index.js";
 import { asState } from "./helpers/as-state.js";
+import { collectData } from "./helpers/collect.js";
 
 const digest = `sha256:${"b".repeat(64)}`;
 const ref = (kind: string, id: string): SourceRef => ({ kind, id });
@@ -188,16 +189,6 @@ function decideCancellation(
 	});
 }
 
-const collect = <T>(node: Node<T>) => {
-	const values: T[] = [];
-	node.subscribe((incoming) => {
-		for (const m of incoming) {
-			if (m[0] === "DATA") values.push(m[1] as T);
-		}
-	});
-	return values;
-};
-
 const settle = async () => {
 	await Promise.resolve();
 	await Promise.resolve();
@@ -316,10 +307,10 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 			driver,
 			now: () => 10,
 		});
-		const lifecycle = collect<ManagedUntrustedJsComputeLifecycleFact>(runtime.lifecycle);
-		const cleanup = collect<ManagedUntrustedJsComputeCleanupStatus>(runtime.cleanup);
-		const outcomes = collect<ExecutorOutcome>(runtime.outcomes);
-		const movements = collect<ManagedUntrustedJsComputeMovementEvidence>(runtime.movement);
+		const lifecycle = collectData<ManagedUntrustedJsComputeLifecycleFact>(runtime.lifecycle);
+		const cleanup = collectData<ManagedUntrustedJsComputeCleanupStatus>(runtime.cleanup);
+		const outcomes = collectData<ExecutorOutcome>(runtime.outcomes);
+		const movements = collectData<ManagedUntrustedJsComputeMovementEvidence>(runtime.movement);
 		inputs.set(input());
 		manifests.set(manifest());
 		postures.set(readiness());
@@ -487,12 +478,12 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 			},
 			now: () => 10,
 		});
-		const proposals = collect(runtime.cancellationProposals);
-		const lifecycle = collect<ManagedUntrustedJsComputeLifecycleFact>(runtime.lifecycle);
-		const admissions = collect(runtime.cancellationAdmissions);
-		const acknowledgements = collect(runtime.cancellations);
-		const outcomes = collect<ExecutorOutcome>(runtime.outcomes);
-		const issues = collect<{ code: string }>(runtime.issues);
+		const proposals = collectData(runtime.cancellationProposals);
+		const lifecycle = collectData<ManagedUntrustedJsComputeLifecycleFact>(runtime.lifecycle);
+		const admissions = collectData(runtime.cancellationAdmissions);
+		const acknowledgements = collectData(runtime.cancellations);
+		const outcomes = collectData<ExecutorOutcome>(runtime.outcomes);
+		const issues = collectData<{ code: string }>(runtime.issues);
 		const unsubscribeAdmission = runtime.cancellationAdmissions.subscribe((incoming) => {
 			for (const message of incoming)
 				if (message[0] === "DATA" && (message[1] as { state?: string }).state === "admitted")
@@ -597,7 +588,7 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 				},
 				now: () => 10,
 			});
-			const outcomes = collect<ExecutorOutcome>(runtime.outcomes);
+			const outcomes = collectData<ExecutorOutcome>(runtime.outcomes);
 			let disposed: Promise<void> | undefined;
 			const unsubscribe = runtime.lifecycle.subscribe((incoming) => {
 				for (const message of incoming) {
@@ -695,7 +686,7 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 				},
 				now: () => 10,
 			});
-			const issues = collect<{ code: string }>(runtime.issues);
+			const issues = collectData<{ code: string }>(runtime.issues);
 			inputs.set(input());
 			manifests.set(manifest());
 			postures.set(posture);
@@ -739,9 +730,9 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 			},
 			now: () => 10,
 		});
-		const outcomes = collect<ExecutorOutcome>(runtime.outcomes);
-		const cleanup = collect<ManagedUntrustedJsComputeCleanupStatus>(runtime.cleanup);
-		const issues = collect<{ code: string }>(runtime.issues);
+		const outcomes = collectData<ExecutorOutcome>(runtime.outcomes);
+		const cleanup = collectData<ManagedUntrustedJsComputeCleanupStatus>(runtime.cleanup);
+		const issues = collectData<{ code: string }>(runtime.issues);
 		inputs.set(input());
 		manifests.set(manifest());
 		postures.set(readiness());
@@ -808,7 +799,7 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 				},
 				now: () => 10,
 			});
-			const outcomes = collect<ExecutorOutcome>(runtime.outcomes);
+			const outcomes = collectData<ExecutorOutcome>(runtime.outcomes);
 			inputs.set(input());
 			manifests.set(manifest());
 			postures.set(readiness());
@@ -860,7 +851,7 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 			},
 			now: () => 10,
 		});
-		const issues = collect<{ code: string }>(runtime.issues);
+		const issues = collectData<{ code: string }>(runtime.issues);
 		inputs.set(input());
 		manifests.set(manifest());
 		postures.set(readiness());
@@ -917,8 +908,8 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 			},
 			now: () => 10,
 		});
-		const outcomes = collect<ExecutorOutcome>(runtime.outcomes);
-		const cleanup = collect<ManagedUntrustedJsComputeCleanupStatus>(runtime.cleanup);
+		const outcomes = collectData<ExecutorOutcome>(runtime.outcomes);
+		const cleanup = collectData<ManagedUntrustedJsComputeCleanupStatus>(runtime.cleanup);
 		inputs.set(input());
 		manifests.set(manifest({ executionTimeoutMs: 1 }));
 		postures.set(readiness());
@@ -981,7 +972,7 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 			},
 			now: () => 10,
 		});
-		const cleanup = collect<ManagedUntrustedJsComputeCleanupStatus>(runtime.cleanup);
+		const cleanup = collectData<ManagedUntrustedJsComputeCleanupStatus>(runtime.cleanup);
 		inputs.set(input());
 		manifests.set(manifest({ executionTimeoutMs: 1 }));
 		postures.set(readiness());
@@ -1039,7 +1030,7 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 				},
 				now: () => 10,
 			});
-			const outcomes = collect<ExecutorOutcome>(runtime.outcomes);
+			const outcomes = collectData<ExecutorOutcome>(runtime.outcomes);
 			inputs.set(input());
 			manifests.set(manifest());
 			postures.set(readiness());
@@ -1128,12 +1119,12 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 			},
 			now: () => 10,
 		});
-		const proposals = collect(runtime.cancellationProposals);
-		const admissions = collect(runtime.cancellationAdmissions);
-		const acknowledgements = collect(runtime.cancellations);
-		const outcomes = collect<ExecutorOutcome>(runtime.outcomes);
-		const issues = collect<{ code: string }>(runtime.issues);
-		const audit = collect<{ kind: string }>(runtime.audit);
+		const proposals = collectData(runtime.cancellationProposals);
+		const admissions = collectData(runtime.cancellationAdmissions);
+		const acknowledgements = collectData(runtime.cancellations);
+		const outcomes = collectData<ExecutorOutcome>(runtime.outcomes);
+		const issues = collectData<{ code: string }>(runtime.issues);
+		const audit = collectData<{ kind: string }>(runtime.audit);
 		inputs.set(input());
 		manifests.set(manifest());
 		postures.set(readiness());
@@ -1339,10 +1330,10 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 			},
 			now: () => 10,
 		});
-		const proposals = collect(runtime.cancellationProposals);
-		const acknowledgements = collect(runtime.cancellations);
-		const outcomes = collect<ExecutorOutcome>(runtime.outcomes);
-		const cleanup = collect<ManagedUntrustedJsComputeCleanupStatus>(runtime.cleanup);
+		const proposals = collectData(runtime.cancellationProposals);
+		const acknowledgements = collectData(runtime.cancellations);
+		const outcomes = collectData<ExecutorOutcome>(runtime.outcomes);
+		const cleanup = collectData<ManagedUntrustedJsComputeCleanupStatus>(runtime.cleanup);
 		const cleanupSucceeded = new Promise<void>((resolve) => {
 			const unsubscribe = runtime.cleanup.subscribe((incoming) => {
 				for (const message of incoming) {
@@ -1447,11 +1438,11 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 			},
 			now: () => 10,
 		});
-		const proposals = collect(runtime.cancellationProposals);
-		const admissions = collect(runtime.cancellationAdmissions);
-		const acknowledgements = collect(runtime.cancellations);
-		const outcomes = collect<ExecutorOutcome>(runtime.outcomes);
-		const cleanup = collect<ManagedUntrustedJsComputeCleanupStatus>(runtime.cleanup);
+		const proposals = collectData(runtime.cancellationProposals);
+		const admissions = collectData(runtime.cancellationAdmissions);
+		const acknowledgements = collectData(runtime.cancellations);
+		const outcomes = collectData<ExecutorOutcome>(runtime.outcomes);
+		const cleanup = collectData<ManagedUntrustedJsComputeCleanupStatus>(runtime.cleanup);
 		inputs.set(input());
 		manifests.set(manifest({ cleanupTimeoutMs: 250 }));
 		postures.set(readiness());
@@ -1512,10 +1503,10 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 			},
 			now: () => 10,
 		});
-		const proposals = collect(runtime.cancellationProposals);
-		const admissions = collect(runtime.cancellationAdmissions);
-		const acknowledgements = collect(runtime.cancellations);
-		const outcomes = collect<ExecutorOutcome>(runtime.outcomes);
+		const proposals = collectData(runtime.cancellationProposals);
+		const admissions = collectData(runtime.cancellationAdmissions);
+		const acknowledgements = collectData(runtime.cancellations);
+		const outcomes = collectData<ExecutorOutcome>(runtime.outcomes);
 		inputs.set(input());
 		manifests.set(manifest({ executionTimeoutMs: 5, cleanupTimeoutMs: 250 }));
 		postures.set(readiness());
@@ -1567,7 +1558,7 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 			},
 			now: () => 10,
 		});
-		const proposals = collect(runtime.cancellationProposals);
+		const proposals = collectData(runtime.cancellationProposals);
 		inputs.set(input());
 		manifests.set(manifest());
 		postures.set(readiness());
@@ -1630,9 +1621,9 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 			},
 			now: () => 10,
 		});
-		const acknowledgements = collect(runtime.cancellations);
-		const cancellationProposals = collect(runtime.cancellationProposals);
-		const outcomes = collect<ExecutorOutcome>(runtime.outcomes);
+		const acknowledgements = collectData(runtime.cancellations);
+		const cancellationProposals = collectData(runtime.cancellationProposals);
+		const outcomes = collectData<ExecutorOutcome>(runtime.outcomes);
 		inputs.set(input());
 		manifests.set(manifest());
 		postures.set(readiness());
@@ -1711,11 +1702,11 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 			},
 			now: () => 10,
 		});
-		const acknowledgements = collect(runtime.cancellations);
-		const cancellationProposals = collect(runtime.cancellationProposals);
-		const outcomes = collect<ExecutorOutcome>(runtime.outcomes);
-		const cleanups = collect<ManagedUntrustedJsComputeCleanupStatus>(runtime.cleanup);
-		const lifecycle = collect<ManagedUntrustedJsComputeLifecycleFact>(runtime.lifecycle);
+		const acknowledgements = collectData(runtime.cancellations);
+		const cancellationProposals = collectData(runtime.cancellationProposals);
+		const outcomes = collectData<ExecutorOutcome>(runtime.outcomes);
+		const cleanups = collectData<ManagedUntrustedJsComputeCleanupStatus>(runtime.cleanup);
+		const lifecycle = collectData<ManagedUntrustedJsComputeLifecycleFact>(runtime.lifecycle);
 		inputs.set(input());
 		manifests.set(manifest());
 		postures.set(readiness());
@@ -1801,7 +1792,7 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 		postures.set(readiness());
 		admitted.set(run());
 		await settle();
-		const cancellationProposals = collect(runtime.cancellationProposals);
+		const cancellationProposals = collectData(runtime.cancellationProposals);
 		decideCancellation(
 			cancellations,
 			cancellationDecisions,
@@ -1931,7 +1922,7 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 		postures.set(readiness());
 		admitted.set(run());
 		await settle();
-		const cleanups = collect<ManagedUntrustedJsComputeCleanupStatus>(runtime.cleanup);
+		const cleanups = collectData<ManagedUntrustedJsComputeCleanupStatus>(runtime.cleanup);
 		let disposeSettled = false;
 		const disposed = runtime.dispose().then(() => {
 			disposeSettled = true;
@@ -1991,7 +1982,7 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 			},
 			now: () => 10,
 		});
-		const cleanups = collect<ManagedUntrustedJsComputeCleanupStatus>(runtime.cleanup);
+		const cleanups = collectData<ManagedUntrustedJsComputeCleanupStatus>(runtime.cleanup);
 		inputs.set(input());
 		manifests.set(manifest());
 		postures.set(readiness());
@@ -2053,7 +2044,7 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 				},
 				now: () => 10,
 			});
-			const cleanups = collect<ManagedUntrustedJsComputeCleanupStatus>(runtime.cleanup);
+			const cleanups = collectData<ManagedUntrustedJsComputeCleanupStatus>(runtime.cleanup);
 			inputs.set(input());
 			manifests.set(manifest());
 			postures.set(readiness());
@@ -2106,7 +2097,7 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 			},
 			now: () => 10,
 		});
-		const cleanups = collect<ManagedUntrustedJsComputeCleanupStatus>(runtime.cleanup);
+		const cleanups = collectData<ManagedUntrustedJsComputeCleanupStatus>(runtime.cleanup);
 		inputs.set(input());
 		manifests.set(manifest());
 		postures.set(readiness());
@@ -2157,7 +2148,7 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 			},
 			now: () => 10,
 		});
-		const cleanups = collect<ManagedUntrustedJsComputeCleanupStatus>(runtime.cleanup);
+		const cleanups = collectData<ManagedUntrustedJsComputeCleanupStatus>(runtime.cleanup);
 		inputs.set(input());
 		manifests.set(manifest({ cleanupTimeoutMs: 250 }));
 		postures.set(readiness());
@@ -2230,7 +2221,7 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 			},
 			now: () => 10,
 		});
-		const issues = collect<{ code: string }>(runtime.issues);
+		const issues = collectData<{ code: string }>(runtime.issues);
 		inputs.set(input());
 		manifests.set(manifest());
 		postures.set(readiness());
@@ -2479,7 +2470,7 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 			},
 			now: () => 10,
 		});
-		const outcomes = collect<ExecutorOutcome>(runtime.outcomes);
+		const outcomes = collectData<ExecutorOutcome>(runtime.outcomes);
 		inputs.set(input());
 		manifests.set(manifest({ executionTimeoutMs: 10 }));
 		postures.set(readiness());
@@ -2538,9 +2529,9 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 			},
 			now: () => 10,
 		});
-		const outcomes = collect<ExecutorOutcome>(runtime.outcomes);
-		const cleanups = collect<ManagedUntrustedJsComputeCleanupStatus>(runtime.cleanup);
-		const lifecycle = collect<ManagedUntrustedJsComputeLifecycleFact>(runtime.lifecycle);
+		const outcomes = collectData<ExecutorOutcome>(runtime.outcomes);
+		const cleanups = collectData<ManagedUntrustedJsComputeCleanupStatus>(runtime.cleanup);
+		const lifecycle = collectData<ManagedUntrustedJsComputeLifecycleFact>(runtime.lifecycle);
 		inputs.set(input());
 		manifests.set(manifest({ executionTimeoutMs: 10 }));
 		postures.set(readiness());
@@ -2602,7 +2593,7 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 			},
 			now: () => 10,
 		});
-		const outcomes = collect<ExecutorOutcome>(runtime.outcomes);
+		const outcomes = collectData<ExecutorOutcome>(runtime.outcomes);
 		inputs.set(input());
 		manifests.set(manifest());
 		postures.set(readiness());
@@ -2661,12 +2652,12 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 			},
 			now: () => 10,
 		});
-		const acknowledgements = collect(runtime.cancellations);
-		const cancellationProposals = collect(runtime.cancellationProposals);
-		const issues = collect<{ code: string }>(runtime.issues);
-		const outcomes = collect<ExecutorOutcome>(runtime.outcomes);
-		const cleanups = collect<ManagedUntrustedJsComputeCleanupStatus>(runtime.cleanup);
-		const audit = collect<{ kind: string; issueCode?: string }>(runtime.audit);
+		const acknowledgements = collectData(runtime.cancellations);
+		const cancellationProposals = collectData(runtime.cancellationProposals);
+		const issues = collectData<{ code: string }>(runtime.issues);
+		const outcomes = collectData<ExecutorOutcome>(runtime.outcomes);
+		const cleanups = collectData<ManagedUntrustedJsComputeCleanupStatus>(runtime.cleanup);
+		const audit = collectData<{ kind: string; issueCode?: string }>(runtime.audit);
 		inputs.set(input());
 		manifests.set(manifest());
 		postures.set(readiness());
@@ -2726,8 +2717,8 @@ describe("managed untrusted JS compute runtime (D612)", () => {
 			},
 			now: () => 10,
 		});
-		const outcomes = collect<ExecutorOutcome>(runtime.outcomes);
-		const statuses = collect(runtime.runStatus);
+		const outcomes = collectData<ExecutorOutcome>(runtime.outcomes);
+		const statuses = collectData(runtime.runStatus);
 		inputs.set(input());
 		manifests.set(manifest({ executionTimeoutMs: 150 }));
 		postures.set(readiness());

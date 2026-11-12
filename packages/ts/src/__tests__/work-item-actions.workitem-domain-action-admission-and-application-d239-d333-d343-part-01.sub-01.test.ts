@@ -30,6 +30,7 @@ import {
 	workItemAuthoringProjector,
 	workItemCreatedFromDraft,
 } from "../solutions/work-item/scheduling.js";
+import { collectData } from "./helpers/collect.js";
 
 function setupActions() {
 	const g = graph();
@@ -138,16 +139,6 @@ function capabilityAdmission(
 
 function capabilityRef(capabilityId: string, kind: BoundaryCapabilityKind = "auth") {
 	return { id: capabilityId, kind, required: true };
-}
-
-function collectData<T>(node: Node<T>): T[] {
-	const out: T[] = [];
-	node.subscribe((incoming) => {
-		for (const msg of incoming) {
-			if (msg[0] === "DATA") out.push(msg[1] as T);
-		}
-	});
-	return out;
 }
 
 function collectMessages(node: Node<unknown>) {

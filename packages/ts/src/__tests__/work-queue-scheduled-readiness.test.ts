@@ -21,6 +21,7 @@ import {
 } from "../orchestration/work-queue.js";
 import type { WorkQueueCommand, WorkQueueRecord } from "../work-queue/index.js";
 import { asState } from "./helpers/as-state.js";
+import { collectData } from "./helpers/collect.js";
 
 function workQueueScheduleId(
 	queueId: string,
@@ -857,16 +858,4 @@ function overdue(
 		nowMs: readyAtMs,
 		sourceRefs: [{ kind: "scheduled-readiness", id: scheduleId }],
 	};
-}
-
-function collectData<T>(node: {
-	subscribe(sink: (msgs: readonly (readonly [string, unknown?])[]) => void): unknown;
-}): T[] {
-	const out: T[] = [];
-	node.subscribe((incoming) => {
-		for (const msg of incoming) {
-			if (msg[0] === "DATA") out.push(msg[1] as T);
-		}
-	});
-	return out;
 }

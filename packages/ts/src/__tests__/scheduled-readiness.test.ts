@@ -11,6 +11,7 @@ import type {
 	ScheduledReadinessViews,
 } from "../orchestration/index.js";
 import { scheduledReadinessProjector } from "../orchestration/index.js";
+import { collectData } from "./helpers/collect.js";
 
 describe("scheduledReadinessProjector (D424)", () => {
 	it("keeps a schedule pending until an explicit clock reaches readyAtMs", () => {
@@ -292,16 +293,4 @@ function clock(nowMs: number, clockId = "test-clock"): ScheduledReadinessClock {
 		nowMs,
 		sourceRefs: [{ kind: "clock", id: clockId }],
 	};
-}
-
-function collectData<T>(node: {
-	subscribe(sink: (msgs: readonly (readonly [string, unknown?])[]) => void): unknown;
-}): T[] {
-	const out: T[] = [];
-	node.subscribe((incoming) => {
-		for (const msg of incoming) {
-			if (msg[0] === "DATA") out.push(msg[1] as T);
-		}
-	});
-	return out;
 }

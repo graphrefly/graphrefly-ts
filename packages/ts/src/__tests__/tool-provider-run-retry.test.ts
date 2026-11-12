@@ -4,7 +4,6 @@ import { attachToolProviderAdapterRuntime } from "../executors/tool-provider-run
 import { graph } from "../graph/graph.js";
 import { retryPolicy } from "../graph/resilience.js";
 import { compoundTupleKey } from "../identity.js";
-import type { Node } from "../node/node.js";
 import type {
 	ExecutorOutcome,
 	ScheduledReadinessReady,
@@ -24,6 +23,7 @@ import {
 	toolProviderRunRetryProjector,
 } from "../orchestration/index.js";
 import { asState } from "./helpers/as-state.js";
+import { collectData } from "./helpers/collect.js";
 
 const retryRunId = (runId: string, attempt: number) =>
 	compoundTupleKey("tool-provider-run-retry", [runId, String(attempt)]);
@@ -646,14 +646,4 @@ function withApproval(
 
 function issue(code: string, subjectId: string): DataIssue {
 	return { kind: "issue", code, message: code, subjectId };
-}
-
-function collectData<T>(node: Node<T>): T[] {
-	const out: T[] = [];
-	node.subscribe((incoming) => {
-		for (const msg of incoming) {
-			if (msg[0] === "DATA") out.push(msg[1] as T);
-		}
-	});
-	return out;
 }

@@ -6,19 +6,11 @@
  */
 
 import { describe, expect, it } from "vitest";
-import type { Ctx, Graph, Message, Node, Wave } from "../index.js";
+import type { Ctx, Graph, Message, Node } from "../index.js";
 import { concatMap, Dispatcher, exhaustMap, graph, mergeMap, repeat, switchMap } from "../index.js";
 import { CORE } from "../node/node-keys.js";
+import { collect } from "./helpers/collect.js";
 
-function collect(n: { subscribe(s: (msgs: Wave) => void): () => void }) {
-	const msgs: Message[] = [];
-	const unsub = n.subscribe((incoming) => {
-		for (const m of incoming) {
-			msgs.push(m);
-		}
-	});
-	return { msgs, unsub };
-}
 const data = (m: Message[]) =>
 	m.filter((x) => x[0] === "DATA").map((x) => (x as ["DATA", unknown])[1]);
 const coreOf = (n: Node<unknown>) => n[CORE];

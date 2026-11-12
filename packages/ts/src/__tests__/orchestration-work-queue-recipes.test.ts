@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { graph } from "../graph/graph.js";
-import type { Node } from "../node/node.js";
 import type { ProcessEffectRequest } from "../orchestration/index.js";
 import {
 	type OrchestrationQueuedEffectPayload,
 	orchestrationWorkQueueRecipe,
 } from "../orchestration/work-queue.js";
 import type { WorkQueueRecord } from "../work-queue/index.js";
+import { collectData } from "./helpers/collect.js";
 
 describe("orchestration workQueue recipe (D349/D353)", () => {
 	it("maps terminal queue records to recipe evidence, not ProcessBundle status truth", () => {
@@ -82,16 +82,6 @@ describe("orchestration workQueue recipe (D349/D353)", () => {
 		);
 	});
 });
-
-function collectData<T>(node: Node<T>): T[] {
-	const out: T[] = [];
-	node.subscribe((incoming) => {
-		for (const msg of incoming) {
-			if (msg[0] === "DATA") out.push(msg[1] as T);
-		}
-	});
-	return out;
-}
 
 function effect(): ProcessEffectRequest {
 	return {

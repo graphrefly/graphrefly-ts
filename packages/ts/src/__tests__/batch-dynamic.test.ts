@@ -1,17 +1,7 @@
 import { describe, expect, it } from "vitest";
-import type { Ctx, Message, Wave } from "../index.js";
+import type { Ctx } from "../index.js";
 import { graph } from "../index.js";
-
-function collect(n: { subscribe(s: (msgs: Wave) => void): () => void }) {
-	const msgs: Message[] = [];
-	const unsub = n.subscribe((incoming) => {
-		for (const m of incoming) {
-			msgs.push(m);
-		}
-	});
-	return { msgs, unsub };
-}
-const types = (msgs: Message[]) => msgs.map((m) => m[0]);
+import { collect, types } from "./helpers/collect.js";
 
 describe("batch (R-batch-coalesce / D12)", () => {
 	it("coalesces a diamond join to ONE recompute when both sources change", () => {
@@ -48,35 +38,6 @@ describe("batch (R-batch-coalesce / D12)", () => {
 		});
 		expect(types(msgs)).toEqual(["PENDING", "DATA"]);
 		expect(a.cache).toBe(9);
-	});
-
-	it("a throwing body commits nothing and delivers nothing (no compensating RESOLVED)", () => {
-		const g = graph();
-		const a = g.node<number>([], null, { initial: 1 });
-		const { msgs } = collect(a);
-		msgs.length = 0;
-		expect(() =>
-			g.batch(() => {
-				a.set(99);
-				throw new Error("abort");
-			}),
-		).toThrow("abort");
-		expect(a.cache).toBe(1); // unchanged
-		expect(types(msgs)).toEqual([]); // nothing was delivered, so nothing to balance
-	});
-
-	it("a throw from the body discards its writes (R-request-order)", () => {
-		const g = graph();
-		const a = g.node<number>([], null, { initial: 1 });
-		collect(a);
-		const abort = new Error("abort");
-		expect(() =>
-			g.batch(() => {
-				a.set(50);
-				throw abort;
-			}),
-		).toThrow(abort);
-		expect(a.cache).toBe(1);
 	});
 });
 

@@ -17,20 +17,10 @@ import {
 	stratifyBranch,
 	topologyDiff,
 } from "../index.js";
-import type { Wave } from "../protocol/messages.js";
+import { collect } from "./helpers/collect.js";
 
 const data = <T>(msgs: Message[]): T[] =>
 	msgs.filter((x) => x[0] === "DATA").map((x) => (x as readonly ["DATA", T])[1]);
-
-function collect(n: { subscribe(s: (m: Wave) => void): () => void }) {
-	const msgs: Message[] = [];
-	const unsub = n.subscribe((incoming) => {
-		for (const m of incoming) {
-			msgs.push(m);
-		}
-	});
-	return { msgs, unsub };
-}
 
 // Describe statuses for hand-built snapshots (R-node@2: a status is an object, not a label).
 const SETTLED: Status = { cache: "ready", output: "open", lifecycle: "active" };

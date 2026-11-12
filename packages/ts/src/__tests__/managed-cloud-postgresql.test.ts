@@ -30,8 +30,8 @@ import {
 import { postgresqlToolProviderInputFromIntent } from "../executors/postgresql-tool-provider.js";
 import { graph } from "../graph/graph.js";
 import { compoundTupleKey } from "../identity.js";
-import type { Node } from "../node/node.js";
 import type { ExecutorOutcome, ToolProviderAdapterRunRequested } from "../orchestration/index.js";
+import { collectData } from "./helpers/collect.js";
 
 const manifest = (
 	patch: Partial<ManagedCloudPostgresqlManifest> = {},
@@ -444,15 +444,6 @@ class Transport implements ManagedCloudPostgresqlTransportDriver {
 	}
 	async close() {}
 }
-const collect = <T>(node: Node<T>) => {
-	const values: T[] = [];
-	node.subscribe((incoming) => {
-		for (const m of incoming) {
-			if (m[0] === "DATA") values.push(m[1] as T);
-		}
-	});
-	return values;
-};
 const settle = async () => {
 	await Promise.resolve();
 	await Promise.resolve();
@@ -506,9 +497,9 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 			authorizationRecheck: allowAuthorizationRecheckDriver(),
 			now: () => 10,
 		});
-		const envelopes = collect(runtime.admittedEnvelopes);
-		const admissionIssues = collect(runtime.issues);
-		const facts = collect<ManagedCloudPostgresqlLifecycleFact>(runtime.lifecycle);
+		const envelopes = collectData(runtime.admittedEnvelopes);
+		const admissionIssues = collectData(runtime.issues);
+		const facts = collectData<ManagedCloudPostgresqlLifecycleFact>(runtime.lifecycle);
 		inputs.set(input());
 		manifests.set(manifest());
 		postures.set(readiness());
@@ -623,8 +614,8 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 			authorizationRecheck: authorizationRecheckDriver,
 			now: () => 10,
 		});
-		const facts = collect<ManagedCloudPostgresqlLifecycleFact>(runtime.lifecycle);
-		const issues = collect<{ code: string }>(runtime.issues);
+		const facts = collectData<ManagedCloudPostgresqlLifecycleFact>(runtime.lifecycle);
+		const issues = collectData<{ code: string }>(runtime.issues);
 		inputs.set(input());
 		manifests.set(manifest());
 		postures.set(readiness());
@@ -680,7 +671,7 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 			},
 			now: () => 10,
 		});
-		const issues = collect<{ code: string }>(runtime.issues);
+		const issues = collectData<{ code: string }>(runtime.issues);
 		inputs.set(input());
 		manifests.set(manifest());
 		postures.set(readiness());
@@ -726,8 +717,8 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 			authorizationRecheck: allowAuthorizationRecheckDriver(),
 			now: () => 10,
 		});
-		const envelopes = collect(runtime.admittedEnvelopes);
-		const issues = collect<{ code: string }>(runtime.issues);
+		const envelopes = collectData(runtime.admittedEnvelopes);
+		const issues = collectData<{ code: string }>(runtime.issues);
 		inputs.set(input());
 		manifests.set(manifest({ deploymentProfile: "docker-compose-development" }));
 		postures.set(
@@ -749,7 +740,7 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 
 	it("renews heartbeat only under the exact fence and visibly rejects stale ownership", async () => {
 		const { runtime, transport, store } = await activeRuntime();
-		const issues = collect<{ code: string }>(runtime.issues);
+		const issues = collectData<{ code: string }>(runtime.issues);
 		transport.onMessage?.({ kind: "heartbeat", messageId: "message:heartbeat:1", ...lease });
 		await settle();
 		transport.onMessage?.({
@@ -772,10 +763,10 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 
 	it("accepts only a legal current credential lifecycle prefix for the active claim", async () => {
 		const { runtime, transport } = await activeRuntime();
-		const facts = collect<ManagedCloudPostgresqlCredentialLifecycleFact>(
+		const facts = collectData<ManagedCloudPostgresqlCredentialLifecycleFact>(
 			runtime.credentialLifecycle,
 		);
-		const issues = collect<{ code: string }>(runtime.issues);
+		const issues = collectData<{ code: string }>(runtime.issues);
 		for (const [index, state] of ["issue-requested", "issued", "injected"].entries()) {
 			transport.onMessage?.({
 				kind: "credential-lifecycle",
@@ -889,10 +880,10 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 
 	it("emits settlement credential lifecycle evidence only after terminal cleanup posture", async () => {
 		const { runtime, transport } = await activeRuntime();
-		const facts = collect<ManagedCloudPostgresqlCredentialLifecycleFact>(
+		const facts = collectData<ManagedCloudPostgresqlCredentialLifecycleFact>(
 			runtime.credentialLifecycle,
 		);
-		const outcomes = collect(runtime.outcomes);
+		const outcomes = collectData(runtime.outcomes);
 		transport.onMessage?.({
 			kind: "settle",
 			messageId: "message:settle:credential",
@@ -913,7 +904,7 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 		]);
 		expect(outcomes).toHaveLength(1);
 		const missingTerminal = await activeRuntime();
-		const terminalIssues = collect<{ code: string }>(missingTerminal.runtime.issues);
+		const terminalIssues = collectData<{ code: string }>(missingTerminal.runtime.issues);
 		missingTerminal.transport.onMessage?.({
 			kind: "settle",
 			messageId: "message:settle:no-cleanup",
@@ -951,11 +942,11 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 			}
 		}
 		const { runtime, transport } = await activeRuntime(new DelayedSettlementStore());
-		const facts = collect<ManagedCloudPostgresqlCredentialLifecycleFact>(
+		const facts = collectData<ManagedCloudPostgresqlCredentialLifecycleFact>(
 			runtime.credentialLifecycle,
 		);
-		const outcomes = collect(runtime.outcomes);
-		const issues = collect<{ code: string }>(runtime.issues);
+		const outcomes = collectData(runtime.outcomes);
+		const issues = collectData<{ code: string }>(runtime.issues);
 		transport.onMessage?.({
 			kind: "settle",
 			messageId: "message:settle:delayed",
@@ -1034,8 +1025,8 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 			}
 		}
 		const { runtime, transport } = await activeRuntime(new MalformedSettlementStore());
-		const issues = collect<{ code: string }>(runtime.issues);
-		const outcomes = collect(runtime.outcomes);
+		const issues = collectData<{ code: string }>(runtime.issues);
+		const outcomes = collectData(runtime.outcomes);
 		transport.onMessage?.({
 			kind: "settle",
 			messageId: "message:settle:malformed-store-result",
@@ -1082,7 +1073,7 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 			}
 		}
 		const { runtime, transport } = await activeRuntime(new CommitResponseLostStore());
-		const issues = collect<{ code: string }>(runtime.issues);
+		const issues = collectData<{ code: string }>(runtime.issues);
 		transport.onMessage?.({
 			kind: "settle",
 			messageId: "message:settle:response-lost",
@@ -1120,11 +1111,11 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 
 	it("rejects bare settlements before store mutation and graph credential facts", async () => {
 		const { runtime, transport, store } = await activeRuntime();
-		const facts = collect<ManagedCloudPostgresqlCredentialLifecycleFact>(
+		const facts = collectData<ManagedCloudPostgresqlCredentialLifecycleFact>(
 			runtime.credentialLifecycle,
 		);
-		const outcomes = collect(runtime.outcomes);
-		const issues = collect<{ code: string }>(runtime.issues);
+		const outcomes = collectData(runtime.outcomes);
+		const issues = collectData<{ code: string }>(runtime.issues);
 		transport.onMessage?.({
 			kind: "settle",
 			messageId: "message:settle:bare",
@@ -1154,11 +1145,11 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 			return { accepted: false, code: "stale-or-duplicate-settlement" };
 		};
 		const { runtime, transport } = await activeRuntime(store);
-		const facts = collect<ManagedCloudPostgresqlCredentialLifecycleFact>(
+		const facts = collectData<ManagedCloudPostgresqlCredentialLifecycleFact>(
 			runtime.credentialLifecycle,
 		);
-		const outcomes = collect(runtime.outcomes);
-		const issues = collect<{ code: string }>(runtime.issues);
+		const outcomes = collectData(runtime.outcomes);
+		const issues = collectData<{ code: string }>(runtime.issues);
 		transport.onMessage?.({
 			kind: "settle",
 			messageId: "message:settle:stale",
@@ -1198,8 +1189,8 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 			authorizationRecheck: allowAuthorizationRecheckDriver(),
 			now: () => 10,
 		});
-		const states = collect<{ state: string }>(runtime.cancellations);
-		const outcomes = collect(runtime.outcomes);
+		const states = collectData<{ state: string }>(runtime.cancellations);
+		const outcomes = collectData(runtime.outcomes);
 		inputs.set(input());
 		manifests.set(manifest());
 		postures.set(readiness());
@@ -1246,9 +1237,9 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 
 	it("settles once through store authority and disposes drivers once", async () => {
 		const { runtime, transport, store } = await activeRuntime();
-		const outcomes = collect(runtime.outcomes);
-		const settlementIssues = collect(runtime.issues);
-		const facts = collect<ManagedCloudPostgresqlLifecycleFact>(runtime.lifecycle);
+		const outcomes = collectData(runtime.outcomes);
+		const settlementIssues = collectData(runtime.issues);
+		const facts = collectData<ManagedCloudPostgresqlLifecycleFact>(runtime.lifecycle);
 		const message: ManagedCloudPostgresqlWorkerMessage = {
 			kind: "settle",
 			messageId: "message:settle:1",
@@ -1270,14 +1261,14 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 
 	it("accepts only incremented-fence terminal facts for an active lease", async () => {
 		const disconnected = await activeRuntime();
-		const disconnectedFacts = collect(disconnected.runtime.lifecycle);
+		const disconnectedFacts = collectData(disconnected.runtime.lifecycle);
 		disconnected.transport.onDisconnect?.("worker:1", "epoch:worker:1");
 		await settle();
 		expect(disconnectedFacts.at(-1)).toMatchObject({ state: "lost", fencingToken: 2 });
 		await disconnected.runtime.dispose();
 
 		const expired = await activeRuntime();
-		const expiredFacts = collect(expired.runtime.lifecycle);
+		const expiredFacts = collectData(expired.runtime.lifecycle);
 		await expired.runtime.expire();
 		expect(expiredFacts.at(-1)).toMatchObject({ state: "expired", fencingToken: 2 });
 		await expired.runtime.dispose();
@@ -1601,10 +1592,10 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 
 	it("projects helper-produced authorization failure through the runtime", async () => {
 		const { runtime, transport, store } = await activeRuntime();
-		const facts = collect<ManagedCloudPostgresqlCredentialLifecycleFact>(
+		const facts = collectData<ManagedCloudPostgresqlCredentialLifecycleFact>(
 			runtime.credentialLifecycle,
 		);
-		const outcomes = collect<ExecutorOutcome>(runtime.outcomes);
+		const outcomes = collectData<ExecutorOutcome>(runtime.outcomes);
 		const settlement = await executeManagedCloudPostgresqlClaimWithAttemptCredential(
 			{
 				kind: "claim-granted",
@@ -2107,8 +2098,8 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 
 	it("settles helper-produced unavailable credential issuance as failed runtime outcome", async () => {
 		const { runtime, transport, store } = await activeRuntime();
-		const outcomes = collect<ExecutorOutcome>(runtime.outcomes);
-		const facts = collect<ManagedCloudPostgresqlCredentialLifecycleFact>(
+		const outcomes = collectData<ExecutorOutcome>(runtime.outcomes);
+		const facts = collectData<ManagedCloudPostgresqlCredentialLifecycleFact>(
 			runtime.credentialLifecycle,
 		);
 		let executed = false;
@@ -2271,8 +2262,8 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 
 	it("accepts failed pre-injection cleanup and rejects the retired v1 wire protocol", async () => {
 		const { runtime, transport } = await activeRuntime();
-		const outcomes = collect(runtime.outcomes);
-		const issues = collect<{ code: string }>(runtime.issues);
+		const outcomes = collectData(runtime.outcomes);
+		const issues = collectData<{ code: string }>(runtime.issues);
 		transport.onMessage?.({
 			kind: "settle",
 			messageId: "message:settle:pre-injection",
@@ -2308,7 +2299,7 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 		await runtime.dispose();
 
 		const uncertain = await activeRuntime();
-		const uncertainOutcomes = collect(uncertain.runtime.outcomes);
+		const uncertainOutcomes = collectData(uncertain.runtime.outcomes);
 		let uncertainExecuted = false;
 		const uncertainSettlement =
 			await executeManagedCloudPostgresqlClaimWithAuthorizedAttemptCredential(
@@ -2388,7 +2379,7 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 				authorizationRecheck: allowAuthorizationRecheckDriver(),
 				now: () => 10,
 			});
-			const issues = collect<{ code: string }>(runtime.issues);
+			const issues = collectData<{ code: string }>(runtime.issues);
 			inputs.set(input());
 			manifests.set(manifest());
 			postures.set(candidate);
@@ -2691,8 +2682,8 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 			};
 		};
 		const { runtime, transport } = await activeRuntime(store);
-		const outcomes = collect(runtime.outcomes);
-		const issues = collect<{ code: string }>(runtime.issues);
+		const outcomes = collectData(runtime.outcomes);
+		const issues = collectData<{ code: string }>(runtime.issues);
 		transport.onMessage?.({
 			kind: "settle",
 			messageId: "message:malicious:settle",
@@ -2837,8 +2828,8 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 			authorizationRecheck: allowAuthorizationRecheckDriver(),
 			now: () => 10,
 		});
-		const outcomes = collect<ExecutorOutcome>(runtime.outcomes);
-		const facts = collect<ManagedCloudPostgresqlLifecycleFact>(runtime.lifecycle);
+		const outcomes = collectData<ExecutorOutcome>(runtime.outcomes);
+		const facts = collectData<ManagedCloudPostgresqlLifecycleFact>(runtime.lifecycle);
 		inputs.set(input());
 		manifests.set(manifest());
 		postures.set(readiness());
@@ -2930,7 +2921,7 @@ describe("managed-cloud PostgreSQL control plane (D605)", () => {
 			["canceled", "canceled"],
 		] as const) {
 			const { runtime, transport } = await activeRuntime();
-			const outcomes = collect<ExecutorOutcome>(runtime.outcomes);
+			const outcomes = collectData<ExecutorOutcome>(runtime.outcomes);
 			transport.onMessage?.({
 				kind: "settle",
 				messageId: `message:${wire}`,

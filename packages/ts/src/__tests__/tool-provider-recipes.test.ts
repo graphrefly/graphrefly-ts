@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import { toolProviderExecutionRecipe } from "../executors/tool-provider.js";
 import type { ToolProviderAdapterBinding } from "../executors/tool-provider-runtime.js";
 import { graph } from "../graph/graph.js";
-import type { Node } from "../node/node.js";
 import {
 	type AgentRequestFact,
 	type AgentRequestIssued,
@@ -10,6 +9,7 @@ import {
 	localBuiltinToolProviderCatalog,
 	type ToolCallInput,
 } from "../orchestration/agent-runtime.js";
+import { collectData } from "./helpers/collect.js";
 
 describe("tool provider execution recipe (D283/D359-D362)", () => {
 	it("composes policy, adapter input, runtime, and outcome view over caller-owned bindings", () => {
@@ -135,14 +135,4 @@ function route(): ExecutorRoute {
 		executorId: "local-builtin:tool-executor",
 		profileId: "local-builtin:tool-profile",
 	};
-}
-
-function collectData<T>(node: Node<T>): T[] {
-	const out: T[] = [];
-	node.subscribe((incoming) => {
-		for (const msg of incoming) {
-			if (msg[0] === "DATA") out.push(msg[1] as T);
-		}
-	});
-	return out;
 }

@@ -1,20 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { ctxRewireDiff } from "../ctx/types.js";
-import type { Ctx, Message } from "../index.js";
+import type { Ctx } from "../index.js";
 import { graph } from "../index.js";
-import type { Subscribable } from "./helpers/collect.js";
-
-function collect(n: Subscribable) {
-	const msgs: Message[] = [];
-	const unsub = n.subscribe((incoming) => {
-		for (const m of incoming) {
-			msgs.push(m);
-		}
-	});
-	return { msgs, unsub };
-}
-
-const types = (msgs: Message[]) => msgs.map((m) => m[0]);
+import { collect, types } from "./helpers/collect.js";
 
 describe("state node (manual source)", () => {
 	it("push-on-subscribe delivers START then cached DATA (R-subscription)", () => {
@@ -56,26 +44,6 @@ describe("state node (manual source)", () => {
 });
 
 describe("occurrences stay DATA (R-wave / D49)", () => {
-	it("re-emitting the same value yields DATA, not RESOLVED (no equals-substitution)", () => {
-		const g = graph();
-		const s = g.node<number>([], null, { initial: 5 });
-		const { msgs } = collect(s);
-		msgs.length = 0;
-		s.set(5); // same value is still a distinct occurrence
-		expect(types(msgs)).toEqual(["PENDING", "DATA"]);
-		expect(s.cache).toBe(5);
-	});
-
-	it("a changed value yields DATA", () => {
-		const g = graph();
-		const s = g.node<number>([], null, { initial: 5 });
-		const { msgs } = collect(s);
-		msgs.length = 0;
-		s.set(6);
-		expect(types(msgs)).toEqual(["PENDING", "DATA"]);
-		expect(s.cache).toBe(6);
-	});
-
 	it("a multi-DATA wave passes every occurrence as DATA", () => {
 		const g = graph();
 		const s = g.node<number>([], null, { initial: 5 });
@@ -193,28 +161,6 @@ describe("no first-run gate in the kernel; derived and effect gate on values (gr
 		expect(types(msgs)).toEqual(["PENDING", "RESOLVED"]);
 		expect(d.cache).toBe(200);
 		expect(d.status.cache).not.toBe("stale");
-	});
-});
-
-describe("closed message set at node output (R-messages)", () => {
-	it("down rejects unknown tags; there is no up", () => {
-		const g = graph();
-		const a = g.node<number>([], null, { initial: 1 });
-		const custom = [["CUSTOM"]] as unknown as Message[];
-		let rejected: unknown;
-		const d = g.node<number>([a], (ctx: Ctx) => {
-			try {
-				ctx.down(custom);
-			} catch (error) {
-				rejected = error;
-			}
-			ctx.down([["DATA", 1]]);
-		});
-		d.subscribe(() => {});
-		expect(String(rejected)).toMatch(/closed message-type set/);
-		expect(d.cache).toBe(1);
-		expect("up" in d).toBe(false);
-		expect("down" in d).toBe(false);
 	});
 });
 

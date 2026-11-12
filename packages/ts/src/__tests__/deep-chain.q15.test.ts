@@ -8,15 +8,9 @@
 import { describe, expect, it } from "vitest";
 import { graph } from "../graph/graph.js";
 import type { Node } from "../node/node.js";
-import type { Wave } from "../protocol/messages.js";
+import { arraySink } from "./helpers/collect.js";
 
 const DEPTH = 5000;
-
-/** A sink that records every array it receives. */
-function arrays(): { log: Wave[]; sink: (msgs: Wave) => void } {
-	const log: Wave[] = [];
-	return { log, sink: (msgs) => log.push(msgs) };
-}
 
 /** Each case must stay well under a second. */
 function timed(run: () => void): number {
@@ -43,7 +37,7 @@ describe("Q15: a chain deeper than the JS stack", () => {
 				chain.push(prev);
 			}
 			const last = prev;
-			const out = arrays();
+			const out = arraySink();
 			const stop = last.subscribe(out.sink);
 			expect(out.log).toEqual([[["START"], ["DATA", DEPTH]]]);
 			expect(chain.every((n) => n.status.lifecycle === "active")).toBe(true);
@@ -62,7 +56,7 @@ describe("Q15: a chain deeper than the JS stack", () => {
 			expect(chain.every((n) => n.status.lifecycle === "inactive")).toBe(true);
 			expect(chain.every((n) => n.status.cache === "empty")).toBe(true);
 			// Reactivating runs the whole chain again from the source's value.
-			const again = arrays();
+			const again = arraySink();
 			last.subscribe(again.sink);
 			expect(again.log).toEqual([[["START"], ["DATA", DEPTH + 2]]]);
 		});
@@ -82,7 +76,7 @@ describe("Q15: a chain deeper than the JS stack", () => {
 				chain.push(prev);
 			}
 			const last = prev;
-			const out = arrays();
+			const out = arraySink();
 			const stop = last.subscribe(out.sink);
 			s.set(5);
 			expect(last.cache).toBe(DEPTH + 5);
@@ -107,7 +101,7 @@ describe("Q15: a chain deeper than the JS stack", () => {
 				chain.push(prev);
 			}
 			const last = prev;
-			const out = arrays();
+			const out = arraySink();
 			last.subscribe(out.sink);
 			s.set(1);
 			s.complete();
@@ -123,7 +117,7 @@ describe("Q15: a chain deeper than the JS stack", () => {
 			expect(chain.every((n) => n.status.output === "completed")).toBe(true);
 			expect(last.cache).toBe(DEPTH + 1);
 			// A new subscriber receives START, the last value and the terminal.
-			const late = arrays();
+			const late = arraySink();
 			last.subscribe(late.sink);
 			expect(late.log).toEqual([[["START"], ["DATA", DEPTH + 1], ["COMPLETE"]]]);
 		});
@@ -148,7 +142,7 @@ describe("Q15: a chain deeper than the JS stack", () => {
 			prev = join;
 			for (let i = 0; i < DEPTH / 2; i++) prev = g.derived([prev], (v) => (v as number) + 1);
 			const last = prev;
-			const out = arrays();
+			const out = arraySink();
 			const stop = last.subscribe(out.sink);
 			// middle = 2500, long arm = 2503, branch = 25000, join = 27503, last = join + 2500.
 			const expected = (v: number): number => {

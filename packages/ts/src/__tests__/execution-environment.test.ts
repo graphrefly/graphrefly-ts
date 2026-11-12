@@ -20,7 +20,6 @@ import {
 import { topologyDiff } from "../graph/composition.js";
 import { graph } from "../graph/graph.js";
 import { compoundTupleKey } from "../identity.js";
-import type { Node } from "../node/node.js";
 import {
 	type ToolProviderAdapterInput,
 	type ToolProviderAdapterRunRequested,
@@ -28,6 +27,7 @@ import {
 	type ToolProviderRunAdmissionDecision,
 	toolProviderRunAdmissionProjector,
 } from "../orchestration/index.js";
+import { collectData } from "./helpers/collect.js";
 
 const target = (overrides = {}) =>
 	executionEnvironmentTarget({
@@ -100,16 +100,6 @@ function input(): ToolProviderAdapterInput<PostgresqlQueryToolArguments> {
 	);
 }
 
-function collect<T>(node: Node<T>): T[] {
-	const values: T[] = [];
-	node.subscribe((incoming) => {
-		for (const message of incoming) {
-			if (message[0] === "DATA") values.push(message[1] as T);
-		}
-	});
-	return values;
-}
-
 const settle = async () => {
 	await Promise.resolve();
 	await Promise.resolve();
@@ -159,7 +149,7 @@ describe("execution environment targeting and local host gate (D603)", () => {
 			admittedRunRequests: [admitted],
 			now: () => 200,
 		});
-		const statuses = collect<{ state: string; code: string }>(gate.status);
+		const statuses = collectData<{ state: string; code: string }>(gate.status);
 		const patchedProfile = profile({ executionEnvironment: target(patch) });
 		const candidate = requestEnvironmentPinnedToolProviderRun(input(), patchedProfile, route(), {
 			runId: "run:unavailable",
@@ -189,8 +179,8 @@ describe("execution environment targeting and local host gate (D603)", () => {
 				admittedRunRequests: [admitted],
 				now: () => 2_000,
 			});
-			const released = collect(gate.admittedRunRequests);
-			const statuses = collect<{ code: string }>(gate.status);
+			const released = collectData(gate.admittedRunRequests);
+			const statuses = collectData<{ code: string }>(gate.status);
 			const safeProfile = profile();
 			const safeRoute = route();
 			const request = requestEnvironmentPinnedToolProviderRun(input(), safeProfile, safeRoute, {
@@ -436,9 +426,9 @@ describe("execution environment targeting and local host gate (D603)", () => {
 		});
 		await settle();
 		expect(calls).toBe(1);
-		const proposals = collect<{ proposalId: string }>(runtime.cancellationProposals);
-		const issues = collect<{ code: string }>(runtime.issues);
-		const outcomes = collect<{ kind: string }>(runtime.outcomes);
+		const proposals = collectData<{ proposalId: string }>(runtime.cancellationProposals);
+		const issues = collectData<{ code: string }>(runtime.issues);
+		const outcomes = collectData<{ kind: string }>(runtime.outcomes);
 		const cancellationBase = {
 			kind: "postgresql-run-cancellation-requested" as const,
 			cancellationId: "cancel:local-postgresql:1",

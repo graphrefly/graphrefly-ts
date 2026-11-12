@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { graph } from "../graph/graph.js";
-import type { Node } from "../node/node.js";
 import {
 	decideWorkspaceProposalAdmission,
 	isWorkspaceProposalProjectionReleaseMaterial,
@@ -86,7 +85,7 @@ import {
 	workspaceProposalWorkItemLinkApplicationProjector,
 	workspaceProposalWorkItemSpawnApplicationProjector,
 } from "../solutions/work-item/scheduling.js";
-import type { Subscribable } from "./helpers/collect.js";
+import { collectData, type Subscribable } from "./helpers/collect.js";
 
 const actorRef = { kind: "actor", id: "actor-1" } as const;
 const capabilityRef = { kind: "capability", id: "work-item-write" } as const;
@@ -6207,16 +6206,6 @@ function d430ApplicationRefs(
 		{ kind: "workspace-proposal-admission-decision", id: decision.decisionId },
 		{ kind: "workspace-proposal-application-status", id: applicationId },
 	] as const;
-}
-
-function collectData<T>(node: Node<T>): T[] {
-	const out: T[] = [];
-	node.subscribe((incoming) => {
-		for (const msg of incoming) {
-			if (msg[0] === "DATA") out.push(msg[1] as T);
-		}
-	});
-	return out;
 }
 
 function collectDataFromNodes(...nodes: Subscribable[]): unknown[] {

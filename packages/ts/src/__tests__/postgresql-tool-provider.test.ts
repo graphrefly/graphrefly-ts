@@ -14,7 +14,6 @@ import {
 } from "../executors/postgresql-tool-provider.js";
 import { graph } from "../graph/graph.js";
 import { compoundTupleKey } from "../identity.js";
-import type { Node } from "../node/node.js";
 import type {
 	ExecutorOutcome,
 	ToolProviderAdapterInput,
@@ -26,6 +25,7 @@ import {
 	requestToolProviderAdapterRun,
 	toolProviderRunAdmissionProjector,
 } from "../orchestration/index.js";
+import { collectData } from "./helpers/collect.js";
 
 const catalogOptions = {
 	adapterVersion: "1.0.0",
@@ -122,16 +122,6 @@ function run(
 	};
 }
 
-function collect<T>(node: Node<T>): T[] {
-	const values: T[] = [];
-	node.subscribe((incoming) => {
-		for (const message of incoming) {
-			if (message[0] === "DATA") values.push(message[1] as T);
-		}
-	});
-	return values;
-}
-
 const settle = async (): Promise<void> => {
 	await Promise.resolve();
 	await Promise.resolve();
@@ -197,9 +187,9 @@ describe("PostgreSQL-compatible tool provider (D602)", () => {
 				});
 			}),
 		});
-		const outcomes = collect<ExecutorOutcome>(runtime.outcomes);
-		const issues = collect<{ code: string }>(runtime.issues);
-		const audits = collect<unknown>(runtime.audit);
+		const outcomes = collectData<ExecutorOutcome>(runtime.outcomes);
+		const issues = collectData<{ code: string }>(runtime.issues);
+		const audits = collectData<unknown>(runtime.audit);
 
 		inputs.set(input());
 		await settle();
@@ -328,8 +318,8 @@ describe("PostgreSQL-compatible tool provider (D602)", () => {
 				});
 			}),
 		});
-		const outcomes = collect<ExecutorOutcome>(runtime.outcomes);
-		const issues = collect<{ code: string }>(runtime.issues);
+		const outcomes = collectData<ExecutorOutcome>(runtime.outcomes);
+		const issues = collectData<{ code: string }>(runtime.issues);
 		inputs.set(input());
 		g.batch(() => {
 			admitted.set(run());
@@ -429,7 +419,7 @@ describe("PostgreSQL-compatible tool provider (D602)", () => {
 				},
 				driver,
 			});
-			const outcomes = collect<ExecutorOutcome>(runtime.outcomes);
+			const outcomes = collectData<ExecutorOutcome>(runtime.outcomes);
 			const nextArgs =
 				scenario === "parameter" ? { ...args(), parameters: ["x".repeat(5000)] } : args();
 			inputs.set(input({ toolCall: { ...input().toolCall!, arguments: nextArgs } }));
@@ -486,7 +476,7 @@ describe("PostgreSQL-compatible tool provider (D602)", () => {
 				},
 			},
 		});
-		const outcomes = collect<ExecutorOutcome>(runtime.outcomes);
+		const outcomes = collectData<ExecutorOutcome>(runtime.outcomes);
 		inputs.set(input());
 		admitted.set(run());
 		await settle();
@@ -582,7 +572,7 @@ describe("PostgreSQL-compatible tool provider (D602)", () => {
 				return Promise.reject(Object.assign(new Error("private"), { kind, retryable }));
 			}),
 		});
-		const outcomes = collect<ExecutorOutcome>(runtime.outcomes);
+		const outcomes = collectData<ExecutorOutcome>(runtime.outcomes);
 		inputs.set(input());
 		admitted.set(run());
 		await settle();
@@ -615,9 +605,9 @@ describe("PostgreSQL-compatible tool provider (D602)", () => {
 			},
 			driver: abortableDriver(),
 		});
-		const outcomes = collect<ExecutorOutcome>(runtime.outcomes);
-		const proposals = collect<{ proposalId: string }>(runtime.cancellationProposals);
-		const admissions = collect<{ state: string }>(runtime.cancellationAdmissions);
+		const outcomes = collectData<ExecutorOutcome>(runtime.outcomes);
+		const proposals = collectData<{ proposalId: string }>(runtime.cancellationProposals);
+		const admissions = collectData<{ state: string }>(runtime.cancellationAdmissions);
 		inputs.set(input());
 		admitted.set(run());
 		await settle();
@@ -744,7 +734,7 @@ async function timeoutRuntime(ownership: "runtime-owned" | "caller-owned") {
 			},
 		),
 	});
-	const outcomes = collect<ExecutorOutcome>(runtime.outcomes);
+	const outcomes = collectData<ExecutorOutcome>(runtime.outcomes);
 	inputs.set(input());
 	admitted.set(run());
 	await new Promise<void>((resolve) => setTimeout(resolve, 15));

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { Message, Node } from "../index.js";
+import type { Message } from "../index.js";
 import {
 	distinctUntilChanged,
 	elementAt,
@@ -87,32 +87,6 @@ describe("core operators (free-standing factories via g.initNode, D43/D6)", () =
 			}
 		});
 		expect(data(msgs)).toEqual([10, 20, 30]);
-	});
-
-	it("map does not treat same-wave INVALIDATE SENTINEL as DATA (D77/R-sentinel)", () => {
-		const g = graph();
-		const s = g.node<number>([], null, { initial: 1 });
-		const m = g.initNode(
-			map((n: number) => n * 2),
-			[s],
-		);
-		const msgs: Message[] = [];
-		m.subscribe((incoming) => {
-			for (const x of incoming) {
-				msgs.push(x);
-			}
-		});
-		msgs.length = 0;
-
-		g.batch(() => {
-			s.set(9);
-			s.invalidate();
-		});
-
-		// R-wave: the source's array is split at its last INVALIDATE, so map sees only the INVALIDATE.
-		expect(msgs).toEqual([["PENDING"], ["INVALIDATE"]]);
-		expect(m.cache).toBeUndefined();
-		expect(m.status.cache).toBe("empty");
 	});
 
 	it("filter emits only when pred holds", () => {
