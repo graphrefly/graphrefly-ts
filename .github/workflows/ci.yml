@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, d797-kernel-migration]
   pull_request:
     branches: [main]
 
@@ -45,6 +45,18 @@ jobs:
           corepack install
 
       - run: pnpm install --frozen-lockfile
+
+      - name: Check out the pinned root conformance fixture
+        uses: actions/checkout@v7
+        with:
+          repository: graphrefly/graphrefly
+          ref: 4771691460538cd387197571d930128abdac90a2
+          path: .tmp/conformance-root
+          sparse-checkout: spec/fixtures
+          persist-credentials: false
+
+      - name: Run the shared D808 behavioral and refusal probes
+        run: pnpm exec tsx scripts/probe-d797-rereview.ts .tmp/conformance-root/spec/fixtures/d797-rereview.v1.json
 
       - run: pnpm test
 
