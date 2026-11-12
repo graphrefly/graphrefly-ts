@@ -154,7 +154,7 @@ export function probe() {
 		);
 		assert.equal(d.live.size, 0);
 		assert.equal(graph.find("same"), winner);
-		assert.equal(graph.inspect().nodes.length, 1);
+		assert.equal(graph.describe().nodes.length, 1);
 		assert.throws(() => restoreStateNodeInGraph(Object.create(graph), "fake"), /unknown graph/);
 		releaseGraphNodes(graph, [winner!]);
 	});
