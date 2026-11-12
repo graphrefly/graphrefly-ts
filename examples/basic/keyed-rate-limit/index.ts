@@ -508,10 +508,14 @@ function runCustomAuthorityExample(): void {
 	const custom = request("custom", "custom-a");
 	const authority = new ExampleCustomAuthority();
 	const consumer = attachGovernedConsumer("custom-consumer", authority, custom);
-	// The admission-only effect activates the lazy topology first. Emit a second request after the
-	// denial projection is subscribed so the runnable example can inspect its ready denial.
+	// The admission-only effect activates the lazy topology, which denies custom-a. The denial
+	// projection is subscribed afterwards, so as a late subscriber it receives the projection's last
+	// array, custom-a's denial (R-subscription@3); custom-b's denial follows as a new wave.
 	consumer.requests.set(request("custom", "custom-b"));
-	check(consumer.denials.length === 1, "a custom authority may supply a valid denial");
+	check(
+		consumer.denials.map((d) => d.requestId).join(",") === "custom-a,custom-b",
+		"a custom authority may supply a valid denial",
+	);
 	check(
 		consumer.protectedExecutions.length === 0,
 		"custom denial must not reach the protected effect",
@@ -522,8 +526,10 @@ function runCustomAuthorityExample(): void {
 		request("custom", "custom-seed-b", 1, "authority-b"),
 	);
 	otherAuthority.requests.set(request("custom", "custom-a", 1, "authority-b"));
+	// As above, the late denial subscriber first receives the seed request's denial; custom-a under
+	// authority-b is then denied in its own receipt namespace, not deduplicated against authority-a.
 	check(
-		otherAuthority.denials.length === 1,
+		otherAuthority.denials.map((d) => d.requestId).join(",") === "custom-seed-b,custom-a",
 		"one request id under a different authority coordinate must use an independent receipt namespace",
 	);
 	otherAuthority.stop();
