@@ -477,3 +477,70 @@ describe("C-44 (value and quiet-node clauses): the kernel adds only the settling
 		expect(ds.log).toEqual([[["PENDING"], ["INVALIDATE"]]]);
 	});
 });
+
+describe("an empty ctx.down sends nothing (R-wave, as in Rust and Python)", () => {
+	/** A node that sends `[["DATA", v * 10]]` per value and an empty array in the same run. */
+	function build() {
+		const g = graph();
+		const a = g.state(1, { name: "a" });
+		let held: Ctx | undefined;
+		const n = g.node<number>(
+			[a],
+			(ctx) => {
+				held = ctx;
+				ctx.down([]);
+				ctx.down([["DATA", (ctx.deps[0].value as number) * 10]]);
+				ctx.down([]);
+			},
+			{ name: "n" },
+		);
+		const s = arrays();
+		n.subscribe(s.sink);
+		return { g, a, n, s, held: () => held as Ctx };
+	}
+
+	it("during a run: only the non-empty array goes out", () => {
+		const { a, s } = build();
+		a.set(2);
+		expect(s.log).toEqual([
+			[["START"], ["DATA", 10]],
+			[["PENDING"], ["DATA", 20]],
+		]);
+	});
+
+	it("after the run, with no wave active: nothing is delivered and the node is unchanged", () => {
+		const { n, s, held } = build();
+		const before = s.log.length;
+		held().down([]);
+		expect(s.log.length).toBe(before);
+		expect(n.cache).toBe(10);
+		expect(n.status.output).not.toBe("completed");
+	});
+
+	it("after the run, during another wave: nothing is queued behind it", () => {
+		const { g, a, s, held } = build();
+		const b = g.state(0, { name: "b" });
+		const seen: number[] = [];
+		b.subscribe((msgs) => {
+			for (const m of msgs) if (m[0] === "DATA") seen.push(m[1] as number);
+			// Inside b's delivery wave: the empty array would be a request waiting for it.
+			if (msgs.some((m) => m[0] === "DATA" && m[1] === 1)) held().down([]);
+		});
+		const before = s.log.length;
+		b.set(1);
+		a.set(3);
+		expect(seen).toEqual([0, 1]);
+		expect(s.log.slice(before)).toEqual([[["PENDING"], ["DATA", 30]]]);
+	});
+
+	it("inside a batch body: the commit carries only the batch's writes", () => {
+		const { g, a, s, held } = build();
+		const before = s.log.length;
+		g.batch(() => {
+			held().down([]);
+			a.set(4);
+			held().down([]);
+		});
+		expect(s.log.slice(before)).toEqual([[["PENDING"], ["DATA", 40]]]);
+	});
+});

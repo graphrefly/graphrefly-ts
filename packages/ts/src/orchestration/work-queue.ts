@@ -127,7 +127,7 @@ export function orchestrationWorkQueueRecipe<TEffect = unknown>(
 						for (const raw of ctx.deps[0].waves.flat()) {
 							commands.push(processEffectSubmitCommand(raw as ProcessEffectRequest<TEffect>));
 						}
-						if (commands.length > 0) ctx.down(commands.map((v) => ["DATA", v] as const));
+						ctx.down(commands.map((v) => ["DATA", v] as const));
 					},
 					{
 						name: `${name}/submitCommands`,
@@ -335,7 +335,7 @@ function project<T>(
 				const value = pick(fact as OrchestrationQueueFact);
 				if (value !== undefined) values.push(value);
 			}
-			if (values.length > 0) ctx.down(values.map((v) => ["DATA", v] as const));
+			ctx.down(values.map((v) => ["DATA", v] as const));
 		},
 		{ name, factory, complete: "manual", error: "manual" },
 	);

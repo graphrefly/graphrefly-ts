@@ -26,7 +26,7 @@ export function eachInputArray<V>(
 				break;
 			}
 		}
-		if (out.length > 0) ctx.down(out);
+		ctx.down(out);
 		if (stopped) return true;
 	}
 	return false;

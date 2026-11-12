@@ -415,7 +415,7 @@ function retrievalProjection<TFact, T>(
 				const selected = select(fact);
 				if (selected !== undefined) values.push(selected);
 			}
-			if (values.length > 0) ctx.down(values.map((v) => ["DATA", v] as const));
+			ctx.down(values.map((v) => ["DATA", v] as const));
 		},
 		{
 			name,
@@ -440,7 +440,7 @@ function kgProjection<TFact>(
 			for (const raw of ctx.deps[0].waves.flat()) {
 				values.push(select(raw as KnowledgeGraphSnapshot));
 			}
-			if (values.length > 0) ctx.down(values.map((v) => ["DATA", v] as const));
+			ctx.down(values.map((v) => ["DATA", v] as const));
 		},
 		{
 			name,

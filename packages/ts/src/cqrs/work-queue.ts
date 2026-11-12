@@ -435,7 +435,7 @@ function project<T, TCommand>(
 				const value = pick(fact as CqrsQueueFact<TCommand>);
 				if (value !== undefined) values.push(value);
 			}
-			if (values.length > 0) ctx.down(values.map((v) => ["DATA", v] as const));
+			ctx.down(values.map((v) => ["DATA", v] as const));
 		},
 		{ name, factory, complete: "manual", error: "manual" },
 	);

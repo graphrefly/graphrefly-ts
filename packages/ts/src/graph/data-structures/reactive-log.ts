@@ -379,7 +379,7 @@ export function mergeReactiveLogs<T>(logs: readonly ReactiveLog<T>[]): Node<LogC
 			for (const dep of ctx.deps) {
 				for (const c of dep.waves.flat()) changes.push(c as LogChange<T>);
 			}
-			if (changes.length > 0) ctx.down(changes.map((v) => ["DATA", v] as const));
+			ctx.down(changes.map((v) => ["DATA", v] as const));
 		},
 		{ factory: "mergeReactiveLogs" },
 	);

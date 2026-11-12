@@ -111,7 +111,7 @@ function outboundNodes<TValue, TResult>(
 			}
 			const error = depError(ctx);
 			if (error !== undefined) out.push(error);
-			if (out.length > 0) ctx.down(out);
+			ctx.down(out);
 		},
 		{ name: `${name}/attempts`, factory: "outboundAttempts", error: "manual" },
 	);
@@ -125,7 +125,7 @@ function outboundNodes<TValue, TResult>(
 			}
 			const error = depError(ctx);
 			if (error !== undefined) out.push(error);
-			if (out.length > 0) ctx.down(out);
+			ctx.down(out);
 		},
 		{ name: `${name}/errors`, factory: "outboundErrors", error: "manual" },
 	);

@@ -461,7 +461,7 @@ export function merge<T>(): Operator<T, T> {
 				const out: Message[] = [];
 				for (let i = 0; i < ctx.deps.length; i++)
 					for (const v of ctx.deps[i].waves.flat()) out.push(["DATA", v]);
-				if (out.length > 0) ctx.down(out);
+				ctx.down(out);
 				return;
 			}
 			for (let i = 0; i < ctx.deps.length; i++)

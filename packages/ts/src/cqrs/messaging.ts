@@ -90,7 +90,7 @@ export function cqrsMessagingRecipe<TPayload = unknown, TCommand = unknown, TEve
 					}
 				}
 			}
-			if (facts.length > 0) ctx.down(facts.map((v) => ["DATA", v] as const));
+			ctx.down(facts.map((v) => ["DATA", v] as const));
 		},
 		{
 			name: `${name}/runtime`,
@@ -250,7 +250,7 @@ function ackCommandsFn(config: AckCommandsConfig): NodeFn {
 			}
 		}
 		ctx.state.set(deliveries);
-		if (acks.length > 0) ctx.down(acks.map((v) => ["DATA", v] as const));
+		ctx.down(acks.map((v) => ["DATA", v] as const));
 	};
 }
 
@@ -298,7 +298,7 @@ function outboxCommandsFn(topic: string): NodeFn {
 				idempotencyKey: typed.id,
 			});
 		}
-		if (commands.length > 0) ctx.down(commands.map((v) => ["DATA", v] as const));
+		ctx.down(commands.map((v) => ["DATA", v] as const));
 	};
 }
 
@@ -366,7 +366,7 @@ function project<T, TCommand>(
 				const value = pick(fact as CqrsMessagingFact<TCommand>);
 				if (value !== undefined) values.push(value);
 			}
-			if (values.length > 0) ctx.down(values.map((v) => ["DATA", v] as const));
+			ctx.down(values.map((v) => ["DATA", v] as const));
 		},
 		{ name, factory, complete: "manual", error: "manual" },
 	);

@@ -273,7 +273,7 @@ export function buildOfflineSpendingHost(
 				}
 				values.push(value);
 			}
-			if (values.length > 0) ctx.down(values.map((v) => ["DATA", v] as const));
+			ctx.down(values.map((v) => ["DATA", v] as const));
 		},
 		{ name: `${name}/hostPackFacts`, factory: "offlineSpendingHostPackFacts" },
 	);

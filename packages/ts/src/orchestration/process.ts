@@ -422,7 +422,7 @@ function processCommandFn(): NodeFn {
 		const out: Message[] = [];
 		for (let i = 0; i < ctx.deps.length; i += 1)
 			for (const next of ctx.deps[i].waves.flat()) out.push(["DATA", next]);
-		if (out.length > 0) ctx.down(out);
+		ctx.down(out);
 	};
 }
 
@@ -480,14 +480,14 @@ function processProjectionFn(kind: ProcessFactKind): NodeFn {
 			const selected = processFactValue(raw as ProcessRuntimeFact, kind);
 			if (selected !== undefined) values.push(selected);
 		}
-		if (values.length > 0) ctx.down(values.map((v) => ["DATA", v] as const));
+		ctx.down(values.map((v) => ["DATA", v] as const));
 	};
 }
 
 function processEffectRunnerRequestsFn(): NodeFn {
 	return (ctx) => {
 		const values = ctx.deps[0].waves.flat();
-		if (values.length > 0) ctx.down(values.map((v) => ["DATA", v] as const));
+		ctx.down(values.map((v) => ["DATA", v] as const));
 	};
 }
 
@@ -512,7 +512,7 @@ function processEffectRunnerRuntimeFn(): NodeFn {
 				facts.push({ kind: "command", command });
 			}
 		}
-		if (facts.length > 0) ctx.down(facts.map((v) => ["DATA", v] as const));
+		ctx.down(facts.map((v) => ["DATA", v] as const));
 	};
 }
 
@@ -530,7 +530,7 @@ function processEffectRunnerProjectionFn(kind: ProcessEffectRunnerFact["kind"]):
 						: fact.error;
 			values.push(value);
 		}
-		if (values.length > 0) ctx.down(values.map((v) => ["DATA", v] as const));
+		ctx.down(values.map((v) => ["DATA", v] as const));
 	};
 }
 
@@ -581,7 +581,7 @@ function processEffectRunnerStatusFn(): NodeFn {
 			}
 		}
 		ctx.state.set(state);
-		if (statuses.length > 0) ctx.down(statuses.map((v) => ["DATA", v] as const));
+		ctx.down(statuses.map((v) => ["DATA", v] as const));
 	};
 }
 

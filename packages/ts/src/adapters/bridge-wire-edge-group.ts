@@ -506,5 +506,5 @@ function issuesFn(ctx: Ctx): void {
 		return;
 	}
 	const issues = gates.flatMap((x) => x.issues);
-	if (issues.length > 0) ctx.down(issues.map((i) => ["DATA", i] as Message));
+	ctx.down(issues.map((i) => ["DATA", i] as Message));
 }

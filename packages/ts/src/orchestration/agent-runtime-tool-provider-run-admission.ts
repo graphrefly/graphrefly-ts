@@ -194,7 +194,7 @@ export function toolProviderRunAdmissionProjector(
 					throw new TypeError("admitted tool provider handoff lacked an approved run request");
 				requests.push(approvedRequest);
 			}
-			if (requests.length > 0) ctx.down(requests.map((v) => ["DATA", v] as const));
+			ctx.down(requests.map((v) => ["DATA", v] as const));
 		},
 		{
 			name: `${name}/approvedRunRequests`,

@@ -277,7 +277,7 @@ export function reactiveCascadingCache<K extends string, V>(
 				}
 			}
 			ctx.state.set(st);
-			if (statuses.length > 0) ctx.down(statuses.map((v) => ["DATA", v] as const));
+			ctx.down(statuses.map((v) => ["DATA", v] as const));
 		},
 		{
 			name: `${baseName}.status`,
@@ -298,7 +298,7 @@ export function reactiveCascadingCache<K extends string, V>(
 			// goes out as its own array.
 			let values: V[] = [];
 			const invalidate = () => {
-				if (values.length > 0) ctx.down(values.map((v) => ["DATA", v] as const));
+				ctx.down(values.map((v) => ["DATA", v] as const));
 				values = [];
 				ctx.down([["INVALIDATE"]]);
 			};
@@ -320,7 +320,7 @@ export function reactiveCascadingCache<K extends string, V>(
 				}
 			}
 			ctx.state.set(st);
-			if (values.length > 0) ctx.down(values.map((v) => ["DATA", v] as const));
+			ctx.down(values.map((v) => ["DATA", v] as const));
 		},
 		{
 			name: `${baseName}.value`,
@@ -404,7 +404,7 @@ function promoteFresh<K, V>(
 			: buildPromotionTargets(opts.tiers.length, sourceIndex, opts.promoteTo);
 	if (st.seq !== requestSeq || offset >= targets.length) {
 		const messages = eventsFromResult(opts.key, requestSeq, result, promotions);
-		if (messages.length > 0) ctx.down(messages);
+		ctx.down(messages);
 		return;
 	}
 	const index = targets[offset] as number;

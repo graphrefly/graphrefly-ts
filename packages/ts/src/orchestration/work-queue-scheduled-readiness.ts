@@ -395,7 +395,7 @@ export function workQueueLeaseExpirationCommandProjector<T = unknown>(
 			}
 			facts.push({ kind: "views", views: buildLeaseCommandViews(state) });
 			ctx.state.set(state);
-			if (facts.length > 0) ctx.down(facts.map((v) => ["DATA", v] as const));
+			ctx.down(facts.map((v) => ["DATA", v] as const));
 		},
 		{
 			name: `${name}/runtime`,

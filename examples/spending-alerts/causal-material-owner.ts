@@ -137,12 +137,12 @@ export function buildMaterials(
 			ctx.state.set(s);
 			values.push(frozen({ ...frame(rows, problems, f.valid), snapshot: s.snapshot }));
 		}
-		if (values.length > 0) ctx.down(values.map((v) => ["DATA", v] as const));
+		ctx.down(values.map((v) => ["DATA", v] as const));
 	});
 	const materialSnapshot = make<MaterialSnapshot>("materialSnapshot", [materialStore], (ctx) => {
 		const values: unknown[] = [];
 		for (const f of ctx.deps[0].waves.flat() as StoredFrame[]) values.push(f.snapshot);
-		if (values.length > 0) ctx.down(values.map((v) => ["DATA", v] as const));
+		ctx.down(values.map((v) => ["DATA", v] as const));
 	});
 	const effectProposals = make<CausalEffectProposal>("effectProposals", [materialStore], (ctx) => {
 		const outputs: Message[] = [];

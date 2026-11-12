@@ -135,7 +135,7 @@ export function executorWorkQueueRecipe(
 							const request = raw as AgentRequestIssued;
 							commands.push(executorSubmitCommand(request, opts.policy));
 						}
-						if (commands.length > 0) ctx.down(commands.map((v) => ["DATA", v] as const));
+						ctx.down(commands.map((v) => ["DATA", v] as const));
 					},
 					{ name: `${name}/submitCommands`, factory: "executorWorkQueueSubmitCommands" },
 				);
@@ -405,7 +405,7 @@ function project<T>(
 				const selected = select(raw as ExecutorQueueFact);
 				if (selected !== undefined) values.push(selected);
 			}
-			if (values.length > 0) ctx.down(values.map((v) => ["DATA", v] as const));
+			ctx.down(values.map((v) => ["DATA", v] as const));
 		},
 		{ name, factory, complete: "manual", error: "manual" },
 	);

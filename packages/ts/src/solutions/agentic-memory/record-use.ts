@@ -723,7 +723,7 @@ export function agenticMemoryRecordUseGateBundle<TJson extends StrictJsonValue =
 						Object.freeze({ ...occurrence, value: select(occurrence.value) }),
 					] as const;
 				});
-				if (outputs.length > 0) ctx.down(outputs);
+				ctx.down(outputs);
 			},
 			{ name: `${name}/${suffix}`, factory },
 		);

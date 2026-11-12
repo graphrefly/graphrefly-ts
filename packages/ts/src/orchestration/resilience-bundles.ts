@@ -134,7 +134,7 @@ export function retryStatusBundle(
 				const event = raw as ResilienceEvent;
 				if ("error" in event) values.push(event.error);
 			}
-			if (values.length > 0) ctx.down(values.map((v) => ["DATA", v] as const));
+			ctx.down(values.map((v) => ["DATA", v] as const));
 		},
 		{ name: `${name}/errors`, factory: "retryErrors" },
 	);
@@ -237,7 +237,7 @@ function breakerAllowedFn(): NodeFn {
 		for (const value of statusBatch) {
 			allowed.push((value as BreakerStatus).state !== "open");
 		}
-		if (allowed.length > 0) ctx.down(allowed.map((v) => ["DATA", v] as const));
+		ctx.down(allowed.map((v) => ["DATA", v] as const));
 	};
 }
 

@@ -32,7 +32,7 @@ export function solutionOccurrenceSelect<T, R>(
 				const occurrence = raw as SolutionOccurrence<T>;
 				return ["DATA", Object.freeze({ ...occurrence, value: select(occurrence.value) })] as const;
 			});
-			if (outputs.length > 0) ctx.down(outputs);
+			ctx.down(outputs);
 		},
 		{ name, factory },
 	);
@@ -131,7 +131,7 @@ export function solutionOccurrenceJoin<L, R, O>(
 				pairs.set(id, { leftKey: pair.leftKey, rightKey: pair.rightKey, complete: true });
 			}
 			ctx.state.set(pairs);
-			if (outputs.length > 0) ctx.down(outputs.map((output) => ["DATA", output]));
+			ctx.down(outputs.map((output) => ["DATA", output]));
 		},
 		{ name: `${opts.name}/matched`, factory: "solutionOccurrenceMatched" },
 	);
@@ -153,7 +153,7 @@ export function solutionOccurrenceJoin<L, R, O>(
 				fresh.push(value);
 			}
 			ctx.state.set(seen);
-			if (fresh.length > 0) ctx.down(fresh.map((value) => ["DATA", value]));
+			ctx.down(fresh.map((value) => ["DATA", value]));
 		},
 		{
 			name: opts.name,
@@ -426,7 +426,7 @@ export function solutionOccurrenceProjection<TInput, TOutput>(
 				);
 			}
 			ctx.state.set(ledger);
-			if (outputs.length > 0) ctx.down(outputs.map((output) => ["DATA", output]));
+			ctx.down(outputs.map((output) => ["DATA", output]));
 		},
 		{
 			name: opts.name,

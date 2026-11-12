@@ -478,7 +478,7 @@ export function buildSpendingPublication<T>(
 			const values: unknown[] = [];
 			for (const j of ctx.deps[0].waves.flat() as JoinResult[])
 				values.push(publicationFor(j, asOf));
-			if (values.length > 0) ctx.down(values.map((v) => ["DATA", v] as const));
+			ctx.down(values.map((v) => ["DATA", v] as const));
 		},
 		{ name: projectionNames.publication, factory: "spendingPublication" },
 	);

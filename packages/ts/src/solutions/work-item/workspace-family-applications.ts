@@ -2149,7 +2149,7 @@ export function workspaceProposalFamilyApplicationDiagnosticProjector(
 				facts.push({ kind: "diagnostic", value: diagnostic });
 			}
 			ctx.state.set(state);
-			if (facts.length > 0) ctx.down(facts.map((v) => ["DATA", v] as const));
+			ctx.down(facts.map((v) => ["DATA", v] as const));
 		},
 		runtimeOptions(name, "workspaceProposalFamilyApplicationDiagnosticProjector"),
 	);
@@ -2242,7 +2242,7 @@ export function workspaceProposalRepairReviewProjector(
 				facts.push({ kind: "repair-review-request", value: request });
 			}
 			ctx.state.set(state);
-			if (facts.length > 0) ctx.down(facts.map((v) => ["DATA", v] as const));
+			ctx.down(facts.map((v) => ["DATA", v] as const));
 		},
 		runtimeOptions(name, "workspaceProposalRepairReviewProjector"),
 	);
@@ -2514,7 +2514,7 @@ export function workspaceProposalRepairReviewDecisionRecordingProjector(
 				}
 			}
 			ctx.state.set(state);
-			if (facts.length > 0) ctx.down(facts.map((v) => ["DATA", v] as const));
+			ctx.down(facts.map((v) => ["DATA", v] as const));
 		},
 		runtimeOptions(name, "workspaceProposalRepairReviewDecisionRecordingProjector"),
 	);
@@ -2573,7 +2573,7 @@ export function workspaceProposalRepairReviewStatusProjector(
 				facts.push({ kind: "repair-review-status", value: status });
 			}
 			ctx.state.set(state);
-			if (facts.length > 0) ctx.down(facts.map((v) => ["DATA", v] as const));
+			ctx.down(facts.map((v) => ["DATA", v] as const));
 		},
 		runtimeOptions(name, "workspaceProposalRepairReviewStatusProjector"),
 	);
@@ -2803,7 +2803,7 @@ export function workspaceProposalProjectionReleaseDiagnosticProjector(
 				const diagnostic = workspaceProposalProjectionReleaseDiagnosticFromValidation(validation);
 				facts.push({ kind: "projection-release-diagnostic", value: diagnostic });
 			}
-			if (facts.length > 0) ctx.down(facts.map((v) => ["DATA", v] as const));
+			ctx.down(facts.map((v) => ["DATA", v] as const));
 		},
 		runtimeOptions(name, "workspaceProposalProjectionReleaseDiagnosticProjector"),
 	);
@@ -2918,7 +2918,7 @@ export function workspaceProposalFamilyApplicationReadModelsProjector(
 				facts.push({ kind: "read-model", value: readModel });
 			}
 			ctx.state.set(state);
-			if (facts.length > 0) ctx.down(facts.map((v) => ["DATA", v] as const));
+			ctx.down(facts.map((v) => ["DATA", v] as const));
 		},
 		runtimeOptions(name, "workspaceProposalFamilyApplicationReadModelsProjector"),
 	);
@@ -3194,7 +3194,7 @@ export function workspaceProposalFamilyOutcomeDetailSupplyProjector(
 				facts.push({ kind: "outcome-detail-supply-result", value: result });
 			}
 			ctx.state.set(state);
-			if (facts.length > 0) ctx.down(facts.map((v) => ["DATA", v] as const));
+			ctx.down(facts.map((v) => ["DATA", v] as const));
 		},
 		runtimeOptions(name, "workspaceProposalFamilyOutcomeDetailSupplyProjector"),
 	);
@@ -3275,7 +3275,7 @@ export function workspaceProposalRepairActionDescriptorProjector(
 				facts.push({ kind: "repair-action-descriptor", value: descriptor });
 			}
 			ctx.state.set(state);
-			if (facts.length > 0) ctx.down(facts.map((v) => ["DATA", v] as const));
+			ctx.down(facts.map((v) => ["DATA", v] as const));
 		},
 		runtimeOptions(name, "workspaceProposalRepairActionDescriptorProjector"),
 	);
@@ -3980,7 +3980,7 @@ export function workspaceProposalRepairActionDisplayPolicyAdvisoryProjector(
 				facts.push({ kind: "repair-action-display-policy-advisory", value: advisory });
 			}
 			ctx.state.set(state);
-			if (facts.length > 0) ctx.down(facts.map((v) => ["DATA", v] as const));
+			ctx.down(facts.map((v) => ["DATA", v] as const));
 		},
 		runtimeOptions(name, "workspaceProposalRepairActionDisplayPolicyAdvisoryProjector"),
 	);
@@ -4308,7 +4308,7 @@ export function workspaceProposalRepairActionIntentProjector(
 				facts.push({ kind: "repair-action-intent-validation-result", value: result });
 			}
 			ctx.state.set(state);
-			if (facts.length > 0) ctx.down(facts.map((v) => ["DATA", v] as const));
+			ctx.down(facts.map((v) => ["DATA", v] as const));
 		},
 		runtimeOptions(name, "workspaceProposalRepairActionIntentProjector"),
 	);
@@ -4393,7 +4393,7 @@ export function workspaceProposalRepairSuccessorProposalIntakePreviewProjector(
 				facts.push({ kind: "successor-proposal-intake-preview", value: preview });
 			}
 			ctx.state.set(state);
-			if (facts.length > 0) ctx.down(facts.map((v) => ["DATA", v] as const));
+			ctx.down(facts.map((v) => ["DATA", v] as const));
 		},
 		runtimeOptions(name, "workspaceProposalRepairSuccessorProposalIntakePreviewProjector"),
 	);
@@ -4504,7 +4504,7 @@ export function workspaceProposalRepairSuccessorProposalReadyRequestPreparationP
 				}
 			}
 			ctx.state.set(state);
-			if (facts.length > 0) ctx.down(facts.map((v) => ["DATA", v] as const));
+			ctx.down(facts.map((v) => ["DATA", v] as const));
 		},
 		runtimeOptions(
 			name,

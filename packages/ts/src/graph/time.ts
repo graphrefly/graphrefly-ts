@@ -370,7 +370,7 @@ export function bufferTime<S>(source: Node<S>, ms: number): Node<S[]> {
 		const buf = ctx.state.get<S[]>() ?? [];
 		if (srcBatch) for (const v of srcBatch) buf.push(v as S);
 		if (srcTerminal?.kind === "complete") {
-			if (buf.length > 0) ctx.down([["DATA", [...buf]]]);
+			ctx.down([["DATA", [...buf]]]);
 			ctx.state.set([]);
 			ctxRewireDiff(ctx, [], [iv]);
 			ctx.down([["COMPLETE"]]);

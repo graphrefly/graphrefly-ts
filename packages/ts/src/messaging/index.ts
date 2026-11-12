@@ -134,7 +134,7 @@ export function messageBus<TTopic extends string>(
 		const ended = ctx.deps[0].terminal;
 		if (ended?.kind === "complete") out.push(["COMPLETE"]);
 		else if (ended?.kind === "error") out.push(["ERROR", ended.error]);
-		if (out.length > 0) ctx.down(out);
+		ctx.down(out);
 	};
 	// The bus's host input: publishes are written here and forwarded by the command node, which also
 	// rewires itself to attached command sources (graphrefly-ts:D175, no host write to a computed node).
@@ -178,7 +178,7 @@ export function messageBus<TTopic extends string>(
 			for (const command of ctx.deps[0].waves.flat()) {
 				events.push(...reduceMessageBusCommand(state, command as MessageBusCommand));
 			}
-			if (events.length > 0) ctx.down(events.map((v) => ["DATA", v] as const));
+			ctx.down(events.map((v) => ["DATA", v] as const));
 		},
 		{
 			name: `${name}/runtime`,
@@ -196,7 +196,7 @@ export function messageBus<TTopic extends string>(
 				const typed = event as RuntimeEvent;
 				if (typed.kind === "message") values.push(typed.message);
 			}
-			if (values.length > 0) ctx.down(values.map((v) => ["DATA", v] as const));
+			ctx.down(values.map((v) => ["DATA", v] as const));
 		},
 		{
 			name: `${name}/messages`,
@@ -213,7 +213,7 @@ export function messageBus<TTopic extends string>(
 				const typed = event as RuntimeEvent;
 				if (typed.kind === "status") values.push(typed.status);
 			}
-			if (values.length > 0) ctx.down(values.map((v) => ["DATA", v] as const));
+			ctx.down(values.map((v) => ["DATA", v] as const));
 		},
 		{
 			name: `${name}/status`,
@@ -230,7 +230,7 @@ export function messageBus<TTopic extends string>(
 				const typed = event as RuntimeEvent;
 				if (typed.kind === "issue") values.push(typed.issue);
 			}
-			if (values.length > 0) ctx.down(values.map((v) => ["DATA", v] as const));
+			ctx.down(values.map((v) => ["DATA", v] as const));
 		},
 		{
 			name: `${name}/issues`,
@@ -403,7 +403,7 @@ export function messageBus<TTopic extends string>(
 							cursors.push(cursorSnapshot(state, sub));
 						}
 					}
-					if (cursors.length > 0) ctx.down(cursors.map((v) => ["DATA", v] as const));
+					ctx.down(cursors.map((v) => ["DATA", v] as const));
 				},
 				{
 					name: `${projectionName}/cursor`,
@@ -492,7 +492,7 @@ export function toTopic<T, TTopic extends string>(
 					...(commandId === undefined ? {} : { commandId }),
 				});
 			}
-			if (commands.length > 0) ctx.down(commands.map((v) => ["DATA", v] as const));
+			ctx.down(commands.map((v) => ["DATA", v] as const));
 		},
 		{
 			name: opts.name ?? `${state.name}/${topic}/toTopic`,

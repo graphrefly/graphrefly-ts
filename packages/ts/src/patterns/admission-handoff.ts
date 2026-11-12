@@ -240,7 +240,7 @@ export function admissionHandoff<T, R = unknown>(
 				if (expired !== undefined) state.seen.delete(expired);
 			}
 			ctx.state.set(state);
-			if (fresh.length > 0) ctx.down(fresh.map((value) => ["DATA", value]));
+			ctx.down(fresh.map((value) => ["DATA", value]));
 		},
 		{
 			name: `${name}/accepted`,
@@ -671,7 +671,7 @@ function projectRuntimeFact<T, R, TOut>(
 				const value = pick(raw as AdmissionHandoffRuntimeFact<T, R>);
 				if (value !== undefined) values.push(value);
 			}
-			if (values.length > 0) ctx.down(values.map((v) => ["DATA", v] as const));
+			ctx.down(values.map((v) => ["DATA", v] as const));
 		},
 		{ name, factory, complete: "manual", error: "manual" },
 	);

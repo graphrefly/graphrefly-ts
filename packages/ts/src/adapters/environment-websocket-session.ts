@@ -473,7 +473,7 @@ function webSocketSessionEventNode(
 			} finally {
 				running = false;
 			}
-			if (events.length > 0) ctx.down(events.map((v) => ["DATA", v] as const));
+			ctx.down(events.map((v) => ["DATA", v] as const));
 		},
 		{ name: `${name}/events`, factory: "webSocketSessionEvents" },
 	);
@@ -494,7 +494,7 @@ function webSocketSessionNodes(
 				const event = raw as WebSocketSessionEvent;
 				if (event.kind === "message") values.push(event.message);
 			}
-			if (values.length > 0) ctx.down(values.map((v) => ["DATA", v] as const));
+			ctx.down(values.map((v) => ["DATA", v] as const));
 		},
 		{ name: `${name}/inbound`, factory: "webSocketSessionInbound" },
 	);
@@ -528,7 +528,7 @@ function webSocketSessionNodes(
 					values.push(event);
 				}
 			}
-			if (values.length > 0) ctx.down(values.map((v) => ["DATA", v] as const));
+			ctx.down(values.map((v) => ["DATA", v] as const));
 		},
 		{ name: `${name}/lifecycle`, factory: "webSocketSessionLifecycle" },
 	);
@@ -540,7 +540,7 @@ function webSocketSessionNodes(
 				const event = raw as WebSocketSessionEvent;
 				if (event.kind === "outbound") values.push(event.fact);
 			}
-			if (values.length > 0) ctx.down(values.map((v) => ["DATA", v] as const));
+			ctx.down(values.map((v) => ["DATA", v] as const));
 		},
 		{ name: `${name}/outbound`, factory: "webSocketSessionOutbound" },
 	);
@@ -614,7 +614,7 @@ function webSocketSessionNodes(
 				const event = raw as WebSocketSessionEvent;
 				if ("error" in event) values.push(event.error);
 			}
-			if (values.length > 0) ctx.down(values.map((v) => ["DATA", v] as const));
+			ctx.down(values.map((v) => ["DATA", v] as const));
 		},
 		{ name: `${name}/errors`, factory: "webSocketSessionErrors" },
 	);
@@ -626,7 +626,7 @@ function webSocketSessionNodes(
 				const event = raw as WebSocketSessionEvent;
 				if (event.kind === "attempt") values.push(event.attempt);
 			}
-			if (values.length > 0) ctx.down(values.map((v) => ["DATA", v] as const));
+			ctx.down(values.map((v) => ["DATA", v] as const));
 		},
 		{ name: `${name}/attempts`, factory: "webSocketSessionAttempts" },
 	);

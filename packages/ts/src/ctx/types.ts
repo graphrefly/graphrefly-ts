@@ -111,6 +111,7 @@ export interface Ctx {
 	/**
 	 * Emit downstream toward sinks: the function's only output (R-invocation). Nothing travels up
 	 * the graph (R-messages). PENDING and RESOLVED are the kernel's and are rejected here (R-wave).
+	 * An empty array sends nothing and starts no wave.
 	 */
 	down(msgs: Wave): void;
 	/**

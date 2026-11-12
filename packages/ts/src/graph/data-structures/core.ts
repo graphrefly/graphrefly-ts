@@ -173,7 +173,7 @@ export function lightReactiveView<C, S>(
 		[parentDelta],
 		(ctx: Ctx): void => {
 			const values = ctx.deps[0].waves.flat();
-			if (values.length > 0) ctx.down(values.map((v) => ["DATA", v] as const));
+			ctx.down(values.map((v) => ["DATA", v] as const));
 		},
 		{
 			factory: `${factory}.delta`,

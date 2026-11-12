@@ -99,7 +99,7 @@ function lane<T, K extends Arrival<T>["lane"]>(
 		[input],
 		(ctx) => {
 			const values = ctx.deps[0].waves.flat();
-			if (values.length > 0) ctx.down([["DATA", { lane: laneName, values } as Arrival<T>]]);
+			ctx.down([["DATA", { lane: laneName, values } as Arrival<T>]]);
 		},
 		{ name, factory: "causalOccurrenceInputLane" },
 	);
@@ -126,7 +126,7 @@ function projectFact<T, K extends AuthorityFact<T>["kind"]>(
 								(raw as unknown as { fact: Extract<AuthorityFact<T>, { kind: K }> }).fact.value,
 							] as const,
 					);
-				if (values.length > 0) ctx.down(values);
+				ctx.down(values);
 			}
 		},
 		{ name, factory: "causalOccurrenceFactProjection" },
@@ -236,8 +236,7 @@ export function buildCausalNodes<T>(
 	const released = graph.node<CausalOccurrence<T>>(
 		[rawRelease],
 		(ctx) => {
-			for (const wave of ctx.deps[0].waves)
-				if (wave.length > 0) ctx.down(wave.map((value) => ["DATA", value]));
+			for (const wave of ctx.deps[0].waves) ctx.down(wave.map((value) => ["DATA", value]));
 		},
 		{
 			name: `${opts.name}/released`,

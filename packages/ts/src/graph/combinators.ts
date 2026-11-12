@@ -145,7 +145,7 @@ export function zip<T extends readonly unknown[]>(): Operator<unknown, T> {
 			// A terminal dep whose queue is now drained can never contribute another tuple → COMPLETE.
 			if (st.terminal.some((ended, i) => ended && st.queues[i].length === 0))
 				out.push(["COMPLETE"]);
-			if (out.length > 0) ctx.down(out);
+			ctx.down(out);
 		},
 	};
 }
@@ -204,7 +204,7 @@ export function concat<S>(): Operator<S, S> {
 				if (secondTerminal?.kind === "complete") out.push(["COMPLETE"]);
 			}
 			ctx.state.set(st);
-			if (out.length > 0) ctx.down(out);
+			ctx.down(out);
 		},
 	};
 }
@@ -299,7 +299,7 @@ export function buffer<S>(): Operator<unknown, S[]> {
 			const buf = ctx.state.get<S[]>() ?? [];
 			if (sourceBatch) for (const v of sourceBatch) buf.push(v as S);
 			if (ctx.deps[0].terminal?.kind === "complete") {
-				if (buf.length > 0) ctx.down([["DATA", [...buf]]]);
+				ctx.down([["DATA", [...buf]]]);
 				ctx.state.set([]);
 				ctx.down([["COMPLETE"]]);
 				return;
@@ -352,7 +352,7 @@ export function bufferCount<S>(count: number): Operator<S, S[]> {
 				return;
 			}
 			ctx.state.set(buf);
-			if (out.length > 0) ctx.down(out);
+			ctx.down(out);
 		},
 	};
 }

@@ -284,7 +284,7 @@ function stratifyBranchOperator<T, R>(
 			} else if (sourceTerminal?.kind === "error") {
 				out.push(["ERROR", sourceTerminal.error]);
 			}
-			if (out.length > 0) ctx.down(out);
+			ctx.down(out);
 		},
 	};
 }

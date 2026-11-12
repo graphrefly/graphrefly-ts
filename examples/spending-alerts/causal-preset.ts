@@ -167,7 +167,7 @@ export function buildSpendingPresetNodes(
 						for (const issue of value.issues ?? []) values.push(issue);
 					}
 				}
-			if (values.length > 0) ctx.down(values.map((v) => ["DATA", v] as const));
+			ctx.down(values.map((v) => ["DATA", v] as const));
 		},
 	);
 	const view = Object.freeze({

@@ -627,7 +627,7 @@ function createReactiveMap<K, V>(
 			for (const prep of ctx.deps[1]?.waves.flat() ?? []) {
 				changes.push(...(prep as SnapshotPrep<K, V>).expired);
 			}
-			if (changes.length > 0) ctx.down(changes.map((v) => ["DATA", v] as const));
+			ctx.down(changes.map((v) => ["DATA", v] as const));
 		},
 		opts: {},
 	};
@@ -640,7 +640,7 @@ function createReactiveMap<K, V>(
 		factory: "reactiveMap.snapshot",
 		body: (ctx: Ctx) => {
 			const preps = ctx.deps[0].waves.flat() as SnapshotPrep<K, V>[];
-			if (preps.length > 0) ctx.down(preps.map((prep) => ["DATA", prep.snapshot] as const));
+			ctx.down(preps.map((prep) => ["DATA", prep.snapshot] as const));
 		},
 		opts: {},
 	};
@@ -749,7 +749,7 @@ function createReactiveMap<K, V>(
 					} catch (e) {
 						out.push(["ERROR", errorPayload(e, "reactiveMap.bindSource failed")]);
 					}
-					if (out.length > 0) ctx.down(out);
+					ctx.down(out);
 				},
 			};
 			const folder = graph.initNode(op, [src], {

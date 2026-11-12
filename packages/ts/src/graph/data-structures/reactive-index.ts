@@ -570,7 +570,7 @@ function createReactiveIndex<K, V = unknown>(
 					} catch (e) {
 						out.push(["ERROR", errorPayload(e, "reactiveIndex.bindSource failed")]);
 					}
-					if (out.length > 0) ctx.down(out);
+					ctx.down(out);
 				},
 			};
 			const folder = graph.initNode(op, [src], {

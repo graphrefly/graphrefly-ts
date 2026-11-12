@@ -145,7 +145,7 @@ function eventsFn(config: EventsConfig, now: () => number): NodeFn {
 			events.push({ kind: allowed ? "allowed" : "dropped", value, status });
 		}
 		ctx.state.set(state);
-		if (events.length > 0) ctx.down(events.map((v) => ["DATA", v] as const));
+		ctx.down(events.map((v) => ["DATA", v] as const));
 	};
 }
 
@@ -157,7 +157,7 @@ function projectionFn(kind: ProjectionKind): NodeFn {
 			if (kind === "status") values.push(typed.status);
 			else if (typed.kind === kind) values.push(typed.value);
 		}
-		if (values.length > 0) ctx.down(values.map((v) => ["DATA", v] as const));
+		ctx.down(values.map((v) => ["DATA", v] as const));
 	};
 }
 

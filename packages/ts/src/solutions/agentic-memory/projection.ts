@@ -24,7 +24,7 @@ export function solutionProjection<TFact, TSnapshot>(
 			for (const raw of ctx.deps[0].waves.flat()) {
 				values.push(select(raw as TSnapshot));
 			}
-			if (values.length > 0) ctx.down(values.map((v) => ["DATA", v] as const));
+			ctx.down(values.map((v) => ["DATA", v] as const));
 		},
 		{
 			name,
@@ -49,7 +49,7 @@ export function agenticMemoryProjection<TFact, T>(
 			for (const raw of ctx.deps[0].waves.flat()) {
 				values.push(select(raw as AgenticMemoryProjectionSnapshot<T>));
 			}
-			if (values.length > 0) ctx.down(values.map((v) => ["DATA", v] as const));
+			ctx.down(values.map((v) => ["DATA", v] as const));
 		},
 		{
 			name,
@@ -76,7 +76,7 @@ export function agenticMemoryContextProjection<T>(
 			for (const raw of retrievalFacts) {
 				contexts.push(contextFromSnapshot(projectionFact, raw as MemoryRetrievalSnapshot<T>));
 			}
-			if (contexts.length > 0) ctx.down(contexts.map((v) => ["DATA", v] as const));
+			ctx.down(contexts.map((v) => ["DATA", v] as const));
 		},
 		{
 			name,

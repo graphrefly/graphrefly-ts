@@ -155,7 +155,7 @@ export function workQueue<T = unknown>(graph: Graph, opts: WorkQueueOptions<T>):
 				// A request for one page, after this wave (graphrefly-ts:D172).
 				(admission.availableRequest as StateNode<WorkQueueAvailableParams>).set({ limit: 100 });
 			}
-			if (pages.length > 0) ctx.down(pages.map((v) => ["DATA", v] as const));
+			ctx.down(pages.map((v) => ["DATA", v] as const));
 		},
 		{
 			name: `${name}/admissionPages`,
@@ -186,7 +186,7 @@ export function workQueue<T = unknown>(graph: Graph, opts: WorkQueueOptions<T>):
 					),
 				);
 			}
-			if (events.length > 0) ctx.down(events.map((v) => ["DATA", v] as const));
+			ctx.down(events.map((v) => ["DATA", v] as const));
 		},
 		{
 			name: `${name}/runtime`,
@@ -203,7 +203,7 @@ export function workQueue<T = unknown>(graph: Graph, opts: WorkQueueOptions<T>):
 				const typed = event as QueueEvent<T>;
 				if (typed.kind === "record") values.push(typed.record);
 			}
-			if (values.length > 0) ctx.down(values.map((v) => ["DATA", v] as const));
+			ctx.down(values.map((v) => ["DATA", v] as const));
 		},
 		{
 			name: `${name}/records`,
@@ -220,7 +220,7 @@ export function workQueue<T = unknown>(graph: Graph, opts: WorkQueueOptions<T>):
 				const typed = event as QueueEvent<T>;
 				if (typed.kind === "status") values.push(typed.status);
 			}
-			if (values.length > 0) ctx.down(values.map((v) => ["DATA", v] as const));
+			ctx.down(values.map((v) => ["DATA", v] as const));
 		},
 		{
 			name: `${name}/status`,
@@ -237,7 +237,7 @@ export function workQueue<T = unknown>(graph: Graph, opts: WorkQueueOptions<T>):
 				const typed = event as QueueEvent<T>;
 				if (typed.kind === "issue") values.push(typed.issue);
 			}
-			if (values.length > 0) ctx.down(values.map((v) => ["DATA", v] as const));
+			ctx.down(values.map((v) => ["DATA", v] as const));
 		},
 		{
 			name: `${name}/issues`,
@@ -254,7 +254,7 @@ export function workQueue<T = unknown>(graph: Graph, opts: WorkQueueOptions<T>):
 				const command = admissionAckCommand(record as WorkQueueRecord<T>);
 				if (command !== undefined) ackCommands.push(command);
 			}
-			if (ackCommands.length > 0) ctx.down(ackCommands.map((v) => ["DATA", v] as const));
+			ctx.down(ackCommands.map((v) => ["DATA", v] as const));
 		},
 		{
 			name: `${name}/admissionAckCommands`,

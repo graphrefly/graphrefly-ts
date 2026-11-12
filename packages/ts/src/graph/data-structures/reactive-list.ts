@@ -342,7 +342,7 @@ export function reactiveList<T>(
 					} catch (e) {
 						out.push(["ERROR", errorPayload(e, "reactiveList.bindSource failed")]);
 					}
-					if (out.length > 0) ctx.down(out);
+					ctx.down(out);
 				},
 			};
 			const folder = graph.initNode(op, [src], {

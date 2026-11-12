@@ -172,7 +172,7 @@ export function workItemEffectRunProjector(
 				);
 			}
 			ctx.state.set(state);
-			if (facts.length > 0) ctx.down(facts.map((v) => ["DATA", v] as const));
+			ctx.down(facts.map((v) => ["DATA", v] as const));
 		},
 		{ name: `${name}/runtime`, factory: "workItemEffectRunProjector" },
 	);

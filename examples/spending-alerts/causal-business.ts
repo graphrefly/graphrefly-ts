@@ -86,7 +86,7 @@ export function project<T, U>(
 				),
 			);
 		}
-		if (values.length > 0) ctx.down(values.map((v) => ["DATA", v] as const));
+		ctx.down(values.map((v) => ["DATA", v] as const));
 	});
 }
 /** Finite exact-key join; invalid DATA and native invalidation revoke the corresponding input. */
@@ -206,7 +206,7 @@ export function checked<T>(
 			ctx.state.set(state);
 			values.push(result);
 		}
-		if (values.length > 0) ctx.down(values.map((v) => ["DATA", v] as const));
+		ctx.down(values.map((v) => ["DATA", v] as const));
 	});
 }
 export interface MessageValue {
@@ -299,7 +299,7 @@ export function buildBusiness(make: MakeNode, inputs: SpendingInputs, binding: S
 				emitPending();
 			}
 			if (problems.length) values.push(frame([], problems, false));
-			if (values.length > 0) ctx.down(values.map((v) => ["DATA", v] as const));
+			ctx.down(values.map((v) => ["DATA", v] as const));
 		},
 	);
 	const transaction = project(

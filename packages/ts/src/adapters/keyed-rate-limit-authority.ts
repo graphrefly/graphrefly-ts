@@ -297,7 +297,7 @@ export function attachKeyedRateLimitAuthority(
 				}
 			}
 			inRun = false;
-			if (pending.length > 0) ctx.down(pending);
+			ctx.down(pending);
 		},
 		{
 			name: `${name}/events`,

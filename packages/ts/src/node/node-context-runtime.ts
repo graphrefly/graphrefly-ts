@@ -135,6 +135,9 @@ export function nodeMakeCtx<T>(
 		// ctx at depth 0, so this is the boundary that drains any ctx.rewire it issued.
 		down: (msgs) => {
 			if (self._released || signal.aborted) return;
+			// An empty array sends nothing: no array, no wave, no request, no output (as in Rust
+			// and Python), during the run, after it and inside a batch body.
+			if (msgs.length === 0) return;
 			validateNodeOutput(msgs);
 			// R-failure: an invalid array throws from ctx.down, before anything is accepted.
 			prepareArrays(msgs);
@@ -155,7 +158,7 @@ export function nodeMakeCtx<T>(
 			});
 		},
 		emit: (...values) => {
-			if (values.length > 0) ctx.down(values.map((v) => ["DATA", v] as const));
+			ctx.down(values.map((v) => ["DATA", v] as const));
 		},
 		deps: makeDepViews(self, inputs),
 		state: self._makeState(signal),
