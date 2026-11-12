@@ -11,7 +11,7 @@ const g = graph({ name: "jotai-example" });
 
 // Primitive writable atom over a clean-slate state node.
 const countNode = g.state(0, { name: "count" });
-const count = jotaiAtom<number>(countNode);
+const count = jotaiAtom(countNode);
 
 // Read-only derived atom over a clean-slate derived node.
 const doubledNode = g.derived([countNode], (n) => n * 2, { name: "doubled" });

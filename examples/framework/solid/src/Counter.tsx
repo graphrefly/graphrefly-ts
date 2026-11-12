@@ -3,7 +3,7 @@ import type { Component } from "solid-js";
 import { count, doubled } from "./store";
 
 export const Counter: Component = () => {
-	const [value, setValue] = createNodeInput<number>(count);
+	const [value, setValue] = createNodeInput(count);
 	const dbl = createNodeValue(doubled);
 	return (
 		<section>

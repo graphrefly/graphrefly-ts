@@ -94,7 +94,8 @@ export interface SubscribeValuesOptions<T> {
 }
 
 export interface WritableNode<T> extends Node<T> {
-	set(value: T): void;
+	/** NoInfer: T comes from the node's value, so a StateNode<T> (whose set also takes a function) gives T. */
+	set(value: NoInfer<T>): void;
 }
 
 export interface WritableStoreOptions<T> extends SubscribeValuesOptions<T> {

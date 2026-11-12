@@ -24,7 +24,7 @@ export const rawDoubledNode = counterGraph.derived([rawNode], (n) => (n ?? 0) * 
 
 // 2. Jotai-style facade over caller-owned GraphReFly nodes.
 export const jotaiNode = counterGraph.state(0, { name: "jotai/count" });
-export const jotaiCounter: WritableJotaiAtom<number> = jotaiAtom<number>(jotaiNode);
+export const jotaiCounter: WritableJotaiAtom<number> = jotaiAtom(jotaiNode);
 export const jotaiDoubledNode = counterGraph.derived([jotaiNode], (n) => (n ?? 0) * 2, {
 	name: "jotai/doubled",
 });
