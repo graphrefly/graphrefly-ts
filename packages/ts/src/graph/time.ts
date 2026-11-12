@@ -27,7 +27,7 @@
  *                        ctx.rewire — a normal `g.initNode(audit(sel), [source])` operator.
  *   - timeout / bufferTime — SUBSCRIBE-ARMED (RxJS-cold): the clock must run from activation, before
  *                        any source value, so the timer/interval is a CONSTRUCTION-time dep (a depless
- *                        source arms lazily on subscribe per node `_activate`). A dep-bearing operator
+ *                        source arms lazily on subscribe per node activation). A dep-bearing operator
  *                        body never runs at activation (only depless nodes do, node.ts), so these ship
  *                        as graph composition HELPERS `timeout(source, ms)` / `bufferTime(source, ms)`
  *                        returning a Node — NOT `g.initNode(op, [deps])` operators. timeout resets its
@@ -261,7 +261,7 @@ interface TimeoutState {
  * timeout: idle watchdog — forward every source value, but ERROR if more than `ms` elapses with no
  * value (RxJS `timeout(ms)`, `first === each === ms`). SUBSCRIBE-ARMED: the first `timer(ms)` is a
  * CONSTRUCTION-time dep, so it arms when `timeout`'s node is subscribed/activated (a depless source
- * runs lazily on `_activate`) — i.e. a source that never emits its FIRST value within `ms` still
+ * runs lazily on activation) — i.e. a source that never emits its FIRST value within `ms` still
  * errors. A dep-bearing operator body never runs at activation (only depless nodes do, node.ts), which
  * is why this is a HELPER returning a Node, not a `g.initNode(op, [source])` operator.
  *

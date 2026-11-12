@@ -6,8 +6,9 @@
  */
 
 import { describe, expect, it } from "vitest";
-import type { Ctx, Graph, Message, Wave } from "../index.js";
+import type { Ctx, Graph, Message, Node, Wave } from "../index.js";
 import { concatMap, Dispatcher, exhaustMap, graph, mergeMap, repeat, switchMap } from "../index.js";
+import { CORE } from "../node/node-keys.js";
 
 function collect(n: { subscribe(s: (msgs: Wave) => void): () => void }) {
 	const msgs: Message[] = [];
@@ -20,7 +21,7 @@ function collect(n: { subscribe(s: (msgs: Wave) => void): () => void }) {
 }
 const data = (m: Message[]) =>
 	m.filter((x) => x[0] === "DATA").map((x) => (x as ["DATA", unknown])[1]);
-const coreOf = (n: object) => (n as unknown as Record<string, unknown>)._core;
+const coreOf = (n: Node<unknown>) => n[CORE];
 
 class CountingDispatcher extends Dispatcher {
 	register(...args: Parameters<Dispatcher["register"]>): ReturnType<Dispatcher["register"]> {
@@ -101,9 +102,9 @@ describe("mergeMap (D47 / R-request-order)", () => {
 		const inner = op.deps[1];
 
 		expect(trapNode).not.toBeNull();
-		expect(coreOf(trapNode as object)).not.toBe(coreOf(op));
+		expect(coreOf(trapNode as unknown as Node<unknown>)).not.toBe(coreOf(op));
 		expect(inner).toBeDefined();
-		expect(coreOf(inner as object)).toBe(coreOf(op));
+		expect(coreOf(inner as Node<unknown>)).toBe(coreOf(op));
 		expect(dispatcher.registerCount).toBeGreaterThan(1);
 	});
 

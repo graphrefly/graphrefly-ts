@@ -5,8 +5,8 @@ import type { Message, Wave } from "../protocol/messages.js";
 import { isTerminal, SENTINEL } from "../protocol/messages.js";
 import type { Subscriber } from "./core.js";
 import type { Node } from "./node.js";
-import { nodeCloseLifetime } from "./node-lifecycle-runtime.js";
-import type { NodeRuntimeHost } from "./node-runtime-host.js";
+import { CORE, LIFECYCLE, RELEASED, SLOT, VALUE, WAVE } from "./node-keys.js";
+import { nodeCloseLifetime, nodeResetDepState } from "./node-lifecycle-runtime.js";
 import { validateDownPayloads } from "./protocol-guards.js";
 
 /**
@@ -46,24 +46,23 @@ export function prepareArrays(msgs: Wave): Message[][] {
 	return arrays;
 }
 
-export function nodeDown<T>(self: NodeRuntimeHost<T>, msgs: Wave): void {
-	if (self._released) return;
+export function nodeDown<T>(self: Node<T>, msgs: Wave): void {
+	if (self[RELEASED]) return;
 	validateDownPayloads(msgs);
 	// Terminal-is-forever (R-terminals): once COMPLETE/ERROR has been emitted the node's output
 	// is final; later output is dropped.
-	if (self._value.terminal !== undefined) return;
+	if (self[VALUE].terminal !== undefined) return;
 	const arrays = prepareArrays(msgs);
 	if (arrays.length === 0) return;
 	// R-wave: a running function's arrays reach its subscribers after it returned.
-	if (self._wave.insideRunWave) {
-		self._wave.runOutput.push(...arrays);
+	if (self[WAVE].insideRunWave) {
+		self[WAVE].runOutput.push(...arrays);
 		return;
 	}
 	// O3 / R-request-order: a batch body delivers nothing; its writes commit as one array per
 	// node. A terminal already staged must stay last.
-	if (currentBatch(self._core)) {
-		for (const array of arrays)
-			stageToBatch(self._core, self as unknown as Node<unknown>, array, "down");
+	if (currentBatch(self[CORE])) {
+		for (const array of arrays) stageToBatch(self[CORE], self, array, "down");
 		return;
 	}
 	nodePublish(self, arrays);
@@ -96,11 +95,11 @@ export function takeTailCall(): number {
 }
 
 /** What a settling caller still does after its publication's fanout (Q15). */
-export type SettleTail = (self: NodeRuntimeHost<unknown>, rest: Message[][] | undefined) => void;
+export type SettleTail = (self: Node<unknown>, rest: Message[][] | undefined) => void;
 
 /** One publication being delivered: the recursive delivery loop's state, kept on the heap. */
 interface Delivery {
-	readonly self: NodeRuntimeHost<unknown>;
+	readonly self: Node<unknown>;
 	readonly out: readonly Message[][];
 	readonly subs: Subscriber[];
 	readonly ending: boolean;
@@ -123,7 +122,7 @@ const PENDING_MARK: readonly Wave[] = [[["PENDING"]]];
  * remains: the kernel marks the cone pending first, through the dependent channel, then each
  * subscriber receives every array in order before the next subscriber (R-wave).
  */
-export function nodePublish<T>(self: NodeRuntimeHost<T>, arrays: readonly Message[][]): void {
+export function nodePublish<T>(self: Node<T>, arrays: readonly Message[][]): void {
 	const d = nodeBeginPublish(self, arrays, undefined, undefined);
 	if (d === null) return;
 	const base = deliveries.length;
@@ -137,7 +136,7 @@ export function nodePublish<T>(self: NodeRuntimeHost<T>, arrays: readonly Messag
  * Returns false when nothing goes out; the caller then does its own tail at once.
  */
 export function nodePublishTail<T>(
-	self: NodeRuntimeHost<T>,
+	self: Node<T>,
 	arrays: readonly Message[][],
 	after: SettleTail,
 	rest: Message[][] | undefined,
@@ -150,22 +149,22 @@ export function nodePublishTail<T>(
 
 /** Everything a publication does before its fanout; null when nothing goes out. */
 function nodeBeginPublish<T>(
-	self: NodeRuntimeHost<T>,
+	self: Node<T>,
 	arrays: readonly Message[][],
 	after: SettleTail | undefined,
 	rest: Message[][] | undefined,
 ): Delivery | null {
-	if (self._released) return null;
+	if (self[RELEASED]) return null;
 	const out: Message[][] = [];
 	for (const array of arrays) {
-		if (self._value.terminal !== undefined) break; // nothing after a terminal
+		if (self[VALUE].terminal !== undefined) break; // nothing after a terminal
 		const kept: Message[] = [];
 		const values: T[] = [];
 		for (const m of array) {
 			if (m[0] === "DATA") {
 				const v = m[1] as T;
-				self._value.cache = v;
-				self._value.hasData = true;
+				self[VALUE].cache = v;
+				self[VALUE].hasData = true;
 				values.push(v);
 				kept.push(m);
 				continue;
@@ -176,42 +175,42 @@ function nodeBeginPublish<T>(
 			}
 			if (m[0] === "INVALIDATE") {
 				// R-invalidation: effective only while a value is retained.
-				if (!self._value.hasData) continue;
-				self._value.cache = SENTINEL;
-				self._value.hasData = false;
-				self._value.lastArray = [];
+				if (!self[VALUE].hasData) continue;
+				self[VALUE].cache = SENTINEL;
+				self[VALUE].hasData = false;
+				self[VALUE].lastArray = [];
 				kept.push(m);
 				continue;
 			}
 			if (m[0] === "COMPLETE") {
-				self._value.terminal = true;
+				self[VALUE].terminal = true;
 				kept.push(m);
 				continue;
 			}
 			if (m[0] === "ERROR") {
-				self._value.terminal = m[1];
+				self[VALUE].terminal = m[1];
 				kept.push(m);
 			}
 		}
 		// R-subscription: an array with values replaces the retained ones.
-		if (values.length > 0) self._value.lastArray = values;
+		if (values.length > 0) self[VALUE].lastArray = values;
 		if (kept.length > 0) out.push(kept);
 	}
 	if (out.length === 0) return null;
-	if (!self._wave.emittedDirtyThisWave) {
+	if (!self[WAVE].emittedDirtyThisWave) {
 		// A node publishing without having been marked (a source, a later output, a first run)
 		// marks its own cone first, so a fan-in below waits for every input of the wave.
-		self._wave.emittedDirtyThisWave = true;
+		self[WAVE].emittedDirtyThisWave = true;
 		nodeMarkDependents(self);
 	}
-	self._wave.emittedSettleThisWave = true;
+	self[WAVE].emittedSettleThisWave = true;
 	const ending =
-		self._value.terminal !== undefined && out.some((a) => a.some((m) => isTerminal(m[0])));
+		self[VALUE].terminal !== undefined && out.some((a) => a.some((m) => isTerminal(m[0])));
 	return {
-		self: self as NodeRuntimeHost<unknown>,
+		self: self,
 		out,
 		// The subscriber list as it was when publication began (a copy guards against changes).
-		subs: [...self._lifecycle.subscribers],
+		subs: [...self[LIFECYCLE].subscribers],
 		ending,
 		si: 0,
 		after,
@@ -239,7 +238,7 @@ function driveDeliveries(base: number): void {
 /** After a publication's fanout: its own tail, then its settling caller's. */
 function nodeFinishPublish(d: Delivery): void {
 	const self = d.self;
-	if (!self._wave.insideRunWave) self._wave.emittedDirtyThisWave = false;
+	if (!self[WAVE].insideRunWave) self[WAVE].emittedDirtyThisWave = false;
 	// R-terminals / R-lifetime: an ended node closes its lifetime after its terminal's fanout.
 	if (d.ending) nodeCloseEndedLifetime(self);
 	if (d.after !== undefined) d.after(self, d.rest);
@@ -253,7 +252,7 @@ function nodeDeliverStep(d: Delivery): boolean {
 	const self = d.self;
 	const out = d.out;
 	while (d.si < d.subs.length) {
-		if (self._released) return false;
+		if (self[RELEASED]) return false;
 		const sub = d.subs[d.si++] as Subscriber;
 		if (sub.kind === "sink") {
 			for (const array of out) nodeCallSink(self, sub, [["PENDING"], ...array]);
@@ -275,9 +274,9 @@ function nodeDeliverStep(d: Delivery): boolean {
  * cleanup, which may still read the private state, and then drops the private state. The node
  * keeps its values, terminal and subscribers, and its function never runs again.
  */
-export function nodeCloseEndedLifetime<T>(self: NodeRuntimeHost<T>): void {
+export function nodeCloseEndedLifetime<T>(self: Node<T>): void {
 	nodeCloseLifetime(self);
-	self._resetDepState();
+	nodeResetDepState(self);
 }
 
 /** One node's pending mark being sent: the recursive marking loop's state (Q15). */
@@ -293,9 +292,9 @@ const markings: Marking[] = [];
  * dependent marking its own cone straight from the marking loop; its mark becomes a frame of that
  * loop, sent to its end before the loop goes on, as the recursive call was.
  */
-export function nodeMarkDependents<T>(self: NodeRuntimeHost<T>, tail = false): void {
-	if (self._released) return;
-	const m: Marking = { subs: [...self._lifecycle.subscribers], i: 0 };
+export function nodeMarkDependents<T>(self: Node<T>, tail = false): void {
+	if (self[RELEASED]) return;
+	const m: Marking = { subs: [...self[LIFECYCLE].subscribers], i: 0 };
 	if (tail) {
 		markings.push(m);
 		return;
@@ -328,7 +327,7 @@ export function nodeMarkDependents<T>(self: NodeRuntimeHost<T>, tail = false): v
  * that throws is ignored.
  */
 export function nodeCallSink<T>(
-	self: NodeRuntimeHost<T>,
+	self: Node<T>,
 	sub: Subscriber & { kind: "sink" },
 	array: Wave,
 ): void {
@@ -336,21 +335,21 @@ export function nodeCallSink<T>(
 	try {
 		sink(array);
 	} catch (error) {
-		reportFailure(self._core, `sink of ${self._slot.name ?? "node"}`, error);
+		reportFailure(self[CORE], `sink of ${self[SLOT].name ?? "node"}`, error);
 	}
 }
 
-export function nodeMarkBatchedWave<T>(self: NodeRuntimeHost<T>, wave: Wave): void {
+export function nodeMarkBatchedWave<T>(self: Node<T>, wave: Wave): void {
 	// O3: a batch commit is one wave: every staged node marks its cone before any delivers.
-	if (self._released || self._value.terminal !== undefined) return;
-	if (!wave.some(isMarking) || self._wave.emittedDirtyThisWave) return;
-	self._wave.emittedDirtyThisWave = true;
+	if (self[RELEASED] || self[VALUE].terminal !== undefined) return;
+	if (!wave.some(isMarking) || self[WAVE].emittedDirtyThisWave) return;
+	self[WAVE].emittedDirtyThisWave = true;
 	nodeMarkDependents(self);
 }
 
 /** R-request-order: compute the function writes a batch staged (set(fn)), in staged order. */
-export function nodeResolveBatchedWave<T>(self: NodeRuntimeHost<T>, wave: Wave): Wave {
-	let current: unknown = self._value.hasData ? self._value.cache : undefined;
+export function nodeResolveBatchedWave<T>(self: Node<T>, wave: Wave): Wave {
+	let current: unknown = self[VALUE].hasData ? self[VALUE].cache : undefined;
 	const out: Message[] = [];
 	for (const m of wave) {
 		if (m[0] === "INVALIDATE") current = undefined;
@@ -371,14 +370,10 @@ export function nodeResolveBatchedWave<T>(self: NodeRuntimeHost<T>, wave: Wave):
 	return out;
 }
 
-export function nodeCommitBatchedWave<T>(self: NodeRuntimeHost<T>, wave: Wave): void {
-	self._down(wave); // batch is inactive at commit -> publishes normally
+export function nodeCommitBatchedWave<T>(self: Node<T>, wave: Wave): void {
+	nodeDown(self, wave); // batch is inactive at commit -> publishes normally
 }
 
-export function nodeDeferBoundary<T>(
-	self: NodeRuntimeHost<T>,
-	fn: () => void,
-	batchToken?: object,
-): void {
-	deferRequest(self._core, fn, { batchToken });
+export function nodeDeferBoundary<T>(self: Node<T>, fn: () => void, batchToken?: object): void {
+	deferRequest(self[CORE], fn, { batchToken });
 }

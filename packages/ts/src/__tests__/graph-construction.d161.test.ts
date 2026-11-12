@@ -9,8 +9,10 @@ import {
 } from "../graph/construction-scope.js";
 import { Graph, type GraphOptions } from "../graph/graph.js";
 import { NodeCore, type NodeId } from "../node/core.js";
-import { Node, type StateNode } from "../node/node.js";
-import { nodeRuntimeHost } from "../node/node-runtime-host.js";
+import type { StateNode } from "../node/node.js";
+import * as inputRuntime from "../node/node-input-runtime.js";
+import { DEP, LIFECYCLE } from "../node/node-keys.js";
+import * as lifecycleRuntime from "../node/node-lifecycle-runtime.js";
 import { checkpointStateOfNode, subscriberCountOfNode } from "../node/runtime-accessors.js";
 import {
 	assertCausalCapabilities,
@@ -358,7 +360,6 @@ describe("D161 graph construction ownership", () => {
 		side.subscribe((msgs) => {
 			if (msgs.some((m) => m[0] === "DATA" && m[1] === 1)) throw new Error("side sink");
 		});
-		const host = nodeRuntimeHost(f.join);
 		const owner = f.scope.seal(f.startup, [f.join]);
 		f.scope.transferToGraph(owner);
 		startConstruction(f.graph, owner);
@@ -375,7 +376,7 @@ describe("D161 graph construction ownership", () => {
 		expect(owner.roots.find((r) => r.node === f.join)?.unsubscribe).toBeTypeOf("function");
 		expect(subscriberCountOfNode(f.join)).toBe(1);
 		// R-subscription: activation comes before START, so the failure finds the node activated.
-		expect(host._lifecycle.activated).toBe(true);
+		expect(f.join[LIFECYCLE].activated).toBe(true);
 	});
 
 	it("keeps deep dependency leases without disturbing a shared existing subscriber when a deep node's activation fails", () => {
@@ -404,7 +405,7 @@ describe("D161 graph construction ownership", () => {
 		expect(String(owner.startupError)).toBe("Error: deep handshake");
 		expect(subscriberCountOfNode(f.a)).toBe(3);
 		expect(subscriberCountOfNode(f.b)).toBe(1);
-		expect(nodeRuntimeHost(f.right)._dep.inputs[1].unsub).toBeTypeOf("function");
+		expect(f.right[DEP].inputs[1].unsub).toBeTypeOf("function");
 		f.a.set(4);
 		expect(values).toEqual([2, 4]);
 	});
@@ -634,7 +635,7 @@ describe("D161 graph construction ownership", () => {
 			cause = error;
 		}
 		const cleanup = new Error("release before persistence");
-		vi.spyOn(nodeRuntimeHost(Node.prototype), "_releaseRuntime").mockImplementation(() => {
+		vi.spyOn(lifecycleRuntime, "nodeReleaseRuntime").mockImplementation(() => {
 			throw cleanup;
 		});
 		let failure: ColdConstructionError | undefined;
@@ -721,20 +722,14 @@ describe("D161 graph construction ownership", () => {
 			},
 			{ name: "rewired/root" },
 		);
-		const original = nodeRuntimeHost(b)._subscribeOwned.bind(nodeRuntimeHost(b));
-		vi.spyOn(nodeRuntimeHost(b), "_subscribeOwned").mockImplementation((subscriber, acquisition) =>
-			original(
-				subscriber.kind === "dependent"
-					? {
-							kind: "dependent",
-							fn: (arrays, snapshot) => {
-								if (arrays[0]?.[0]?.[0] === "START") throw new Error("rewire handshake");
-								subscriber.fn(arrays, snapshot);
-							},
-						}
-					: subscriber,
-				acquisition,
-			),
+		// b's dependent (root, after the rewire) throws on the START of its handshake.
+		const receive = inputRuntime.nodeReceiveFromDep;
+		vi.spyOn(inputRuntime, "nodeReceiveFromDep").mockImplementation(
+			(self, idx, arrays, snapshot) => {
+				if (self === root && root.deps[idx] === b && arrays[0]?.[0]?.[0] === "START")
+					throw new Error("rewire handshake");
+				receive(self, idx, arrays, snapshot);
+			},
 		);
 		const owner = scope.seal(startup, [root]);
 		scope.transferToGraph(owner);

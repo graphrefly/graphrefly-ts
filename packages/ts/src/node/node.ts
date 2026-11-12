@@ -14,7 +14,7 @@
  */
 
 import { currentBatch, DeferredWrite, request, stageToBatch } from "../batch/batch.js";
-import type { Ctx, CtxState, NodeFn, Sink } from "../ctx/types.js";
+import type { NodeFn, Sink } from "../ctx/types.js";
 import { defaultDispatcher, type Handle } from "../dispatcher/index.js";
 import { EnvironmentDrivers } from "../graph/environment.js";
 import { type Message, SENTINEL, type Wave } from "../protocol/messages.js";
@@ -33,47 +33,28 @@ import {
 	type WaveState,
 } from "./core.js";
 import {
-	nodeBuildCtx,
-	nodeMakeCtx,
-	nodeMakeState,
-	nodeRefreshCtx,
-} from "./node-context-runtime.js";
-import {
-	nodeMarkDirty,
-	nodeMaybeRun,
-	nodeReceiveFromDep,
-	nodeSettle,
-	nodeSettleRewire,
-	nodeTryRun,
-} from "./node-input-runtime.js";
-import {
-	nodeActivate,
-	nodeDeactivate,
-	nodeIsRuntimeQuiescentForRelease,
-	nodeReleaseRuntime,
-	nodeResetDepState,
-	nodeStatus,
-	nodeSubscribeDepAt,
-	nodeSubscribeOwned,
-	nodeSubscriberCount,
-} from "./node-lifecycle-runtime.js";
-import {
-	nodeDown,
-	nodeMarkDependents,
-	nodePublish,
-	nodeResolveBatchedWave,
-} from "./node-output-runtime.js";
-import { nodeRewire } from "./node-rewire-runtime.js";
-import { nodeRuntimeHost } from "./node-runtime-host.js";
+	CORE,
+	DEP,
+	ID,
+	LIFECYCLE,
+	LIFETIME,
+	PRIVATE_STATE,
+	RELEASED,
+	SEED_NOTE,
+	SLOT,
+	SYNC_CTX,
+	VALUE,
+	WAVE,
+} from "./node-keys.js";
+import { nodeAssertNotReleased, nodeStatus, nodeSubscribeOwned } from "./node-lifecycle-runtime.js";
+import { nodeDown, nodeResolveBatchedWave } from "./node-output-runtime.js";
 import {
 	constructionAcquisitions,
 	failNodeAcquisition,
 	type NodeAcquisition,
-	type SubscriptionAcquisition,
 } from "./owned-acquisition.js";
 import { validateNodeOutput } from "./protocol-guards.js";
 import {
-	getNodeOwner,
 	issueNodeRegistration,
 	runningGraph,
 	takeConstructingDispatcher,
@@ -126,50 +107,21 @@ export function nodeCreationIndex(node: Node<unknown>): number {
 }
 
 export class Node<T = unknown> {
-	private readonly _core: NodeCore;
-	private readonly _id: NodeId;
-	private readonly _slot: NodeSlot<T>;
-	private readonly _dep: DepBookkeeping;
-	private readonly _value: ValueState<T>;
-	// biome-ignore lint/correctness/noUnusedPrivateClassMembers: accessed through the checked internal runtime host.
-	private readonly _wave: WaveState;
-	// biome-ignore lint/correctness/noUnusedPrivateClassMembers: accessed through the checked internal runtime host.
-	private readonly _lifecycle: LifecycleState;
-	// biome-ignore lint/correctness/noUnusedPrivateClassMembers: used by the issued runtime host.
-	private readonly _privateState: PrivateState;
-	private readonly _lifetime: LifetimeState;
-	private readonly _syncCtxState: SyncCtxState;
-	private _seedNote: unknown = undefined;
-	private _released = false;
-	// biome-ignore lint/correctness/noUnusedPrivateClassMembers: accessed through the checked internal runtime host.
-	private get _syncCtx(): Ctx | null {
-		return this._syncCtxState.value;
-	}
-	// biome-ignore lint/correctness/noUnusedPrivateClassMembers: accessed through the checked internal runtime host.
-	private set _syncCtx(ctx: Ctx | null) {
-		this._syncCtxState.value = ctx;
-	}
-
-	private static _retainIndirectRuntimeMethods(node: Node<unknown>): void {
-		void node._dep;
-		void node._lifetime;
-		void node._seedNote;
-		void node._reachableUpstream;
-		void node._assertRewireDepOwner;
-		void node._subscribeDepAt;
-		void node._receiveFromDep;
-		void node._markDirty;
-		void node._maybeRun;
-		void node._settleRewire;
-		void node._tryRun;
-		void node._runWave;
-		void node._buildCtx;
-		void node._makeCtx;
-		void node._refreshCtx;
-		void node._makeState;
-		void node._markDependents;
-		void node._publish;
-	}
+	// The node's kernel state (review §5.7), keyed by the internal symbols of ./node-keys.ts: the
+	// node-*-runtime modules read and write it directly. `private`, so the published declarations
+	// show the keys without their types.
+	private readonly [CORE]: NodeCore;
+	private readonly [ID]: NodeId;
+	private readonly [SLOT]: NodeSlot<T>;
+	private readonly [DEP]: DepBookkeeping;
+	private readonly [VALUE]: ValueState<T>;
+	private readonly [WAVE]: WaveState;
+	private readonly [LIFECYCLE]: LifecycleState;
+	private readonly [PRIVATE_STATE]: PrivateState;
+	private readonly [LIFETIME]: LifetimeState;
+	private readonly [SYNC_CTX]: SyncCtxState;
+	private [SEED_NOTE]: unknown = undefined;
+	private [RELEASED] = false;
 
 	constructor(
 		deps: Node<unknown>[],
@@ -219,8 +171,8 @@ export class Node<T = unknown> {
 			// R-graph-domain@3: a node belongs to one graph's domain; there is no standalone node.
 			if (core === undefined)
 				throw new Error("node: a node is built by a graph (graph.node, graph.state, ...)");
-			this._core = core;
-			const created = this._core.createSlot<T>(
+			this[CORE] = core;
+			const created = this[CORE].createSlot<T>(
 				{
 					deps,
 					handle,
@@ -264,18 +216,17 @@ export class Node<T = unknown> {
 				acquisition,
 			);
 			// Also bind the returned slot if an internal wrapper did not forward the journal.
-			acquisition.core = this._core;
+			acquisition.core = this[CORE];
 			acquisition.slot = created.id;
-			this._id = created.id;
-			this._slot = this._core.get<T>(this._id);
-			this._dep = this._core.getDep(this._id);
-			this._value = this._core.getValue<T>(this._id);
-			this._wave = this._core.getWave(this._id);
-			this._lifecycle = this._core.getLifecycle(this._id);
-			this._privateState = this._core.getPrivateState(this._id);
-			this._lifetime = this._core.getLifetime(this._id);
-			this._syncCtxState = this._core.getSyncCtx(this._id);
-			Node._retainIndirectRuntimeMethods(this as Node<unknown>);
+			this[ID] = created.id;
+			this[SLOT] = this[CORE].get<T>(this[ID]);
+			this[DEP] = this[CORE].getDep(this[ID]);
+			this[VALUE] = this[CORE].getValue<T>(this[ID]);
+			this[WAVE] = this[CORE].getWave(this[ID]);
+			this[LIFECYCLE] = this[CORE].getLifecycle(this[ID]);
+			this[PRIVATE_STATE] = this[CORE].getPrivateState(this[ID]);
+			this[LIFETIME] = this[CORE].getLifetime(this[ID]);
+			this[SYNC_CTX] = this[CORE].getSyncCtx(this[ID]);
 			issueNodeRegistration(this as Node<unknown>);
 			acquisition.node = this as Node<unknown>;
 		} catch (cause) {
@@ -285,21 +236,21 @@ export class Node<T = unknown> {
 	}
 
 	get cache(): T | undefined {
-		return this._value.cache;
+		return this[VALUE].cache;
 	}
 
 	/** R-node@2: derived from what the node holds; reading it changes nothing. */
 	get status(): Status {
-		return nodeStatus(nodeRuntimeHost(this));
+		return nodeStatus(this);
 	}
 
 	get name(): string | undefined {
-		return this._slot.name;
+		return this[SLOT].name;
 	}
 
 	/** D51: real factory name for a standalone graph-less node (a runtime *Map inner). */
 	get factory(): string | undefined {
-		return this._slot.factory;
+		return this[SLOT].factory;
 	}
 
 	/**
@@ -309,7 +260,7 @@ export class Node<T = unknown> {
 	 * Inspection-only, like cache/status; never triggers computation.
 	 */
 	get deps(): readonly Node<unknown>[] {
-		return this._slot.deps;
+		return this[SLOT].deps;
 	}
 
 	/**
@@ -319,7 +270,7 @@ export class Node<T = unknown> {
 	 * (R-node-thin / D39).
 	 */
 	get handle(): Handle | null {
-		return this._slot.handle;
+		return this[SLOT].handle;
 	}
 
 	/**
@@ -328,28 +279,19 @@ export class Node<T = unknown> {
 	 * every array the node sends, each with the kernel's PENDING first (graphrefly-ts:D175).
 	 */
 	subscribe(sink: Sink): () => void {
-		this._assertNotReleased("subscribe");
+		nodeAssertNotReleased(this, "subscribe");
 		// R-request-order: subscribe and unsubscribe are requests; during a wave they wait for it.
 		let stop: (() => void) | undefined;
 		let cancelled = false;
-		request(this._core, () => {
-			if (!cancelled) stop = this._subscribeOwned({ kind: "sink", fn: sink });
+		request(this[CORE], () => {
+			if (!cancelled) stop = nodeSubscribeOwned(this, { kind: "sink", fn: sink });
 		});
 		return () => {
-			request(this._core, () => {
+			request(this[CORE], () => {
 				cancelled = true;
 				stop?.();
 			});
 		};
-	}
-
-	private _subscribeOwned(
-		subscriber: Subscriber,
-		acquisition?: SubscriptionAcquisition,
-	): () => void {
-		// graphrefly-ts Q15: activation runs on an explicit stack (nodeSubscribeOwned), so a chain of
-		// any depth subscribes without JS recursion.
-		return nodeSubscribeOwned(nodeRuntimeHost(this), subscriber, acquisition);
 	}
 
 	/**
@@ -358,21 +300,21 @@ export class Node<T = unknown> {
 	 */
 	/** Host input to a state node (R-request-order); StateNode exposes it as its four inputs. */
 	protected _hostInput(msgs: Wave): void {
-		this._assertNotReleased("down");
+		nodeAssertNotReleased(this, "down");
 		validateNodeOutput(msgs);
 		// R-terminals: a host input to an ended node is refused.
-		if (this._value.terminal !== undefined)
+		if (this[VALUE].terminal !== undefined)
 			throw new Error("down: this node has ended (R-terminals)");
-		if (currentBatch(this._core)) {
-			this._down(msgs);
+		if (currentBatch(this[CORE])) {
+			nodeDown(this, msgs);
 			return;
 		}
 		// R-request-order: during a wave a host input waits for it, so no function is reentered.
-		request(this._core, () => {
+		request(this[CORE], () => {
 			// Checked again: a queued input may find its node ended by an earlier request.
-			if (this._value.terminal !== undefined)
+			if (this[VALUE].terminal !== undefined)
 				throw new Error("down: this node has ended (R-terminals)");
-			this._down(msgs);
+			nodeDown(this, msgs);
 		});
 	}
 
@@ -382,163 +324,25 @@ export class Node<T = unknown> {
 	 * (Object.is) writes nothing.
 	 */
 	protected _writeFn(fn: (prev: T | undefined) => T): void {
-		this._assertNotReleased("set");
-		if (this._value.terminal !== undefined)
+		nodeAssertNotReleased(this, "set");
+		if (this[VALUE].terminal !== undefined)
 			throw new Error("set: this node has ended (R-terminals)");
 		const deferred = new DeferredWrite(fn as (prev: unknown) => unknown);
-		if (currentBatch(this._core)) {
+		if (currentBatch(this[CORE])) {
 			stageToBatch(
-				this._core,
+				this[CORE],
 				this as unknown as Node<unknown>,
 				[["DATA", deferred] as Message],
 				"set",
 			);
 			return;
 		}
-		request(this._core, () => {
-			if (this._value.terminal !== undefined)
+		request(this[CORE], () => {
+			if (this[VALUE].terminal !== undefined)
 				throw new Error("set: this node has ended (R-terminals)");
-			const resolved = nodeResolveBatchedWave(nodeRuntimeHost(this), [["DATA", deferred]]);
-			if (resolved.length > 0) this._down(resolved);
+			const resolved = nodeResolveBatchedWave(this, [["DATA", deferred]]);
+			if (resolved.length > 0) nodeDown(this, resolved);
 		});
-	}
-
-	// ── rewire (R-request-order): the node's own dependencies for its current lifetime ──
-
-	// biome-ignore lint/correctness/noUnusedPrivateClassMembers: accessed through the checked internal runtime host.
-	private _dedupDeps(deps: Node<unknown>[]): Node<unknown>[] {
-		const seen = new Set<Node<unknown>>();
-		const out: Node<unknown>[] = [];
-		for (const d of deps)
-			if (!seen.has(d)) {
-				seen.add(d);
-				out.push(d);
-			}
-		return out;
-	}
-
-	private _reachableUpstream(from: Node<unknown>, target: Node<unknown>): boolean {
-		const seen = new Set<Node<unknown>>();
-		const stack: Node<unknown>[] = [from];
-		while (stack.length > 0) {
-			const n = stack.pop();
-			if (n === undefined) continue;
-			if (n === target) return true;
-			if (seen.has(n)) continue;
-			seen.add(n);
-			// R-request-order: through current and declared dependencies, since a closing lifetime
-			// puts the declared ones back.
-			const slot = nodeRuntimeHost(n)._slot;
-			for (const d of slot.deps) stack.push(d);
-			for (const d of slot.declaredDeps) stack.push(d);
-		}
-		return false;
-	}
-
-	private _assertRewireDepOwner(dep: Node<unknown>): void {
-		const selfOwner = getNodeOwner(this as unknown as Node<unknown>);
-		const depOwner = getNodeOwner(dep);
-		if (selfOwner !== undefined && depOwner !== undefined && selfOwner !== depOwner)
-			throw new Error(
-				"rewire: dep belongs to a different graph; cross-graph deps require a wire bridge (D22 / R-graph-domain)",
-			);
-	}
-
-	// biome-ignore lint/correctness/noUnusedPrivateClassMembers: accessed through the checked internal runtime host.
-	private _rewire(newDeps: Node<unknown>[]): boolean {
-		return nodeRewire(nodeRuntimeHost(this), newDeps);
-	}
-
-	// ── activation / deactivation (lazy; R-lifetime) ──
-
-	// biome-ignore lint/correctness/noUnusedPrivateClassMembers: accessed through the checked internal runtime host.
-	private _activate(): void {
-		nodeActivate(nodeRuntimeHost(this));
-	}
-
-	// biome-ignore lint/correctness/noUnusedPrivateClassMembers: accessed through the checked internal runtime host.
-	private _deactivate(): void {
-		nodeDeactivate(nodeRuntimeHost(this));
-	}
-
-	private _assertNotReleased(op: string): void {
-		if (this._released)
-			throw new Error(`${op}: node has been released from its graph lifecycle (D122)`);
-	}
-	// biome-ignore lint/correctness/noUnusedPrivateClassMembers: accessed through the checked internal runtime host.
-	private _subscriberCount(): number {
-		return nodeSubscriberCount(nodeRuntimeHost(this));
-	}
-	// biome-ignore lint/correctness/noUnusedPrivateClassMembers: accessed through the checked internal runtime host.
-	private _isRuntimeQuiescentForRelease(): boolean {
-		return nodeIsRuntimeQuiescentForRelease(nodeRuntimeHost(this));
-	}
-	// biome-ignore lint/correctness/noUnusedPrivateClassMembers: accessed through the checked internal runtime host.
-	private _releaseRuntime(): void {
-		nodeReleaseRuntime(nodeRuntimeHost(this));
-	}
-	// biome-ignore lint/correctness/noUnusedPrivateClassMembers: accessed through the checked internal runtime host.
-	private _resetDepState(): void {
-		nodeResetDepState(nodeRuntimeHost(this));
-	}
-
-	private _subscribeDepAt(depNode: Node<unknown>): void {
-		nodeSubscribeDepAt(nodeRuntimeHost(this), depNode);
-	}
-
-	private _receiveFromDep(idx: number, arrays: readonly Wave[], snapshot: boolean): void {
-		nodeReceiveFromDep(nodeRuntimeHost(this), idx, arrays, snapshot);
-	}
-
-	private _markDirty(): void {
-		nodeMarkDirty(nodeRuntimeHost(this));
-	}
-
-	private _maybeRun(): void {
-		nodeMaybeRun(nodeRuntimeHost(this));
-	}
-
-	private _settleRewire(): void {
-		nodeSettleRewire(nodeRuntimeHost(this));
-	}
-
-	private _tryRun(): void {
-		nodeTryRun(nodeRuntimeHost(this));
-	}
-
-	/** Settle now, running the function (activation's first run of a depless producer). */
-	private _runWave(): void {
-		nodeSettle(nodeRuntimeHost(this), true);
-	}
-
-	private _buildCtx(): Ctx {
-		return nodeBuildCtx(nodeRuntimeHost(this));
-	}
-
-	private _makeCtx(): Ctx {
-		return nodeMakeCtx(nodeRuntimeHost(this));
-	}
-
-	private _refreshCtx(ctx: Ctx): void {
-		nodeRefreshCtx(nodeRuntimeHost(this), ctx);
-	}
-
-	private _makeState(signal: AbortSignal): CtxState {
-		return nodeMakeState(nodeRuntimeHost(this), signal);
-	}
-
-	// ── downstream emission pipeline (the unified waist) ──
-
-	private _down(msgs: Wave): void {
-		nodeDown(nodeRuntimeHost(this), msgs);
-	}
-
-	private _publish(arrays: readonly Message[][]): void {
-		nodePublish(nodeRuntimeHost(this), arrays);
-	}
-
-	private _markDependents(): void {
-		nodeMarkDependents(nodeRuntimeHost(this));
 	}
 }
 
@@ -561,9 +365,8 @@ export function makeNode<T>(
  * and open helper nodes of their own (a timer beside its source). One node per call.
  */
 export function buildBeside<N extends Node<unknown>>(beside: Node<unknown>, create: () => N): N {
-	const host = nodeRuntimeHost(beside);
-	return withEnvironmentDrivers(host._slot.environment, () =>
-		withNodeCore(host._core, create, host._slot.dispatcher),
+	return withEnvironmentDrivers(beside[SLOT].environment, () =>
+		withNodeCore(beside[CORE], create, beside[SLOT].dispatcher),
 	);
 }
 
@@ -578,12 +381,11 @@ export function makeNodeBeside<T>(
 ): Node<T> {
 	const first = deps[0];
 	if (first === undefined) throw new Error("node: a derived view needs a dependency");
-	const host = nodeRuntimeHost(first);
 	for (const d of deps)
-		if (nodeRuntimeHost(d)._core !== host._core)
+		if (d[CORE] !== first[CORE])
 			throw new Error("node: dependencies belong to different graphs; use a wire bridge");
-	return withEnvironmentDrivers(host._slot.environment, () =>
-		withNodeCore(host._core, () => new Node<T>(deps, fn, opts), host._slot.dispatcher),
+	return withEnvironmentDrivers(first[SLOT].environment, () =>
+		withNodeCore(first[CORE], () => new Node<T>(deps, fn, opts), first[SLOT].dispatcher),
 	);
 }
 

@@ -279,7 +279,7 @@ function mapOperator<TIn, TOut>(
 
 /**
  * switchMap: project each source value to an inner; on a new source value, CANCEL the in-flight
- * inner (its source `_deactivate`s — abortInFlight) and switch to the new one. Only the current
+ * inner (its source deactivates — abortInFlight) and switch to the new one. Only the current
  * inner's emissions are forwarded.
  * @param project - project value used by the helper.
  * @returns A `Operator<TIn, TOut>` value.

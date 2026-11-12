@@ -16,7 +16,6 @@ import {
 	nodeMarkBatchedWave,
 	nodeResolveBatchedWave,
 } from "../node/node-output-runtime.js";
-import { nodeRuntimeHost } from "../node/node-runtime-host.js";
 import { isTerminal, type Message, type Wave } from "../protocol/messages.js";
 import {
 	deferFirst,
@@ -130,7 +129,7 @@ export function deferAfterBatchForTarget(
 	if (active === null || !active.deferred.has(target)) return false;
 	const owner = active;
 	nodeDeferBoundary(
-		nodeRuntimeHost(target),
+		target,
 		() => {
 			if (owner.committed) fn();
 		},
@@ -151,13 +150,13 @@ function commit(core: NodeCore, b: ActiveBatch): void {
 		for (const target of b.order) {
 			const wave = b.deferred.get(target);
 			if (wave === undefined || b.lifetimes.get(target)?.aborted === true) continue;
-			const resolved = nodeResolveBatchedWave(nodeRuntimeHost(target), wave);
+			const resolved = nodeResolveBatchedWave(target, wave);
 			if (resolved.length > 0) staged.push([target, resolved]);
 		}
 		// O3: the commit is one wave: every staged node marks its cone pending first, then each
 		// delivers its one accumulated array, so a fan-in over several of them runs once.
-		for (const [target, wave] of staged) nodeMarkBatchedWave(nodeRuntimeHost(target), wave);
-		for (const [target, wave] of staged) nodeCommitBatchedWave(nodeRuntimeHost(target), wave);
+		for (const [target, wave] of staged) nodeMarkBatchedWave(target, wave);
+		for (const [target, wave] of staged) nodeCommitBatchedWave(target, wave);
 		b.committed = true;
 	} catch (e) {
 		dropBoundaryTasksForBatch(core, b);

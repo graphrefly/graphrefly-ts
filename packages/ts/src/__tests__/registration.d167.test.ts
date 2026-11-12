@@ -18,7 +18,7 @@ import { type MessageBusCommand, messageBus, toTopic } from "../messaging/index.
 import { attachMessageBusCommandSource } from "../messaging/internal.js";
 import { NodeCore } from "../node/core.js";
 import { Node, type StateNode } from "../node/node.js";
-import { nodeRuntimeHost } from "../node/node-runtime-host.js";
+import { LIFETIME } from "../node/node-keys.js";
 import { ColdNodeAcquisitionError } from "../node/owned-acquisition.js";
 import {
 	checkpointStateOfNode,
@@ -65,7 +65,7 @@ describe("D167 issued runtime identity and lifecycle", () => {
 		const g = new Graph();
 		const input = g.state(2, { name: "input" });
 		let hookRan = false;
-		nodeRuntimeHost(input)._lifetime.cleanup = () => {
+		input[LIFETIME].cleanup = () => {
 			hookRan = true;
 			expect(checkpointStateOfNode(input).cache).toBe(2);
 			expect(() => g.node([input], relayFirst, { name: "invalid" })).toThrow("has been released");
@@ -101,7 +101,7 @@ describe("D167 issued runtime identity and lifecycle", () => {
 			observations.push("backend");
 			return 4;
 		});
-		nodeRuntimeHost(n)._lifetime.cleanup = () => {
+		n[LIFETIME].cleanup = () => {
 			observations.push(isNodeRuntimeReleased(n), checkpointStateOfNode(n).hasData);
 			releaseRuntimeOfNode(n); // reentrant release is inert
 		};

@@ -10,6 +10,7 @@
 import { describe, expect, it } from "vitest";
 import type { Ctx } from "../ctx/types.js";
 import { graph } from "../graph/graph.js";
+import { subscriberCountOfNode } from "../node/runtime-accessors.js";
 import type { Wave } from "../protocol/messages.js";
 
 function arrays(): { log: Wave[]; sink: (msgs: Wave) => void } {
@@ -367,7 +368,7 @@ describe("C-11: a node rewires itself from its function, for its lifetime", () =
 		expect(out.at(-1)).toEqual([["PENDING"], ["DATA", 1]]);
 		s.set("b");
 		expect(op.deps).toEqual([s, inners.get("b")]);
-		expect((innerA as unknown as { _subscriberCount(): number })._subscriberCount()).toBe(0);
+		expect(subscriberCountOfNode(innerA)).toBe(0);
 		expect(op.cache).toBe(1); // OP keeps its value across the rewires
 		stop();
 		// The lifetime closed: back on the declared [S].

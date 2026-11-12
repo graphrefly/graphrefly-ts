@@ -27,7 +27,7 @@ import type { Ctx, NodeFn } from "../ctx/types.js";
 import type { Dispatcher } from "../dispatcher/index.js";
 import type { NodeCore } from "../node/core.js";
 import { Node, type NodeOptions, withEnvironmentDrivers, withNodeCore } from "../node/node.js";
-import { nodeRuntimeHost } from "../node/node-runtime-host.js";
+import { CORE, SLOT } from "../node/node-keys.js";
 import { errorPayload, type Message } from "../protocol/messages.js";
 import { type GraphCheckpointJson, toCheckpointJson } from "./checkpoint.js";
 import { eachInputArray } from "./each-input-array.js";
@@ -194,12 +194,11 @@ export function initNodeBeside<TIn, TOut>(
 	const first = deps[0];
 	if (first === undefined)
 		throw new Error("initNode: an operator built beside its inputs needs one");
-	const host = nodeRuntimeHost(first);
 	for (const d of deps)
-		if (nodeRuntimeHost(d)._core !== host._core)
+		if (d[CORE] !== first[CORE])
 			throw new Error("initNode: dependencies belong to different graphs; use a wire bridge");
-	return withEnvironmentDrivers(host._slot.environment, () =>
-		initNodeWithCore(host._core, op, deps, opts, undefined, host._slot.dispatcher),
+	return withEnvironmentDrivers(first[SLOT].environment, () =>
+		initNodeWithCore(first[CORE], op, deps, opts, undefined, first[SLOT].dispatcher),
 	);
 }
 

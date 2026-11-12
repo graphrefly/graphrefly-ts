@@ -2,16 +2,18 @@ import type { Handle } from "../dispatcher/index.js";
 import type { Message, Wave } from "../protocol/messages.js";
 import { errorPayload, isTerminal, SENTINEL } from "../protocol/messages.js";
 import type { DepInput } from "./core.js";
-import { nodeDeferQuietOutput } from "./node-context-runtime.js";
+import type { Node } from "./node.js";
+import { nodeBuildCtx, nodeDeferQuietOutput } from "./node-context-runtime.js";
+import { CORE, DEP, LIFETIME, RELEASED, SEED_NOTE, SLOT, VALUE, WAVE } from "./node-keys.js";
 import {
 	isMarking,
 	nodeMarkDependents,
+	nodePublish,
 	nodePublishTail,
 	TAIL_DELIVERY,
 	TAIL_MARK,
 	takeTailCall,
 } from "./node-output-runtime.js";
-import type { NodeRuntimeHost } from "./node-runtime-host.js";
 import { withRunningGraph } from "./runtime-accessors.js";
 
 /** R-wave: a new input array on a dependency's record; a snapshot's array is not a live wave. */
@@ -29,15 +31,15 @@ function nodeOpenDepWave(input: DepInput, live: boolean): unknown[] {
  * array holding a bare PENDING is the kernel's pending mark.
  */
 export function nodeReceiveFromDep<T>(
-	self: NodeRuntimeHost<T>,
+	self: Node<T>,
 	idx: number,
 	arrays: readonly Wave[],
 	snapshot: boolean,
 ): void {
 	// Q15: a call straight from a delivery or marking loop continues that loop instead of recursing.
 	const tail = takeTailCall();
-	if (self._released) return;
-	const input = self._dep.inputs[idx];
+	if (self[RELEASED]) return;
+	const input = self[DEP].inputs[idx];
 	// Whether the delivery's last message settled this input; only then may the node run.
 	let settled = false;
 	for (let a = 0; a < arrays.length; a++) {
@@ -61,12 +63,12 @@ export function nodeReceiveFromDep<T>(
 				continue;
 			}
 			// R-terminals: an ended node's function never runs again; its input is dropped.
-			if (self._value.terminal !== undefined) continue;
+			if (self[VALUE].terminal !== undefined) continue;
 
 			if (t === "PENDING") {
 				if (!input.dirty) {
 					input.dirty = true;
-					self._wave.pending++;
+					self[WAVE].pending++;
 					nodeMarkDirty(self, tail === TAIL_MARK);
 				}
 				continue;
@@ -100,7 +102,7 @@ export function nodeReceiveFromDep<T>(
 			// once.
 			if (input.dirty) {
 				input.dirty = false;
-				self._wave.pending--;
+				self[WAVE].pending--;
 			}
 			settled = true;
 		}
@@ -109,43 +111,43 @@ export function nodeReceiveFromDep<T>(
 	if (settled) nodeMaybeRun(self, tail === TAIL_DELIVERY);
 }
 
-export function nodeMarkDirty<T>(self: NodeRuntimeHost<T>, tail = false): void {
+export function nodeMarkDirty<T>(self: Node<T>, tail = false): void {
 	// R-wave: a quiet node consumes its input waves without being marked pending or sending
 	// anything, so its dependents never wait for it and its status never turns "dirty"; what its
 	// function sends goes out after the current wave as a new wave of its own (the quiet branch
-	// of ctx.down). Its internal dep pending accounting (the PENDING-branch _pending++) still runs.
-	if (self._slot.quiet) return;
-	if (!self._wave.emittedDirtyThisWave) {
-		self._wave.emittedDirtyThisWave = true;
+	// of ctx.down). Its internal dep pending accounting (the PENDING branch's pending++) still runs.
+	if (self[SLOT].quiet) return;
+	if (!self[WAVE].emittedDirtyThisWave) {
+		self[WAVE].emittedDirtyThisWave = true;
 		nodeMarkDependents(self, tail);
 	}
 }
 
-export function nodeMaybeRun<T>(self: NodeRuntimeHost<T>, tail = false): void {
+export function nodeMaybeRun<T>(self: Node<T>, tail = false): void {
 	// R-request-order: an added dep's snapshot lands here mid-rewire. Defer the fn-run until
 	// every added dep is wired, so the function runs once on all the added snapshots as one
-	// input wave, never on a partial view (multi-add) — _settleRewire drains this flag. R-lifetime: activation likewise runs the function once, on every
+	// input wave, never on a partial view (multi-add) — nodeRewire drains this flag. R-lifetime: activation likewise runs the function once, on every
 	// dependency's snapshot.
-	if (self._wave.inDepMutation || self._wave.activating) {
-		self._wave.rewireRunPending = true;
+	if (self[WAVE].inDepMutation || self[WAVE].activating) {
+		self[WAVE].rewireRunPending = true;
 		return;
 	}
 	nodeTryRun(self, tail);
 }
 
-export function nodeSettleRewire<T>(self: NodeRuntimeHost<T>): void {
-	if (self._wave.pending > 0) return;
+export function nodeSettleRewire<T>(self: Node<T>): void {
+	if (self[WAVE].pending > 0) return;
 	// R-request-order: the added dependencies' snapshots are one ordinary input wave.
 	nodeSettle(self, false);
 }
 
-export function nodeTryRun<T>(self: NodeRuntimeHost<T>, tail = false): void {
-	if (self._wave.pending > 0) return;
+export function nodeTryRun<T>(self: Node<T>, tail = false): void {
+	if (self[WAVE].pending > 0) return;
 	nodeSettle(self, false, tail);
 }
 
-function nodeTerminalPolicy<T>(self: NodeRuntimeHost<T>, t: unknown): "auto" | "manual" {
-	return t === true ? self._slot.completePolicy : self._slot.errorPolicy;
+function nodeTerminalPolicy<T>(self: Node<T>, t: unknown): "auto" | "manual" {
+	return t === true ? self[SLOT].completePolicy : self[SLOT].errorPolicy;
 }
 
 /**
@@ -162,11 +164,11 @@ function nodeTerminalPolicy<T>(self: NodeRuntimeHost<T>, t: unknown): "auto" | "
  * All of it goes out as one delivery, so a dependent settles once on it. `tail` (Q15): this settle
  * was reached straight from a delivery's last message, so its publication continues that loop.
  */
-export function nodeSettle<T>(self: NodeRuntimeHost<T>, force: boolean, tail = false): void {
-	if (self._value.terminal !== undefined || self._released) return;
-	const wasDirty = self._wave.emittedDirtyThisWave;
-	const n = self._slot.deps.length;
-	const inputs = self._dep.inputs;
+export function nodeSettle<T>(self: Node<T>, force: boolean, tail = false): void {
+	if (self[VALUE].terminal !== undefined || self[RELEASED]) return;
+	const wasDirty = self[WAVE].emittedDirtyThisWave;
+	const n = self[SLOT].deps.length;
+	const inputs = self[DEP].inputs;
 	let anyInvalidated = false;
 	for (let i = 0; i < inputs.length; i++) {
 		if (inputs[i].invalidated) {
@@ -175,7 +177,7 @@ export function nodeSettle<T>(self: NodeRuntimeHost<T>, force: boolean, tail = f
 		}
 	}
 
-	if (self._slot.errorPolicy === "auto") {
+	if (self[SLOT].errorPolicy === "auto") {
 		let at = -1;
 		for (let i = 0; i < inputs.length; i++) {
 			const t = inputs[i].terminalInput;
@@ -188,7 +190,7 @@ export function nodeSettle<T>(self: NodeRuntimeHost<T>, force: boolean, tail = f
 			const error = inputs[at].terminalInput;
 			nodeConsumeInput(self);
 			const end: Message[][] = [];
-			if (anyInvalidated && self._value.hasData) end.push([["INVALIDATE"]]);
+			if (anyInvalidated && self[VALUE].hasData) end.push([["INVALIDATE"]]);
 			end.push([["ERROR", error]]);
 			nodeSettleOutput(self, [], end, wasDirty, tail);
 			return;
@@ -196,7 +198,7 @@ export function nodeSettle<T>(self: NodeRuntimeHost<T>, force: boolean, tail = f
 	}
 
 	const lead: Message[][] =
-		anyInvalidated && self._slot.invalidatePolicy === "auto" && self._value.hasData
+		anyInvalidated && self[SLOT].invalidatePolicy === "auto" && self[VALUE].hasData
 			? [[["INVALIDATE"]]]
 			: [];
 
@@ -205,7 +207,7 @@ export function nodeSettle<T>(self: NodeRuntimeHost<T>, force: boolean, tail = f
 	for (let i = 0; allEnded && i < inputs.length; i++) {
 		if (inputs[i].terminal === undefined) allEnded = false;
 	}
-	if (self._slot.handle !== null) {
+	if (self[SLOT].handle !== null) {
 		// graphrefly-ts:D184 (the user's Q1): the kernel has no first-run gate; a function runs on
 		// activation and on any input, and the value-level sugar keeps its own gate.
 		let anyTerminalInput = false;
@@ -220,26 +222,26 @@ export function nodeSettle<T>(self: NodeRuntimeHost<T>, force: boolean, tail = f
 			}
 			if (input.waveData.length > 0) anyWave = true;
 		}
-		const lastTerminal = self._slot.completePolicy === "auto" && allEnded && anyTerminalInput;
+		const lastTerminal = self[SLOT].completePolicy === "auto" && allEnded && anyTerminalInput;
 		const runs =
 			force ||
-			!self._lifetime.setupDone ||
+			!self[LIFETIME].setupDone ||
 			anyWave ||
 			manualTerminal ||
 			lastTerminal ||
-			(anyInvalidated && self._slot.invalidatePolicy === "manual");
+			(anyInvalidated && self[SLOT].invalidatePolicy === "manual");
 		if (runs) out = nodeInvoke(self);
 	}
 	nodeConsumeInput(self);
 
 	const endsItself = out.some((a) => a.some((m) => isTerminal(m[0])));
-	if (self._slot.completePolicy === "auto" && allEnded && !endsItself) out.push([["COMPLETE"]]);
+	if (self[SLOT].completePolicy === "auto" && allEnded && !endsItself) out.push([["COMPLETE"]]);
 	nodeSettleOutput(self, lead, out, wasDirty, tail);
 }
 
 /** The input a settlement consumed. */
-function nodeConsumeInput<T>(self: NodeRuntimeHost<T>): void {
-	const inputs = self._dep.inputs;
+function nodeConsumeInput<T>(self: Node<T>): void {
+	const inputs = self[DEP].inputs;
 	for (let i = 0; i < inputs.length; i++) {
 		const input = inputs[i];
 		input.waveData = [];
@@ -254,17 +256,17 @@ function nodeConsumeInput<T>(self: NodeRuntimeHost<T>): void {
  * after the wave as a new wave of its own; nothing waits for it, so it needs no RESOLVED.
  */
 function nodeSettleOutput<T>(
-	self: NodeRuntimeHost<T>,
+	self: Node<T>,
 	now: Message[][],
 	rest: Message[][],
 	wasDirty: boolean,
 	tail: boolean,
 ): void {
-	if (self._slot.quiet) {
+	if (self[SLOT].quiet) {
 		if (now.length > 0) {
 			// Q15: in the delivery loop's tail, the loop sends `now` and then does the rest.
 			if (tail && nodePublishTail(self, now, quietSettleTail, rest)) return;
-			self._publish(now);
+			nodePublish(self, now);
 		}
 		quietSettleTail(self, rest);
 		return;
@@ -273,53 +275,53 @@ function nodeSettleOutput<T>(
 	if (wasDirty && !out.some((a) => a.some(isMarking))) out.push([["RESOLVED"]]);
 	if (out.length > 0) {
 		if (tail && nodePublishTail(self, out, settleTail, undefined)) return;
-		self._publish(out);
+		nodePublish(self, out);
 	}
 	settleTail(self, undefined);
 }
 
 /** What a settle does after its publication's fanout (a function, so the loop can run it later). */
-function settleTail(self: NodeRuntimeHost<unknown>, _rest?: Message[][]): void {
-	self._wave.emittedDirtyThisWave = false;
+function settleTail(self: Node<unknown>, _rest?: Message[][]): void {
+	self[WAVE].emittedDirtyThisWave = false;
 }
 
 /** A quiet node's settle after its INVALIDATE's fanout: the rest is a wave of its own, later. */
-function quietSettleTail(self: NodeRuntimeHost<unknown>, rest: Message[][] | undefined): void {
+function quietSettleTail(self: Node<unknown>, rest: Message[][] | undefined): void {
 	if (rest !== undefined && rest.length > 0) nodeDeferQuietOutput(self, rest);
 }
 
 /** One run of the node's function; returns the arrays it sent (R-invocation, R-failure). */
-function nodeInvoke<T>(self: NodeRuntimeHost<T>): Message[][] {
+function nodeInvoke<T>(self: Node<T>): Message[][] {
 	// R-invocation@2: a running function is never reentered. Every way back into this node during
 	// its run (a host input, a late ctx.down, a subscribe) is a request that waits for the wave.
-	const ctx = self._buildCtx();
+	const ctx = nodeBuildCtx(self);
 	// R-subscription@3: only the seeded instance's first run receives the seed's note.
-	(ctx as { seed: unknown }).seed = self._seedNote;
-	self._seedNote = undefined;
+	(ctx as { seed: unknown }).seed = self[SEED_NOTE];
+	self[SEED_NOTE] = undefined;
 	// R-lifetime: the setup runs once per lifetime, just before the function's first run in it,
 	// with that run's ctx; what it sends is that run's output and a throw in it is the node's ERROR.
-	const lifetime = self._lifetime;
-	const setup = lifetime.setupDone ? undefined : self._slot.setup;
+	const lifetime = self[LIFETIME];
+	const setup = lifetime.setupDone ? undefined : self[SLOT].setup;
 	lifetime.setupDone = true;
-	self._wave.emittedSettleThisWave = false;
-	self._wave.runOutput = [];
-	self._wave.insideRunWave = true;
+	self[WAVE].emittedSettleThisWave = false;
+	self[WAVE].runOutput = [];
+	self[WAVE].insideRunWave = true;
 	let thrown: { readonly error: unknown } | undefined;
 	try {
-		withRunningGraph(self._core, self._slot.environment, self._slot.dispatcher, () => {
+		withRunningGraph(self[CORE], self[SLOT].environment, self[SLOT].dispatcher, () => {
 			if (setup !== undefined) {
 				const cleanup = setup(ctx);
 				if (typeof cleanup === "function") lifetime.cleanup = cleanup;
 			}
-			self._slot.dispatcher.invoke(self._slot.handle as Handle, ctx);
+			self[SLOT].dispatcher.invoke(self[SLOT].handle as Handle, ctx);
 		});
 	} catch (error) {
 		thrown = { error };
 	} finally {
-		self._wave.insideRunWave = false;
+		self[WAVE].insideRunWave = false;
 	}
-	const out: Message[][] = self._wave.runOutput.map((a) => [...a]);
-	self._wave.runOutput = [];
+	const out: Message[][] = self[WAVE].runOutput.map((a) => [...a]);
+	self[WAVE].runOutput = [];
 	// R-failure: a throw from the function (including an output ctx.down rejected) is this node's
 	// ERROR; what it sent before the throw is dropped.
 	if (thrown !== undefined)

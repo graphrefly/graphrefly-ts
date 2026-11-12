@@ -4,7 +4,20 @@ import type { EnvironmentDrivers } from "../graph/environment.js";
 import type { NodeCore } from "./core.js";
 import type { Node } from "./node.js";
 import { nodeRestoreState } from "./node-checkpoint-runtime.js";
-import { type NodeRuntimeHost, nodeRuntimeHost } from "./node-runtime-host.js";
+import {
+	LIFECYCLE,
+	PRIVATE_STATE,
+	RELEASED,
+	SEED_NOTE,
+	SLOT,
+	SYNC_CTX,
+	VALUE,
+} from "./node-keys.js";
+import {
+	nodeIsRuntimeQuiescentForRelease,
+	nodeReleaseRuntime,
+	nodeSubscriberCount,
+} from "./node-lifecycle-runtime.js";
 import type { RuntimeReleaseFailure } from "./owned-acquisition.js";
 import type { NodeCheckpointState, NodeSeed } from "./types.js";
 
@@ -22,7 +35,6 @@ let constructingEnvironment: EnvironmentDrivers | undefined;
 type NodeRegistration =
 	| {
 			kind: "live";
-			host: NodeRuntimeHost;
 			graphAttachment?: { owner: unknown; observer?: TopologyDepsChangedObserver };
 			backendContributor?: () => unknown;
 	  }
@@ -31,7 +43,7 @@ const registrations = new WeakMap<Node<unknown>, NodeRegistration>();
 
 /** Only called by the completed Node constructor; never exported through a public barrel. */
 export function issueNodeRegistration(node: Node<unknown>): void {
-	registrations.set(node, { kind: "live", host: nodeRuntimeHost(node) });
+	registrations.set(node, { kind: "live" });
 }
 function liveRegistration(node: Node<unknown>) {
 	const record = registrations.get(node);
@@ -173,7 +185,7 @@ export function getNodeOwner(n: Node<unknown>): unknown {
  */
 export function nodeOwnerForGraphUse(n: Node<unknown>, label: string): unknown {
 	const record = registrations.get(n);
-	if (record?.kind === "retired" || (record?.kind === "live" && record.host._released)) {
+	if (record?.kind === "retired" || (record?.kind === "live" && n[RELEASED])) {
 		throw new Error(`${label} has been released from its graph lifecycle (D122)`);
 	}
 	return record?.kind === "live" ? record.graphAttachment?.owner : undefined;
@@ -206,25 +218,23 @@ export function notifyTopologyDepsChanged(
 
 /** @internal Graph checkpoint inspection, kept as a module helper so Node stays method-thin. */
 export function checkpointStateOfNode(n: Node<unknown>): NodeCheckpointState {
-	const self = liveRegistration(n)?.host;
-	if (self === undefined) throw new Error("checkpoint: unknown node state");
+	if (liveRegistration(n) === undefined) throw new Error("checkpoint: unknown node state");
 	return {
-		values: [...self._value.lastArray],
-		cache: self._value.cache,
-		hasData: self._value.hasData,
-		terminal: self._value.terminal,
-		activated: self._lifecycle.activated,
-		privateState: self._privateState.value,
-		seedNote: self._seedNote,
-		handle: self._slot.handle,
+		values: [...n[VALUE].lastArray],
+		cache: n[VALUE].cache,
+		hasData: n[VALUE].hasData,
+		terminal: n[VALUE].terminal,
+		activated: n[LIFECYCLE].activated,
+		privateState: n[PRIVATE_STATE].value,
+		seedNote: n[SEED_NOTE],
+		handle: n[SLOT].handle,
 	};
 }
 
 /** @internal R-checkpoint restore commit: install a seed without a protocol wave or subscription. */
 export function restoreStateOfNode(n: Node<unknown>, seed: NodeSeed): void {
-	const self = liveRegistration(n)?.host;
-	if (self === undefined) throw new Error("restoreGraph: unknown node state");
-	nodeRestoreState(self, seed);
+	if (liveRegistration(n) === undefined) throw new Error("restoreGraph: unknown node state");
+	nodeRestoreState(n, seed);
 }
 
 /**
@@ -232,42 +242,41 @@ export function restoreStateOfNode(n: Node<unknown>, seed: NodeSeed): void {
  * its values and lifetime (a restore wraps a restored node's function).
  */
 export function wrapFnOfNode(n: Node<unknown>, wrap: (fn: NodeFn) => NodeFn): void {
-	const self = liveRegistration(n)?.host;
-	if (self === undefined) throw new Error("restoreGraph: unknown node state");
-	const fn = self._slot.fn;
+	if (liveRegistration(n) === undefined) throw new Error("restoreGraph: unknown node state");
+	const fn = n[SLOT].fn;
 	if (fn === null) return;
 	const wrapped = wrap(fn);
-	const old = self._slot.handle;
-	self._slot.handle = self._slot.dispatcher.register(wrapped);
-	if (old !== null) self._slot.dispatcher.unregister(old);
-	self._slot.fn = wrapped;
-	self._syncCtx = null;
+	const old = n[SLOT].handle;
+	n[SLOT].handle = n[SLOT].dispatcher.register(wrapped);
+	if (old !== null) n[SLOT].dispatcher.unregister(old);
+	n[SLOT].fn = wrapped;
+	n[SYNC_CTX].value = null;
 }
 
 /** @internal D122 graph-owned ephemeral lifecycle release. */
 export function releaseRuntimeOfNode(n: Node<unknown>): void {
-	liveRegistration(n)?.host._releaseRuntime();
+	if (liveRegistration(n) !== undefined) nodeReleaseRuntime(n);
 }
 
 /** @internal D124 guard for graph-owned ephemeral lifecycle release. */
 export function isNodeRuntimeQuiescentForRelease(n: Node<unknown>): boolean {
-	return liveRegistration(n)?.host._isRuntimeQuiescentForRelease() ?? false;
+	return liveRegistration(n) !== undefined && nodeIsRuntimeQuiescentForRelease(n);
 }
 
 /** @internal D124 graph-owned release subscriber accounting. */
 export function subscriberCountOfNode(n: Node<unknown>): number {
-	return liveRegistration(n)?.host._subscriberCount() ?? 0;
+	return liveRegistration(n) === undefined ? 0 : nodeSubscriberCount(n);
 }
 
 /** @internal D124 graph-owned release internal-subscriber accounting. */
 export function isNodeActiveForRelease(n: Node<unknown>): boolean {
-	return liveRegistration(n)?.host._lifecycle.activated ?? false;
+	return liveRegistration(n) !== undefined && n[LIFECYCLE].activated;
 }
 
 /** @internal D122 guard for graph-owned ephemeral lifecycle release. */
 export function isNodeRuntimeReleased(n: Node<unknown>): boolean {
 	const record = registrations.get(n);
-	return record?.kind === "retired" || (record?.kind === "live" && record.host._released);
+	return record?.kind === "retired" || (record?.kind === "live" && n[RELEASED]);
 }
 
 /** The graph layer's id for a node, registered by the graph module (R-invocation@2 ctx.deps[i].id). */

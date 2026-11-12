@@ -37,8 +37,8 @@ import {
 	withEnvironmentDrivers,
 	withNodeCore,
 } from "../node/node.js";
+import { SLOT } from "../node/node-keys.js";
 import { nodeDefinition, nodeReplace } from "../node/node-rewire-runtime.js";
-import { nodeRuntimeHost } from "../node/node-runtime-host.js";
 import {
 	constructionAcquisitions,
 	failNodeAcquisition,
@@ -489,12 +489,12 @@ export class Graph {
 	): void {
 		const node = this._resolveTarget(target, "replace");
 		this._assertDepsLocal(deps, `dep of replaced '${node.name ?? "node"}'`);
-		nodeReplace(nodeRuntimeHost(node), [...deps], fn, opts);
+		nodeReplace(node, [...deps], fn, opts);
 	}
 
 	/** R-node: a node's current definition (declared dependencies, function, setup, recipe). */
 	definition(target: Node<unknown> | string): NodeDefinition {
-		const definition = nodeDefinition(nodeRuntimeHost(this._resolveTarget(target, "definition")));
+		const definition = nodeDefinition(this._resolveTarget(target, "definition"));
 		// R-checkpoint@1: a restored node's function is the one it was built with.
 		return { ...definition, fn: realNodeFn(definition.fn) };
 	}
@@ -736,7 +736,7 @@ export class Graph {
 			id: this._idForTopologyNode(n),
 			kind: n instanceof StateNode ? "state" : "node",
 			deps: this._topologyDeps(n.deps),
-			quiet: nodeDefinition(nodeRuntimeHost(n)).quiet,
+			quiet: nodeDefinition(n).quiet,
 		}));
 	}
 
@@ -1012,8 +1012,8 @@ export class Graph {
 			visited.add(inner);
 			const sid = discovered.get(inner);
 			if (sid === undefined) continue;
-			const host = nodeRuntimeHost(inner);
-			for (const dep of [...host._slot.declaredDeps, ...host._slot.deps]) {
+			const slot = inner[SLOT];
+			for (const dep of [...slot.declaredDeps, ...slot.deps]) {
 				if (!this._entries.has(dep) && !visited.has(dep)) queue.push(dep);
 			}
 			// A live dependency found from topology was built outside the graph: it carries no
@@ -1024,7 +1024,7 @@ export class Graph {
 					unregistered: true,
 				}),
 			);
-			for (const dep of [...host._slot.declaredDeps, ...host._slot.deps])
+			for (const dep of [...slot.declaredDeps, ...slot.deps])
 				if (discovered.has(dep) && !visited.has(dep)) queue.push(dep);
 		}
 		const checkpoint: GraphCheckpoint = { format: GRAPH_CHECKPOINT_FORMAT, nodes };
@@ -1052,7 +1052,7 @@ export class Graph {
 	): GraphCheckpointNode {
 		const state = checkpointStateOfNode(node);
 		assertCheckpointQuiescentStatus(node.status, id, "checkpoint");
-		const slot = nodeRuntimeHost(node)._slot;
+		const slot = node[SLOT];
 		const isState = slot.fn === null && slot.declaredDeps.length === 0;
 		const helper = isNonAuthoritativeCollectionHelperMeta(opts.meta);
 		// R-checkpoint@1: a value the capture cannot save as JSON refuses the node here, by cause.
@@ -1101,14 +1101,14 @@ export class Graph {
 		id: string,
 		localId: (n: Node<unknown>) => string,
 	): GraphCheckpointLifetime | undefined {
-		const host = nodeRuntimeHost(node);
+		const slot = node[SLOT];
 		const state = checkpointStateOfNode(node);
 		if (state.terminal !== undefined) return undefined;
 		// Restored and not run since: what it had received is its seed's note (R-checkpoint@1).
 		const received =
 			receivedInNote(state.seedNote) ??
 			(state.activated
-				? host._slot.deps.map((dep) => {
+				? slot.deps.map((dep) => {
 						const d = checkpointStateOfNode(dep);
 						return { values: d.values, terminal: d.terminal };
 					})
@@ -1123,8 +1123,8 @@ export class Graph {
 		};
 		if (state.privateState !== SENTINEL)
 			out.state = checkpointJsonOf(id, CHECKPOINT_REFUSAL.privateState, state.privateState);
-		const deps = host._slot.deps;
-		const declared = host._slot.declaredDeps;
+		const deps = slot.deps;
+		const declared = slot.declaredDeps;
 		if (deps.length !== declared.length || deps.some((d, i) => d !== declared[i]))
 			out.deps = deps.map(localId);
 		return out;

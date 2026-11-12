@@ -1,7 +1,8 @@
 import { request } from "../batch/batch.js";
 import { CTX_NODE_BINDING, type Ctx } from "../ctx/types.js";
 import type { Node } from "./node.js";
-import { nodeRuntimeHost } from "./node-runtime-host.js";
+import { CORE } from "./node-keys.js";
+import { assertRewireDepOwner } from "./node-rewire-runtime.js";
 
 /**
  * Internal: an input whose sources attach and detach over time (a collection's folders, a process
@@ -48,17 +49,18 @@ export function attachableInput(): AttachableInput {
 			node = target;
 		},
 		attach(source) {
-			const host = nodeRuntimeHost(bound());
-			host._assertRewireDepOwner(source);
+			const target = bound();
+			assertRewireDepOwner(target, source);
+			const core = target[CORE];
 			let owned = false;
-			request(host._core, () => {
+			request(core, () => {
 				if (attached.includes(source)) return;
 				attached.push(source);
 				owned = true;
 				rewireNow([source], []);
 			});
 			return () => {
-				request(host._core, () => {
+				request(core, () => {
 					if (!owned) return;
 					owned = false;
 					const at = attached.indexOf(source);

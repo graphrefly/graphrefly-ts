@@ -1,6 +1,7 @@
 import type { NodeFn } from "../ctx/types.js";
 import type { Node, StateNode } from "../node/node.js";
-import { nodeRuntimeHost } from "../node/node-runtime-host.js";
+import { VALUE } from "../node/node-keys.js";
+import { nodeSubscribeOwned } from "../node/node-lifecycle-runtime.js";
 import {
 	cleanupNodeAcquisition,
 	type NodeAcquisition,
@@ -334,7 +335,8 @@ export function startConstruction(graph: Graph, owner: OwnedConstruction): void 
 			},
 			() => {
 				for (const lease of owner.roots) {
-					nodeRuntimeHost(lease.node)._subscribeOwned(
+					nodeSubscribeOwned(
+						lease.node,
 						{ kind: "sink", fn: () => {} },
 						{
 							record: (release) => {
@@ -344,9 +346,7 @@ export function startConstruction(graph: Graph, owner: OwnedConstruction): void 
 					);
 					if (
 						owner.nodes.some(
-							(node) =>
-								nodeRuntimeHost(node)._value.terminal !== undefined &&
-								nodeRuntimeHost(node)._value.terminal !== true,
+							(node) => node[VALUE].terminal !== undefined && node[VALUE].terminal !== true,
 						)
 					) {
 						code = "protocol-error";

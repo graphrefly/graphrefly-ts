@@ -2,8 +2,6 @@ import type { NodeFn } from "../ctx/types.js";
 import type { Graph } from "../graph/graph.js";
 import type { AttachableInput } from "../node/attachable-input.js";
 import type { Node, StateNode } from "../node/node.js";
-import { validateNodeRewire } from "../node/node-rewire-runtime.js";
-import { nodeRuntimeHost } from "../node/node-runtime-host.js";
 import type { MessageBusCommand } from "./index.js";
 
 export interface MessageBusInternalState {

@@ -11,7 +11,6 @@
 import { performance } from "node:perf_hooks";
 import { type Ctx, graph, type Message, type Node, type NodeFn, type StateNode } from "../index.js";
 import { nodeDeferBoundary } from "../node/node-output-runtime.js";
-import { nodeRuntimeHost } from "../node/node-runtime-host.js";
 
 interface ProbeResult {
 	name: string;
@@ -188,7 +187,7 @@ function boundaryFifoProbe(tasks = 20_000): string {
 	const owner = g.state(0);
 	let ran = 0;
 	g.batch(() => {
-		for (let i = 0; i < tasks; i++) nodeDeferBoundary(nodeRuntimeHost(owner), () => ran++);
+		for (let i = 0; i < tasks; i++) nodeDeferBoundary(owner, () => ran++);
 	});
 	return `tasks=${tasks}, ${expectEqual("drained", ran, tasks)}`;
 }

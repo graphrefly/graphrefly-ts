@@ -1,5 +1,4 @@
 import {
-	type BatchTarget,
 	currentBatch,
 	currentBoundaryBatchToken,
 	noteBatchLifetime,
@@ -16,13 +15,24 @@ import {
 } from "../ctx/types.js";
 import { type Message, SENTINEL, type Wave } from "../protocol/messages.js";
 import type { Node } from "./node.js";
-import { prepareArrays } from "./node-output-runtime.js";
+import {
+	CORE,
+	DEP,
+	LIFECYCLE,
+	LIFETIME,
+	PRIVATE_STATE,
+	RELEASED,
+	SLOT,
+	SYNC_CTX,
+	VALUE,
+	WAVE,
+} from "./node-keys.js";
+import { nodeDown, nodePublish, prepareArrays } from "./node-output-runtime.js";
 import {
 	nodeApplyRewireDiff,
 	nodeRequestRewire,
 	nodeRequestRewireDiff,
 } from "./node-rewire-runtime.js";
-import type { NodeRuntimeHost } from "./node-runtime-host.js";
 import { validateNodeOutput } from "./protocol-guards.js";
 import { graphNodeIdOf, withEnvironmentDrivers, withNodeCore } from "./runtime-accessors.js";
 
@@ -32,10 +42,11 @@ import { graphNodeIdOf, withEnvironmentDrivers, withNodeCore } from "./runtime-a
  * is that run's view (R-invocation@2). A function that keeps its ctx past the run uses it for
  * output (`ctx.down`, a later wave, R-wave@2) and its lifetime's state and signal.
  */
-export function nodeBuildCtx<T>(self: NodeRuntimeHost<T>): Ctx {
-	if (self._syncCtx === null) self._syncCtx = self._makeCtx();
-	self._refreshCtx(self._syncCtx);
-	return self._syncCtx;
+export function nodeBuildCtx<T>(self: Node<T>): Ctx {
+	const kept = self[SYNC_CTX];
+	if (kept.value === null) kept.value = nodeMakeCtx(self);
+	nodeRefreshCtx(self, kept.value);
+	return kept.value;
 }
 
 const COMPLETE: DepTerminal = Object.freeze({ kind: "complete" });
@@ -50,12 +61,12 @@ function depTerminalOf(t: unknown): DepTerminal | undefined {
  * One dependency's view (R-invocation@2): an array keeps its boundary; markers are not values.
  * It reads the node's live inputs, so a reused ctx needs no refresh.
  */
-function makeDepView<T>(self: NodeRuntimeHost<T>, index: number): CtxDep {
+function makeDepView<T>(self: Node<T>, index: number): CtxDep {
 	let idNode: Node<unknown> | undefined;
 	let id = "";
 	return {
 		get id() {
-			const dep = self._slot.deps[index] as Node<unknown>;
+			const dep = self[SLOT].deps[index] as Node<unknown>;
 			if (dep !== idNode) {
 				idNode = dep;
 				id = graphNodeIdOf(dep);
@@ -63,33 +74,33 @@ function makeDepView<T>(self: NodeRuntimeHost<T>, index: number): CtxDep {
 			return id;
 		},
 		get waves() {
-			const arrays = self._dep.inputs[index]?.waveData;
+			const arrays = self[DEP].inputs[index]?.waveData;
 			if (arrays === undefined || arrays.length === 0) return NO_WAVES;
 			return arrays.map((a) => (a.includes(SENTINEL) ? a.filter((v) => v !== SENTINEL) : a));
 		},
 		get terminal() {
-			return depTerminalOf(self._dep.inputs[index]?.terminalInput);
+			return depTerminalOf(self[DEP].inputs[index]?.terminalInput);
 		},
 		get value() {
-			return self._dep.inputs[index]?.prev;
+			return self[DEP].inputs[index]?.prev;
 		},
 		get has() {
-			return self._dep.inputs[index]?.hasData === true;
+			return self[DEP].inputs[index]?.hasData === true;
 		},
 		get invalidated() {
 			return (
-				self._slot.invalidatePolicy === "manual" && self._dep.inputs[index]?.invalidated === true
+				self[SLOT].invalidatePolicy === "manual" && self[DEP].inputs[index]?.invalidated === true
 			);
 		},
 	};
 }
 
 /** The dependency views of a ctx, one per current dependency. */
-function makeDepViews<T>(self: NodeRuntimeHost<T>): CtxDep[] {
-	return self._slot.deps.map((_, i) => makeDepView(self, i));
+function makeDepViews<T>(self: Node<T>): CtxDep[] {
+	return self[SLOT].deps.map((_, i) => makeDepView(self, i));
 }
 
-export function nodeMakeCtx<T>(self: NodeRuntimeHost<T>): Ctx {
+export function nodeMakeCtx<T>(self: Node<T>): Ctx {
 	// R-lifetime: every ctx belongs to exactly one lifetime; output through a ctx whose lifetime has
 	// closed is dropped.
 	const signal = nodeLifetimeSignal(self);
@@ -98,43 +109,43 @@ export function nodeMakeCtx<T>(self: NodeRuntimeHost<T>): Ctx {
 		// drove it (cheap inc/dec, no early drain); a function that kept its ctx re-enters here
 		// at depth 0 after it returned, so this is the boundary that drains any ctx.rewire it issued.
 		down: (msgs) => {
-			if (self._released || signal.aborted) return;
+			if (self[RELEASED] || signal.aborted) return;
 			// An empty array sends nothing: no array, no wave, no request, no output (as in Rust
 			// and Python), during the run, after it and inside a batch body.
 			if (msgs.length === 0) return;
 			validateNodeOutput(msgs);
 			// R-failure: an invalid array throws from ctx.down, before anything is accepted.
 			prepareArrays(msgs);
-			noteBatchLifetime(self._core, self as unknown as Node<unknown>, signal);
+			noteBatchLifetime(self[CORE], self, signal);
 			// R-wave: during the node's run its arrays are its run's output, published after it returns.
 			// Inside a batch body they are staged for the commit (R-request-order).
-			if (self._wave.insideRunWave || currentBatch(self._core)) {
-				self._down(msgs);
+			if (self[WAVE].insideRunWave || currentBatch(self[CORE])) {
+				nodeDown(self, msgs);
 				return;
 			}
 			// R-wave / R-request-order: output after the function returned starts a wave of its own,
 			// as a request: during another wave it waits for it, and it is dropped if this ctx's
 			// lifetime has closed (or the node got a new instance) before it runs.
 			const array: Wave = [...msgs];
-			request(self._core, () => {
+			request(self[CORE], () => {
 				if (!nodeLifetimeIsCurrent(self, signal)) return;
-				self._down(array);
+				nodeDown(self, array);
 			});
 		},
 		emit: (...values) => {
 			ctx.down(values.map((v) => ["DATA", v] as const));
 		},
 		deps: makeDepViews(self),
-		state: self._makeState(signal),
+		state: nodeMakeState(self, signal),
 		seed: undefined,
 		signal,
-		environment: () => self._slot.environment,
+		environment: () => self[SLOT].environment,
 		rewire: (deps) => nodeRequestRewire(self, signal, [...deps]),
 		[CTX_NODE_BINDING]: {
-			dispatcher: self._slot.dispatcher,
+			dispatcher: self[SLOT].dispatcher,
 			create: <U>(factory: () => Node<U>) =>
-				withEnvironmentDrivers(self._slot.environment, () =>
-					withNodeCore(self._core, factory, self._slot.dispatcher),
+				withEnvironmentDrivers(self[SLOT].environment, () =>
+					withNodeCore(self[CORE], factory, self[SLOT].dispatcher),
 				),
 			rewireDiff: (add, remove) => nodeRequestRewireDiff(self, signal, add, remove),
 			rewireDiffNow: (add, remove) => nodeApplyRewireDiff(self, signal, add, remove),
@@ -142,38 +153,38 @@ export function nodeMakeCtx<T>(self: NodeRuntimeHost<T>): Ctx {
 	};
 	// The live flags of each dependency's arrays: the node's live inputs, which a reused ctx
 	// reads as its views do, so it needs no refresh.
-	setCtxDepWaveOrigin(ctx, { live: (depIndex) => self._dep.inputs[depIndex]?.waveLive });
+	setCtxDepWaveOrigin(ctx, { live: (depIndex) => self[DEP].inputs[depIndex]?.waveLive });
 	return ctx;
 }
 
 /** The current lifetime's signal, opening the lifetime if none is open (R-lifetime). */
-export function nodeLifetimeSignal<T>(self: NodeRuntimeHost<T>): AbortSignal {
-	self._lifetime.controller ??= new AbortController();
-	return self._lifetime.controller.signal;
+export function nodeLifetimeSignal<T>(self: Node<T>): AbortSignal {
+	self[LIFETIME].controller ??= new AbortController();
+	return self[LIFETIME].controller.signal;
 }
 
-export function nodeRefreshCtx<T>(self: NodeRuntimeHost<T>, ctx: Ctx): void {
+export function nodeRefreshCtx<T>(self: Node<T>, ctx: Ctx): void {
 	// The views read the node's live inputs; only a rewire changes how many there are.
-	if (ctx.deps.length !== self._slot.deps.length)
+	if (ctx.deps.length !== self[SLOT].deps.length)
 		(ctx as { deps: readonly CtxDep[] }).deps = makeDepViews(self);
 }
 
 /** R-lifetime: whether `signal` is the node's current lifetime (also while its cleanup runs). */
-export function nodeLifetimeIsCurrent<T>(self: NodeRuntimeHost<T>, signal: AbortSignal): boolean {
-	return !self._released && !signal.aborted && self._lifetime.controller?.signal === signal;
+export function nodeLifetimeIsCurrent<T>(self: Node<T>, signal: AbortSignal): boolean {
+	return !self[RELEASED] && !signal.aborted && self[LIFETIME].controller?.signal === signal;
 }
 
 /**
  * R-lifetime@2: a ctx's private state is its lifetime's. Once that lifetime has closed (its cleanup
  * done), the ctx reads nothing and writes nothing, so it cannot reach the next lifetime's state.
  */
-export function nodeMakeState<T>(self: NodeRuntimeHost<T>, signal: AbortSignal): CtxState {
+export function nodeMakeState<T>(self: Node<T>, signal: AbortSignal): CtxState {
 	const own = () =>
-		self._lifetime.controller?.signal === signal || self._lifetime.closingSignal === signal;
+		self[LIFETIME].controller?.signal === signal || self[LIFETIME].closingSignal === signal;
 	return {
-		get: <S>() => (own() ? (self._privateState.value as S | undefined) : undefined),
+		get: <S>() => (own() ? (self[PRIVATE_STATE].value as S | undefined) : undefined),
 		set: <S>(v: S) => {
-			if (own()) self._privateState.value = v;
+			if (own()) self[PRIVATE_STATE].value = v;
 		},
 	};
 }
@@ -183,23 +194,23 @@ export function nodeMakeState<T>(self: NodeRuntimeHost<T>, signal: AbortSignal):
  * arrays kept apart and in order, with the kernel's PENDING before them. It is a request of the
  * node's graph and is dropped if the run's lifetime has closed or the node has ended first.
  */
-export function nodeDeferQuietOutput<T>(self: NodeRuntimeHost<T>, arrays: Message[][]): void {
-	const signal = self._lifetime.controller?.signal;
+export function nodeDeferQuietOutput<T>(self: Node<T>, arrays: Message[][]): void {
+	const signal = self[LIFETIME].controller?.signal;
 	const out = arrays.map((a) => [...a]);
 	deferRequest(
-		self._core,
+		self[CORE],
 		() => {
 			// A node that has not run has no lifetime (an auto terminal from a dependency); its
 			// output stands while it is still active.
 			if (
 				signal === undefined
-					? self._released || !self._lifecycle.activated
+					? self[RELEASED] || !self[LIFECYCLE].activated
 					: !nodeLifetimeIsCurrent(self, signal)
 			)
 				return;
-			if (self._value.terminal !== undefined) return;
-			self._publish(out);
+			if (self[VALUE].terminal !== undefined) return;
+			nodePublish(self, out);
 		},
-		{ batchToken: currentBoundaryBatchToken(self._core) },
+		{ batchToken: currentBoundaryBatchToken(self[CORE]) },
 	);
 }

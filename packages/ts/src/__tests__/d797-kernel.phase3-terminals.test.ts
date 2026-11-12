@@ -13,6 +13,7 @@
 import { describe, expect, it } from "vitest";
 import type { Ctx } from "../ctx/types.js";
 import { graph } from "../graph/graph.js";
+import { subscriberCountOfNode } from "../node/runtime-accessors.js";
 import type { Wave } from "../protocol/messages.js";
 
 /** A sink that records every array it receives, as the kernel delivers it. */
@@ -268,7 +269,7 @@ describe("C-34: terminal fanout, the ended node's lifetime closing, and acquirin
 		expect(s.cache).toBe(1);
 		expect(cleanups).toBe(1);
 		// The lifetime released T, which has no other dependent.
-		expect((t as unknown as { _subscriberCount(): number })._subscriberCount()).toBe(0);
+		expect(subscriberCountOfNode(t)).toBe(0);
 		expect(runs).toBe(1);
 		// S never runs again.
 		expect(() => t.set(2)).not.toThrow();

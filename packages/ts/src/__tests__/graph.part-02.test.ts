@@ -17,6 +17,7 @@ import {
 	strictJsonCodec,
 } from "../index.js";
 import { buildBeside } from "../node/node.js";
+import { LIFECYCLE, LIFETIME } from "../node/node-keys.js";
 import { asState } from "./helpers/as-state.js";
 
 function collect(n: { subscribe(s: (msgs: Wave) => void): () => void }) {
@@ -284,21 +285,13 @@ describe("Graph.observeTopology — read-only topology egress (D145)", () => {
 		const g = graph();
 		const panic = g.state(1, { name: "panic" });
 		const later = g.state(2, { name: "later" });
-		const panicInternals = panic as unknown as {
-			_lifecycle: { activated: boolean };
-			_lifetime: { cleanup: (() => void) | undefined };
-		};
-		const laterInternals = later as unknown as {
-			_lifecycle: { activated: boolean };
-			_lifetime: { cleanup: (() => void) | undefined };
-		};
 		let laterCleanupRan = false;
-		panicInternals._lifecycle.activated = true;
-		panicInternals._lifetime.cleanup = () => {
+		panic[LIFECYCLE].activated = true;
+		panic[LIFETIME].cleanup = () => {
 			throw new Error("cleanup boom");
 		};
-		laterInternals._lifecycle.activated = true;
-		laterInternals._lifetime.cleanup = () => {
+		later[LIFECYCLE].activated = true;
+		later[LIFETIME].cleanup = () => {
 			laterCleanupRan = true;
 		};
 		const events: TopologyEvent[] = [];

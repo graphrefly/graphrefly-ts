@@ -9,7 +9,7 @@ import {
 } from "../../packages/ts/src/graph/construction-scope.js";
 import { Graph } from "../../packages/ts/src/graph/graph.js";
 import type { Node } from "../../packages/ts/src/node/node.js";
-import { nodeRuntimeHost } from "../../packages/ts/src/node/node-runtime-host.js";
+import { nodeDown } from "../../packages/ts/src/node/node-output-runtime.js";
 import { checkpointStateOfNode } from "../../packages/ts/src/node/runtime-accessors.js";
 import type { CausalBinding } from "../../packages/ts/src/solutions/causal-occurrence/capabilities.js";
 import {
@@ -189,9 +189,7 @@ export function publicationRun(
 	scope.transferToGraph(owner);
 	// Fault injection: end the owned root with ERROR from outside, through the internal output path.
 	if (options.fault)
-		nodeRuntimeHost(built.causal.roots[0] as Node<unknown>)._down([
-			["ERROR", new Error("owned startup fault")],
-		]);
+		nodeDown(built.causal.roots[0] as Node<unknown>, [["ERROR", new Error("owned startup fault")]]);
 	startConstruction(graph, owner);
 	let latest: unknown,
 		ui: (() => void) | undefined,

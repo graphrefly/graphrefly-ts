@@ -2,8 +2,22 @@ import { enterWave, exitWave, reportFailure } from "../batch/boundary.js";
 import { type Message, SENTINEL } from "../protocol/messages.js";
 import { makeDepBookkeeping, makeDepInput, type Subscriber } from "./core.js";
 import type { Node } from "./node.js";
+import { nodeReceiveFromDep, nodeSettle } from "./node-input-runtime.js";
+import {
+	CORE,
+	DEP,
+	ID,
+	LIFECYCLE,
+	LIFETIME,
+	PRIVATE_STATE,
+	RELEASED,
+	SEED_NOTE,
+	SLOT,
+	SYNC_CTX,
+	VALUE,
+	WAVE,
+} from "./node-keys.js";
 import { nodeCallSink } from "./node-output-runtime.js";
-import { type NodeRuntimeHost, nodeRuntimeHost } from "./node-runtime-host.js";
 import type { RuntimeReleaseFailure, SubscriptionAcquisition } from "./owned-acquisition.js";
 import {
 	closeNodeRegistration,
@@ -14,7 +28,7 @@ import type { Status } from "./types.js";
 
 /**
  * graphrefly-ts Q15: activation runs on an explicit stack of frames, not JS recursion, so a chain
- * of any depth activates. A frame is one subscription to one node (Node._subscribeOwned): it
+ * of any depth activates. A frame is one subscription to one node (nodeSubscribeOwned): it
  * activates the node if needed, acquiring each dependency as a child frame on top of it, runs the
  * node's first run once every dependency is acquired, and then attaches the subscriber with START
  * and the snapshot. The order and the cleanup on a throw are those of the recursive calls.
@@ -29,7 +43,7 @@ const ACT_ATTACH = 3;
 const ACT_DONE = 4;
 
 interface Activation {
-	readonly self: NodeRuntimeHost<unknown>;
+	readonly self: Node<unknown>;
 	/** undefined: activation only (nodeActivate), no subscription. */
 	readonly subscriber: Subscriber | undefined;
 	readonly acquisition: SubscriptionAcquisition | undefined;
@@ -47,7 +61,7 @@ interface Activation {
 const activations: Activation[] = [];
 
 function newActivation(
-	self: NodeRuntimeHost<unknown>,
+	self: Node<unknown>,
 	subscriber: Subscriber | undefined,
 	acquisition: SubscriptionAcquisition | undefined,
 ): Activation {
@@ -67,23 +81,29 @@ function newActivation(
 
 const NO_DEPS: readonly Node<unknown>[] = Object.freeze([]);
 
+/** D122: a node released from its graph's lifecycle takes no more input or subscriptions. */
+export function nodeAssertNotReleased<T>(self: Node<T>, op: string): void {
+	if (self[RELEASED])
+		throw new Error(`${op}: node has been released from its graph lifecycle (D122)`);
+}
+
 /**
  * R-subscription / R-lifetime: subscribing activates an inactive node first, so the first array is
  * START plus the snapshot as the activation left it; arrays the activation sent before this
  * subscriber joined are not delivered to it separately. An ended node's function never runs again.
  */
 export function nodeSubscribeOwned<T>(
-	self: NodeRuntimeHost<T>,
+	self: Node<T>,
 	subscriber: Subscriber,
 	acquisition?: SubscriptionAcquisition,
 ): () => void {
-	const root = newActivation(self as NodeRuntimeHost<unknown>, subscriber, acquisition);
+	const root = newActivation(self, subscriber, acquisition);
 	driveActivations(root);
 	return root.unsubscribe as () => void;
 }
 
-export function nodeActivate<T>(self: NodeRuntimeHost<T>): void {
-	driveActivations(newActivation(self as NodeRuntimeHost<unknown>, undefined, undefined));
+export function nodeActivate<T>(self: Node<T>): void {
+	driveActivations(newActivation(self, undefined, undefined));
 }
 
 function driveActivations(root: Activation): void {
@@ -104,16 +124,16 @@ function stepActivation(f: Activation): void {
 				beginActivation(f);
 				return;
 			}
-			self._assertNotReleased("subscribe");
+			nodeAssertNotReleased(self, "subscribe");
 			// Wave-owner boundary (R-request-order): the activation cascade can run fns that make
 			// requests such as ctx.rewire; they wait for the OUTERMOST exit, which runs them in
 			// order. Nested subscribes (dep wiring) just inc/dec the depth.
-			enterWave(self._core);
+			enterWave(self[CORE]);
 			f.entered = true;
 			f.unsubscribe = makeUnsubscribe(self, f.subscriber);
 			// D161: ownership precedes dependency activation, START and the snapshot.
 			f.acquisition?.record(f.unsubscribe);
-			if (!self._lifecycle.activated && self._value.terminal === undefined) beginActivation(f);
+			if (!self[LIFECYCLE].activated && self[VALUE].terminal === undefined) beginActivation(f);
 			else f.phase = ACT_ATTACH;
 			return;
 		}
@@ -121,10 +141,10 @@ function stepActivation(f: Activation): void {
 			if (f.i < f.len) {
 				const dep = f.deps[f.i++] as Node<unknown>;
 				const link = nodeDepLink(self, dep);
-				activations.push(newActivation(nodeRuntimeHost(dep), link.subscriber, link.acquisition));
+				activations.push(newActivation(dep, link.subscriber, link.acquisition));
 				return;
 			}
-			self._wave.activating = false;
+			self[WAVE].activating = false;
 			f.phase = ACT_RUN;
 			finishActivation(self);
 			if (f.subscriber === undefined) completeActivation(f);
@@ -142,36 +162,36 @@ function stepActivation(f: Activation): void {
 /** R-lifetime: activation acquires every dependency, then runs the function once on their snapshots. */
 function beginActivation(f: Activation): void {
 	const self = f.self;
-	self._lifecycle.activated = true;
-	const inputs = self._dep.inputs;
+	self[LIFECYCLE].activated = true;
+	const inputs = self[DEP].inputs;
 	for (let i = 0; i < inputs.length; i++) inputs[i].unsub = undefined;
 	// R-lifetime: activation acquires every dependency, then runs the function once on their
 	// snapshots (and whatever they sent as they activated).
-	self._wave.activating = true;
-	f.deps = self._slot.deps;
+	self[WAVE].activating = true;
+	f.deps = self[SLOT].deps;
 	f.len = f.deps.length;
 	f.i = 0;
 	f.phase = ACT_DEPS;
 }
 
 /** Activation once every dependency is acquired: the lifetime's first run (R-lifetime). */
-function finishActivation(self: NodeRuntimeHost<unknown>): void {
-	self._wave.rewireRunPending = false;
-	if (self._slot.handle === null && self._slot.deps.length === 0) return; // a state node has no function
-	if (self._wave.pending > 0) return; // a dependency is mid-wave; the run waits for it
+function finishActivation(self: Node<unknown>): void {
+	self[WAVE].rewireRunPending = false;
+	if (self[SLOT].handle === null && self[SLOT].deps.length === 0) return; // a state node has no function
+	if (self[WAVE].pending > 0) return; // a dependency is mid-wave; the run waits for it
 	// R-subscription@3: a seeded node's first activation is an ordinary one; its first run gets the
 	// seed's note (ctx.seed).
-	self._runWave();
+	nodeSettle(self, true);
 }
 
 /** R-subscription: the new subscriber gets START and the snapshot as one array. */
 function attachSubscriber(f: Activation, subscriber: Subscriber): void {
 	const self = f.self;
-	self._lifecycle.subscribers.add(subscriber);
-	const terminal = self._value.terminal;
+	self[LIFECYCLE].subscribers.add(subscriber);
+	const terminal = self[VALUE].terminal;
 	const start: Message[] = [
 		["START"],
-		...self._value.lastArray.map((v) => ["DATA", v] as Message),
+		...self[VALUE].lastArray.map((v) => ["DATA", v] as Message),
 		...(terminal === undefined
 			? []
 			: [(terminal === true ? ["COMPLETE"] : ["ERROR", terminal]) as Message]),
@@ -194,7 +214,7 @@ function completeActivation(f: Activation): void {
 	f.phase = ACT_DONE;
 	if (f.entered) {
 		f.entered = false;
-		exitWave(f.self._core);
+		exitWave(f.self[CORE]);
 	}
 }
 
@@ -211,12 +231,12 @@ function unwindActivations(base: number, thrown: unknown): never {
 				error = e;
 			}
 		}
-		if (f.phase === ACT_DEPS) f.self._wave.activating = false;
+		if (f.phase === ACT_DEPS) f.self[WAVE].activating = false;
 		f.phase = ACT_DONE;
 		if (f.entered) {
 			f.entered = false;
 			try {
-				exitWave(f.self._core);
+				exitWave(f.self[CORE]);
 			} catch (e) {
 				error = e;
 			}
@@ -226,7 +246,7 @@ function unwindActivations(base: number, thrown: unknown): never {
 }
 
 /** The subscription's unsubscribe; the last one out deactivates the node (R-lifetime). */
-function makeUnsubscribe(self: NodeRuntimeHost<unknown>, subscriber: Subscriber): () => void {
+function makeUnsubscribe(self: Node<unknown>, subscriber: Subscriber): () => void {
 	let left = false;
 	return () => {
 		// Q15: called straight from a teardown loop, the deactivation continues that loop.
@@ -234,17 +254,17 @@ function makeUnsubscribe(self: NodeRuntimeHost<unknown>, subscriber: Subscriber)
 		teardownTail = false;
 		if (left) return;
 		left = true;
-		self._lifecycle.subscribers.delete(subscriber);
-		if (self._lifecycle.subscribers.size === 0) {
+		self[LIFECYCLE].subscribers.delete(subscriber);
+		if (self[LIFECYCLE].subscribers.size === 0) {
 			if (tail) teardowns.push(beginTeardown(self, TD_DEACTIVATE, undefined));
 			else nodeDeactivate(self);
 		}
 	};
 }
 
-export function nodeSubscribeDepAt<T>(self: NodeRuntimeHost<T>, depNode: Node<unknown>): void {
+export function nodeSubscribeDepAt<T>(self: Node<T>, depNode: Node<unknown>): void {
 	const link = nodeDepLink(self, depNode);
-	nodeRuntimeHost(depNode)._subscribeOwned(link.subscriber, link.acquisition);
+	nodeSubscribeOwned(depNode, link.subscriber, link.acquisition);
 }
 
 /** A dependency subscription: its dependent subscriber and its acquisition. */
@@ -253,13 +273,13 @@ interface DepLink {
 	readonly acquisition: SubscriptionAcquisition;
 }
 
-function nodeDepLink<T>(self: NodeRuntimeHost<T>, depNode: Node<unknown>): DepLink {
+function nodeDepLink<T>(self: Node<T>, depNode: Node<unknown>): DepLink {
 	// The dependency's record is the subscription's index box: a rewire re-points its idx.
-	const idx0 = self._slot.deps.indexOf(depNode);
-	const input = idx0 === -1 ? makeDepInput(-1) : self._dep.inputs[idx0];
+	const idx0 = self[SLOT].deps.indexOf(depNode);
+	const input = idx0 === -1 ? makeDepInput(-1) : self[DEP].inputs[idx0];
 	const dependent: import("../ctx/types.js").DependentSink = (arrays, snapshot) => {
 		if (input.idx === -1) return; // dep removed — stale callback, drop (drain)
-		self._receiveFromDep(input.idx, arrays, snapshot);
+		nodeReceiveFromDep(self, input.idx, arrays, snapshot);
 	};
 	return {
 		subscriber: { kind: "dependent", fn: dependent },
@@ -285,7 +305,7 @@ let teardownTail = false;
 type CloseErrorSink = (error: unknown, resource: "subscription" | "deactivation") => void;
 
 interface Teardown {
-	readonly self: NodeRuntimeHost<unknown>;
+	readonly self: Node<unknown>;
 	readonly kind: number;
 	readonly onError: CloseErrorSink | undefined;
 	readonly unsubs: readonly ((() => void) | undefined)[];
@@ -301,26 +321,26 @@ const teardowns: Teardown[] = [];
  * (which may still read the private state), and then drops the private state. `onError` collects
  * failures instead of throwing (graph release).
  */
-export function nodeCloseLifetime<T>(self: NodeRuntimeHost<T>, onError?: CloseErrorSink): void {
-	driveTeardowns(beginTeardown(self as NodeRuntimeHost<unknown>, TD_CLOSE, onError));
+export function nodeCloseLifetime<T>(self: Node<T>, onError?: CloseErrorSink): void {
+	driveTeardowns(beginTeardown(self, TD_CLOSE, onError));
 }
 
 /** The close up to releasing the dependencies: the lifetime's signal is aborted. */
 function beginTeardown(
-	self: NodeRuntimeHost<unknown>,
+	self: Node<unknown>,
 	kind: number,
 	onError: CloseErrorSink | undefined,
 ): Teardown {
-	if (kind === TD_DEACTIVATE) self._lifecycle.activated = false;
-	const lifetime = self._lifetime;
+	if (kind === TD_DEACTIVATE) self[LIFECYCLE].activated = false;
+	const lifetime = self[LIFETIME];
 	const controller = lifetime.controller;
 	const cleanup = lifetime.cleanup;
 	lifetime.controller = null;
 	lifetime.cleanup = undefined;
 	lifetime.setupDone = false;
-	self._syncCtx = null;
+	self[SYNC_CTX].value = null;
 	// R-subscription@3: only the seeded instance's first run, in its first lifetime, gets the note.
-	self._seedNote = undefined;
+	self[SEED_NOTE] = undefined;
 	if (controller !== null) {
 		if (onError === undefined) controller.abort();
 		else
@@ -330,7 +350,7 @@ function beginTeardown(
 				onError(error, "deactivation");
 			}
 	}
-	const inputs = self._dep.inputs;
+	const inputs = self[DEP].inputs;
 	const unsubs: Array<() => void> = [];
 	for (let i = 0; i < inputs.length; i++) {
 		const input = inputs[i];
@@ -401,14 +421,14 @@ function unwindTeardowns(base: number, failed: Teardown, thrown: unknown): void 
 /** The close after the dependencies are released (R-lifetime@2), then a deactivation's own end. */
 function finishTeardown(f: Teardown): void {
 	const self = f.self;
-	const lifetime = self._lifetime;
+	const lifetime = self[LIFETIME];
 	const onError = f.onError;
 	// R-lifetime: a ctx.rewire belongs to its lifetime; closing puts the declared dependencies back.
-	if (!self._released && self._slot.deps !== self._slot.declaredDeps) {
-		const prev = self._slot.deps;
-		self._slot.deps = self._slot.declaredDeps;
-		Object.assign(self._dep, makeDepBookkeeping(self._slot.deps.length));
-		notifyTopologyDepsChanged(self as unknown as Node<unknown>, prev, self._slot.deps);
+	if (!self[RELEASED] && self[SLOT].deps !== self[SLOT].declaredDeps) {
+		const prev = self[SLOT].deps;
+		self[SLOT].deps = self[SLOT].declaredDeps;
+		Object.assign(self[DEP], makeDepBookkeeping(self[SLOT].deps.length));
+		notifyTopologyDepsChanged(self, prev, self[SLOT].deps);
 	}
 	lifetime.closing = true;
 	lifetime.closingSignal = f.controller?.signal ?? null;
@@ -426,70 +446,70 @@ function finishTeardown(f: Teardown): void {
 			try {
 				cleanup();
 			} catch (error) {
-				reportFailure(self._core, `cleanup of ${self._slot.name ?? "node"}`, error);
+				reportFailure(self[CORE], `cleanup of ${self[SLOT].name ?? "node"}`, error);
 			}
 		}
 	}
 	lifetime.closing = false;
 	lifetime.closingSignal = null;
-	self._privateState.value = SENTINEL;
+	self[PRIVATE_STATE].value = SENTINEL;
 	if (f.kind === TD_DEACTIVATE) nodeDeactivateEnd(self);
 }
 
 /** R-node@2: a node's status, derived from what it holds. */
-export function nodeStatus<T>(self: NodeRuntimeHost<T>): Status {
-	const terminal = self._value.terminal;
+export function nodeStatus<T>(self: Node<T>): Status {
+	const terminal = self[VALUE].terminal;
 	return {
-		cache: !self._value.hasData
+		cache: !self[VALUE].hasData
 			? "empty"
-			: self._wave.emittedDirtyThisWave || self._wave.pending > 0
+			: self[WAVE].emittedDirtyThisWave || self[WAVE].pending > 0
 				? "stale"
 				: "ready",
 		output: terminal === undefined ? "open" : terminal === true ? "completed" : "errored",
-		lifecycle: self._lifetime.closing
+		lifecycle: self[LIFETIME].closing
 			? "closing"
-			: self._lifecycle.activated
+			: self[LIFECYCLE].activated
 				? "active"
 				: "inactive",
 	};
 }
 
-export function nodeDeactivate<T>(self: NodeRuntimeHost<T>): void {
-	driveTeardowns(beginTeardown(self as NodeRuntimeHost<unknown>, TD_DEACTIVATE, undefined));
+export function nodeDeactivate<T>(self: Node<T>): void {
+	driveTeardowns(beginTeardown(self, TD_DEACTIVATE, undefined));
 }
 
 /** R-lifetime: deactivation drops a computed node's retained values unless it has ended. */
-function nodeDeactivateEnd(self: NodeRuntimeHost<unknown>): void {
-	const isCompute = self._slot.handle !== null || self._slot.deps.length > 0;
-	if (isCompute && self._value.terminal === undefined) {
+function nodeDeactivateEnd(self: Node<unknown>): void {
+	const isCompute = self[SLOT].handle !== null || self[SLOT].deps.length > 0;
+	if (isCompute && self[VALUE].terminal === undefined) {
 		// RAM: compute nodes clear cache; reconnect re-runs fn fresh.
-		self._value.cache = SENTINEL;
-		self._value.hasData = false;
-		self._value.lastArray = [];
+		self[VALUE].cache = SENTINEL;
+		self[VALUE].hasData = false;
+		self[VALUE].lastArray = [];
 	}
-	self._resetDepState();
+	nodeResetDepState(self);
 }
 
-export function nodeSubscriberCount<T>(self: NodeRuntimeHost<T>): number {
-	return self._lifecycle.subscribers.size;
+export function nodeSubscriberCount<T>(self: Node<T>): number {
+	return self[LIFECYCLE].subscribers.size;
 }
 
-export function nodeIsRuntimeQuiescentForRelease<T>(self: NodeRuntimeHost<T>): boolean {
+export function nodeIsRuntimeQuiescentForRelease<T>(self: Node<T>): boolean {
 	return (
-		!self._released &&
-		!self._wave.emittedDirtyThisWave &&
-		self._wave.pending === 0 &&
-		!self._wave.insideRunWave &&
-		!self._wave.inDepMutation &&
-		!self._wave.rewireRunPending &&
-		self._dep.inputs.every((input) => !input.dirty)
+		!self[RELEASED] &&
+		!self[WAVE].emittedDirtyThisWave &&
+		self[WAVE].pending === 0 &&
+		!self[WAVE].insideRunWave &&
+		!self[WAVE].inDepMutation &&
+		!self[WAVE].rewireRunPending &&
+		self[DEP].inputs.every((input) => !input.dirty)
 	);
 }
 
-export function nodeReleaseRuntime<T>(self: NodeRuntimeHost<T>): void {
-	if (self._released) return;
-	self._released = true;
-	const node = self as unknown as Node<unknown>;
+export function nodeReleaseRuntime<T>(self: Node<T>): void {
+	if (self[RELEASED]) return;
+	self[RELEASED] = true;
+	const node: Node<unknown> = self;
 	const releaseErrors: RuntimeReleaseFailure[] = [];
 	const recordReleaseError = (
 		error: unknown,
@@ -499,38 +519,38 @@ export function nodeReleaseRuntime<T>(self: NodeRuntimeHost<T>): void {
 		releaseErrors.push({
 			cause: error,
 			resource,
-			...(handle === undefined ? {} : { handle, dispatcher: self._slot.dispatcher }),
+			...(handle === undefined ? {} : { handle, dispatcher: self[SLOT].dispatcher }),
 		});
 	};
-	self._lifecycle.activated = false;
+	self[LIFECYCLE].activated = false;
 	// D124 release is graph-owned and atomic: subscription and cleanup failures are collected, not
 	// thrown mid-release, and no protocol ERROR/COMPLETE is synthesized.
 	nodeCloseLifetime(self, (error, resource) => recordReleaseError(error, resource));
-	self._lifecycle.subscribers.clear();
-	if (self._slot.handle !== null) {
-		const handle = self._slot.handle;
+	self[LIFECYCLE].subscribers.clear();
+	if (self[SLOT].handle !== null) {
+		const handle = self[SLOT].handle;
 		try {
-			self._slot.dispatcher.unregister(handle);
-			self._slot.handle = null;
+			self[SLOT].dispatcher.unregister(handle);
+			self[SLOT].handle = null;
 		} catch (error) {
 			recordReleaseError(error, "handle", handle);
 		}
 	}
-	self._slot.deps = [];
-	self._dep.inputs = [];
-	self._value.cache = SENTINEL;
-	self._value.hasData = false;
-	self._value.terminal = undefined;
-	self._value.lastArray = [];
-	self._privateState.value = SENTINEL;
-	self._syncCtx = null;
-	self._resetDepState();
-	self._seedNote = undefined;
+	self[SLOT].deps = [];
+	self[DEP].inputs = [];
+	self[VALUE].cache = SENTINEL;
+	self[VALUE].hasData = false;
+	self[VALUE].terminal = undefined;
+	self[VALUE].lastArray = [];
+	self[PRIVATE_STATE].value = SENTINEL;
+	self[SYNC_CTX].value = null;
+	nodeResetDepState(self);
+	self[SEED_NOTE] = undefined;
 	closeNodeRegistration(node);
 	try {
-		self._core.releaseSlot(self._id);
+		self[CORE].releaseSlot(self[ID]);
 	} catch (cause) {
-		releaseErrors.push({ resource: "slot", cause, core: self._core, slot: self._id });
+		releaseErrors.push({ resource: "slot", cause, core: self[CORE], slot: self[ID] });
 	}
 	if (releaseErrors.length > 0) {
 		setRuntimeReleaseFailures(node, Object.freeze(releaseErrors));
@@ -538,8 +558,8 @@ export function nodeReleaseRuntime<T>(self: NodeRuntimeHost<T>): void {
 	}
 }
 
-export function nodeResetDepState<T>(self: NodeRuntimeHost<T>): void {
-	const inputs = self._dep.inputs;
+export function nodeResetDepState<T>(self: Node<T>): void {
+	const inputs = self[DEP].inputs;
 	for (let i = 0; i < inputs.length; i++) {
 		const input = inputs[i];
 		input.waveData = [];
@@ -551,6 +571,6 @@ export function nodeResetDepState<T>(self: NodeRuntimeHost<T>): void {
 		input.terminalInput = undefined;
 		input.invalidated = false;
 	}
-	self._wave.pending = 0;
-	self._wave.emittedDirtyThisWave = false;
+	self[WAVE].pending = 0;
+	self[WAVE].emittedDirtyThisWave = false;
 }

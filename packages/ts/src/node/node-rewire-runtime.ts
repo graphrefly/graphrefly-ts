@@ -4,45 +4,88 @@ import type { NodeFn } from "../ctx/types.js";
 import { type Message, SENTINEL } from "../protocol/messages.js";
 import { type DepInput, makeDepBookkeeping, makeDepInput } from "./core.js";
 import type { Node } from "./node.js";
-import { nodeCallSink } from "./node-output-runtime.js";
-import type { NodeRuntimeHost } from "./node-runtime-host.js";
-import { notifyTopologyDepsChanged } from "./runtime-accessors.js";
+import { nodeSettle, nodeSettleRewire } from "./node-input-runtime.js";
+import {
+	CORE,
+	DEP,
+	LIFECYCLE,
+	LIFETIME,
+	PRIVATE_STATE,
+	RELEASED,
+	SEED_NOTE,
+	SLOT,
+	SYNC_CTX,
+	VALUE,
+	WAVE,
+} from "./node-keys.js";
+import { nodeSubscribeDepAt } from "./node-lifecycle-runtime.js";
+import { nodeCallSink, nodeDown, nodeMarkDependents } from "./node-output-runtime.js";
+import { getNodeOwner, notifyTopologyDepsChanged } from "./runtime-accessors.js";
 import type { NodeDefinition, ReplaceOptions } from "./types.js";
 
+/** Whether `target` is `from` or upstream of it. */
+function reachableUpstream(from: Node<unknown>, target: Node<unknown>): boolean {
+	const seen = new Set<Node<unknown>>();
+	const stack: Node<unknown>[] = [from];
+	while (stack.length > 0) {
+		const n = stack.pop();
+		if (n === undefined) continue;
+		if (n === target) return true;
+		if (seen.has(n)) continue;
+		seen.add(n);
+		// R-request-order: through current and declared dependencies, since a closing lifetime
+		// puts the declared ones back.
+		const slot = n[SLOT];
+		for (const d of slot.deps) stack.push(d);
+		for (const d of slot.declaredDeps) stack.push(d);
+	}
+	return false;
+}
+
+/** D22 / R-graph-domain: a dependency of `self` belongs to its graph. */
+export function assertRewireDepOwner<T>(self: Node<T>, dep: Node<unknown>): void {
+	const selfOwner = getNodeOwner(self);
+	const depOwner = getNodeOwner(dep);
+	if (selfOwner !== undefined && depOwner !== undefined && selfOwner !== depOwner)
+		throw new Error(
+			"rewire: dep belongs to a different graph; cross-graph deps require a wire bridge (D22 / R-graph-domain)",
+		);
+}
+
 /** R-request-order: refused at once for a duplicate, the node itself, or a node that depends on it. */
-function assertRewireList<T>(self: NodeRuntimeHost<T>, deps: readonly Node<unknown>[]): void {
+function assertRewireList<T>(self: Node<T>, deps: readonly Node<unknown>[]): void {
 	if (new Set(deps).size !== deps.length) throw new Error("rewire: duplicate dependency");
-	const node = self as unknown as Node<unknown>;
+	const node: Node<unknown> = self;
 	for (const d of deps) {
-		if (d === node || self._reachableUpstream(d, node))
+		if (d === node || reachableUpstream(d, node))
 			throw new Error("rewire: a dependency is the node itself or depends on it");
-		self._assertRewireDepOwner(d);
+		assertRewireDepOwner(self, d);
 	}
 }
 
 function nodeQueueRewire<T>(
-	self: NodeRuntimeHost<T>,
+	self: Node<T>,
 	signal: AbortSignal,
 	next: (current: readonly Node<unknown>[]) => Node<unknown>[],
 ): void {
 	// R-request-order: dropped if its lifetime has closed when asked for or when it runs.
 	if (signal.aborted) return;
-	request(self._core, () => {
-		if (self._released || signal.aborted) return;
-		const current = self._slot.deps;
+	request(self[CORE], () => {
+		if (self[RELEASED] || signal.aborted) return;
+		const current = self[SLOT].deps;
 		const deps = next(current);
 		if (deps.length === current.length && deps.every((d, i) => d === current[i])) return;
 		// graphrefly:D806 (2): the cycle check runs again when the request runs; refused, it changes
 		// nothing and its failure is the queued request's, for the host reporter (R-failure@3), not
 		// this node's ERROR.
 		assertRewireList(self, deps);
-		self._rewire(deps);
+		nodeRewire(self, deps);
 	});
 }
 
 /** R-request-order: ctx.rewire(deps). */
 export function nodeRequestRewire<T>(
-	self: NodeRuntimeHost<T>,
+	self: Node<T>,
 	signal: AbortSignal,
 	deps: Node<unknown>[],
 ): void {
@@ -52,7 +95,7 @@ export function nodeRequestRewire<T>(
 
 /** Internal: a rewire by difference for operators, computed when the request runs. */
 export function nodeRequestRewireDiff<T>(
-	self: NodeRuntimeHost<T>,
+	self: Node<T>,
 	signal: AbortSignal,
 	add: readonly Node<unknown>[],
 	remove: readonly Node<unknown>[],
@@ -66,17 +109,17 @@ export function nodeRequestRewireDiff<T>(
 
 /** Internal: apply a rewire by difference now, from inside a request; dropped after a close. */
 export function nodeApplyRewireDiff<T>(
-	self: NodeRuntimeHost<T>,
+	self: Node<T>,
 	signal: AbortSignal,
 	add: readonly Node<unknown>[],
 	remove: readonly Node<unknown>[],
 ): void {
-	if (self._released || signal.aborted) return;
-	const current = self._slot.deps;
+	if (self[RELEASED] || signal.aborted) return;
+	const current = self[SLOT].deps;
 	const deps = current.filter((d) => !remove.includes(d));
 	for (const d of add) if (!deps.includes(d)) deps.push(d);
 	if (deps.length === current.length && deps.every((d, i) => d === current[i])) return;
-	self._rewire(deps);
+	nodeRewire(self, deps);
 }
 
 /**
@@ -84,37 +127,37 @@ export function nodeApplyRewireDiff<T>(
  * restore of a lifetime that had rewired). The declared dependencies and the function stay; a new
  * definition goes through replace (R-node).
  */
-export function nodeRewire<T>(self: NodeRuntimeHost<T>, newDeps: Node<unknown>[]): boolean {
-	const node = self as unknown as Node<unknown>;
+export function nodeRewire<T>(self: Node<T>, newDeps: Node<unknown>[]): boolean {
+	const node: Node<unknown> = self;
 	validateNodeRewire(self, newDeps);
-	const oldDeps = self._slot.deps;
+	const oldDeps = self[SLOT].deps;
 	const added = newDeps.filter((d) => !oldDeps.includes(d));
 
 	if (
-		deferAfterBatchForTarget(self._core, node, () => {
-			self._rewire(newDeps);
+		deferAfterBatchForTarget(self[CORE], node, () => {
+			nodeRewire(self, newDeps);
 		})
 	) {
 		return true;
 	}
-	if (!self._lifecycle.activated) self._seedNote = undefined;
+	if (!self[LIFECYCLE].activated) self[SEED_NOTE] = undefined;
 
-	self._wave.inDepMutation = true;
-	self._wave.rewireRunPending = false;
+	self[WAVE].inDepMutation = true;
+	self[WAVE].rewireRunPending = false;
 	let zeroDepUnDirty = false;
 	try {
-		const oldInputs = self._dep.inputs;
+		const oldInputs = self[DEP].inputs;
 		const removed = oldDeps.filter((d) => !newDeps.includes(d));
 		let removedDirtyContributor = false;
 		for (const d of removed) {
 			const input = oldInputs[oldDeps.indexOf(d)];
 			if (input.dirty) {
 				removedDirtyContributor = true;
-				self._wave.pending--;
+				self[WAVE].pending--;
 			}
 			// drain: the record is its subscription's index box; any stale in-flight callback drops
 			input.idx = -1;
-			if (self._lifecycle.activated) {
+			if (self[LIFECYCLE].activated) {
 				const unsub = input.unsub;
 				if (unsub) unsub(); // stops the removed dep's edge — no further delivery
 			}
@@ -139,14 +182,14 @@ export function nodeRewire<T>(self: NodeRuntimeHost<T>, newDeps: Node<unknown>[]
 			input.invalidated = false;
 			inputs.push(input);
 		}
-		self._slot.deps = newDeps;
-		self._dep.inputs = inputs;
-		self._syncCtx = null;
+		self[SLOT].deps = newDeps;
+		self[DEP].inputs = inputs;
+		self[SYNC_CTX].value = null;
 
 		// Subscribe added deps — push-on-subscribe (R-subscription) delivers a cached
-		// dep's DATA here, which drives _maybeRun; a SENTINEL dep delivers START only.
-		if (self._lifecycle.activated) {
-			for (const d of added) self._subscribeDepAt(d);
+		// dep's DATA here, which drives nodeMaybeRun; a SENTINEL dep delivers START only.
+		if (self[LIFECYCLE].activated) {
+			for (const d of added) nodeSubscribeDepAt(self, d);
 		}
 		notifyTopologyDepsChanged(node, oldDeps, newDeps);
 
@@ -155,53 +198,53 @@ export function nodeRewire<T>(self: NodeRuntimeHost<T>, newDeps: Node<unknown>[]
 		// gets the kernel's RESOLVED per R-wave/D49 — NOT equals-absorption, which is gone).
 		// With zero deps the node is inert (degenerate fn-no-deps) — just un-dirty downstream.
 		// Cache is preserved either way (Q7).
-		if (removedDirtyContributor && self._wave.pending === 0 && self._wave.emittedDirtyThisWave) {
-			if (newDeps.length > 0) self._wave.rewireRunPending = true;
+		if (removedDirtyContributor && self[WAVE].pending === 0 && self[WAVE].emittedDirtyThisWave) {
+			if (newDeps.length > 0) self[WAVE].rewireRunPending = true;
 			else zeroDepUnDirty = true;
 		}
 	} finally {
-		self._wave.inDepMutation = false;
+		self[WAVE].inDepMutation = false;
 	}
 
 	// Atomic post-mutation settle (outside the reentrancy guard so a fresh wave runs
 	// normally): ONE recompute if any added dep delivered data or a
-	// sole-dirty dep was removed; else the zero-dep un-dirty via _down (batch-safe).
-	if (self._wave.rewireRunPending) {
-		self._wave.rewireRunPending = false;
-		self._settleRewire();
+	// sole-dirty dep was removed; else the zero-dep un-dirty via nodeDown (batch-safe).
+	if (self[WAVE].rewireRunPending) {
+		self[WAVE].rewireRunPending = false;
+		nodeSettleRewire(self);
 	} else if (zeroDepUnDirty) {
-		if (self._wave.emittedDirtyThisWave) self._down([["RESOLVED"]]);
+		if (self[WAVE].emittedDirtyThisWave) nodeDown(self, [["RESOLVED"]]);
 	}
 	return false;
 }
 
 /** Internal adapters validate at call time and repeat against actual deps at commit. */
-export function validateNodeRewire<T>(self: NodeRuntimeHost<T>, newDeps: Node<unknown>[]): void {
-	const node = self as unknown as Node<unknown>;
+export function validateNodeRewire<T>(self: Node<T>, newDeps: Node<unknown>[]): void {
+	const node: Node<unknown> = self;
 	// ── rejects (R-request-order / D42) ──
-	if (self._value.terminal !== undefined)
+	if (self[VALUE].terminal !== undefined)
 		throw new Error(
 			"rewire: node is terminal (completed/errored) — cannot rewire (R-request-order / D42)",
 		);
-	if (self._wave.insideRunWave)
+	if (self[WAVE].insideRunWave)
 		throw new Error(
 			"rewire: mid-fn topology mutation — a fn mutating its own deps mid-wave is the feedback cycle (R-request-order / D37)",
 		);
-	if (self._wave.inDepMutation)
+	if (self[WAVE].inDepMutation)
 		throw new Error(
 			"rewire: reentrant dep mutation — another rewire is in flight (R-request-order)",
 		);
 	if (newDeps.includes(node))
 		throw new Error("rewire: self-dependency rejected (R-request-order / D42)");
-	const oldDeps = self._slot.deps;
+	const oldDeps = self[SLOT].deps;
 	const added = newDeps.filter((d) => !oldDeps.includes(d));
 	for (const d of added) {
-		if (self._reachableUpstream(d, node))
+		if (reachableUpstream(d, node))
 			throw new Error(
 				"rewire: would create a cycle — dep already transitively depends on this node (R-request-order / D42)",
 			);
 		// R-terminals: an ended node can be added; its snapshot carries its terminal.
-		self._assertRewireDepOwner(d);
+		assertRewireDepOwner(self, d);
 	}
 }
 
@@ -213,39 +256,39 @@ export function validateNodeRewire<T>(self: NodeRuntimeHost<T>, newDeps: Node<un
  * dependents receive the snapshot as their input from a new instance. A request.
  */
 export function nodeReplace<T>(
-	self: NodeRuntimeHost<T>,
+	self: Node<T>,
 	deps: Node<unknown>[],
 	fn: NodeFn,
 	opts: ReplaceOptions = {},
 ): void {
-	if (self._slot.handle === null && self._slot.declaredDeps.length === 0)
+	if (self[SLOT].handle === null && self[SLOT].declaredDeps.length === 0)
 		throw new Error("replace: a state node has no definition to replace");
 	assertRewireList(self, deps);
-	request(self._core, () => {
-		if (self._released) return;
+	request(self[CORE], () => {
+		if (self[RELEASED]) return;
 		assertRewireList(self, deps);
 		nodeApplyReplace(self, [...deps], fn, opts);
 	});
 }
 
 function nodeApplyReplace<T>(
-	self: NodeRuntimeHost<T>,
+	self: Node<T>,
 	deps: Node<unknown>[],
 	fn: NodeFn,
 	opts: ReplaceOptions,
 ): void {
-	const node = self as unknown as Node<unknown>;
-	const active = self._lifecycle.activated;
+	const node: Node<unknown> = self;
+	const active = self[LIFECYCLE].activated;
 	// Close the old instance's lifetime: abort its signal; its dependencies are released after the
 	// new ones are acquired, so a shared upstream stays active; then its cleanup runs.
-	const lifetime = self._lifetime;
+	const lifetime = self[LIFETIME];
 	lifetime.controller?.abort();
 	const cleanup = lifetime.cleanup;
 	lifetime.controller = null;
 	lifetime.cleanup = undefined;
 	lifetime.setupDone = false;
-	const oldDeps = self._slot.deps;
-	const oldInputs = self._dep.inputs;
+	const oldDeps = self[SLOT].deps;
+	const oldInputs = self[DEP].inputs;
 	const oldUnsubs: Array<() => void> = [];
 	for (let i = 0; i < oldInputs.length; i++) {
 		const input = oldInputs[i];
@@ -255,31 +298,31 @@ function nodeApplyReplace<T>(
 		input.unsub = undefined;
 	}
 	// The new instance.
-	const oldHandle = self._slot.handle;
-	self._slot.handle = self._slot.dispatcher.register(fn);
-	if (oldHandle !== null) self._slot.dispatcher.unregister(oldHandle);
-	self._slot.fn = fn;
-	self._slot.setup = opts.setup;
-	self._slot.recipe = opts.recipe;
-	self._slot.deps = deps;
-	self._slot.declaredDeps = deps;
-	Object.assign(self._dep, makeDepBookkeeping(deps.length));
-	self._value.cache = undefined;
-	self._value.hasData = false;
-	self._value.lastArray = [];
-	self._value.terminal = undefined;
-	self._wave.pending = 0;
-	self._wave.emittedDirtyThisWave = false;
-	self._seedNote = undefined;
-	self._syncCtx = null;
+	const oldHandle = self[SLOT].handle;
+	self[SLOT].handle = self[SLOT].dispatcher.register(fn);
+	if (oldHandle !== null) self[SLOT].dispatcher.unregister(oldHandle);
+	self[SLOT].fn = fn;
+	self[SLOT].setup = opts.setup;
+	self[SLOT].recipe = opts.recipe;
+	self[SLOT].deps = deps;
+	self[SLOT].declaredDeps = deps;
+	Object.assign(self[DEP], makeDepBookkeeping(deps.length));
+	self[VALUE].cache = undefined;
+	self[VALUE].hasData = false;
+	self[VALUE].lastArray = [];
+	self[VALUE].terminal = undefined;
+	self[WAVE].pending = 0;
+	self[WAVE].emittedDirtyThisWave = false;
+	self[SEED_NOTE] = undefined;
+	self[SYNC_CTX].value = null;
 	if (active) {
-		self._wave.activating = true;
+		self[WAVE].activating = true;
 		try {
-			for (const dep of deps) self._subscribeDepAt(dep);
+			for (const dep of deps) nodeSubscribeDepAt(self, dep);
 		} finally {
-			self._wave.activating = false;
+			self[WAVE].activating = false;
 		}
-		self._wave.rewireRunPending = false;
+		self[WAVE].rewireRunPending = false;
 	}
 	for (const u of oldUnsubs) u();
 	if (cleanup !== undefined) {
@@ -287,32 +330,32 @@ function nodeApplyReplace<T>(
 		try {
 			cleanup();
 		} catch (error) {
-			reportFailure(self._core, `cleanup of ${self._slot.name ?? "node"}`, error);
+			reportFailure(self[CORE], `cleanup of ${self[SLOT].name ?? "node"}`, error);
 		} finally {
 			lifetime.closing = false;
 		}
 	}
-	self._privateState.value = SENTINEL;
+	self[PRIVATE_STATE].value = SENTINEL;
 	notifyTopologyDepsChanged(node, oldDeps, deps);
 	if (!active) return; // the next subscription activates the new instance
 
 	// The first run, as at a first activation: it sets the retained values only.
-	const subscribers = self._lifecycle.subscribers;
-	self._lifecycle.subscribers = new Set();
+	const subscribers = self[LIFECYCLE].subscribers;
+	self[LIFECYCLE].subscribers = new Set();
 	try {
-		if (self._wave.pending === 0) self._runWave();
+		if (self[WAVE].pending === 0) nodeSettle(self, true);
 	} finally {
-		self._lifecycle.subscribers = subscribers;
+		self[LIFECYCLE].subscribers = subscribers;
 	}
 	// Every subscriber receives START and the new instance's snapshot, also after an old terminal.
-	const terminal = self._value.terminal;
+	const terminal = self[VALUE].terminal;
 	const snapshot: Message[] = [
-		...self._value.lastArray.map((v) => ["DATA", v] as Message),
+		...self[VALUE].lastArray.map((v) => ["DATA", v] as Message),
 		...(terminal === undefined
 			? []
 			: [(terminal === true ? ["COMPLETE"] : ["ERROR", terminal]) as Message]),
 	];
-	if (snapshot.length > 0) self._markDependents();
+	if (snapshot.length > 0) nodeMarkDependents(self);
 	const start: Message[] = [["START"], ...snapshot];
 	for (const sub of [...subscribers]) {
 		if (sub.kind === "sink") nodeCallSink(self, sub, start);
@@ -321,15 +364,15 @@ function nodeApplyReplace<T>(
 }
 
 /** R-node@2: the current definition: declared deps, the instance's fn, setup, recipe, policies. */
-export function nodeDefinition<T>(self: NodeRuntimeHost<T>): NodeDefinition {
+export function nodeDefinition<T>(self: Node<T>): NodeDefinition {
 	return {
-		deps: [...self._slot.declaredDeps],
-		fn: self._slot.fn,
-		setup: self._slot.setup,
-		recipe: self._slot.recipe,
-		complete: self._slot.completePolicy,
-		error: self._slot.errorPolicy,
-		invalidate: self._slot.invalidatePolicy,
-		quiet: self._slot.quiet,
+		deps: [...self[SLOT].declaredDeps],
+		fn: self[SLOT].fn,
+		setup: self[SLOT].setup,
+		recipe: self[SLOT].recipe,
+		complete: self[SLOT].completePolicy,
+		error: self[SLOT].errorPolicy,
+		invalidate: self[SLOT].invalidatePolicy,
+		quiet: self[SLOT].quiet,
 	};
 }
