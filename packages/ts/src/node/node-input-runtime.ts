@@ -3,7 +3,7 @@ import type { Message, Wave } from "../protocol/messages.js";
 import { errorPayload, isTerminal, SENTINEL } from "../protocol/messages.js";
 import type { DepInput } from "./core.js";
 import type { Node } from "./node.js";
-import { nodeBuildCtx, nodeDeferQuietOutput } from "./node-context-runtime.js";
+import { nodeBuildCtx, nodeLifetimeSignal, nodePublishLater } from "./node-context-runtime.js";
 import { CORE, DEP, LIFETIME, RELEASED, SEED_NOTE, SLOT, VALUE, WAVE } from "./node-keys.js";
 import {
 	isMarking,
@@ -285,9 +285,15 @@ function settleTail(self: Node<unknown>, _rest?: Message[][]): void {
 	self[WAVE].emittedDirtyThisWave = false;
 }
 
-/** A quiet node's settle after its INVALIDATE's fanout: the rest is a wave of its own, later. */
+/**
+ * A quiet node's settle after its INVALIDATE's fanout: the rest is a wave of its own, later
+ * (R-wave). It belongs to the node's current lifetime, which opens here when the function has not
+ * run in it (an auto terminal from a dependency at activation), so a deactivation, a replace or
+ * the node's end before it goes out drops it (R-lifetime).
+ */
 function quietSettleTail(self: Node<unknown>, rest: Message[][] | undefined): void {
-	if (rest !== undefined && rest.length > 0) nodeDeferQuietOutput(self, rest);
+	if (rest !== undefined && rest.length > 0)
+		nodePublishLater(self, nodeLifetimeSignal(self), rest, true);
 }
 
 /** One run of the node's function; returns the arrays it sent (R-invocation, R-failure). */

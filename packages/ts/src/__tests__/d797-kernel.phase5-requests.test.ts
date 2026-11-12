@@ -10,9 +10,10 @@
 import { describe, expect, it } from "vitest";
 import type { Ctx } from "../ctx/types.js";
 import { graph } from "../graph/graph.js";
+import type { Node } from "../node/node.js";
 import { subscriberCountOfNode } from "../node/runtime-accessors.js";
 import type { Wave } from "../protocol/messages.js";
-import { arraySink } from "./helpers/collect.js";
+import { arraySink, collect } from "./helpers/collect.js";
 
 const plus1 = (ctx: Ctx) => ctx.down([["DATA", (ctx.deps[0].value as number) + 1]]);
 
@@ -451,5 +452,356 @@ describe("C-40: replace gives an ended node a new instance", () => {
 		t.set(6);
 		expect(d.cache).toBe(12);
 		expect(() => g.replace(s, [], () => {})).toThrow(/state node/);
+	});
+});
+
+/**
+ * Later output (Codex review §5.1): a quiet node's run output and a ctx.down after the function
+ * returned both go out after the current wave, as a wave of their own (R-wave@2), are requests of
+ * the node's graph (R-request-order@2), and are dropped when they run if the lifetime they were
+ * made in has closed, the node has ended or it is released (R-lifetime@2).
+ */
+describe("R-wave@2 / C-16: a quiet node's activation snapshot comes before its run output", () => {
+	const times10 = (ctx: Ctx) => ctx.down([["DATA", (ctx.deps[0].value as number) * 10]]);
+	const hasData = (msgs: Wave, v: unknown) => msgs.some((m) => m[0] === "DATA" && m[1] === v);
+
+	it("the first sink gets a bare START, then the first run's output as a wave of its own", () => {
+		const g = graph();
+		const a = g.state(1, { name: "a" });
+		const q = g.node<number>([a], times10, { name: "q", quiet: true });
+		const first = collect(q);
+		expect(first.arrays).toEqual([[["START"]], [["PENDING"], ["DATA", 10]]]);
+		// A later sink's START carries the published output.
+		expect(collect(q).arrays).toEqual([[["START"], ["DATA", 10]]]);
+		a.set(2);
+		expect(first.arrays.at(-1)).toEqual([["PENDING"], ["DATA", 20]]);
+	});
+
+	it("a sink subscribed in the same wave as the activating one also gets START before the output", () => {
+		const g = graph();
+		const a = g.state(1, { name: "a" });
+		const t = g.state(0, { name: "t" });
+		const q = g.node<number>([a], times10, { name: "q", quiet: true });
+		const first = arraySink();
+		const second = arraySink();
+		t.subscribe((msgs) => {
+			if (!hasData(msgs, 1)) return;
+			q.subscribe(first.sink); // activates q; its output is queued after the next subscribe
+			q.subscribe(second.sink);
+		});
+		t.set(1);
+		expect(first.log).toEqual([[["START"]], [["PENDING"], ["DATA", 10]]]);
+		expect(second.log).toEqual([[["START"]], [["PENDING"], ["DATA", 10]]]);
+	});
+
+	it("a dependent activated through q sees q's first output as one later input wave", () => {
+		const g = graph();
+		const a = g.state(1, { name: "a" });
+		const q = g.node<number>([a], times10, { name: "q", quiet: true });
+		const runs: unknown[][][] = [];
+		const d = g.node<number>([q], (ctx) => {
+			runs.push(ctx.deps[0].waves.map((w) => [...w]));
+		});
+		collect(d);
+		// d's activation run sees q's empty snapshot; q's first output is d's next input wave.
+		expect(runs).toEqual([[], [[10]]]);
+	});
+});
+
+describe("R-wave@2 / R-terminals: a quiet node's auto terminal and its run output keep their order", () => {
+	const quietTimes10 = (g: ReturnType<typeof graph>, a: Node<number>) =>
+		g.node<number>(
+			[a],
+			(ctx) => {
+				for (const v of ctx.deps[0].waves.flat()) ctx.down([["DATA", (v as number) * 10]]);
+			},
+			{ name: "q", quiet: true },
+		);
+
+	it("one input wave of DATA and COMPLETE: the run's output, then the auto COMPLETE, in one later wave", () => {
+		const g = graph();
+		const a = g.state(0, { name: "a" });
+		const q = quietTimes10(g, a);
+		const runs: [unknown[][], unknown][] = [];
+		const d = g.node<number>([q], (ctx) => {
+			runs.push([ctx.deps[0].waves.map((w) => [...w]), ctx.deps[0].terminal]);
+		});
+		collect(d);
+		const s = collect(q);
+		s.arrays.length = 0;
+		runs.length = 0;
+		g.batch(() => {
+			a.set(1);
+			a.complete();
+		});
+		expect(s.arrays).toEqual([
+			[["PENDING"], ["DATA", 10]],
+			[["PENDING"], ["COMPLETE"]],
+		]);
+		expect(runs).toEqual([[[[10]], { kind: "complete" }]]); // one run of d on both arrays
+		expect(q.status.output).toBe("completed");
+	});
+
+	it("a COMPLETE requested before q's output is queued still follows that output", () => {
+		const g = graph();
+		const a = g.state(0, { name: "a" });
+		// a's first sink asks for COMPLETE in the wave of DATA 1, before q queues its output.
+		a.subscribe((msgs) => {
+			if (msgs.some((m) => m[0] === "DATA" && m[1] === 1)) a.complete();
+		});
+		const q = quietTimes10(g, a);
+		const s = collect(q);
+		s.arrays.length = 0;
+		a.set(1);
+		expect(s.arrays).toEqual([
+			[["PENDING"], ["DATA", 10]],
+			[["PENDING"], ["COMPLETE"]],
+		]);
+	});
+
+	it("an auto ERROR in the input wave ends q without its run; an ERROR in a later request follows the output", () => {
+		const boom = new Error("boom");
+		const g = graph();
+		const a = g.state(0, { name: "a" });
+		const q = quietTimes10(g, a);
+		const s = collect(q);
+		s.arrays.length = 0;
+		g.batch(() => {
+			a.set(1);
+			a.error(boom);
+		});
+		expect(s.arrays).toEqual([[["PENDING"], ["ERROR", boom]]]);
+
+		const g2 = graph();
+		const b = g2.state(0, { name: "b" });
+		b.subscribe((msgs) => {
+			if (msgs.some((m) => m[0] === "DATA" && m[1] === 1)) b.error(boom);
+		});
+		const q2 = quietTimes10(g2, b);
+		const s2 = collect(q2);
+		s2.arrays.length = 0;
+		b.set(1);
+		expect(s2.arrays).toEqual([
+			[["PENDING"], ["DATA", 10]],
+			[["PENDING"], ["ERROR", boom]],
+		]);
+	});
+});
+
+describe("R-lifetime@2: a quiet node's output from before its first run belongs to its activation", () => {
+	const boom = new Error("boom");
+	const setup = () => {
+		const g = graph();
+		const e = g.state(0, { name: "e" });
+		e.error(boom);
+		const t = g.state(0, { name: "t" });
+		// An auto ERROR from an ended dependency ends q at activation without running its function.
+		let ran = 0;
+		const q = g.node<number>(
+			[e],
+			(ctx) => {
+				ran++;
+				ctx.down([["DATA", 1]]);
+			},
+			{ name: "q", quiet: true },
+		);
+		return { g, t, q, ran: () => ran };
+	};
+
+	it("stands while q is still active", () => {
+		const { q, ran } = setup();
+		const s = collect(q);
+		expect(s.arrays).toEqual([[["START"]], [["PENDING"], ["ERROR", boom]]]);
+		expect(ran()).toBe(0);
+		expect(q.status.output).toBe("errored");
+	});
+
+	it("is dropped when q is deactivated before it goes out", () => {
+		const { t, q } = setup();
+		const log = arraySink();
+		t.subscribe((msgs) => {
+			if (!msgs.some((m) => m[0] === "DATA" && m[1] === 1)) return;
+			// Both are requests: the subscribe activates q and queues its ERROR after the stop.
+			const stop = q.subscribe(log.sink);
+			stop();
+		});
+		t.set(1);
+		expect(log.log).toEqual([[["START"]]]);
+		expect(q.status).toMatchObject({ output: "open", lifecycle: "inactive" });
+	});
+
+	it("does not cross a replace into the new instance (C-40, R-node@2)", () => {
+		const { g, t, q } = setup();
+		const ok = g.state(5, { name: "ok" });
+		const log = arraySink();
+		t.subscribe((msgs) => {
+			if (!msgs.some((m) => m[0] === "DATA" && m[1] === 1)) return;
+			// The replace is asked for first, so it runs before the old instance's queued ERROR.
+			q.subscribe(log.sink);
+			g.replace(q, [ok], (ctx) => ctx.down([["DATA", (ctx.deps[0].value as number) * 10]]));
+		});
+		t.set(1);
+		expect(log.log).toEqual([[["START"]], [["START"]], [["PENDING"], ["DATA", 50]]]);
+		expect(q.status.output).toBe("open");
+	});
+});
+
+describe("C-25 / D110: a quiet node's output made while a commit is delivered shares the commit's fate", () => {
+	const quietTimes10 = (g: ReturnType<typeof graph>, a: Node<number>) =>
+		g.node<number>([a], (ctx) => ctx.down([["DATA", (ctx.deps[0].value as number) * 10]]), {
+			name: "q",
+			quiet: true,
+		});
+
+	it("is dropped when the commit fails after q ran on it", () => {
+		const g = graph();
+		const a = g.state(0, { name: "a" });
+		const c = g.state(0, { name: "c" });
+		const q = quietTimes10(g, a);
+		const as = collect(a);
+		const qs = collect(q);
+		as.arrays.length = 0;
+		qs.arrays.length = 0;
+		// a delivers first, so q runs and queues DATA 10; c's write then fails the commit.
+		expect(() =>
+			g.batch(() => {
+				a.set(1);
+				c.set(() => undefined as unknown as number);
+			}),
+		).toThrow(/non-SENTINEL/);
+		expect(as.arrays).toEqual([[["PENDING"], ["DATA", 1]]]);
+		expect(qs.arrays).toEqual([]);
+		expect(q.cache).toBe(0);
+	});
+
+	it("is delivered after a commit that succeeds", () => {
+		const g = graph();
+		const a = g.state(0, { name: "a" });
+		const c = g.state(0, { name: "c" });
+		const q = quietTimes10(g, a);
+		const qs = collect(q);
+		qs.arrays.length = 0;
+		g.batch(() => {
+			a.set(1);
+			c.set(() => 5);
+		});
+		expect(qs.arrays).toEqual([[["PENDING"], ["DATA", 10]]]);
+	});
+});
+
+describe("R-wave@2 / R-lifetime@2: a ctx.down after the function returned", () => {
+	const keeper = (g: ReturnType<typeof graph>) => {
+		const ctxs: Ctx[] = [];
+		const src = g.node<string>(
+			[],
+			(ctx) => {
+				ctxs.push(ctx);
+			},
+			{ name: "src" },
+		);
+		return { src, ctxs };
+	};
+	const onData = (node: Node<number>, v: number, act: () => void) =>
+		node.subscribe((msgs) => {
+			if (msgs.some((m) => m[0] === "DATA" && m[1] === v)) act();
+		});
+
+	it("is delivered at once outside a wave, and during a wave as its own wave after it", () => {
+		const g = graph();
+		const t = g.state(0, { name: "t" });
+		const { src, ctxs } = keeper(g);
+		const order: string[] = [];
+		const s = collect(src);
+		src.subscribe((msgs) => {
+			if (msgs[0]?.[0] !== "START") order.push("src");
+		});
+		s.arrays.length = 0;
+		(ctxs[0] as Ctx).down([["DATA", "now"]]);
+		expect(s.arrays).toEqual([[["PENDING"], ["DATA", "now"]]]);
+
+		onData(t, 1, () => (ctxs[0] as Ctx).down([["DATA", "late"]]));
+		t.subscribe(() => order.push("t second"));
+		order.length = 0;
+		t.set(1);
+		expect(order).toEqual(["t second", "src"]);
+		expect(s.arrays.at(-1)).toEqual([["PENDING"], ["DATA", "late"]]);
+	});
+
+	it("is dropped after its lifetime closed: at the call, and when it runs after a queued close", () => {
+		const g = graph();
+		const t = g.state(0, { name: "t" });
+		const { src, ctxs } = keeper(g);
+		src.subscribe(() => {})();
+		const log = arraySink();
+		const stop = src.subscribe(log.sink);
+		log.log.length = 0;
+		(ctxs[0] as Ctx).down([["DATA", "stale"]]); // the first lifetime's ctx
+		expect(log.log).toEqual([]);
+		expect(src.cache).toBeUndefined();
+
+		// The last sink's leave is asked for first, so the lifetime closes before the queued output.
+		const current = ctxs[1] as Ctx;
+		onData(t, 1, () => {
+			stop();
+			current.down([["DATA", "after close"]]);
+		});
+		t.set(1);
+		expect(current.signal.aborted).toBe(true);
+		expect(log.log).toEqual([]);
+		expect(src.cache).toBeUndefined(); // published on the inactive node, it would be retained
+	});
+
+	it("is dropped after a replace gave the node a new instance", () => {
+		const g = graph();
+		const t = g.state(0, { name: "t" });
+		const { src, ctxs } = keeper(g);
+		const s = collect(src);
+		onData(t, 1, () => {
+			g.replace(src, [], () => {});
+			(ctxs[0] as Ctx).down([["DATA", "old instance"]]);
+		});
+		s.arrays.length = 0;
+		t.set(1);
+		expect(s.arrays).toEqual([[["START"]]]);
+		expect(src.cache).toBeUndefined();
+	});
+
+	it("made while a commit is delivered, is a request like set and survives a failed commit (R-request-order@2)", () => {
+		const g = graph();
+		const a = g.state(0, { name: "a" });
+		const c = g.state(0, { name: "c" });
+		const { src, ctxs } = keeper(g);
+		const s = collect(src);
+		onData(a, 1, () => (ctxs[0] as Ctx).down([["DATA", "late"]]));
+		s.arrays.length = 0;
+		expect(() =>
+			g.batch(() => {
+				a.set(1);
+				c.set(() => undefined as unknown as number);
+			}),
+		).toThrow(/non-SENTINEL/);
+		expect(s.arrays).toEqual([[["PENDING"], ["DATA", "late"]]]);
+		s.arrays.length = 0;
+		g.batch(() => a.set(2));
+		onData(a, 3, () => (ctxs[0] as Ctx).down([["DATA", "committed"]]));
+		g.batch(() => a.set(3));
+		expect(s.arrays).toEqual([[["PENDING"], ["DATA", "committed"]]]);
+	});
+
+	it("is dropped after the node ended, also when both were queued in one wave", () => {
+		const g = graph();
+		const t = g.state(0, { name: "t" });
+		const { src, ctxs } = keeper(g);
+		const s = collect(src);
+		onData(t, 1, () => {
+			(ctxs[0] as Ctx).down([["COMPLETE"]]);
+			(ctxs[0] as Ctx).down([["DATA", "after end"]]);
+		});
+		s.arrays.length = 0;
+		t.set(1);
+		expect(s.arrays).toEqual([[["PENDING"], ["COMPLETE"]]]);
+		(ctxs[0] as Ctx).down([["DATA", "later still"]]);
+		expect(s.arrays).toHaveLength(1);
+		expect(src.cache).toBeUndefined();
 	});
 });

@@ -13,20 +13,9 @@ import {
 	type DepTerminal,
 	setCtxDepWaveOrigin,
 } from "../ctx/types.js";
-import { type Message, SENTINEL, type Wave } from "../protocol/messages.js";
+import { type Message, SENTINEL } from "../protocol/messages.js";
 import type { Node } from "./node.js";
-import {
-	CORE,
-	DEP,
-	LIFECYCLE,
-	LIFETIME,
-	PRIVATE_STATE,
-	RELEASED,
-	SLOT,
-	SYNC_CTX,
-	VALUE,
-	WAVE,
-} from "./node-keys.js";
+import { CORE, DEP, LIFETIME, PRIVATE_STATE, RELEASED, SLOT, SYNC_CTX, WAVE } from "./node-keys.js";
 import { nodeDown, nodePublish, prepareArrays } from "./node-output-runtime.js";
 import {
 	nodeApplyRewireDiff,
@@ -115,7 +104,7 @@ export function nodeMakeCtx<T>(self: Node<T>): Ctx {
 			if (msgs.length === 0) return;
 			validateNodeOutput(msgs);
 			// R-failure: an invalid array throws from ctx.down, before anything is accepted.
-			prepareArrays(msgs);
+			const arrays = prepareArrays(msgs);
 			noteBatchLifetime(self[CORE], self, signal);
 			// R-wave: during the node's run its arrays are its run's output, published after it returns.
 			// Inside a batch body they are staged for the commit (R-request-order).
@@ -123,14 +112,8 @@ export function nodeMakeCtx<T>(self: Node<T>): Ctx {
 				nodeDown(self, msgs);
 				return;
 			}
-			// R-wave / R-request-order: output after the function returned starts a wave of its own,
-			// as a request: during another wave it waits for it, and it is dropped if this ctx's
-			// lifetime has closed (or the node got a new instance) before it runs.
-			const array: Wave = [...msgs];
-			request(self[CORE], () => {
-				if (!nodeLifetimeIsCurrent(self, signal)) return;
-				nodeDown(self, array);
-			});
+			// R-wave: output after the function returned starts a wave of its own.
+			nodePublishLater(self, signal, arrays, false);
 		},
 		emit: (...values) => {
 			ctx.down(values.map((v) => ["DATA", v] as const));
@@ -190,27 +173,26 @@ export function nodeMakeState<T>(self: Node<T>, signal: AbortSignal): CtxState {
 }
 
 /**
- * R-wave: a quiet node's run output goes out after the current wave as one wave of its own, its
- * arrays kept apart and in order, with the kernel's PENDING before them. It is a request of the
- * node's graph and is dropped if the run's lifetime has closed or the node has ended first.
+ * R-wave / R-lifetime: output that goes out later, as a wave of its own: a ctx.down after the
+ * function returned and a quiet node's run output. It is a request of the node's graph
+ * (R-request-order): at once outside a wave, otherwise after it. A quiet node's run output is part
+ * of the cascade it settles in, so when that is a batch commit's delivery it is tagged with the
+ * batch and a commit that fails drops it (C-25 / D110); a ctx.down after the run is a request like
+ * set or subscribe and does not share the commit's fate (R-request-order@2). When it runs it is
+ * dropped unless the lifetime it was made in is still the node's current one: a deactivation, a
+ * replace and the node's end each close that lifetime, and a released node has none.
  */
-export function nodeDeferQuietOutput<T>(self: Node<T>, arrays: Message[][]): void {
-	const signal = self[LIFETIME].controller?.signal;
-	const out = arrays.map((a) => [...a]);
-	deferRequest(
-		self[CORE],
-		() => {
-			// A node that has not run has no lifetime (an auto terminal from a dependency); its
-			// output stands while it is still active.
-			if (
-				signal === undefined
-					? self[RELEASED] || !self[LIFECYCLE].activated
-					: !nodeLifetimeIsCurrent(self, signal)
-			)
-				return;
-			if (self[VALUE].terminal !== undefined) return;
-			nodePublish(self, out);
-		},
-		{ batchToken: currentBoundaryBatchToken(self[CORE]) },
-	);
+export function nodePublishLater<T>(
+	self: Node<T>,
+	lifetime: AbortSignal,
+	arrays: readonly Message[][],
+	commitBound: boolean,
+): void {
+	const core = self[CORE];
+	const send = () => {
+		if (nodeLifetimeIsCurrent(self, lifetime)) nodePublish(self, arrays);
+	};
+	const batchToken = commitBound ? currentBoundaryBatchToken(core) : undefined;
+	if (batchToken === undefined) request(core, send);
+	else deferRequest(core, send, { batchToken });
 }
