@@ -1,31 +1,36 @@
+import type { Node } from "./node.js";
 import type { NodeRuntimeHost } from "./node-runtime-host.js";
-import type { NodeRestoreState } from "./types.js";
+import type { NodeSeed } from "./types.js";
 
 /**
- * R-checkpoint: install a restored node's construction seed (R-subscription) without a wave or a
- * subscription. A state gets its values as one array and then its terminal; a computed node also
- * gets its private state and, when it had a lifetime, the record of what it received, which its
- * first activation compares with what its dependencies hold then.
+ * R-subscription@3: install a node's construction seed without a wave or a subscription. A state
+ * gets its values as one array and then its terminal; a computed node also gets its private state
+ * and the dependencies of its first lifetime, and an open one keeps the note for the first run of
+ * the seeded instance (`ctx.seed`). Its first activation is an ordinary one.
  */
-export function nodeRestoreState(self: NodeRuntimeHost, state: NodeRestoreState): void {
+export function nodeRestoreState(self: NodeRuntimeHost, seed: NodeSeed): void {
 	self._assertNotReleased("restoreGraph");
-	const values = [...state.values];
+	// The first lifetime's dependencies; the declared ones come back when it closes.
+	if (seed.deps !== undefined) self._rewire([...seed.deps] as Node<unknown>[]);
+	const values = [...seed.values];
 	self._value.lastArray = values;
 	self._value.hasData = values.length > 0;
 	self._value.cache = values.length > 0 ? values[values.length - 1] : undefined;
-	self._value.terminal = state.terminal;
+	self._value.terminal = seed.terminal;
 	self._wave.emittedDirtyThisWave = false;
 	self._wave.emittedSettleThisWave = false;
 	self._wave.pending = 0;
 	self._wave.insideRunWave = false;
 	self._wave.inDepMutation = false;
 	self._wave.rewireRunPending = false;
-	self._privateState.value = state.privateState;
+	self._privateState.value = seed.privateState;
 	self._syncCtx = null;
 	self._resetDepState();
-	// A restored graph has no subscribers, and a restored node receives no waves before its first
-	// activation (R-checkpoint).
+	// A seeded graph has no subscribers, and a seeded node receives no waves before its first
+	// activation.
 	self._lifecycle.activated = false;
 	self._lifecycle.subscribers.clear();
-	self._seed = state.seed;
+	// An ended node's function never runs again, and a state has none: neither keeps a note.
+	const isState = self._slot.handle === null && self._slot.deps.length === 0;
+	self._seedNote = isState || seed.terminal !== undefined ? undefined : seed.note;
 }

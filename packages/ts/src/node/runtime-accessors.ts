@@ -1,3 +1,4 @@
+import type { NodeFn } from "../ctx/types.js";
 import type { Dispatcher } from "../dispatcher/index.js";
 import type { EnvironmentDrivers } from "../graph/environment.js";
 import type { NodeCore } from "./core.js";
@@ -5,7 +6,7 @@ import type { Node } from "./node.js";
 import { nodeRestoreState } from "./node-checkpoint-runtime.js";
 import { type NodeRuntimeHost, nodeRuntimeHost } from "./node-runtime-host.js";
 import type { RuntimeReleaseFailure } from "./owned-acquisition.js";
-import type { NodeCheckpointState, NodeRestoreState } from "./types.js";
+import type { NodeCheckpointState, NodeSeed } from "./types.js";
 
 type TopologyDepsChangedObserver = (
 	node: Node<unknown>,
@@ -214,16 +215,33 @@ export function checkpointStateOfNode(n: Node<unknown>): NodeCheckpointState {
 		terminal: self._value.terminal,
 		activated: self._lifecycle.activated,
 		privateState: self._privateState.value,
-		seed: self._seed,
+		seedNote: self._seedNote,
 		handle: self._slot.handle,
 	};
 }
 
 /** @internal R-checkpoint restore commit: install a seed without a protocol wave or subscription. */
-export function restoreStateOfNode(n: Node<unknown>, state: NodeRestoreState): void {
+export function restoreStateOfNode(n: Node<unknown>, seed: NodeSeed): void {
 	const self = liveRegistration(n)?.host;
 	if (self === undefined) throw new Error("restoreGraph: unknown node state");
-	nodeRestoreState(self, state);
+	nodeRestoreState(self, seed);
+}
+
+/**
+ * @internal R-checkpoint@1: give a node `wrap` of its function in place of it, keeping the instance,
+ * its values, lifetime and pool (a restore wraps a restored node's function).
+ */
+export function wrapFnOfNode(n: Node<unknown>, wrap: (fn: NodeFn) => NodeFn): void {
+	const self = liveRegistration(n)?.host;
+	if (self === undefined) throw new Error("restoreGraph: unknown node state");
+	const fn = self._slot.fn;
+	if (fn === null) return;
+	const wrapped = wrap(fn);
+	const old = self._slot.handle;
+	self._slot.handle = self._slot.dispatcher.register(wrapped, self._slot.pool);
+	if (old !== null) self._slot.dispatcher.unregister(old);
+	self._slot.fn = wrapped;
+	self._syncCtx = null;
 }
 
 /** @internal D122 graph-owned ephemeral lifecycle release. */

@@ -28,7 +28,8 @@ export interface NodeRuntimeHost<T = unknown> {
 	_lifetime: LifetimeState;
 	_syncCtxState: SyncCtxState;
 	_syncCtx: Ctx | null;
-	_seed: import("./types.js").NodeSeed | undefined;
+	/** R-subscription@3: the seed's note, until the seeded instance's first run takes it. */
+	_seedNote: unknown;
 	_released: boolean;
 	_assertNotReleased(op: string): void;
 	_dedupDeps(deps: Node<unknown>[]): Node<unknown>[];
@@ -37,14 +38,7 @@ export interface NodeRuntimeHost<T = unknown> {
 	_rewire(newDeps: Node<unknown>[]): boolean;
 	_activate(): void;
 	_subscribeOwned(subscriber: Subscriber, acquisition?: SubscriptionAcquisition): () => void;
-	_subscribeDepAt(
-		depNode: Node<unknown>,
-		seed?: {
-			readonly received: import("./types.js").NodeReceived | undefined;
-			readonly onChange: () => void;
-		},
-	): void;
-	_seedRestoredDepAt(idx: number, depNode: Node<unknown>): void;
+	_subscribeDepAt(depNode: Node<unknown>): void;
 	_deactivate(): void;
 	_subscriberCount(): number;
 	_isRuntimeQuiescentForRelease(): boolean;

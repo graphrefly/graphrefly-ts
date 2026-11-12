@@ -53,7 +53,6 @@ import {
 	nodeIsRuntimeQuiescentForRelease,
 	nodeReleaseRuntime,
 	nodeResetDepState,
-	nodeSeedRestoredDepAt,
 	nodeStatus,
 	nodeSubscribeDepAt,
 	nodeSubscribeOwned,
@@ -84,7 +83,7 @@ import {
 	withEnvironmentDrivers,
 	withNodeCore,
 } from "./runtime-accessors.js";
-import type { NodeOptions, NodeReceived, NodeSeed, Status } from "./types.js";
+import type { NodeOptions, Status } from "./types.js";
 
 export {
 	checkpointStateOfNode,
@@ -101,7 +100,7 @@ export {
 	withEnvironmentDrivers,
 	withNodeCore,
 } from "./runtime-accessors.js";
-export type { NodeCheckpointState, NodeOptions, NodeRestoreState, Status } from "./types.js";
+export type { NodeCheckpointState, NodeOptions, NodeSeed, Status } from "./types.js";
 
 /**
  * Reactive substrate node that owns dependencies, wave handling, lifecycle, and subscribers.
@@ -141,7 +140,7 @@ export class Node<T = unknown> {
 	private readonly _privateState: PrivateState;
 	private readonly _lifetime: LifetimeState;
 	private readonly _syncCtxState: SyncCtxState;
-	private _seed: NodeSeed | undefined = undefined;
+	private _seedNote: unknown = undefined;
 	private _released = false;
 	// biome-ignore lint/correctness/noUnusedPrivateClassMembers: accessed through the checked internal runtime host.
 	private get _syncCtx(): Ctx | null {
@@ -155,11 +154,10 @@ export class Node<T = unknown> {
 	private static _retainIndirectRuntimeMethods(node: Node<unknown>): void {
 		void node._dep;
 		void node._lifetime;
-		void node._seed;
+		void node._seedNote;
 		void node._reachableUpstream;
 		void node._assertRewireDepOwner;
 		void node._subscribeDepAt;
-		void node._seedRestoredDepAt;
 		void node._recordDepProjection;
 		void node._receiveFromDep;
 		void node._markDirty;
@@ -489,15 +487,8 @@ export class Node<T = unknown> {
 		nodeResetDepState(nodeRuntimeHost(this));
 	}
 
-	private _subscribeDepAt(
-		depNode: Node<unknown>,
-		seed?: { readonly received: NodeReceived | undefined; readonly onChange: () => void },
-	): void {
-		nodeSubscribeDepAt(nodeRuntimeHost(this), depNode, seed);
-	}
-
-	private _seedRestoredDepAt(idx: number, depNode: Node<unknown>): void {
-		nodeSeedRestoredDepAt(nodeRuntimeHost(this), idx, depNode);
+	private _subscribeDepAt(depNode: Node<unknown>): void {
+		nodeSubscribeDepAt(nodeRuntimeHost(this), depNode);
 	}
 
 	private _recordDepProjection(idx: number, delivery: DeliveryMeta | undefined): unknown[] {

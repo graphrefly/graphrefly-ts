@@ -162,6 +162,7 @@ export function nodeMakeCtx<T>(
 		},
 		deps: makeDepViews(self, inputs),
 		state: self._makeState(signal),
+		seed: undefined,
 		signal,
 		environment: () => self._slot.environment,
 		rewire: (deps) => nodeRequestRewire(self, signal, [...deps]),

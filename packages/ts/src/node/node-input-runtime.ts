@@ -264,6 +264,9 @@ function nodeInvoke<T>(self: NodeRuntimeHost<T>): Message[][] {
 	// R-invocation@2: a running function is never reentered. Every way back into this node during
 	// its run (a host input, a late ctx.down, a subscribe) is a request that waits for the wave.
 	const ctx = self._buildCtx();
+	// R-subscription@3: only the seeded instance's first run receives the seed's note.
+	(ctx as { seed: unknown }).seed = self._seedNote;
+	self._seedNote = undefined;
 	// R-lifetime: the setup runs once per lifetime, just before the function's first run in it,
 	// with that run's ctx; what it sends is that run's output and a throw in it is the node's ERROR.
 	const lifetime = self._lifetime;

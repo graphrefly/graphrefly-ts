@@ -197,6 +197,32 @@ describe("C-38 restore keeps the saved state, refreshes once on a changed input,
 		expect(p).toEqual([["START"], ["DATA", 10]]);
 	});
 
+	it("a restored node keeps the function it was built with; only its first run sees ctx.seed", () => {
+		// R-invocation@2 / R-subscription@3: the seed's note reaches the seeded instance's first run.
+		const seen: boolean[] = [];
+		const fn: NodeFn = (ctx) => {
+			seen.push(ctx.seed !== undefined);
+			ctx.down([["DATA", (ctx.deps[0].value as number) * 2]]);
+		};
+		const registry: GraphRestoreRegistry = {
+			...defaultRestoreRegistry,
+			double: { ref: "double", build: () => ({ fn }) } satisfies GraphRecipeFactory,
+		};
+		const g = graph();
+		const a = g.state(1, { name: "a" });
+		const live = collect(g.node([a], fn, { name: "d", recipe: { ref: "double" } }));
+		const checkpoint = g.checkpoint();
+		stop(live);
+		expect(seen).toEqual([false]);
+		const r = restoreGraph(checkpoint, { registry });
+		expect(r.definition("d").fn).toBe(fn);
+		asState<number>(r.find("a")).set(2);
+		const d = collect(r.find("d"));
+		asState<number>(r.find("a")).set(3);
+		expect(seen).toEqual([false, true, false]);
+		expect(d).toEqual([["START"], ["DATA", 4], ["PENDING"], ["DATA", 6]]);
+	});
+
 	it("an INVALIDATE followed by a set before the first subscription is seen as the set alone", () => {
 		const { f, checkpoint, before } = captured();
 		const r = f.restore(checkpoint);

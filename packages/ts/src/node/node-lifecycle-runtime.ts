@@ -1,6 +1,5 @@
 import { enterWave, exitWave, reportFailure } from "../batch/boundary.js";
-import { strictCanonicalJsonBytes } from "../json/codec.js";
-import { errorPayload, isTerminal, type Message, SENTINEL } from "../protocol/messages.js";
+import { type Message, SENTINEL } from "../protocol/messages.js";
 import { makeDepBookkeeping, type Subscriber } from "./core.js";
 import type { Node } from "./node.js";
 import { nodeCallSink } from "./node-output-runtime.js";
@@ -10,9 +9,8 @@ import {
 	closeNodeRegistration,
 	notifyTopologyDepsChanged,
 	setRuntimeReleaseFailures,
-	withRunningGraph,
 } from "./runtime-accessors.js";
-import type { NodeReceived, NodeSeed, Status } from "./types.js";
+import type { Status } from "./types.js";
 
 /**
  * graphrefly-ts Q15: activation runs on an explicit stack of frames, not JS recursion, so a chain
@@ -44,10 +42,6 @@ interface Activation {
 	deps: readonly Node<unknown>[];
 	len: number;
 	i: number;
-	seed: NodeSeed | undefined;
-	restored: { changed: boolean } | undefined;
-	/** The dependency link whose child frame is on top of this one. */
-	link: DepLink | undefined;
 }
 
 const activations: Activation[] = [];
@@ -68,9 +62,6 @@ function newActivation(
 		deps: NO_DEPS,
 		len: 0,
 		i: 0,
-		seed: undefined,
-		restored: undefined,
-		link: undefined,
 	};
 }
 
@@ -99,13 +90,13 @@ function driveActivations(root: Activation): void {
 	const base = activations.length;
 	activations.push(root);
 	try {
-		while (activations.length > base) stepActivation(activations[activations.length - 1]!, base);
+		while (activations.length > base) stepActivation(activations[activations.length - 1]!);
 	} catch (error) {
 		unwindActivations(base, error);
 	}
 }
 
-function stepActivation(f: Activation, base: number): void {
+function stepActivation(f: Activation): void {
 	const self = f.self;
 	switch (f.phase) {
 		case ACT_INIT: {
@@ -128,31 +119,21 @@ function stepActivation(f: Activation, base: number): void {
 		}
 		case ACT_DEPS: {
 			if (f.i < f.len) {
-				const i = f.i++;
-				const dep = f.deps[i] as Node<unknown>;
-				const seed = f.seed;
-				const restored = f.restored as { changed: boolean };
-				const link = nodeDepLink(
-					self,
-					dep,
-					seed === undefined
-						? undefined
-						: { received: seed.received[i], onChange: () => (restored.changed = true) },
-				);
-				f.link = link;
+				const dep = f.deps[f.i++] as Node<unknown>;
+				const link = nodeDepLink(self, dep);
 				activations.push(newActivation(nodeRuntimeHost(dep), link.subscriber, link.acquisition));
 				return;
 			}
 			self._wave.activating = false;
 			f.phase = ACT_RUN;
-			finishActivation(self, f.seed, f.restored as { changed: boolean });
-			if (f.subscriber === undefined) completeActivation(f, base);
+			finishActivation(self);
+			if (f.subscriber === undefined) completeActivation(f);
 			else f.phase = ACT_ATTACH;
 			return;
 		}
 		case ACT_ATTACH: {
 			attachSubscriber(f, f.subscriber as Subscriber);
-			completeActivation(f, base);
+			completeActivation(f);
 			return;
 		}
 	}
@@ -162,13 +143,8 @@ function stepActivation(f: Activation, base: number): void {
 function beginActivation(f: Activation): void {
 	const self = f.self;
 	self._lifecycle.activated = true;
-	f.seed = self._seed;
-	self._seed = undefined;
 	self._dep.unsubs = new Array(self._slot.deps.length);
 	self._dep.idxBoxes = new Array(self._slot.deps.length);
-	// R-checkpoint: a restored node's first activation compares what it had received from each
-	// dependency with what the dependency holds now; only a changed dependency gives input.
-	f.restored = { changed: false };
 	// R-lifetime: activation acquires every dependency, then runs the function once on their
 	// snapshots (and whatever they sent as they activated).
 	self._wave.activating = true;
@@ -179,22 +155,12 @@ function beginActivation(f: Activation): void {
 }
 
 /** Activation once every dependency is acquired: the lifetime's first run (R-lifetime). */
-function finishActivation(
-	self: NodeRuntimeHost<unknown>,
-	seed: NodeSeed | undefined,
-	restored: { changed: boolean },
-): void {
-	const deferred = self._wave.rewireRunPending;
+function finishActivation(self: NodeRuntimeHost<unknown>): void {
 	self._wave.rewireRunPending = false;
 	if (self._slot.handle === null && self._slot.deps.length === 0) return; // a state node has no function
 	if (self._wave.pending > 0) return; // a dependency is mid-wave; the run waits for it
-	if (seed !== undefined) {
-		// R-checkpoint: the function runs once if a dependency changed, with only the changed ones as
-		// input, and otherwise does not run; the setup runs either way, as at every activation.
-		if (restored.changed || deferred) self._runWave();
-		else nodeRunSetup(self);
-		return;
-	}
+	// R-subscription@3: a seeded node's first activation is an ordinary one; its first run gets the
+	// seed's note (ctx.seed).
 	self._runWave();
 }
 
@@ -224,19 +190,13 @@ function attachSubscriber(f: Activation, subscriber: Subscriber): void {
 	f.handshake = false;
 }
 
-/** A frame is done: close its wave boundary, then its parent goes on with its next dependency. */
-function completeActivation(f: Activation, base: number): void {
+/** A frame is done: close its wave boundary; its parent goes on with its next dependency. */
+function completeActivation(f: Activation): void {
 	activations.pop();
 	f.phase = ACT_DONE;
 	if (f.entered) {
 		f.entered = false;
 		exitWave(f.self._core);
-	}
-	if (activations.length > base) {
-		const parent = activations[activations.length - 1] as Activation;
-		const link = parent.link as DepLink;
-		parent.link = undefined;
-		link.finish();
 	}
 }
 
@@ -284,104 +244,21 @@ function makeUnsubscribe(self: NodeRuntimeHost<unknown>, subscriber: Subscriber)
 	};
 }
 
-/**
- * R-lifetime: run the lifetime's setup without a run of the function (a restored first activation
- * with nothing changed). What it sends goes out as the node's output; a throw is its ERROR.
- */
-function nodeRunSetup<T>(self: NodeRuntimeHost<T>): void {
-	const setup = self._slot.setup;
-	const lifetime = self._lifetime;
-	if (setup === undefined || lifetime.setupDone || self._value.terminal !== undefined) return;
-	lifetime.setupDone = true;
-	const ctx = self._buildCtx();
-	try {
-		const cleanup = withRunningGraph(
-			self._core,
-			self._slot.environment,
-			self._slot.dispatcher,
-			() => setup(ctx),
-		);
-		if (typeof cleanup === "function") lifetime.cleanup = cleanup;
-	} catch (error) {
-		ctx.down([["ERROR", errorPayload(error, "node setup threw without a valid error payload")]]);
-	}
-}
-
-/** Whether a dependency still holds what a restored node had received from it (R-checkpoint). */
-function sameAsReceived(
-	received: NodeReceived,
-	values: readonly unknown[],
-	terminal: unknown,
-): { values: boolean; terminal: boolean } {
-	const same = (a: unknown, b: unknown): boolean => {
-		if (a === b) return true;
-		try {
-			return (
-				new TextDecoder().decode(strictCanonicalJsonBytes(a)) ===
-				new TextDecoder().decode(strictCanonicalJsonBytes(b))
-			);
-		} catch {
-			return false;
-		}
-	};
-	return {
-		values: same([...received.values], [...values]),
-		terminal: same(received.terminal ?? null, terminal ?? null),
-	};
-}
-
-export function nodeSubscribeDepAt<T>(
-	self: NodeRuntimeHost<T>,
-	depNode: Node<unknown>,
-	seed?: { readonly received: NodeReceived | undefined; readonly onChange: () => void },
-): void {
-	const link = nodeDepLink(self, depNode, seed);
+export function nodeSubscribeDepAt<T>(self: NodeRuntimeHost<T>, depNode: Node<unknown>): void {
+	const link = nodeDepLink(self, depNode);
 	nodeRuntimeHost(depNode)._subscribeOwned(link.subscriber, link.acquisition);
-	link.finish();
 }
 
-/** A dependency subscription: its dependent subscriber, its acquisition, and what follows it. */
+/** A dependency subscription: its dependent subscriber and its acquisition. */
 interface DepLink {
 	readonly subscriber: Subscriber;
 	readonly acquisition: SubscriptionAcquisition;
-	/** After the dependency's subscription returned. */
-	finish(): void;
 }
 
-function nodeDepLink<T>(
-	self: NodeRuntimeHost<T>,
-	depNode: Node<unknown>,
-	seed: { readonly received: NodeReceived | undefined; readonly onChange: () => void } | undefined,
-): DepLink {
+function nodeDepLink<T>(self: NodeRuntimeHost<T>, depNode: Node<unknown>): DepLink {
 	const idx0 = self._slot.deps.indexOf(depNode);
 	const box = { v: idx0 };
-	// R-checkpoint: a restored node decides at the dependency's snapshot, once the dependency has
-	// activated: unchanged, the snapshot is dropped and the node holds what it had received; a
-	// changed value gives the snapshot as input; an end alone gives only the terminal.
-	let decision: "drop" | "terminal" | "pass" | undefined = seed === undefined ? "pass" : undefined;
-	const decide = (): void => {
-		const dep = nodeRuntimeHost(depNode);
-		const received = seed?.received;
-		const same =
-			received === undefined
-				? { values: false, terminal: false }
-				: sameAsReceived(received, dep._value.lastArray, dep._value.terminal);
-		decision = same.values ? (same.terminal ? "drop" : "terminal") : "pass";
-		if (decision !== "pass" && idx0 !== -1) {
-			self._seedRestoredDepAt(idx0, depNode);
-			if (decision === "terminal") self._dep.terminal[idx0] = undefined;
-		}
-		if (decision !== "drop") seed?.onChange();
-	};
 	const dependent: import("../ctx/types.js").DependentSink = (msg, delivery) => {
-		if (decision === undefined) {
-			if (delivery?.snapshot === true) decide();
-			else decision = "pass";
-		}
-		if (delivery?.snapshot === true) {
-			if (decision === "drop") return;
-			if (decision === "terminal" && !isTerminal(msg[0])) return;
-		}
 		if (box.v === -1) return; // dep removed — stale callback, drop (drain)
 		self._receiveFromDep(box.v, msg, delivery);
 	};
@@ -395,30 +272,7 @@ function nodeDepLink<T>(
 				}
 			},
 		},
-		finish: () => {
-			if (decision === undefined && box.v !== -1) decide();
-		},
 	};
-}
-
-export function nodeSeedRestoredDepAt<T>(
-	self: NodeRuntimeHost<T>,
-	idx: number,
-	depNode: Node<unknown>,
-): void {
-	const dep = nodeRuntimeHost(depNode);
-	const seedData = dep._value.hasData;
-	self._dep.batch[idx] = null;
-	self._dep.waveData[idx] = [];
-	self._dep.waveTokens[idx] = undefined;
-	self._dep.waveLive[idx] = [];
-	self._dep.prev[idx] = seedData ? dep._value.cache : SENTINEL;
-	self._dep.hasData[idx] = seedData;
-	self._dep.dirty[idx] = false;
-	self._dep.tier[idx] = seedData ? 3 : 0;
-	self._dep.terminal[idx] = dep._value.terminal;
-	self._dep.terminalInput[idx] = undefined;
-	self._dep.invalidated[idx] = false;
 }
 
 /**
@@ -469,6 +323,8 @@ function beginTeardown(
 	lifetime.cleanup = undefined;
 	lifetime.setupDone = false;
 	self._syncCtx = null;
+	// R-subscription@3: only the seeded instance's first run, in its first lifetime, gets the note.
+	self._seedNote = undefined;
 	if (controller !== null) {
 		if (onError === undefined) controller.abort();
 		else
@@ -677,7 +533,7 @@ export function nodeReleaseRuntime<T>(self: NodeRuntimeHost<T>): void {
 	self._privateState.value = SENTINEL;
 	self._syncCtx = null;
 	self._resetDepState();
-	self._seed = undefined;
+	self._seedNote = undefined;
 	closeNodeRegistration(node);
 	try {
 		self._core.releaseSlot(self._id);

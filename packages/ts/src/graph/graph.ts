@@ -102,6 +102,7 @@ import type {
 	TopologyStream,
 } from "./inspect.js";
 import { initNodeWithCore, type Operator } from "./operators.js";
+import { realNodeFn, receivedInNote } from "./restore-first-run.js";
 
 export type {
 	TopologyGroup,
@@ -493,7 +494,9 @@ export class Graph {
 
 	/** R-node: a node's current definition (declared dependencies, function, setup, recipe). */
 	definition(target: Node<unknown> | string): NodeDefinition {
-		return nodeDefinition(nodeRuntimeHost(this._resolveTarget(target, "definition")));
+		const definition = nodeDefinition(nodeRuntimeHost(this._resolveTarget(target, "definition")));
+		// R-checkpoint@1: a restored node's function is the one it was built with.
+		return { ...definition, fn: realNodeFn(definition.fn) };
 	}
 
 	private _resolveTarget<T>(target: Node<T> | string, op: string): Node<T> {
@@ -1102,15 +1105,15 @@ export class Graph {
 		const host = nodeRuntimeHost(node);
 		const state = checkpointStateOfNode(node);
 		if (state.terminal !== undefined) return undefined;
+		// Restored and not run since: what it had received is its seed's note (R-checkpoint@1).
 		const received =
-			state.seed !== undefined
-				? state.seed.received
-				: state.activated
-					? host._slot.deps.map((dep) => {
-							const d = checkpointStateOfNode(dep);
-							return { values: d.values, terminal: d.terminal };
-						})
-					: undefined;
+			receivedInNote(state.seedNote) ??
+			(state.activated
+				? host._slot.deps.map((dep) => {
+						const d = checkpointStateOfNode(dep);
+						return { values: d.values, terminal: d.terminal };
+					})
+				: undefined);
 		if (received === undefined) return undefined;
 		// What it received is part of what it retains; a received ERROR payload is an ERROR payload.
 		const out: GraphCheckpointLifetime = {

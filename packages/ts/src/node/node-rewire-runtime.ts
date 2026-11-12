@@ -5,7 +5,7 @@ import { type Message, SENTINEL } from "../protocol/messages.js";
 import { makeDepBookkeeping } from "./core.js";
 import type { Node } from "./node.js";
 import { nodeCallSink } from "./node-output-runtime.js";
-import { type NodeRuntimeHost } from "./node-runtime-host.js";
+import type { NodeRuntimeHost } from "./node-runtime-host.js";
 import { notifyTopologyDepsChanged } from "./runtime-accessors.js";
 import type { NodeDefinition, ReplaceOptions } from "./types.js";
 
@@ -97,7 +97,7 @@ export function nodeRewire<T>(self: NodeRuntimeHost<T>, newDeps: Node<unknown>[]
 	) {
 		return true;
 	}
-	if (!self._lifecycle.activated) self._seed = undefined;
+	if (!self._lifecycle.activated) self._seedNote = undefined;
 
 	self._wave.inDepMutation = true;
 	self._wave.rewireRunPending = false;
@@ -283,7 +283,7 @@ function nodeApplyReplace<T>(
 	self._value.terminal = undefined;
 	self._wave.pending = 0;
 	self._wave.emittedDirtyThisWave = false;
-	self._seed = undefined;
+	self._seedNote = undefined;
 	self._syncCtx = null;
 	if (active) {
 		self._wave.activating = true;

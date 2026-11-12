@@ -127,6 +127,11 @@ export interface Ctx {
 	/** Private state for the current lifetime (R-invocation, R-lifetime). */
 	state: CtxState;
 	/**
+	 * R-invocation@2 / R-subscription@3: on the first run of an instance built with a seed, the
+	 * seed's opaque note; `undefined` on every other run.
+	 */
+	readonly seed: unknown;
+	/**
 	 * R-lifetime: the current lifetime's abort signal, aborted when the lifetime closes
 	 * (deactivation or end), not by INVALIDATE or a rerun. A function registers no cleanup; what
 	 * must last for the lifetime is opened by the node's `setup`, and work started from a run can
@@ -144,6 +149,17 @@ export interface Ctx {
 	 */
 	rewire(deps: readonly Node<unknown>[]): void;
 	[CTX_NODE_BINDING]?: CtxNodeBinding;
+}
+
+/**
+ * @internal This ctx with `deps` in place of its dependency views: the same node, lifetime and
+ * note (R-checkpoint@1: a restored node's first run sees only its changed dependencies).
+ */
+export function ctxWithDeps(ctx: Ctx, deps: readonly CtxDep[]): Ctx {
+	const out: Ctx = { ...ctx, deps };
+	const origin = ctxDepWaveOrigins.get(ctx);
+	if (origin !== undefined) ctxDepWaveOrigins.set(out, origin);
+	return out;
 }
 
 /** A node fn (R-invocation). Registered in a dispatcher pool, indexed by Handle. */

@@ -82,21 +82,19 @@ export interface NodeOptions<T = unknown> {
 }
 
 /**
- * R-checkpoint: what a node received from one dependency, the values of that dependency's last
- * array and its terminal.
- */
-export interface NodeReceived {
-	readonly values: readonly unknown[];
-	readonly terminal: true | unknown | undefined;
-}
-
-/**
- * R-checkpoint / R-subscription: a restored computed node's construction seed beyond its values,
- * terminal and private state. Its first activation compares what it had received with what its
- * dependencies hold then.
+ * R-subscription@3: what a node may be given at construction and holds as if it had produced it:
+ * its last array's values, its terminal, its private state, the dependencies of its first
+ * lifetime (the declared ones come back when that lifetime closes) and an opaque note, which only
+ * the first run of the seeded instance receives as `ctx.seed` (R-invocation@2). The kernel never
+ * reads the note.
  */
 export interface NodeSeed {
-	readonly received: readonly NodeReceived[];
+	readonly values: readonly unknown[];
+	readonly terminal: true | unknown | undefined;
+	/** `undefined` (SENTINEL) when there is none. */
+	readonly privateState: unknown;
+	readonly deps?: readonly Node<unknown>[];
+	readonly note?: unknown;
 }
 
 export interface NodeCheckpointState {
@@ -108,16 +106,9 @@ export interface NodeCheckpointState {
 	readonly activated: boolean;
 	/** The current lifetime's private state; `undefined` (SENTINEL) when there is none. */
 	readonly privateState: unknown;
-	/** A restored node's seed, until its first activation. */
-	readonly seed: NodeSeed | undefined;
+	/** R-checkpoint@1: the note of a seed not yet run with; `undefined` when there is none. */
+	readonly seedNote: unknown;
 	readonly handle: Handle | null;
-}
-
-export interface NodeRestoreState {
-	readonly values: readonly unknown[];
-	readonly terminal: true | unknown | undefined;
-	readonly privateState: unknown;
-	readonly seed: NodeSeed | undefined;
 }
 
 /** R-node: what replace gives a new instance besides its dependencies and function. */

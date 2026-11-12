@@ -4,18 +4,18 @@
  * Restore builds a new graph from a strict-JSON checkpoint: no subscribers, each node after its
  * declared dependencies and otherwise in checkpoint order, and no recipe function runs. A state
  * gets its saved values as one array and then its terminal; a computed node gets its values,
- * terminal, private state, lifetime dependencies and the record of what it received as a
- * construction seed (R-subscription). Its first activation runs its setup, and runs its function
- * once only if a dependency no longer holds what it had received. No storage I/O.
+ * terminal, private state and lifetime dependencies as a construction seed (R-subscription@3),
+ * and an open one a note of what it received and its function wrapped: its first run runs the
+ * function once only if a dependency no longer holds what it had received (restore-first-run).
+ * No storage I/O.
  */
 
 import type { NodeFn } from "../ctx/types.js";
 import type { Dispatcher } from "../dispatcher/index.js";
 import { strictCanonicalJsonBytes } from "../json/codec.js";
 import type { Node } from "../node/node.js";
-import { nodeRuntimeHost } from "../node/node-runtime-host.js";
-import { restoreStateOfNode } from "../node/runtime-accessors.js";
-import type { NodeOptions, NodeReceived } from "../node/types.js";
+import { restoreStateOfNode, wrapFnOfNode } from "../node/runtime-accessors.js";
+import type { NodeOptions } from "../node/types.js";
 import { SENTINEL } from "../protocol/messages.js";
 import {
 	CHECKPOINT_REFUSAL,
@@ -48,6 +48,7 @@ import {
 } from "./graph.js";
 import { operatorRestoreRegistry } from "./operator-restore.js";
 import { map, operatorNodeFn, take } from "./operators.js";
+import { type RestoredReceived, restoredFirstRun, restoredNote } from "./restore-first-run.js";
 import { timer } from "./sources.js";
 
 /** A registered named function, for a recipe whose configuration names one (TS: map). */
@@ -922,20 +923,26 @@ function constructPrepared(
 			const item = prepared.nodes.get(id) as Prepared;
 			const node = item.checkpoint;
 			const lifetime = node.lifetime;
-			// A ctx.rewire's lifetime dependencies; the declared ones come back when it closes.
-			if (lifetime?.deps !== undefined)
-				nodeRuntimeHost(made)._rewire(lifetime.deps.map((dep) => built.get(dep) as Node<unknown>));
-			const received: NodeReceived[] | undefined = lifetime?.received.map((r) => ({
-				values: r.values,
-				terminal: restoredTerminal(r.terminal, `node '${id}' received`),
-			}));
+			// An ended node never runs again, so it gets no note (R-checkpoint@1).
+			const received: RestoredReceived[] | undefined =
+				item.terminal !== undefined
+					? undefined
+					: lifetime?.received.map((r) => ({
+							values: r.values,
+							terminal: restoredTerminal(r.terminal, `node '${id}' received`),
+						}));
+			if (received !== undefined) wrapFnOfNode(made, restoredFirstRun);
 			restoreStateOfNode(made, {
 				values: node.values,
 				terminal: item.terminal,
 				// A detached copy: a restored node may change its state in place (zip, buffer), and two
 				// graphs restored from one checkpoint object must not share it.
 				privateState: lifetime?.state === undefined ? SENTINEL : structuredClone(lifetime.state),
-				seed: lifetime === undefined || received === undefined ? undefined : { received },
+				// A ctx.rewire's lifetime dependencies; the declared ones come back when it closes.
+				...(lifetime?.deps === undefined
+					? {}
+					: { deps: lifetime.deps.map((dep) => built.get(dep) as Node<unknown>) }),
+				...(received === undefined ? {} : { note: restoredNote(received) }),
 			});
 		}
 	} finally {
