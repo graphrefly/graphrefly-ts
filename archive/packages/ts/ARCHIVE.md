@@ -37,3 +37,9 @@ and `d686-qualified-evidence.json` are the frozen D686 evidence, byte for byte a
 `src/__tests__/work-item-execution-project-fit.d686.test.ts` and `work-item-execution-default.d687.test.ts`
 here are those tests at `origin/main`'s bytes, including their frozen-evidence cases. D686's other
 four tests stay live with the migrated harness.
+
+## b121 graph runtime eval
+
+Archived on 2026-11-11 (§4, Fable 4.1). `evals/b121/` (campaign, session and transport control
+over a local graph runtime) calls APIs the D797 kernel removed and nothing references it; moved
+unchanged.
