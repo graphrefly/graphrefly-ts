@@ -8,6 +8,7 @@ import {
 } from "../graph/construction-scope.js";
 import { Graph } from "../graph/graph.js";
 import { rewireOwnedNode } from "./helpers/owned-rewire.js";
+import { relayFirst } from "./helpers/relay.js";
 
 for (const closingEdge of ["receipt-to-guard", "authority-to-receipt"] as const) {
 	it(`rejects the proposed quiet outcome cycle while cold: ${closingEdge}`, () => {
@@ -27,7 +28,8 @@ for (const closingEdge of ["receipt-to-guard", "authority-to-receipt"] as const)
 		};
 		const authority = scope.node([input], fn, { name: "authority" });
 		const guard = scope.node([authority], fn, { name: "guard" });
-		const receipt = scope.node(closingEdge === "receipt-to-guard" ? [] : [guard], null, {
+		const receiptDeps = closingEdge === "receipt-to-guard" ? [] : [guard];
+		const receipt = scope.node(receiptDeps, receiptDeps.length === 0 ? null : relayFirst, {
 			name: "receipt",
 			quiet: true,
 		});

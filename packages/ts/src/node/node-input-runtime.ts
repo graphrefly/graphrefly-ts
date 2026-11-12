@@ -183,11 +183,7 @@ export function nodeSettle<T>(self: NodeRuntimeHost<T>, force: boolean, tail = f
 
 	let out: Message[][] = [];
 	const allEnded = n > 0 && self._dep.terminal.every((t) => t !== undefined);
-	if (self._slot.handle === null) {
-		// Passthrough wire (deps, no fn): relay dep 0's latest value of the wave.
-		const b = self._dep.batch[0];
-		if (b !== null && b !== undefined && b.length > 0) out = [[["DATA", b[b.length - 1]]]];
-	} else {
+	if (self._slot.handle !== null) {
 		// graphrefly-ts:D184 (the user's Q1): the kernel has no first-run gate; a function runs on
 		// activation and on any input, and the value-level sugar keeps its own gate.
 		const manualTerminal = self._dep.terminalInput.some(

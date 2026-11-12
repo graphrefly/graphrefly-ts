@@ -6,6 +6,7 @@ import type { NodeCore } from "../node/core.js";
 import { Node, withNodeCore } from "../node/node.js";
 import { releaseRuntimeOfNode } from "../node/runtime-accessors.js";
 import { rewireOwnedNode } from "./helpers/owned-rewire.js";
+import { relayFirst } from "./helpers/relay.js";
 
 const graphs: Graph[] = [];
 const bare: Node<unknown>[] = [];
@@ -19,7 +20,10 @@ function graph() {
 /** An unregistered node of `g`'s domain (R-graph-domain@3: every node belongs to a graph). */
 function hidden(g: Graph, deps: Node<unknown>[] = []) {
 	const core = (g as unknown as { _core: NodeCore })._core;
-	const n = withNodeCore(core, () => new Node(deps, null, { factory: "hidden" }));
+	const n = withNodeCore(
+		core,
+		() => new Node(deps, deps.length === 0 ? null : relayFirst, { factory: "hidden" }),
+	);
 	bare.push(n);
 	return n;
 }
@@ -32,7 +36,7 @@ function fixture(g = graph()) {
 		inputs: [a, b],
 		names: ["view/root", "view/future"],
 	});
-	const root = scope.node([a, b], null, { name: "view/root" });
+	const root = scope.node([a, b], relayFirst, { name: "view/root" });
 	return { g, a, b, scope, root };
 }
 afterEach(() => {
@@ -51,7 +55,7 @@ afterEach(() => {
 describe("D161 B1 incoming inspection", () => {
 	it("captures only actual acquired targets, reading current deps before the manifest is complete", () => {
 		const f = fixture();
-		f.g.node([f.a], null, { name: "view/decoy" });
+		f.g.node([f.a], relayFirst, { name: "view/decoy" });
 		rewireOwnedNode(f.root, [f.b]);
 		expect(f.scope.readIncoming().edges).toEqual([{ from: "b", to: "view/root" }]);
 		expect(f.g.find("view/future")).toBeUndefined();
@@ -82,14 +86,14 @@ describe("D161 B1 incoming inspection", () => {
 			const v = hidden(inspected, [u]);
 			// Public rewire rejects cycles. Stress only the inspection walk with a cold getter fixture.
 			vi.spyOn(u, "deps", "get").mockReturnValue([w, v]);
-			inspected.node([u, v, u], null, { name: "background" });
+			inspected.node([u, v, u], relayFirst, { name: "background" });
 			inspected.node([], null, { name: "~hidden#0" });
 			if (mount) f.g.mount(inspected, { at: "child" });
 			if (local) f.scope.readIncoming();
 			else f.g.inspect();
 			const events: TopologyEvent[] = [];
 			stops.push(inspected.observeTopology().subscribe((e) => events.push(e)));
-			inspected.node([hidden(inspected)], null, { name: "later" });
+			inspected.node([hidden(inspected)], relayFirst, { name: "later" });
 			return { events, snapshot: f.g.inspect(), checkpoint: f.g.checkpoint() };
 		}
 		expect(run(true)).toEqual(run(false));

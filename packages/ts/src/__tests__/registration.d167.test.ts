@@ -31,6 +31,7 @@ import {
 	runtimeReleaseFailuresOfNode,
 	subscriberCountOfNode,
 } from "../node/runtime-accessors.js";
+import { relayFirst } from "./helpers/relay.js";
 
 afterEach(() => vi.restoreAllMocks());
 class CountingDispatcher extends Dispatcher {
@@ -67,7 +68,7 @@ describe("D167 issued runtime identity and lifecycle", () => {
 		nodeRuntimeHost(input)._lifetime.cleanup = () => {
 			hookRan = true;
 			expect(checkpointStateOfNode(input).cache).toBe(2);
-			expect(() => g.node([input], null, { name: "invalid" })).toThrow("has been released");
+			expect(() => g.node([input], relayFirst, { name: "invalid" })).toThrow("has been released");
 			expect(g.find("invalid")).toBeUndefined();
 		};
 		releaseGraphNodes(g, [input]);

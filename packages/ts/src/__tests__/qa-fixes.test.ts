@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Ctx, Message } from "../index.js";
 import { graph } from "../index.js";
 import type { Subscribable } from "./helpers/collect.js";
+import { relayFirst } from "./helpers/relay.js";
 
 function collect(n: Subscribable) {
 	const msgs: Message[] = [];
@@ -64,7 +65,7 @@ describe("QA fixes", () => {
 			const v = ctx.deps[0].value as number;
 			if (v % 2 === 0) ctx.down([["DATA", v]]);
 		});
-		const pass = g.node<number>([dep], null); // passthrough wire (_handle === null)
+		const pass = g.node<number>([dep], relayFirst); // a node that relays its dependency
 		const { msgs } = collect(pass);
 		msgs.length = 0;
 		src.set(1); // dep settles with no value → PENDING then RESOLVED to the passthrough

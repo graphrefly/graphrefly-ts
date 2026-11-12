@@ -31,6 +31,7 @@ import {
 } from "../solutions/causal-occurrence.js";
 import { asState } from "./helpers/as-state.js";
 import { rewireOwnedNode } from "./helpers/owned-rewire.js";
+import { relayFirst } from "./helpers/relay.js";
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -776,7 +777,7 @@ describe("D161 graph construction ownership", () => {
 				inputs: [source],
 			});
 			const startup = scope.startupSource();
-			const root = scope.node([source], null, { name: `${name}/root` });
+			const root = scope.node([source], relayFirst, { name: `${name}/root` });
 			const owner = scope.seal(startup, [root]);
 			scope.transferToGraph(owner);
 			startConstruction(g, owner);

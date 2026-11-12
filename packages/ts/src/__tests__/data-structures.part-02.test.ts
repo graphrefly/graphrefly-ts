@@ -22,6 +22,7 @@ import type { Node } from "../node/node.js";
 import { asState } from "./helpers/as-state.js";
 import type { Subscribable } from "./helpers/collect.js";
 import { rewireOwnedNode } from "./helpers/owned-rewire.js";
+import { relayFirst } from "./helpers/relay.js";
 
 const _types = (m: Message[]) => m.map((x) => x[0]);
 const data = <T>(m: Message[]): T[] =>
@@ -526,7 +527,7 @@ describe("reactiveLog (D60 #5) — incremental view/scan + SENTINEL reject + dec
 		const g = graph();
 		const log = reactiveLog<number>(g, [], { name: "log" });
 		const page = log.page(0, 2);
-		const downstream = g.node([page.snapshot as Node<unknown>], null, { name: "consumer" });
+		const downstream = g.node([page.snapshot as Node<unknown>], relayFirst, { name: "consumer" });
 
 		expect(() => page.dispose()).toThrow(/consumer.*still depends.*log\.page#0\.snapshot/);
 		expect(g.inspect().nodes.map((n) => n.id)).toContain("log.page#0.snapshot");

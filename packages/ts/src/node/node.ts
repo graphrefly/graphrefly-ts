@@ -195,6 +195,10 @@ export class Node<T = unknown> {
 		opts: NodeOptions<T> = {},
 	) {
 		creationOrder.set(this as Node<unknown>, nextCreation++);
+		// R-node: a node with dependencies is a computed node and has a function; a node without
+		// one is a state and has no dependencies.
+		if (handleOrFn === null && deps.length > 0)
+			throw new TypeError("node: a node with dependencies needs a function (R-node)");
 		const suppliedAcquisition = constructionAcquisitions.get(opts);
 		const acquisition: NodeAcquisition = suppliedAcquisition ?? { name: "bare node" };
 		constructionAcquisitions.delete(opts);

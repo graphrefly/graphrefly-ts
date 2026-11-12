@@ -29,6 +29,7 @@ import type {
 } from "../solutions/causal-occurrence/contracts.js";
 import { causalOccurrenceDigest } from "../solutions/causal-occurrence.js";
 import { asState } from "./helpers/as-state.js";
+import { relayFirst } from "./helpers/relay.js";
 
 const graphs: Graph[] = [];
 const dispatchers = new Map<Graph, CountingDispatcher>();
@@ -208,7 +209,7 @@ function combined(inject?: (scope: ConstructionScope) => void, empty = false) {
 			prepareCausalOptions({ ...f.options, name: "run/causal", occurrences: occurrence }),
 			binding,
 		);
-		const value = scope.node([built.ports.released], null, { name: "run/value" });
+		const value = scope.node([built.ports.released], relayFirst, { name: "run/value" });
 		const count = scope.node<number>(
 			[built.ports.released],
 			(ctx) => {
