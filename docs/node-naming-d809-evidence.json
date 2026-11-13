@@ -2,7 +2,7 @@
 	"authority": {
 		"rule": "graphrefly:R-naming@1",
 		"decision": "graphrefly:D809",
-		"work": "graphrefly:C-49",
+		"scenario": "graphrefly:C-49",
 		"fixtureCommit": "f2e23490bafe94745f720da3ced5f0fff6fccd65"
 	},
 	"baseline": "bb4fb462dc952941450f4347788db1228dce00ca",
