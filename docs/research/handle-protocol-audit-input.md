@@ -32,7 +32,6 @@ The cleaving is empirically validated:
 
 ## Rule-by-rule classification
 
-References the rule IDs in `docs/implementation-plan-13.6-prep-inventory.md`.
 
 ### Pure-core rules — invisible to user-facing audit
 
@@ -170,7 +169,6 @@ After 13.6 closes, the binding-layer rules become the spec for the per-language 
 
 ## Open questions surfaced (not blocking 13.6.A)
 
-These are real but should NOT block locking; flag them in `docs/optimizations.md` for follow-up:
 
 1. **Cross-language handle-space composition** — if a TS-frontend graph mounts a Python-frontend subgraph, the two registries are disjoint. `wave_protocol` doesn't model this. Probably "explicit serialize bridge" or "process boundary" rather than fusing the registries.
 2. **Async fn boundary** — state-node `Compute` in `wave_protocol` is synchronous. A real Rust core handing async fns back to JS/Py introduces interleaving. Captured under wave_protocol's `SinkNestedEmit` / multi-sink iteration models for related concerns; explicit async-fn modeling is future work.

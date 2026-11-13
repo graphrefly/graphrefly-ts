@@ -20,7 +20,7 @@ You are executing the **qa** workflow for the **clean-slate GraphReFly** redesig
 
 This repo is **`@graphrefly/ts`** — the self-contained TypeScript implementation (D32); clean-slate code lives in **`packages/ts/src/`**. Siblings (each self-contained, cross-language = wire bridge, never in-process): `@graphrefly/rust` (`~/src/graphrefly-rs`), `@graphrefly/py` (`~/src/graphrefly-py`). The language-neutral authority (spec / decisions / plan / conformance / formal) lives in **`~/src/graphrefly`** (branch `clean-slate`) as jsonl — when this skill and that repo disagree, that repo wins (AGENTS.md).
 
-> **Stale-infra guard.** Do NOT reach for the retired port-model surfaces: `packages/pure-ts/**` (frozen read-only reference only, D41), `docs/implementation-plan.md` / `implementation-plan-13.6-*.md` / `optimizations.md` / `roadmap.md` / `test-guidance.md` / `docs-guidance.md`, `GRAPHREFLY-SPEC.md` / `COMPOSITION-GUIDE.md` (migrated to `spec/rules.jsonl` + `guide/guide.jsonl`, B7), the `@graphrefly/graphrefly` shim + its 4-file subpath rule, the `Impl`/facade/actor model, the Rust `migration-status.md` / `porting-deferred.md` / canonical-spec-13.6 registries. The clean-slate authority is the `~/src/graphrefly` jsonl.
+Use `packages/ts/src/` for the current runtime and the maintained owner JSONL for authority. Historical API descriptions do not override current contracts.
 
 Context from user: $ARGUMENTS
 

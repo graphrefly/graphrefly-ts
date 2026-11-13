@@ -285,7 +285,6 @@ napi-rs FFI overhead is ~51 ns/call, vastly lower than the conservative 100-500 
 ### TS side (`~/src/graphrefly-ts/`)
 - `src/__bench__/handle-core.bench.ts` — matching vitest bench against handle-core TS prototype
 - `src/__experiments__/handle-core/` — TS prototype (reference impl)
-- `docs/implementation-plan.md` Phase 13.7 — bench feasibility study scope
 - `docs/research/wave_protocol_rewire.tla` — TLA+-verified setDeps semantics
 
 ## Verification artifacts

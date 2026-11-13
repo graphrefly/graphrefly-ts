@@ -17,7 +17,7 @@ This skill applies the 5 design-review questions (Q5–Q9 of the 9-question per-
 
 Clean-slate code lives in **`packages/ts/src/`** (`@graphrefly/ts`, D32). The language-neutral authority is **`~/src/graphrefly`** jsonl (branch `clean-slate`) — when this skill and that repo disagree, that repo wins (AGENTS.md).
 
-> **Stale-infra guard.** Do NOT cite the retired port-model: `packages/pure-ts/**` (frozen read-only reference only, D41), `docs/implementation-plan.md` / `optimizations.md` / `roadmap.md` / `test-guidance.md` / `docs-guidance.md`, `GRAPHREFLY-SPEC.md` / `COMPOSITION-GUIDE.md` (migrated to `spec/rules.jsonl` + `guide/guide.jsonl`, B7), `describe({format})` (renderers are pure `inspectTo*` fns over the `inspect()` snapshot, NOT a `format` option), the retired kernel vocabulary (DIRTY, tiers/`messageTier`, `ctx.up`, `dynamicNode`/`ctx.track`, `depBatch`/`depLatest`, dispatcher pools, the free `batch()`; graphrefly-ts:D179/D185/D187), the `Impl`/facade/actor model.
+Use `packages/ts/src/` for the current runtime and the maintained owner JSONL for authority. Historical API descriptions do not override current contracts.
 
 **When to use:** before a new public symbol in `packages/ts/src/graph/` (sugar / operator / inspection) or a new substrate primitive in `packages/ts/src/{node,dispatcher,ctx,protocol,batch}/`; right after sketching a factory; when two implementations exist and you need a principled pick; when `/dev-dispatch` Phase 2 needs to go deeper than its default template.
 **When NOT:** bug fixes / pure refactors → `/qa`; already-approved work → proceed; trivial additive changes (a JSDoc field, a docstring).

@@ -40,5 +40,3 @@ Both consumer-blocking defects surfaced by memo:Re (first real consumer) were **
 
 - **`ReactiveLogBundle.attachStorage()` first-wave-only data loss on a standalone `reactiveLog`** — FIXED (every append wave now forwarded; repro that lost `['b','c','d']` now persists all four).
 - **`@graphrefly/graphrefly` root/`/base` hard-require of optional `rxjs`** — FIXED (root import no longer throws; `no-rxjs-in-loaded-path` test added upstream).
-
-Full history + repros in `docs/optimizations.md` (resolution stamp at top of the memo:Re entry). Tombstone retained for provenance; remove this section per the known-issues archival convention when convenient.
