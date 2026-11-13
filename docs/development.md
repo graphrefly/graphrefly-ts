@@ -32,3 +32,9 @@ conflict, surface the exact conflict rather than choose semantics autonomously.
 For Rust commands used from this checkout, follow the sibling
 [development guide](../../graphrefly-rs/docs/development.md) and use
 `mise exec -- cargo <cmd>` (or `~/.cargo/bin/cargo` when PATH is constrained).
+
+Generated node and group names follow [R-naming@1](../../graphrefly/spec/rules.jsonl):
+use `/` and camelCase, preserving semantic words and removing only repeated prefix words.
+The first generated scope, view or binding is unsuffixed; later instances use `1`, `2`, etc.
+Reject local names containing `::` or beginning/ending with `:` before mutation; preserve
+other caller labels, recipe keys and payload identities.
