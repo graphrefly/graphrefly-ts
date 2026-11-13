@@ -4218,13 +4218,13 @@ describe("agentic memory consolidation bundle (D171)", () => {
 
 		expect(renderSnapshot(g).edges).toEqual(
 			expect.arrayContaining([
-				{ from: "consolidation/occurrences", to: "consolidation/projection" },
-				{ from: "consolidation/occurrences", to: "consolidation/projection" },
-				{ from: "consolidation/occurrences", to: "consolidation/projection" },
-				{ from: "consolidation/projection", to: "consolidation/results" },
-				{ from: "consolidation/projection", to: "consolidation/proposedRecordDrafts" },
-				{ from: "consolidation/projection", to: "consolidation/recordProposals" },
-				{ from: "consolidation/projection", to: "consolidation/commands" },
+				{ from: "consolidation/occurrences", to: "consolidation/snapshot" },
+				{ from: "consolidation/occurrences", to: "consolidation/snapshot" },
+				{ from: "consolidation/occurrences", to: "consolidation/snapshot" },
+				{ from: "consolidation/snapshot", to: "consolidation/results" },
+				{ from: "consolidation/snapshot", to: "consolidation/proposedRecordDrafts" },
+				{ from: "consolidation/snapshot", to: "consolidation/recordProposals" },
+				{ from: "consolidation/snapshot", to: "consolidation/commands" },
 			]),
 		);
 		expect(occurrenceData(errors.messages).at(-1)).toEqual([]);
@@ -8683,13 +8683,13 @@ describe("agentic memory context packing (D168)", () => {
 
 		expect(renderSnapshot(g).edges).toEqual(
 			expect.arrayContaining([
-				{ from: "context", to: "packing/projection" },
-				{ from: "texts", to: "packing/projection" },
-				{ from: "policy", to: "packing/projection" },
-				{ from: "packing/projection", to: "packing/packed" },
-				{ from: "packing/projection", to: "packing/status" },
-				{ from: "packing/projection", to: "packing/errors" },
-				{ from: "packing/projection", to: "packing/cursor" },
+				{ from: "context", to: "packing/snapshot" },
+				{ from: "texts", to: "packing/snapshot" },
+				{ from: "policy", to: "packing/snapshot" },
+				{ from: "packing/snapshot", to: "packing/packed" },
+				{ from: "packing/snapshot", to: "packing/status" },
+				{ from: "packing/snapshot", to: "packing/errors" },
+				{ from: "packing/snapshot", to: "packing/cursor" },
 			]),
 		);
 		expect(data<AgenticMemoryPackedContext>(packed.messages).at(-1)).toMatchObject({

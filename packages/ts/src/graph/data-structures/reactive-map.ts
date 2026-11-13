@@ -588,7 +588,7 @@ function createReactiveMap<K, V>(
 	// REQUEST state the quiet snapshotPrep declares as a dependency (graphrefly-ts:D172).
 	const request = graph.node<true>([], null, {
 		factory: "reactiveMap.request",
-		name: name ? `${name}/request` : undefined,
+		name: name ? `${name}/snapshotRequest` : undefined,
 		meta: { kind: "collection_request", collection: "reactiveMap" },
 		...(restorable ? { recipe: { ref: "reactiveMap.request" } } : {}),
 	});

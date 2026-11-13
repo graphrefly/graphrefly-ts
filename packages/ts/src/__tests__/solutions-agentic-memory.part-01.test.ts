@@ -464,17 +464,17 @@ describe("agentic memory KG projection (D165)", () => {
 
 		expect(renderSnapshot(g).edges).toEqual(
 			expect.arrayContaining([
-				{ from: "records", to: "kg" },
-				{ from: "drafts", to: "kg" },
-				{ from: "kg", to: "kg/assertions" },
-				{ from: "kg", to: "kg/status" },
-				{ from: "kg", to: "kg/errors" },
-				{ from: "kg", to: "kg/cursor" },
+				{ from: "records", to: "kg/snapshot" },
+				{ from: "drafts", to: "kg/snapshot" },
+				{ from: "kg/snapshot", to: "kg/assertions" },
+				{ from: "kg/snapshot", to: "kg/status" },
+				{ from: "kg/snapshot", to: "kg/errors" },
+				{ from: "kg/snapshot", to: "kg/cursor" },
 			]),
 		);
 		expect(renderSnapshot(g).nodes).toEqual(
 			expect.arrayContaining([
-				expect.objectContaining({ id: "kg", factory: "agenticMemoryKgProjection" }),
+				expect.objectContaining({ id: "kg/snapshot", factory: "agenticMemoryKgProjection" }),
 			]),
 		);
 		expect(data<readonly AgenticMemoryKgProjectionError[]>(errors.messages).at(-1)).toEqual([]);
@@ -714,14 +714,14 @@ describe("agentic memory retention bundle (D167)", () => {
 
 		expect(renderSnapshot(g).edges).toEqual(
 			expect.arrayContaining([
-				{ from: "records", to: "retention/projection" },
-				{ from: "commands", to: "retention/projection" },
-				{ from: "retention/projection", to: "retention/activeRecords" },
-				{ from: "retention/projection", to: "retention/archivedRecords" },
-				{ from: "retention/projection", to: "retention/consolidationRequests" },
-				{ from: "retention/projection", to: "retention/status" },
-				{ from: "retention/projection", to: "retention/errors" },
-				{ from: "retention/projection", to: "retention/cursor" },
+				{ from: "records", to: "retention/snapshot" },
+				{ from: "commands", to: "retention/snapshot" },
+				{ from: "retention/snapshot", to: "retention/activeRecords" },
+				{ from: "retention/snapshot", to: "retention/archivedRecords" },
+				{ from: "retention/snapshot", to: "retention/consolidationRequests" },
+				{ from: "retention/snapshot", to: "retention/status" },
+				{ from: "retention/snapshot", to: "retention/errors" },
+				{ from: "retention/snapshot", to: "retention/cursor" },
 			]),
 		);
 		expect(data<readonly AgenticMemoryRetentionError[]>(errors.messages).at(-1)).toEqual([]);

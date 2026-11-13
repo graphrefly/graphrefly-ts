@@ -234,7 +234,7 @@ function clearRestoredCollectionMap(graph: Graph): void {
 
 function collectionBaseId(
 	id: string,
-	suffix: "/intent" | "/apply" | "/snapshotPrep" | "/delta" | "/snapshot" | "/request",
+	suffix: "/intent" | "/apply" | "/snapshotPrep" | "/delta" | "/snapshot" | "/snapshotRequest",
 	ref: string,
 ): string {
 	if (!id.endsWith(suffix)) {
@@ -399,7 +399,7 @@ function restoredMapNode(ctx: GraphRestoreExtensionContext, ref: string): Node<u
 function existingMapNode(
 	ctx: GraphRestoreExtensionContext,
 	ref: string,
-	suffix: "/apply" | "/snapshotPrep" | "/delta" | "/snapshot" | "/request",
+	suffix: "/apply" | "/snapshotPrep" | "/delta" | "/snapshot" | "/snapshotRequest",
 ): Node<unknown> {
 	const base = collectionBaseId(ctx.id, suffix, ref);
 	const item = restoredCollectionMap(ctx.graph).get(base);
@@ -435,7 +435,7 @@ function existingCollectionRequest(
 	ref: string,
 	kind: RestoredCollection["kind"],
 ): Node<unknown> {
-	const base = collectionBaseId(ctx.id, "/request", ref);
+	const base = collectionBaseId(ctx.id, "/snapshotRequest", ref);
 	if (ctx.deps.length !== 0) {
 		throw new Error(`restoreGraph: '${ref}' node '${ctx.id}' cannot restore deps`);
 	}
@@ -576,7 +576,7 @@ export const reactiveMapRequestRestoreDescriptor: GraphRestoreExtension<undefine
 		return noCollectionConfig(config, "reactiveMap.request");
 	},
 	create(ctx) {
-		return existingMapNode(ctx, "reactiveMap.request", "/request");
+		return existingMapNode(ctx, "reactiveMap.request", "/snapshotRequest");
 	},
 };
 

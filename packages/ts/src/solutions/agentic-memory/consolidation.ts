@@ -60,7 +60,7 @@ export function agenticMemoryConsolidationBundle<T = unknown>(
 ): AgenticMemoryConsolidationBundle<T> {
 	const name = moduleName(graph, opts.name, "agenticMemoryConsolidation");
 	const projection = solutionOccurrenceProjection(graph, opts.occurrences, {
-		name: `${name}/projection`,
+		name: `${name}/snapshot`,
 		factory: "agenticMemoryConsolidation",
 		maxOccurrences: opts.maxOccurrences,
 		project: (value): AgenticMemoryConsolidationSnapshot<T> => {

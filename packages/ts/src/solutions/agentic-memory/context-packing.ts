@@ -63,7 +63,7 @@ export function agenticMemoryContextPackingBundle<T = unknown>(
 			ctx.down([["DATA", packed]]);
 		},
 		{
-			name: `${name}/projection`,
+			name: `${name}/snapshot`,
 			factory: "agenticMemoryContextPacking",
 			complete: "manual",
 			error: "manual",

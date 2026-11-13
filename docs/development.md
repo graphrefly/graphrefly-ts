@@ -38,3 +38,5 @@ use `/` and camelCase, preserving semantic words and removing only repeated pref
 The first generated scope, view or binding is unsuffixed; later instances use `1`, `2`, etc.
 Reject local names containing `::` or beginning/ending with `:` before mutation; preserve
 other caller labels, recipe keys and payload identities.
+Collection request nodes use `snapshotRequest`; persistence defaults to
+`reactiveCollection/persistence`, and shared Agentic aggregate nodes use `snapshot`.

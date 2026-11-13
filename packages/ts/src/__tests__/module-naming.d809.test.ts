@@ -1518,6 +1518,28 @@ describe("R-naming@1 semantic default names", () => {
 	});
 });
 
+describe("R-naming@1 corresponding collection and aggregate roles", () => {
+	it.each([
+		["reactiveList", "reactiveList", "request", "snapshotRequest"],
+		["reactiveLog", "reactiveLog", "request", "snapshotRequest"],
+		["reactiveMap", "reactiveMap", "request", "snapshotRequest"],
+		["reactiveIndex", "reactiveIndex", "request", "snapshotRequest"],
+		["agenticMemoryRetentionBundle", "agenticMemoryRetention", "projection", "snapshot"],
+		["agenticMemoryConsolidationBundle", "agenticMemoryConsolidation", "projection", "snapshot"],
+		["agenticMemoryContextPackingBundle", "agenticMemoryContextPacking", "projection", "snapshot"],
+		["agenticMemoryKgProjectionBundle", "agenticMemoryKgProjection", "projection", "snapshot"],
+	])("exposes %s through its unchanged public handle", async (factory, scope, field, role) => {
+		const g = graph();
+		const input: Input = (name) =>
+			g.find(`input/${name}`) ?? g.node([], null, { name: `input/${name}` });
+		const entry = constructors.find(([name]) => name === factory);
+		expect(entry, factory).toBeDefined();
+		const result = (await entry![1](g, input)) as Record<string, Node<unknown>>;
+		expect(result[field]).toBeDefined();
+		expect(g.find(`${scope}/${role}`)).toBe(result[field]);
+	});
+});
+
 describe("R-naming@1 deferred module construction", () => {
 	it("names lazy collection views and binding nodes", () => {
 		const g = graph();
@@ -1712,7 +1734,19 @@ describe("naming preserves persistence contracts", () => {
 		expect(g.definition(named.collection.delta).recipe).toEqual(
 			expect.objectContaining({ ref: `${kind}.delta` }),
 		);
-		expect(g.find(`${kind}1/persistence/status`)).toBe(second.persistence.status);
+		expect(g.find("reactiveCollection/persistence/status")).toBe(first.persistence.status);
+		expect(g.find("reactiveCollection/persistence1/status")).toBe(second.persistence.status);
+		expect(g.find("custom/persistence/status")).toBe(named.persistence.status);
+	});
+	it("keeps an empty wrapper name on the default persistence scope", async () => {
+		const g = graph();
+		const opened = await openPersistentReactiveList(g, {
+			name: "",
+			storagePrefix: "store",
+			snapshotStore: memoryKv(),
+		});
+		expect(g.find("reactiveCollection/persistence/status")).toBe(opened.persistence.status);
+		expect(g.find("/persistence/status")).toBeUndefined();
 	});
 	it("keeps default storage keys independently of generated graph ids", async () => {
 		const g = graph();

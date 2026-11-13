@@ -683,7 +683,7 @@ describe("checkpoint and restore: ported cases (TS layout, graphrefly-ts:D178)",
 		const checkpoint = g.checkpoint();
 		const snapshot = checkpoint.nodes.find((n) => n.id === "list/snapshot");
 		if (snapshot === undefined) throw new Error("missing list snapshot");
-		snapshot.deps = ["list/request", "list/delta"];
+		snapshot.deps = ["list/snapshotRequest", "list/delta"];
 		expect(() => restoreGraph(checkpoint, { registry: defaultRestoreRegistry })).toThrow(
 			/dependencies that do not match/,
 		);
@@ -703,6 +703,14 @@ describe("collection backends (TS restore extension, graphrefly-ts:D178)", () =>
 		mapCollection.set("k", 42);
 		const restored = restoreGraph(original.checkpoint(), { registry: defaultRestoreRegistry });
 		const byId = Object.fromEntries(restored.checkpoint().nodes.map((n) => [n.id, n]));
+		for (const [scope, factory] of [
+			["list", "reactiveList"],
+			["idx", "reactiveIndex"],
+			["log", "reactiveLog"],
+			["map", "reactiveMap"],
+		]) {
+			expect(byId[`${scope}/snapshotRequest`].recipe?.ref).toBe(`${factory}.request`);
+		}
 		expect(byId["list/delta"].backendState).toEqual([1, 2]);
 		expect(byId["idx/delta"].backendState).toEqual([{ primary: "a", secondary: 1, value: 10 }]);
 		expect(byId["log/delta"].backendState).toEqual(["a", "b"]);

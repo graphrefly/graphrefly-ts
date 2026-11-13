@@ -186,7 +186,7 @@ export function lightReactiveView<C, S>(
 	);
 	const request = group.node<true>([], null, {
 		factory: `${factory}.request`,
-		name: name ? `${name}/request` : undefined,
+		name: name ? `${name}/snapshotRequest` : undefined,
 		meta: { kind: "collection_view_request", factory },
 	});
 	const snapshot = group.node<S>(
@@ -247,7 +247,7 @@ export function collectionCore<S, C>(
 	// REQUEST state: a write asks the snapshot node for one materialization (graphrefly-ts:D172).
 	const request = graph.node<true>([], null, {
 		factory: `${factory}.request`,
-		name: name ? `${name}/request` : undefined,
+		name: name ? `${name}/snapshotRequest` : undefined,
 		meta: { kind: "collection_request", collection: factory },
 		...(restore ? { recipe: { ref: restore.requestRef, config: restore.config } } : {}),
 	});

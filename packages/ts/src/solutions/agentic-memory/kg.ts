@@ -90,7 +90,7 @@ export function agenticMemoryKgProjectionBundle(
 			]);
 		},
 		{
-			name,
+			name: `${name}/snapshot`,
 			factory: "agenticMemoryKgProjection",
 			complete: "manual",
 			error: "manual",

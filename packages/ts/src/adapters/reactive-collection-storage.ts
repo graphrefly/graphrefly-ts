@@ -23,7 +23,6 @@ import { assertGraphLocalNode, type Graph, type StateNode } from "../graph/graph
 import { moduleName } from "../graph/module-naming.js";
 import { assertLocalName } from "../node/naming.js";
 import type { Node } from "../node/node.js";
-import { graphNodeIdOf } from "../node/runtime-accessors.js";
 import type { Message } from "../protocol/messages.js";
 import type {
 	AppendLogEntry,
@@ -186,7 +185,7 @@ export function persistReactiveCollection<T, K extends PersistableKind>(
 	opts: PersistReactiveCollectionOptions<K>,
 ): ReactiveCollectionPersistenceHandle {
 	const kind = opts.kind;
-	const name = moduleName(graph, opts.name, `${kind}/persistence`);
+	const name = moduleName(graph, opts.name, "reactiveCollection/persistence");
 	const snapshotKey =
 		opts.snapshotKey ??
 		collectionSnapshotKey(opts.storagePrefix ?? opts.name ?? `${kind}.persistence`);
@@ -561,7 +560,7 @@ export function openPersistentReactiveList<T = unknown>(
 		const persistence = persistReactiveCollection<T, "reactiveList">(graph, collection, {
 			...opts,
 			kind: "reactiveList",
-			name: `${graphNodeIdOf(collection.delta).slice(0, -"/delta".length)}/persistence`,
+			name: opts.name ? `${opts.name}/persistence` : undefined,
 			snapshotKey,
 			storagePrefix,
 			initialChangeCursor: loaded.changes.cursor,
@@ -600,7 +599,7 @@ export function openPersistentReactiveLog<T = unknown>(
 		const persistence = persistReactiveCollection<T, "reactiveLog">(graph, collection, {
 			...opts,
 			kind: "reactiveLog",
-			name: `${graphNodeIdOf(collection.delta).slice(0, -"/delta".length)}/persistence`,
+			name: opts.name ? `${opts.name}/persistence` : undefined,
 			snapshotKey,
 			storagePrefix,
 			initialChangeCursor: loaded.changes.cursor,
@@ -639,7 +638,7 @@ export function openPersistentReactiveMap<K = unknown, V = unknown>(
 		const persistence = persistReactiveCollection<V, "reactiveMap">(graph, collection, {
 			...opts,
 			kind: "reactiveMap",
-			name: `${graphNodeIdOf(collection.delta).slice(0, -"/delta".length)}/persistence`,
+			name: opts.name ? `${opts.name}/persistence` : undefined,
 			snapshotKey,
 			storagePrefix,
 			initialChangeCursor: loaded.changes.cursor,
@@ -678,7 +677,7 @@ export function openPersistentReactiveIndex<K = unknown, V = unknown>(
 		const persistence = persistReactiveCollection<V, "reactiveIndex">(graph, collection, {
 			...opts,
 			kind: "reactiveIndex",
-			name: `${graphNodeIdOf(collection.delta).slice(0, -"/delta".length)}/persistence`,
+			name: opts.name ? `${opts.name}/persistence` : undefined,
 			snapshotKey,
 			storagePrefix,
 			initialChangeCursor: loaded.changes.cursor,
