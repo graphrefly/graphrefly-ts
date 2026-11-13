@@ -247,8 +247,6 @@ export async function runGradedSpendingDemo() {
 				},
 				coverage:
 					"fixture binding only; current loaded-source implementation mapping is not attested",
-				historicalSourceExperiment:
-					"archive/docs/design/causal-graded-entry-implementation/source-binding.json",
 				historicalScope: "separate recorded experiment; not this A/B run's source attestation",
 				modificationProvenance:
 					"unknown for this run; recorded tool provenance belongs only to the separate experiment",

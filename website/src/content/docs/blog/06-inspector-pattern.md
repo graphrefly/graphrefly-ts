@@ -88,7 +88,6 @@ Later architecture passes added type 3 control signals, output-slot dispatch, an
 
 - [Why Explicit Dependencies Beat Magic Tracking](./05-explicit-dependencies) — why the graph is visible in code *and* at runtime
 - [Architecture & design](/architecture/) — current Inspector behavior and protocol details
-- Session notes: `src/archive/docs/SESSION-inspector-hooks-wiring.md`, `src/archive/docs/architecture-v1.md` (section: observability)
 
 ---
 

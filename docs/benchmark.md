@@ -48,8 +48,3 @@ about 7-12). They are informational numbers from one machine, not targets or gua
 | diamond pending join | 180-183 |
 | rewire churn | 52-55 |
 | active lifecycle retained cleanup | 45-47 |
-
-The Vitest benchmark suite, its committed `vitest-baseline.json` snapshot and the ops/sec
-results this page used to list were measured on the pre-D797 kernel. They are archived in
-[archive/docs/benchmark-pre-d797/](../archive/docs/benchmark-pre-d797/ARCHIVE.md) and do not
-compare with these numbers.

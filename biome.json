@@ -22,7 +22,6 @@
 			"!**/.astro",
 			"!.tmp",
 			"!TRASH",
-			"!archive/evals",
 			"!docs/design/library-registration-audit",
 			"!benchmarks",
 			"!packages/ts/runners/local-untrusted-js/local-untrusted-js-runner.mjs",
@@ -375,19 +374,9 @@
 	},
 	"overrides": [
 		{
-			"includes": ["archive/scripts/**"],
-			"formatter": { "enabled": false },
-			"linter": { "enabled": false },
-			"assist": { "enabled": false }
-		},
-		{
-			"includes": ["archive/packages/ts/**"],
-			"formatter": { "enabled": false },
-			"linter": { "enabled": false },
-			"assist": { "enabled": false }
-		},
-		{
-			"includes": ["scripts/**"],
+			"includes": [
+				"scripts/**"
+			],
 			"linter": {
 				"rules": {
 					"suspicious": {
@@ -404,7 +393,9 @@
 			}
 		},
 		{
-			"includes": ["demos/**"],
+			"includes": [
+				"demos/**"
+			],
 			"linter": {
 				"rules": {
 					"a11y": {
@@ -429,7 +420,9 @@
 			}
 		},
 		{
-			"includes": ["demos/reactive-layout/src/components/chapters/BlocksChapter.tsx"],
+			"includes": [
+				"demos/reactive-layout/src/components/chapters/BlocksChapter.tsx"
+			],
 			"linter": {
 				"rules": {
 					"security": {
@@ -439,7 +432,10 @@
 			}
 		},
 		{
-			"includes": ["examples/framework/vue/**", "examples/framework/svelte/**"],
+			"includes": [
+				"examples/framework/vue/**",
+				"examples/framework/svelte/**"
+			],
 			"linter": {
 				"rules": {
 					"correctness": {
@@ -449,7 +445,9 @@
 			}
 		},
 		{
-			"includes": ["examples/nestjs-graph-boundary/**"],
+			"includes": [
+				"examples/nestjs-graph-boundary/**"
+			],
 			"javascript": {
 				"parser": {
 					"unsafeParameterDecoratorsEnabled": true
@@ -460,10 +458,7 @@
 			"includes": [
 				"docs/design/causal-composition-v1.json",
 				"docs/design/causal-preset-audience-v1.json",
-				"docs/design/causal-performance-repetition-v2.design-check.json",
-				"archive/docs/design/causal-event-clock-repair-v1/checks.json",
-				"archive/docs/design/causal-event-clock-repair-v1/design-check.json",
-				"archive/docs/design/causal-event-clock-repair-v1/vectors.json"
+				"docs/design/causal-performance-repetition-v2.design-check.json"
 			],
 			"formatter": {
 				"enabled": false

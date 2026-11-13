@@ -29,12 +29,10 @@ coverage/
 
 # Archived eval LLM replay cache — local, machine-specific, regenerated on first run.
 # Each entry is sha256(provider+model+prompt+...) → response.json. Do not commit.
-archive/evals/results/replay-cache/
 
 # Harness-loop retrospective checkpoint (FileCheckpointAdapter output). Written
 # on every run-harness invocation incl. `eval:smoke --dry-run`; machine-local,
 # regenerated. Do not commit (mirrors the replay-cache precedent above).
-archive/evals/results/harness-retrospective/
 
 # B112/D638-D639 empirical campaign manifests, qualification observations,
 # trial observations, and scorecards are private machine-local evidence by
@@ -47,7 +45,6 @@ packages/ts/evals/.private/graph-native-rerun-avoidance/
 .env
 .env.*
 !.env.example
-archive/evals/.env
 
 # pnpm
 .pnpm-store/

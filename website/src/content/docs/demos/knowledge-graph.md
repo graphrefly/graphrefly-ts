@@ -66,7 +66,7 @@ The right-side mermaid pane already shows the **graph topology** — `paper-text
 
 ## Why the historical demo used a real LLM
 
-The session note in `archive/docs/SESSION-strategy-roadmap-demo-reprioritization.md` says "do not use a real LLM API call in the example." That rule still holds for [`examples/knowledge-graph/`](https://github.com/graphrefly/graphrefly-ts/blob/main/examples/knowledge-graph/index.ts), the Node-runnable companion that uses pre-parsed documents and runs in CI with no key.
+The example makes no real LLM API calls. This also applies to [`examples/knowledge-graph/`](https://github.com/graphrefly/graphrefly-ts/blob/main/examples/knowledge-graph/index.ts), the Node-runnable companion that uses pre-parsed documents and runs in CI with no key.
 
 For that **historical browser demo**, Chrome Nano changed the calculus because it
 was on-device, free, and visually intuitive. Re-activating the idea now should

@@ -11,7 +11,6 @@ a synchronous reactive graph runtime with inspectable data flows.
 | [packages/ts/src/](packages/ts/src/) | Runtime, graph API, operators and helpers |
 | [examples/](examples/) / [demos/](demos/) | Package examples and interactive demos |
 | [docs/](docs/README.md) | Documentation map, package usage, policy and evidence links |
-| [archive/](archive/) | Historical code, plans and retired examples |
 | [website/](website/) | Legacy site material and the current TS API generator host |
 
 ## Where things stand

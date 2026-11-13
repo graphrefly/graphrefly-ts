@@ -89,7 +89,6 @@ Simple passthrough operators participate exactly like single-dep derived nodes: 
 - [Data Should Flow Through the Graph, Not Around It](./07-data-should-flow-through-the-graph-not-around-it) — why we unified transport
 - [From Pull-Phase to Push-Phase Memoization](./09-push-phase-memoization) — caching, `equals`, and skipping downstream work
 - [Architecture & design](/architecture/) — how later type 3 control signals refined the story
-- Historical spec: `src/archive/docs/architecture-v2.md` — emission ordering tests, migration checklist, extras inventory
 
 ---
 

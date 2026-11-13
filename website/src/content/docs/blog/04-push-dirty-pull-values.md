@@ -123,7 +123,6 @@ If you are building reactive infrastructure, v1 is a useful reminder: sometimes 
 
 - [The Protocol That Already Solved Your Problem](./02-the-protocol-that-already-solved-your-problem) — why we trusted callbag in the first place
 - [Architecture & design](/architecture/) — current canonical design (output slot, type 3, primitives)
-- Archived v1 write-up: `src/archive/docs/architecture-v1.md` (historical; superseded by `docs/architecture.md`)
 
 ---
 

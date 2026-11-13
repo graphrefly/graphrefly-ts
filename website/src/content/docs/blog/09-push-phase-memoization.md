@@ -70,7 +70,6 @@ We are not claiming v2 "beats" those libraries — they are excellent. Our const
 - [Two-Phase Push: DIRTY First, Values Second](./08-two-phase-push) — pending counts and the value wave
 - [Push Dirty, Pull Values](./04-push-dirty-pull-values) — where pull-time recompute was the default
 - [Architecture & design](/architecture/) — primitives, output slots, and later control-channel refinements
-- Historical spec: `src/archive/docs/architecture-v2.md` — full `get()` semantics, test inventory, extras glitch boundaries
 
 ---
 

@@ -287,7 +287,6 @@ napi-rs FFI overhead is ~51 ns/call, vastly lower than the conservative 100-500 
 - `src/__experiments__/handle-core/` — TS prototype (reference impl)
 - `docs/implementation-plan.md` Phase 13.7 — bench feasibility study scope
 - `docs/research/wave_protocol_rewire.tla` — TLA+-verified setDeps semantics
-- `archive/docs/research/rewire-design-notes.md` — design decisions for setDeps (historical)
 
 ## Verification artifacts
 

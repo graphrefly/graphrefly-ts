@@ -171,11 +171,8 @@ the running graph. Then distinguish these three questions:
 | Who changed it? | Separate provenance; an implementation digest alone gives no attribution |
 | Which consequences remain unchanged? | Independent verification bound to the current revision and inputs |
 
-Missing source binding means uncovered; missing provenance means unknown. An old
-receipt does not verify a new implementation. Existing bounded source-change and
-mutation evidence can be inspected in the [implementation review](../../archive/docs/design/causal-graded-entry-implementation/README.md).
-Those retained artifacts describe their own revisions; the new demo does not
-requalify them or attest the loaded production source.
+Missing source binding means uncovered; missing provenance means unknown.
+The demo does not attest the loaded production source.
 
 The example and offline tests demonstrate available composition paths, not a
 human usability result or superiority to a complete plain-code host. B121's real

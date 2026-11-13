@@ -1,16 +1,6 @@
 /**
  * Typecheck gate for legacy workspace packages that nothing else typechecks.
  *
- * B66 note: the old structural Impl parity harness was retired and removed;
- * clean-slate parity is authority conformance in
- * `~/src/graphrefly/spec/conformance.jsonl` (D24). Git history preserves the
- * retired harness. B111.7 adds the first active standalone example target so
- * its public imports and host boundary remain typechecked.
- *
- * B66 note: `evals/` was retired to `archive/evals` on 2026-06-27. CSP-8 may
- * design a new clean-slate eval harness later, but this gate should not point
- * at the archived legacy scripts.
- *
  * Each target is checked with its own tsconfig, except that `@graphrefly/ts`
  * and its subpaths resolve to `packages/ts/src` instead of the package's
  * built `dist/`. The examples' own tsconfigs keep resolving the package the
