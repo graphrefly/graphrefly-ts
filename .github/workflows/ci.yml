@@ -50,7 +50,7 @@ jobs:
         uses: actions/checkout@v7
         with:
           repository: graphrefly/graphrefly
-          ref: f2e23490bafe94745f720da3ced5f0fff6fccd65
+          ref: e0b4383af15bdfbf3b522dab7f35fdcfa42a460f
           path: .tmp/conformance-root
           sparse-checkout: spec/fixtures
           persist-credentials: false
