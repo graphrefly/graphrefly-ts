@@ -1,5 +1,6 @@
 import type { Ctx } from "../../ctx/types.js";
 import type { Graph } from "../../graph/graph.js";
+import { moduleName } from "../../graph/module-naming.js";
 import type { SourceRef } from "../../orchestration/agent-runtime.js";
 import type {
 	WorkItemDomainActionAdmission,
@@ -55,7 +56,7 @@ export function workItemDomainActionApplicationProjector<TInput = unknown>(
 	graph: Graph,
 	opts: WorkItemDomainActionApplicationOptions<TInput>,
 ): WorkItemDomainActionApplicationBundle<TInput> {
-	const name = opts.name ?? "workItemDomainActionApplication";
+	const name = moduleName(graph, opts.name, "workItemDomainActionApplication");
 	const deps =
 		opts.applyPolicies === undefined
 			? [opts.proposals, opts.admissions, opts.workItems]

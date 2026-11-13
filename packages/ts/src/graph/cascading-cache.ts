@@ -9,6 +9,7 @@ import {
 	tieredReadThrough,
 } from "../storage/read-through.js";
 import type { Graph, SugarOpts } from "./graph.js";
+import { moduleName } from "./module-naming.js";
 
 /** Dynamic read-through policy for {@link reactiveCascadingCache}. */
 export interface CascadingCachePolicy {
@@ -143,9 +144,9 @@ export function reactiveCascadingCache<K extends string, V>(
 	const eventDeps: Node<unknown>[] = [request];
 	const policyIndex = policy === undefined ? -1 : eventDeps.push(policy) - 1;
 	const invalidateIndex = invalidate === undefined ? -1 : eventDeps.push(invalidate) - 1;
-	const baseName = name ?? "reactiveCascadingCache";
+	const baseName = moduleName(g, name, "reactiveCascadingCache");
 	const eventOpts: SugarOpts<CascadingCacheEvent<K, V>> = {
-		name: `${baseName}.events`,
+		name: `${baseName}/events`,
 		meta,
 		// R-lifetime: closing the lifetime drops every in-flight load's result.
 		setup: (ctx) => () => {
@@ -277,7 +278,7 @@ export function reactiveCascadingCache<K extends string, V>(
 			ctx.down(statuses.map((v) => ["DATA", v] as const));
 		},
 		{
-			name: `${baseName}.status`,
+			name: `${baseName}/status`,
 			initial: { kind: "idle" },
 			meta,
 		},
@@ -320,7 +321,7 @@ export function reactiveCascadingCache<K extends string, V>(
 			ctx.down(values.map((v) => ["DATA", v] as const));
 		},
 		{
-			name: `${baseName}.value`,
+			name: `${baseName}/value`,
 			meta,
 		},
 	);

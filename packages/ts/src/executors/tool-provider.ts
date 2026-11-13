@@ -1,3 +1,4 @@
+import { moduleName } from "../graph/module-naming.js";
 /**
  * Optional Layer C tool-provider execution recipe (D283/D359-D362).
  *
@@ -91,7 +92,7 @@ export function toolProviderExecutionRecipe<TArguments = unknown, TResult = unkn
 	graph: Graph,
 	opts: ToolProviderExecutionRecipeOptions<TArguments, TResult>,
 ): ToolProviderExecutionRecipeBundle {
-	const name = opts.name ?? "toolProviderExecution";
+	const name = moduleName(graph, opts.name, "toolProviderExecution");
 	const staticCatalogs = staticToolProviderCatalogNode(graph, name, opts.catalogs);
 	const catalogDeps = [
 		...(staticCatalogs === undefined ? [] : [staticCatalogs]),

@@ -1,3 +1,4 @@
+import { moduleName } from "../graph/module-naming.js";
 /**
  * Graph-visible outbound environment adapters (D130/D132).
  *
@@ -671,7 +672,7 @@ export function webSocketSession(
 	request: WebSocketRequest,
 	opts: WebSocketSessionOptions = {},
 ): WebSocketSessionBundle {
-	const name = opts.name ?? "webSocketSession";
+	const name = moduleName(graph, opts.name, "webSocketSession");
 	const policy = opts.retry ?? retryPolicy();
 	const sendPolicy = normalizeWebSocketSessionSendPolicy(opts.sendPolicy);
 	const command = graph.node<WebSocketSessionCommand>([], null, {

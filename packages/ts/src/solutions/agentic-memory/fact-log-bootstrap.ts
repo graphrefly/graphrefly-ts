@@ -1,5 +1,6 @@
 import type { DataIssue } from "../../data/index.js";
 import type { Graph } from "../../graph/graph.js";
+import { moduleName } from "../../graph/module-naming.js";
 import type { Node } from "../../node/node.js";
 import { projectAgenticMemoryRecordApplicationPriorEvidence } from "./application-history.js";
 import {
@@ -253,7 +254,7 @@ export function agenticMemoryMaterializedFactLogBootstrapBundle<
 	graph: Graph,
 	opts: AgenticMemoryMaterializedFactLogBootstrapBundleOptions<TJson>,
 ): AgenticMemoryMaterializedFactLogBootstrapBundle<TJson> {
-	const name = opts.name ?? "agenticMemoryMaterializedFactLogBootstrap";
+	const name = moduleName(graph, opts.name, "agenticMemoryMaterializedFactLogBootstrap");
 	const projection = graph.node<AgenticMemoryMaterializedFactLogBootstrapProjection<TJson>>(
 		[opts.materialization],
 		(ctx) => {
@@ -287,7 +288,7 @@ export function agenticMemoryMaterializedFactLogBootstrapBundle<
 		bootstrapInput: solutionProjection(
 			graph,
 			projection,
-			`${name}/bootstrapInput`,
+			`${name}/input`,
 			"agenticMemoryMaterializedFactLogBootstrapInput",
 			(fact) => fact.input,
 		),

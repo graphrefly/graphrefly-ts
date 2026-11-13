@@ -1,3 +1,4 @@
+import { moduleName } from "../graph/module-naming.js";
 /**
  * Graph-visible wire bridge envelope helpers (D134).
  *
@@ -45,7 +46,7 @@ export function remoteCall<TRequest = unknown, TResponse = unknown>(
 	bridge: WireBridgeBundle<RemoteCallRequest<TRequest>, RemoteCallResponse<TResponse>>,
 	opts: RemoteCallOptions = {},
 ): RemoteCallBundle<TRequest, TResponse> {
-	const name = opts.name ?? "remoteCall";
+	const name = moduleName(graph, opts.name, "remoteCall");
 	const timeouts = graph.node<RemoteCallTimeout>([], null, {
 		name: `${name}/timeouts`,
 		factory: "remoteCallTimeouts",

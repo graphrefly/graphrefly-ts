@@ -1,5 +1,6 @@
 import type { NodeFn } from "../ctx/types.js";
 import type { Graph } from "../graph/graph.js";
+import { moduleName } from "../graph/module-naming.js";
 import {
 	type BackoffPolicy,
 	nextRetryDelayMs,
@@ -78,7 +79,7 @@ export function retryStatusBundle(
 	opts: { name?: string; policy?: RetryPolicy } = {},
 ): RetryStatusBundle {
 	const policy = opts.policy ?? retryPolicy();
-	const name = opts.name ?? "retry";
+	const name = moduleName(graph, opts.name, "retry");
 	const status = graph.node<RetryStatus>(
 		[events],
 		(ctx) => {
@@ -165,7 +166,7 @@ export function breakerBundle(
 	if (opts.nowRef !== undefined && opts.now === undefined) {
 		throw new TypeError("breakerBundle: nowRef names the clock given as now");
 	}
-	const name = opts.name ?? "breaker";
+	const name = moduleName(graph, opts.name, "breaker");
 	const config: BreakerStatusConfig = {
 		failureThreshold: opts.failureThreshold,
 		...(opts.resetAfterMs === undefined ? {} : { resetAfterMs: opts.resetAfterMs }),
@@ -330,7 +331,7 @@ export function timeoutBundle<T>(
 	ms: number,
 	opts: { name?: string } = {},
 ): TimeoutBundle<T> {
-	const name = opts.name ?? "timeout";
+	const name = moduleName(graph, opts.name, "timeout");
 	const node = timeoutOperator(source, ms);
 	const status = graph.node<"running" | "completed" | "errored">(
 		[node],

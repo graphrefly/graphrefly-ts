@@ -1,5 +1,6 @@
 import type { Ctx } from "../../ctx/types.js";
 import type { Graph } from "../../graph/graph.js";
+import { moduleName } from "../../graph/module-naming.js";
 import type { Node } from "../../node/node.js";
 import type { SourceRef } from "../../orchestration/agent-runtime.js";
 import type { WorkItemDomainActionApplication } from "./actions-types.js";
@@ -1519,7 +1520,7 @@ export function workspaceProposalRequiredInputResponseApplicationProjector<TValu
 	graph: Graph,
 	opts: WorkspaceProposalRequiredInputResponseApplicationProjectorOptions<TValue>,
 ): WorkspaceProposalRequiredInputResponseApplicationProjectorBundle<TValue> {
-	const name = opts.name ?? "workspaceProposalRequiredInputResponseApplication";
+	const name = moduleName(graph, opts.name, "workspaceProposalRequiredInputResponseApplication");
 	const deps =
 		opts.requests === undefined
 			? [opts.records, opts.decisions, opts.contexts, opts.gates]
@@ -1628,7 +1629,7 @@ export function workspaceProposalWorkItemSpawnApplicationProjector<TInput = unkn
 	graph: Graph,
 	opts: WorkspaceProposalWorkItemSpawnApplicationProjectorOptions<TInput>,
 ): WorkspaceProposalWorkItemSpawnApplicationProjectorBundle<TInput> {
-	const name = opts.name ?? "workspaceProposalWorkItemSpawnApplication";
+	const name = moduleName(graph, opts.name, "workspaceProposalWorkItemSpawnApplication");
 	const deps =
 		opts.workItems === undefined
 			? [opts.records, opts.decisions, opts.contexts]
@@ -1703,7 +1704,7 @@ export function workspaceProposalWorkItemLinkApplicationProjector<TInput = unkno
 	graph: Graph,
 	opts: WorkspaceProposalWorkItemLinkApplicationProjectorOptions<TInput>,
 ): WorkspaceProposalWorkItemLinkApplicationProjectorBundle {
-	const name = opts.name ?? "workspaceProposalWorkItemLinkApplication";
+	const name = moduleName(graph, opts.name, "workspaceProposalWorkItemLinkApplication");
 	const deps: Node<unknown>[] = [
 		opts.records as Node<unknown>,
 		opts.decisions as Node<unknown>,
@@ -1777,7 +1778,7 @@ export function workspaceProposalDomainActionApplicationProjector(
 	graph: Graph,
 	opts: WorkspaceProposalDomainActionApplicationProjectorOptions,
 ): WorkspaceProposalDomainActionApplicationProjectorBundle {
-	const name = opts.name ?? "workspaceProposalDomainActionApplication";
+	const name = moduleName(graph, opts.name, "workspaceProposalDomainActionApplication");
 	const deps =
 		opts.domainApplications === undefined
 			? [opts.records, opts.decisions, opts.contexts, opts.emittedFacts]
@@ -2125,7 +2126,7 @@ export function workspaceProposalFamilyApplicationDiagnosticProjector(
 	graph: Graph,
 	opts: WorkspaceProposalFamilyApplicationDiagnosticProjectorOptions,
 ): WorkspaceProposalFamilyApplicationDiagnosticProjectorBundle {
-	const name = opts.name ?? "workspaceProposalFamilyApplicationDiagnostic";
+	const name = moduleName(graph, opts.name, "workspaceProposalFamilyApplicationDiagnostic");
 	const { deps, depKinds } = diagnosticProjectionDeps(opts);
 	const runtime = graph.node<
 		| { readonly kind: "diagnostic"; readonly value: WorkspaceProposalFamilyApplicationDiagnostic }
@@ -2217,7 +2218,7 @@ export function workspaceProposalRepairReviewProjector(
 	graph: Graph,
 	opts: WorkspaceProposalRepairReviewProjectorOptions,
 ): WorkspaceProposalRepairReviewProjectorBundle {
-	const name = opts.name ?? "workspaceProposalRepairReview";
+	const name = moduleName(graph, opts.name, "workspaceProposalRepairReview");
 	const { deps, depKinds } = repairReviewProjectionDeps(opts);
 	const runtime = graph.node<
 		| {
@@ -2477,7 +2478,7 @@ export function workspaceProposalRepairReviewDecisionRecordingProjector(
 	graph: Graph,
 	opts: WorkspaceProposalRepairReviewDecisionRecordingProjectorOptions,
 ): WorkspaceProposalRepairReviewDecisionRecordingProjectorBundle {
-	const name = opts.name ?? "workspaceProposalRepairReviewDecisionRecording";
+	const name = moduleName(graph, opts.name, "workspaceProposalRepairReviewDecisionRecording");
 	const { deps, depKinds } = repairReviewDecisionRecordingProjectionDeps(opts);
 	const runtime = graph.node<
 		| {
@@ -2545,7 +2546,7 @@ export function workspaceProposalRepairReviewStatusProjector(
 	graph: Graph,
 	opts: WorkspaceProposalRepairReviewStatusProjectorOptions,
 ): WorkspaceProposalRepairReviewStatusProjectorBundle {
-	const name = opts.name ?? "workspaceProposalRepairReviewStatus";
+	const name = moduleName(graph, opts.name, "workspaceProposalRepairReviewStatus");
 	const { deps, depKinds } = repairReviewStatusProjectionDeps(opts);
 	const runtime = graph.node<
 		| {
@@ -2786,7 +2787,7 @@ export function workspaceProposalProjectionReleaseDiagnosticProjector(
 	graph: Graph,
 	opts: WorkspaceProposalProjectionReleaseDiagnosticProjectorOptions,
 ): WorkspaceProposalProjectionReleaseDiagnosticProjectorBundle {
-	const name = opts.name ?? "workspaceProposalProjectionReleaseDiagnostic";
+	const name = moduleName(graph, opts.name, "workspaceProposalProjectionReleaseDiagnostic");
 	const runtime = graph.node<
 		| {
 				readonly kind: "projection-release-diagnostic";
@@ -2828,7 +2829,7 @@ export function workspaceProposalFamilyApplicationReadModelProjector(
 	graph: Graph,
 	opts: WorkspaceProposalFamilyApplicationReadModelProjectorOptions,
 ): WorkspaceProposalFamilyApplicationReadModelProjectorBundle {
-	const name = opts.name ?? "workspaceProposalFamilyApplicationReadModel";
+	const name = moduleName(graph, opts.name, "workspaceProposalFamilyApplicationReadModel");
 	const { deps, depKinds } = readModelProjectionDeps(opts);
 	const runtime = graph.node<
 		| {
@@ -2868,7 +2869,7 @@ export function workspaceProposalFamilyApplicationReadModelProjector(
 		runtimeOptions(name, "workspaceProposalFamilyApplicationReadModelProjector"),
 	);
 	return {
-		readModels: project(graph, runtime, `${name}/readModels`, `${name}ReadModels`, (fact) =>
+		readModels: project(graph, runtime, name, `${name}ReadModels`, (fact) =>
 			fact?.kind === "read-model" ? fact.value : undefined,
 		),
 	};
@@ -2888,7 +2889,7 @@ export function workspaceProposalFamilyApplicationReadModelsProjector(
 	graph: Graph,
 	opts: WorkspaceProposalFamilyApplicationReadModelsProjectorOptions,
 ): WorkspaceProposalFamilyApplicationReadModelProjectorBundle {
-	const name = opts.name ?? "workspaceProposalFamilyApplicationReadModels";
+	const name = moduleName(graph, opts.name, "workspaceProposalFamilyApplicationReadModels");
 	const { deps, depKinds } = readModelsProjectionDeps(opts);
 	const runtime = graph.node<
 		| {
@@ -2923,7 +2924,7 @@ export function workspaceProposalFamilyApplicationReadModelsProjector(
 		runtimeOptions(name, "workspaceProposalFamilyApplicationReadModelsProjector"),
 	);
 	return {
-		readModels: project(graph, runtime, `${name}/readModels`, `${name}ReadModels`, (fact) =>
+		readModels: project(graph, runtime, name, `${name}ReadModels`, (fact) =>
 			fact?.kind === "read-model" ? fact.value : undefined,
 		),
 	};
@@ -3145,7 +3146,7 @@ export function workspaceProposalFamilyOutcomeDetailSupplyProjector(
 	graph: Graph,
 	opts: WorkspaceProposalFamilyOutcomeDetailSupplyProjectorOptions,
 ): WorkspaceProposalFamilyOutcomeDetailSupplyProjectorBundle {
-	const name = opts.name ?? "workspaceProposalFamilyOutcomeDetailSupply";
+	const name = moduleName(graph, opts.name, "workspaceProposalFamilyOutcomeDetailSupply");
 	const deps =
 		opts.releases === undefined
 			? [opts.requests, opts.suppliedOutcomes]
@@ -3246,7 +3247,7 @@ export function workspaceProposalRepairActionDescriptorProjector(
 	graph: Graph,
 	opts: WorkspaceProposalRepairActionDescriptorProjectorOptions,
 ): WorkspaceProposalRepairActionDescriptorProjectorBundle {
-	const name = opts.name ?? "workspaceProposalRepairActionDescriptor";
+	const name = moduleName(graph, opts.name, "workspaceProposalRepairActionDescriptor");
 	const deps =
 		opts.statuses === undefined ? [opts.requests as Node<unknown>] : [opts.requests, opts.statuses];
 	const depKinds: readonly WorkspaceProposalFamilyApplicationDiagnosticInputFact["kind"][] =
@@ -3898,7 +3899,7 @@ export function workspaceProposalRepairActionDisplayPolicyAdvisoryProjector(
 	graph: Graph,
 	opts: WorkspaceProposalRepairActionDisplayPolicyAdvisoryProjectorOptions,
 ): WorkspaceProposalRepairActionDisplayPolicyAdvisoryProjectorBundle {
-	const name = opts.name ?? "workspaceProposalRepairActionDisplayPolicyAdvisory";
+	const name = moduleName(graph, opts.name, "workspaceProposalRepairActionDisplayPolicyAdvisory");
 	const deps =
 		opts.releases === undefined
 			? [opts.descriptors, opts.requests]
@@ -4261,7 +4262,7 @@ export function workspaceProposalRepairActionIntentProjector(
 	graph: Graph,
 	opts: WorkspaceProposalRepairActionIntentProjectorOptions,
 ): WorkspaceProposalRepairActionIntentProjectorBundle {
-	const name = opts.name ?? "workspaceProposalRepairActionIntent";
+	const name = moduleName(graph, opts.name, "workspaceProposalRepairActionIntent");
 	const deps = repairActionIntentProjectorDeps(opts);
 	const runtime = graph.node<
 		| {
@@ -4338,7 +4339,11 @@ export function workspaceProposalRepairSuccessorProposalIntakePreviewProjector(
 	graph: Graph,
 	opts: WorkspaceProposalRepairSuccessorProposalIntakePreviewProjectorOptions,
 ): WorkspaceProposalRepairSuccessorProposalIntakePreviewProjectorBundle {
-	const name = opts.name ?? "workspaceProposalRepairSuccessorProposalIntakePreview";
+	const name = moduleName(
+		graph,
+		opts.name,
+		"workspaceProposalRepairSuccessorProposalIntakePreview",
+	);
 	const deps = repairActionIntentProjectorDeps(opts);
 	const runtime = graph.node<
 		| {
@@ -4425,7 +4430,11 @@ export function workspaceProposalRepairSuccessorProposalReadyRequestPreparationP
 	graph: Graph,
 	opts: WorkspaceProposalRepairSuccessorProposalReadyRequestPreparationProjectorOptions<TDraft>,
 ): WorkspaceProposalRepairSuccessorProposalReadyRequestPreparationProjectorBundle<TDraft> {
-	const name = opts.name ?? "workspaceProposalRepairSuccessorProposalReadyRequestPreparation";
+	const name = moduleName(
+		graph,
+		opts.name,
+		"workspaceProposalRepairSuccessorProposalReadyRequestPreparation",
+	);
 	const deps =
 		opts.releases === undefined
 			? [opts.previews, opts.preparationInputs]
@@ -4518,12 +4527,8 @@ export function workspaceProposalRepairSuccessorProposalReadyRequestPreparationP
 		results: project(graph, runtime, `${name}/results`, `${name}Results`, (fact) =>
 			fact?.kind === "successor-ready-request-preparation-result" ? fact.value : undefined,
 		),
-		readyRequests: project(
-			graph,
-			runtime,
-			`${name}/readyRequests`,
-			`${name}ReadyRequests`,
-			(fact) => (fact?.kind === "successor-ready-request" ? fact.value : undefined),
+		readyRequests: project(graph, runtime, `${name}/requests`, `${name}ReadyRequests`, (fact) =>
+			fact?.kind === "successor-ready-request" ? fact.value : undefined,
 		),
 		issues: project(graph, runtime, `${name}/issues`, `${name}Issues`, (fact) =>
 			fact?.kind === "issue" ? fact.value : undefined,

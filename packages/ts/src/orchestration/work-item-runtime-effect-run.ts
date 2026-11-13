@@ -1,4 +1,5 @@
 import type { Graph } from "../graph/graph.js";
+import { moduleName } from "../graph/module-naming.js";
 import { compoundTupleKey } from "../identity.js";
 import type { Node } from "../node/node.js";
 import { effectRun } from "./agent-runtime.js";
@@ -29,7 +30,7 @@ export function workItemEffectRunProjector(
 		readonly effectRequests: Node<WorkItemEffectRequested>;
 	},
 ): WorkItemEffectRunBundle {
-	const name = opts.name ?? "workItemEffectRuns";
+	const name = moduleName(graph, opts.name, "workItemEffectRuns");
 	const runtime = graph.node<WorkItemEffectRunFact>(
 		[opts.workItems, opts.effectRequests],
 		(ctx) => {
@@ -177,12 +178,8 @@ export function workItemEffectRunProjector(
 		{ name: `${name}/runtime`, factory: "workItemEffectRunProjector" },
 	);
 	return {
-		effectRuns: projectRuntimeFact(
-			graph,
-			runtime,
-			`${name}/effectRuns`,
-			"workItemEffectRuns",
-			(fact) => (fact.kind === "effect-run" ? fact.effectRun : undefined),
+		effectRuns: projectRuntimeFact(graph, runtime, name, "workItemEffectRuns", (fact) =>
+			fact.kind === "effect-run" ? fact.effectRun : undefined,
 		),
 		status: projectRuntimeFact(
 			graph,

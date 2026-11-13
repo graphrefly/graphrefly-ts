@@ -1143,6 +1143,7 @@ interface GraphRuntimeHost {
 class GraphRegistration implements GraphLifecycleRegistrar {
 	readonly host: GraphRuntimeHost;
 	private owners?: Map<string, OwnedConstruction>;
+	private readonly moduleNames = new Set<string>();
 	constructor(
 		readonly graph: Graph,
 		readonly name?: string,
@@ -1162,6 +1163,20 @@ class GraphRegistration implements GraphLifecycleRegistrar {
 		this.host._mounts.push(mount);
 		if (this.host._topologyObservers.size > 0) this.host._ensureMountedTopologyForwarders();
 		this.host._emitTopologyMountChanged(opts.at);
+	}
+
+	allocateModuleName(prefix: string): string {
+		assertLocalName(prefix);
+		let index = 0;
+		let candidate = prefix;
+		const occupied = (name: string) =>
+			this.moduleNames.has(name) ||
+			[...this.host._byId.keys(), ...this.host._retiredIds].some(
+				(id) => id === name || id.startsWith(`${name}/`),
+			);
+		while (occupied(candidate)) candidate = `${prefix}${++index}`;
+		this.moduleNames.add(candidate);
+		return candidate;
 	}
 
 	get existingConstructions() {

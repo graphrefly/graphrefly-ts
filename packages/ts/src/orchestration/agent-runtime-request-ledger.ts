@@ -1,5 +1,6 @@
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
+import { moduleName } from "../graph/module-naming.js";
 import type { Node } from "../node/node.js";
 import {
 	boundPublicText,
@@ -208,7 +209,7 @@ export function agentRequestLedgerViews(
 	facts: Node<AgentRequestFact>,
 	opts: { readonly name?: string } = {},
 ): AgentRequestLedgerBundle {
-	const name = opts.name ?? "agentRequests";
+	const name = moduleName(graph, opts.name, "agentRequests");
 	const views = graph.node<AgentRequestViews>(
 		[facts],
 		(ctx) => {

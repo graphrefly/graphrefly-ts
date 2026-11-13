@@ -1,3 +1,4 @@
+import { moduleName } from "../../graph/module-naming.js";
 /**
  * Default WorkItem execution composition (D687).
  *
@@ -98,7 +99,7 @@ export function workItemSeedProjector<TInput = unknown>(
 			}
 		},
 		{
-			name: opts.name ?? "workItemSeeds",
+			name: moduleName(graph, opts.name, "workItemSeeds"),
 			factory: "workItemSeedProjector",
 		},
 	);
@@ -122,11 +123,11 @@ export function workItemExecutionRecipe<TInput = unknown>(
 	graph: Graph,
 	opts: WorkItemExecutionRecipeOptions<TInput>,
 ): WorkItemExecutionRecipeBundle<TInput> {
-	const name = opts.name ?? "workItemExecution";
+	const name = moduleName(graph, opts.name, "workItemExecution");
 	const now = opts.now ?? Date.now;
 	const requestKind = opts.requestKind ?? "executor";
 	const workItemSeeds = workItemSeedProjector(graph, {
-		name: `${name}/workItemSeeds`,
+		name: `${name}/seeds`,
 		workItems: opts.workItems,
 	});
 	const plan = workItemEffectPlanProjector(graph, {

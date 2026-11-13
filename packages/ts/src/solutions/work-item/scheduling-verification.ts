@@ -1,6 +1,7 @@
 import type { Ctx } from "../../ctx/types.js";
 import type { DataIssue } from "../../data/index.js";
 import type { Graph } from "../../graph/graph.js";
+import { moduleName } from "../../graph/module-naming.js";
 import type { Node } from "../../node/node.js";
 import type { EffectRunResultStatus } from "../../orchestration/agent-runtime.js";
 import type {
@@ -56,7 +57,7 @@ export function workItemVerificationRequestLowerer<TInput = unknown>(
 	graph: Graph,
 	opts: WorkItemVerificationRequestLowererOptions<TInput>,
 ): WorkItemVerificationRequestLowererBundle<TInput> {
-	const name = opts.name ?? "workItemVerificationRequests";
+	const name = moduleName(graph, opts.name, "workItemVerificationRequests");
 	const deps: Node<unknown>[] = [opts.workItems];
 	const dispatchIntentIndex =
 		opts.dispatchIntents === undefined ? -1 : deps.push(opts.dispatchIntents) - 1;
@@ -98,7 +99,7 @@ export function workItemVerificationRequestLowerer<TInput = unknown>(
 		effectRequests: project(
 			graph,
 			runtime,
-			`${name}/effectRequests`,
+			`${name}/effects`,
 			"workItemVerificationEffectRequests",
 			(fact) => (fact.kind === "request" ? fact.value : undefined),
 		),
@@ -138,7 +139,7 @@ export function workItemVerificationResultMapper<TInput = unknown>(
 	graph: Graph,
 	opts: WorkItemVerificationResultMapperOptions<TInput>,
 ): WorkItemVerificationResultMapperBundle {
-	const name = opts.name ?? "workItemVerificationResults";
+	const name = moduleName(graph, opts.name, "workItemVerificationResults");
 	const deps =
 		opts.policies === undefined
 			? [opts.workItems, opts.evidence]
@@ -191,7 +192,7 @@ export function workItemVerificationResultMapper<TInput = unknown>(
 		},
 	);
 	return {
-		results: project(graph, runtime, `${name}/results`, "workItemVerificationResults", (fact) =>
+		results: project(graph, runtime, name, "workItemVerificationResults", (fact) =>
 			fact.kind === "result" ? fact.value : undefined,
 		),
 		proposals: project(

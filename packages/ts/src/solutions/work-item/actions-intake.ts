@@ -1,5 +1,6 @@
 import type { Ctx } from "../../ctx/types.js";
 import type { Graph } from "../../graph/graph.js";
+import { moduleName } from "../../graph/module-naming.js";
 import type { WorkItemDomainActionProposal } from "../../orchestration/work-item-runtime.js";
 import { workItemDomainActionProposal } from "./actions-builders.js";
 import { auditRecord, dataIssue, isRecord, project, sourceRefs } from "./actions-shared.js";
@@ -28,7 +29,7 @@ export function workItemDomainActionProposalIntakeProjector(
 	graph: Graph,
 	opts: WorkItemDomainActionIntakeOptions,
 ): WorkItemDomainActionIntakeBundle {
-	const name = opts.name ?? "workItemDomainActionIntake";
+	const name = moduleName(graph, opts.name, "workItemDomainActionIntake");
 	const now = opts.now ?? Date.now;
 	const runtime = graph.node<IntakeFact>(
 		[opts.proposals],

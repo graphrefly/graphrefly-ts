@@ -1,3 +1,4 @@
+import { moduleName } from "../graph/module-naming.js";
 import * as topologyModule from "../graph/topology.js";
 /**
  * Graph-visible ProcessBundle orchestration helpers (D136/D156).
@@ -127,7 +128,7 @@ export function processBundle<
 	if (opts.nowRef !== undefined && opts.now === undefined) {
 		throw new TypeError("processBundle: nowRef names the clock given as now");
 	}
-	const name = opts.name ?? "process";
+	const name = moduleName(graph, opts.name, "process");
 	const now = opts.now ?? Date.now;
 	// R-checkpoint@1: the runtime's recipe names its reducer and clock; a user function with no
 	// ref cannot be named, so the runtime is then local-only.
@@ -139,7 +140,7 @@ export function processBundle<
 					...(opts.nowRef === undefined ? {} : { nowRef: opts.nowRef }),
 				}
 			: undefined;
-	const topology = topologyModule.group(graph, { name: `${name}.process` });
+	const topology = topologyModule.group(graph, { name });
 	// The host's dispatches are a state input; the command node forwards it and every attached
 	// command source, which it rewires itself to (no graph-level rewire, R-request-order).
 	const dispatchInput = topology.node<ProcessCommand<TCommand>>([], null, {
@@ -264,8 +265,8 @@ export function processEffectRunner<TEffect = unknown, TResult = unknown>(
 	if (opts.outcomes.length === 0) {
 		throw new RangeError("processEffectRunner: outcomes must contain at least one node");
 	}
-	const name = opts.name ?? "processEffectRunner";
-	const topology = topologyModule.group(graph, { name: `${name}.effectRunner` });
+	const name = moduleName(graph, opts.name, "processEffectRunner");
+	const topology = topologyModule.group(graph, { name });
 	const requests = topology.node<ProcessEffectRequest<TEffect>>(
 		[process.effectRequests],
 		processEffectRunnerRequestsFn(),

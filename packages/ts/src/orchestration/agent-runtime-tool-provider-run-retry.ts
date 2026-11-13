@@ -1,5 +1,6 @@
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
+import { moduleName } from "../graph/module-naming.js";
 import type { RetryPolicy } from "../graph/resilience.js";
 import { nextRetryDelayMs, shouldRetry } from "../graph/resilience.js";
 import { canonicalTupleKey, compoundTupleKey } from "../identity.js";
@@ -57,7 +58,7 @@ export function toolProviderRunRetryProjector(
 		readonly readiness?: readonly Node<ScheduledReadinessReady>[];
 	},
 ): ToolProviderRunRetryBundle {
-	const name = opts.name ?? "toolProviderRunRetry";
+	const name = moduleName(graph, opts.name, "toolProviderRunRetry");
 	const policyDeps = opts.policies ?? [];
 	const nowDeps = opts.nowMs === undefined ? [] : [opts.nowMs];
 	const readinessDeps = opts.readiness ?? [];
@@ -131,7 +132,7 @@ export function toolProviderRunRetryProjector(
 		runRequests: projectRuntimeFact(
 			graph,
 			runtime,
-			`${name}/runRequests`,
+			`${name}/requests`,
 			"toolProviderRunRetryRunRequests",
 			(fact) => (fact.kind === "run-request" ? fact.request : undefined),
 		),

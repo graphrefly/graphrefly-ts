@@ -1184,10 +1184,10 @@ describe("causal topology exact-string index", () => {
 	const lanes = [
 		"occurrences",
 		"admissions",
-		"branch-terminals",
-		"effect-proposals",
-		"effect-admissions",
-		"effect-outcomes",
+		"branchTerminals",
+		"effectProposals",
+		"effectAdmissions",
+		"effectOutcomes",
 		"evidence",
 		"watermarks",
 	];
@@ -1196,8 +1196,8 @@ describe("causal topology exact-string index", () => {
 		...lanes.map((lane) => ({ from: `${name}/input/${lane}`, to: `${name}/arrivals` })),
 		...[
 			["arrivals", "authority"],
-			["authority", "release-candidates"],
-			["release-candidates", "released"],
+			["authority", "releaseCandidates"],
+			["releaseCandidates", "released"],
 			...[
 				"currentness",
 				"terminals",
@@ -1205,7 +1205,7 @@ describe("causal topology exact-string index", () => {
 				"coverage",
 				"quiescence",
 				"issues",
-				"committed-effects",
+				"committedEffects",
 			].map((port) => ["authority", port]),
 		].map(([from, to]) => ({ from: `${name}/${from}`, to: `${name}/${to}` })),
 	];

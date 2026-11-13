@@ -157,7 +157,7 @@ describe("D163 committed effects through ordinary DATA", () => {
 		expect(f.built.roots).not.toContain(f.built.committedEffects);
 		expect(Object.keys(f.built.full)).toEqual(["identity", "execution", "retained", "startup"]);
 		expect(renderSnapshot(f.graph).edges).toContainEqual(
-			expect.objectContaining({ from: "causal/authority", to: "causal/committed-effects" }),
+			expect.objectContaining({ from: "causal/authority", to: "causal/committedEffects" }),
 		);
 	});
 	it.each([false, true])("recovers exact records with view-first root=%s", (viewFirst) => {

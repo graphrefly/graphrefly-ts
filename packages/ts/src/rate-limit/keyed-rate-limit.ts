@@ -2,6 +2,7 @@
 import type { Ctx, NodeFn } from "../ctx/types.js";
 import { eachInputArray } from "../graph/each-input-array.js";
 import type { Graph } from "../graph/graph.js";
+import { moduleName } from "../graph/module-naming.js";
 import type { GraphRecipeFactory } from "../graph/restore.js";
 import { compoundTupleKey } from "../identity.js";
 import { strictCanonicalJsonBytes, strictJsonCodec } from "../json/codec.js";
@@ -551,7 +552,7 @@ export function keyedRateLimitAdmissionBundle(
 	graph: Graph,
 	opts: KeyedRateLimitAdmissionBundleOptions,
 ): KeyedRateLimitAdmissionBundle {
-	const name = opts.name ?? "keyedRateLimit";
+	const name = moduleName(graph, opts.name, "keyedRateLimit");
 	const maxPending = boundedOption(opts.maxPending, DEFAULT_MAX_PENDING, "maxPending");
 	const maxCompleted = boundedOption(opts.maxCompleted, DEFAULT_MAX_COMPLETED, "maxCompleted");
 	const correlationFacts = opts.correlationFacts;

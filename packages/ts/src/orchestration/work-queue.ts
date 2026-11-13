@@ -1,3 +1,4 @@
+import { moduleName } from "../graph/module-naming.js";
 /**
  * Optional orchestration-over-workQueue recipe (D349/D353).
  *
@@ -116,7 +117,7 @@ export function orchestrationWorkQueueRecipe<TEffect = unknown>(
 	graph: Graph,
 	opts: OrchestrationWorkQueueRecipeOptions<TEffect>,
 ): OrchestrationWorkQueueRecipeBundle<TEffect> {
-	const name = opts.name ?? "orchestrationWorkQueue";
+	const name = moduleName(graph, opts.name, "orchestrationWorkQueue");
 	const submitCommands =
 		opts.effectRequests === undefined
 			? undefined

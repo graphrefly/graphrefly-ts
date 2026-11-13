@@ -174,8 +174,8 @@ describe("collectionCore two-port shape (D60) via reactiveList", () => {
 			{ kind: "trimHead", n: 2 },
 		]);
 		expect(list.toArray()).toEqual([3]);
-		expect(renderSnapshot(g).edges).toContainEqual({ from: "max", to: "list.capacityPolicy" });
-		expect(renderSnapshot(g).nodes.find((n) => n.id === "list.capacityPolicy")?.factory).toBe(
+		expect(renderSnapshot(g).edges).toContainEqual({ from: "max", to: "list/capacityPolicy" });
+		expect(renderSnapshot(g).nodes.find((n) => n.id === "list/capacityPolicy")?.factory).toBe(
 			"reactiveList.capacityPolicy",
 		);
 	});
@@ -197,10 +197,10 @@ describe("collectionCore two-port shape (D60) via reactiveList", () => {
 			{ kind: "trimHead", n: 1 },
 			{ kind: "trimHead", n: 1 },
 		]);
-		expect(renderSnapshot(g).edges).toContainEqual({ from: "max", to: "list.capacityPolicy" });
+		expect(renderSnapshot(g).edges).toContainEqual({ from: "max", to: "list/capacityPolicy" });
 		expect(renderSnapshot(g).edges).toContainEqual({
-			from: "list.bind#0",
-			to: "list.capacityPolicy",
+			from: "list/bind0",
+			to: "list/capacityPolicy",
 		});
 	});
 });
@@ -220,8 +220,8 @@ describe("D54 Node<T> widening — in-graph producer drives the structure (decla
 			{ kind: "append", value: 2 },
 		]);
 		expect(list.toArray()).toEqual([0, 1, 2]);
-		expect(renderSnapshot(g).edges).toContainEqual({ from: "src", to: "list.bind#0" });
-		expect(renderSnapshot(g).nodes.find((n) => n.id === "list.bind#0")?.factory).toBe(
+		expect(renderSnapshot(g).edges).toContainEqual({ from: "src", to: "list/bind0" });
+		expect(renderSnapshot(g).nodes.find((n) => n.id === "list/bind0")?.factory).toBe(
 			"reactiveList.bindSource",
 		);
 	});
@@ -370,14 +370,14 @@ describe("reactiveMap (D60 #3) — lazy TTL + LRU + delete-reason", () => {
 		const m = reactiveMap<string, number>(g, { name: "map", maxSize: 2, defaultTtl: 5 });
 		m.set("a", 1);
 		const snap = renderSnapshot(g);
-		expect(snap.nodes.find((n) => n.id === "map.apply")?.factory).toBe("reactiveMap.apply");
-		expect(snap.nodes.find((n) => n.id === "map.delta")?.factory).toBe("reactiveMap.delta");
-		expect(snap.nodes.find((n) => n.id === "map.intent")?.factory).toBe("reactiveMap.intent");
-		expect(snap.nodes.find((n) => n.id === "map.lruPolicy")?.factory).toBe("reactiveMap.lruPolicy");
-		expect(snap.nodes.find((n) => n.id === "map.ttlPolicy")?.factory).toBe("reactiveMap.ttlPolicy");
-		expect(snap.edges).toContainEqual({ from: "map.intent", to: "map.apply" });
-		expect(snap.edges).toContainEqual({ from: "map.lruPolicy", to: "map.apply" });
-		expect(snap.edges).toContainEqual({ from: "map.ttlPolicy", to: "map.apply" });
+		expect(snap.nodes.find((n) => n.id === "map/apply")?.factory).toBe("reactiveMap.apply");
+		expect(snap.nodes.find((n) => n.id === "map/delta")?.factory).toBe("reactiveMap.delta");
+		expect(snap.nodes.find((n) => n.id === "map/intent")?.factory).toBe("reactiveMap.intent");
+		expect(snap.nodes.find((n) => n.id === "map/lruPolicy")?.factory).toBe("reactiveMap.lruPolicy");
+		expect(snap.nodes.find((n) => n.id === "map/ttlPolicy")?.factory).toBe("reactiveMap.ttlPolicy");
+		expect(snap.edges).toContainEqual({ from: "map/intent", to: "map/apply" });
+		expect(snap.edges).toContainEqual({ from: "map/lruPolicy", to: "map/apply" });
+		expect(snap.edges).toContainEqual({ from: "map/ttlPolicy", to: "map/apply" });
 	});
 
 	it("D68 Node-valued maxSize is a declared policy dep and can evict on policy change", () => {
@@ -397,7 +397,7 @@ describe("reactiveMap (D60 #3) — lazy TTL + LRU + delete-reason", () => {
 			{ kind: "delete", key: "b", previous: 2, reason: "lru-evict" },
 		]);
 		expect([...m.toMap()]).toEqual([["c", 3]]);
-		expect(renderSnapshot(g).edges).toContainEqual({ from: "max", to: "map.apply" });
+		expect(renderSnapshot(g).edges).toContainEqual({ from: "max", to: "map/apply" });
 	});
 
 	it("D68 Node-valued defaultTtl is a declared policy dep for subsequent sets", () => {
@@ -418,7 +418,7 @@ describe("reactiveMap (D60 #3) — lazy TTL + LRU + delete-reason", () => {
 		expect(m.get("b")).toBe(2);
 		t = 27;
 		expect(m.get("b")).toBeUndefined();
-		expect(renderSnapshot(g).edges).toContainEqual({ from: "ttl", to: "map.apply" });
+		expect(renderSnapshot(g).edges).toContainEqual({ from: "ttl", to: "map/apply" });
 	});
 
 	it("D72 retention archives lowest scores with reason:'archived'", () => {
@@ -450,10 +450,10 @@ describe("reactiveMap (D60 #3) — lazy TTL + LRU + delete-reason", () => {
 		});
 		m.set("a", 1);
 		const snap = renderSnapshot(g);
-		expect(snap.nodes.find((n) => n.id === "map.retentionPolicy")?.factory).toBe(
+		expect(snap.nodes.find((n) => n.id === "map/retentionPolicy")?.factory).toBe(
 			"reactiveMap.retentionPolicy",
 		);
-		expect(snap.edges).toContainEqual({ from: "map.retentionPolicy", to: "map.apply" });
+		expect(snap.edges).toContainEqual({ from: "map/retentionPolicy", to: "map/apply" });
 	});
 
 	it("D72 Node-valued retention.maxSize is a declared policy dep and archives on policy change", () => {
@@ -476,7 +476,7 @@ describe("reactiveMap (D60 #3) — lazy TTL + LRU + delete-reason", () => {
 			{ kind: "delete", key: "b", previous: 2, reason: "archived" },
 		]);
 		expect([...m.toMap()]).toEqual([["c", 3]]);
-		expect(renderSnapshot(g).edges).toContainEqual({ from: "keep", to: "map.apply" });
+		expect(renderSnapshot(g).edges).toContainEqual({ from: "keep", to: "map/apply" });
 	});
 
 	it("D68 graph-bound Node policy/input opts reject foreign graph nodes", () => {
@@ -612,26 +612,26 @@ describe("reactiveMap (D60 #3) — lazy TTL + LRU + delete-reason", () => {
 		const view = m.select((value) => value > 1);
 
 		const snap = renderSnapshot(g);
-		expect(snap.nodes.find((n) => n.id === "map.delta")?.factory).toBe("reactiveMap.delta");
-		expect(snap.nodes.find((n) => n.id === "map.select#0.delta")?.factory).toBe(
+		expect(snap.nodes.find((n) => n.id === "map/delta")?.factory).toBe("reactiveMap.delta");
+		expect(snap.nodes.find((n) => n.id === "map/select0/delta")?.factory).toBe(
 			"reactiveMap.select.delta",
 		);
-		expect(snap.nodes.find((n) => n.id === "map.select#0.snapshot")?.factory).toBe(
+		expect(snap.nodes.find((n) => n.id === "map/select0/snapshot")?.factory).toBe(
 			"reactiveMap.select.snapshot",
 		);
-		expect(snap.edges).toContainEqual({ from: "map.delta", to: "map.select#0.delta" });
+		expect(snap.edges).toContainEqual({ from: "map/delta", to: "map/select0/delta" });
 		expect(snap.edges).toContainEqual({
-			from: "map.select#0.delta",
-			to: "map.select#0.snapshot",
+			from: "map/select0/delta",
+			to: "map/select0/snapshot",
 		});
 		view.dispose();
 		const after = renderSnapshot(g);
 		expect(after.edges).not.toContainEqual({
-			from: "map.delta",
-			to: "map.select#0.delta",
+			from: "map/delta",
+			to: "map/select0/delta",
 		});
-		expect(after.nodes.map((n) => n.id)).not.toContain("map.select#0.delta");
-		expect(after.nodes.map((n) => n.id)).not.toContain("map.select#0.snapshot");
+		expect(after.nodes.map((n) => n.id)).not.toContain("map/select0/delta");
+		expect(after.nodes.map((n) => n.id)).not.toContain("map/select0/snapshot");
 	});
 
 	it("select viewCache evicts only memo refs, not live D121 view nodes", () => {
@@ -645,10 +645,10 @@ describe("reactiveMap (D60 #3) — lazy TTL + LRU + delete-reason", () => {
 
 		expect(m.select(gt1)).toBe(second);
 		expect(m.select(gt0)).not.toBe(first);
-		expect(g.find("map.select#0.delta")).toBe(first.delta);
-		expect(g.find("map.select#1.delta")).toBe(second.delta);
+		expect(g.find("map/select0/delta")).toBe(first.delta);
+		expect(g.find("map/select1/delta")).toBe(second.delta);
 		first.dispose();
-		expect(g.find("map.select#0.delta")).toBeUndefined();
+		expect(g.find("map/select0/delta")).toBeUndefined();
 		m.dispose();
 		expect(
 			renderSnapshot(g)
@@ -684,14 +684,14 @@ describe("reactiveMap (D60 #3) — lazy TTL + LRU + delete-reason", () => {
 		const src = g.node<readonly [string, number]>([], null, { name: "src" });
 		const m = reactiveMap<string, number>(g, { name: "map" });
 		m.setFrom(src as Node<readonly [string, number]>);
-		expect(renderSnapshot(g).edges).toContainEqual({ from: "map.bind#0", to: "map.apply" });
+		expect(renderSnapshot(g).edges).toContainEqual({ from: "map/bind0", to: "map/apply" });
 
 		expect(() => src.set(1 as unknown as readonly [string, number])).not.toThrow();
 		expect(m.size).toBe(0);
-		expect(renderSnapshot(g).edges).toContainEqual({ from: "src", to: "map.bind#0" });
+		expect(renderSnapshot(g).edges).toContainEqual({ from: "src", to: "map/bind0" });
 		// The apply node ended with the folder's ERROR; its closed lifetime is back on its declared
 		// dependencies (R-lifetime), so the attached folder is no longer one.
-		expect(renderSnapshot(g).nodes.find((n) => n.id === "map.bind#0")?.factory).toBe(
+		expect(renderSnapshot(g).nodes.find((n) => n.id === "map/bind0")?.factory).toBe(
 			"reactiveMap.bindSource",
 		);
 	});

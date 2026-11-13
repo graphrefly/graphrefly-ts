@@ -1,4 +1,5 @@
 import type { Graph } from "../../graph/graph.js";
+import { moduleName } from "../../graph/module-naming.js";
 import { memoryRetrievalBundle } from "../../patterns/semantic-memory-graph.js";
 import {
 	agenticMemoryContextProjection,
@@ -29,7 +30,7 @@ export function agenticMemoryBundle<T = unknown>(
 	graph: Graph,
 	opts: AgenticMemoryBundleOptions<T>,
 ): AgenticMemoryBundle<T> {
-	const name = opts.name ?? "agenticMemory";
+	const name = moduleName(graph, opts.name, "agenticMemory");
 	const projection = agenticMemoryRecordProjection<T>(graph, opts.records, `${name}/projection`);
 	const projectedRecords = agenticMemoryProjection(
 		graph,

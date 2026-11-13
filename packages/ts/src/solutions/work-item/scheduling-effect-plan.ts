@@ -1,6 +1,7 @@
 import type { Ctx } from "../../ctx/types.js";
 import type { DataIssue } from "../../data/index.js";
 import type { Graph } from "../../graph/graph.js";
+import { moduleName } from "../../graph/module-naming.js";
 import type { Node } from "../../node/node.js";
 import type { EffectRunResult } from "../../orchestration/agent-runtime.js";
 import type {
@@ -58,7 +59,7 @@ export function workItemEffectPlanProjector<TInput = unknown>(
 	graph: Graph,
 	opts: WorkItemEffectPlanProjectorOptions<TInput>,
 ): WorkItemEffectPlanProjectorBundle<TInput> {
-	const name = opts.name ?? "workItemEffectPlans";
+	const name = moduleName(graph, opts.name, "workItemEffectPlans");
 	const deps: Node<unknown>[] = [opts.workItems, opts.proposals];
 	const evidenceIndex = opts.evidence === undefined ? -1 : deps.push(opts.evidence) - 1;
 	const resultIndex =
@@ -120,7 +121,7 @@ export function workItemEffectPlanProjector<TInput = unknown>(
 		effectRequests: project(
 			graph,
 			runtime,
-			`${name}/effectRequests`,
+			`${name}/requests`,
 			"workItemEffectPlanEffectRequests",
 			(fact) => (fact.kind === "request" ? fact.value : undefined),
 		),

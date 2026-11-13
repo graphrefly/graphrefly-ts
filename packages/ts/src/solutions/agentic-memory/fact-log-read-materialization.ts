@@ -1,5 +1,6 @@
 import type { DataIssue } from "../../data/index.js";
 import type { Graph } from "../../graph/graph.js";
+import { moduleName } from "../../graph/module-naming.js";
 import { cloneStrictJsonValue } from "../../json/codec.js";
 import type { Node } from "../../node/node.js";
 import {
@@ -236,7 +237,7 @@ export function agenticMemoryCommittedFactReadMaterializationBundle<
 	graph: Graph,
 	opts: AgenticMemoryCommittedFactReadMaterializationBundleOptions<TJson>,
 ): AgenticMemoryCommittedFactReadMaterializationBundle<TJson> {
-	const name = opts.name ?? "agenticMemoryCommittedFactReadMaterialization";
+	const name = moduleName(graph, opts.name, "agenticMemoryCommittedFactReadMaterialization");
 	const projection = graph.node<AgenticMemoryCommittedFactReadMaterializationProjection<TJson>>(
 		[opts.readResult],
 		(ctx) => {

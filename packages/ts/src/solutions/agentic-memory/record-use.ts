@@ -1,4 +1,5 @@
 import type { Graph } from "../../graph/graph.js";
+import { moduleName } from "../../graph/module-naming.js";
 import { canonicalTupleKey } from "../../identity.js";
 import { strictCanonicalJsonBytes, strictJsonCodec } from "../../json/codec.js";
 import { type SolutionOccurrence, solutionOccurrenceProjection } from "../occurrence.js";
@@ -680,7 +681,7 @@ export function agenticMemoryRecordUseGateBundle<TJson extends StrictJsonValue =
 	graph: Graph,
 	opts: AgenticMemoryRecordUseGateBundleOptions<TJson>,
 ): AgenticMemoryRecordUseGateBundle<TJson> {
-	const name = opts.name ?? "agenticMemoryRecordUseGate";
+	const name = moduleName(graph, opts.name, "agenticMemoryRecordUseGate");
 	const snapshot = solutionOccurrenceProjection(graph, opts.occurrences, {
 		name: `${name}/snapshot`,
 		factory: "agenticMemoryRecordUseGate",

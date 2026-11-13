@@ -1,5 +1,6 @@
 import type { DataIssue } from "../../data/index.js";
 import type { Graph } from "../../graph/graph.js";
+import { moduleName } from "../../graph/module-naming.js";
 import { type Codec, cloneStrictJsonObject, strictJsonCodec } from "../../json/codec.js";
 import type { Node } from "../../node/node.js";
 import type { FactId } from "../../patterns/semantic-memory.js";
@@ -374,7 +375,7 @@ export function agenticMemoryRecordStoreFrameBundle<
 	graph: Graph,
 	opts: AgenticMemoryRecordStoreFrameBundleOptions,
 ): AgenticMemoryRecordStoreFrameBundle<TJson> {
-	const name = opts.name ?? "agenticMemoryRecordStoreFrame";
+	const name = moduleName(graph, opts.name, "agenticMemoryRecordStoreFrame");
 	const projection = graph.node<AgenticMemoryRecordStoreFrameProjection<TJson>>(
 		[opts.storeFrame],
 		(ctx) => {
@@ -443,7 +444,7 @@ export function agenticMemoryApplicationEvidenceStoreFrameBundle(
 	graph: Graph,
 	opts: AgenticMemoryApplicationEvidenceStoreFrameBundleOptions,
 ): AgenticMemoryApplicationEvidenceStoreFrameBundle {
-	const name = opts.name ?? "agenticMemoryApplicationEvidenceStoreFrame";
+	const name = moduleName(graph, opts.name, "agenticMemoryApplicationEvidenceStoreFrame");
 	const projection = graph.node<AgenticMemoryApplicationEvidenceStoreFrameProjection>(
 		[opts.storeFrame],
 		(ctx) => {
@@ -467,14 +468,14 @@ export function agenticMemoryApplicationEvidenceStoreFrameBundle(
 		priorEvidence: solutionProjection(
 			graph,
 			projection,
-			`${name}/priorEvidence`,
+			`${name}/prior`,
 			"agenticMemoryApplicationEvidenceStoreFramePriorEvidence",
 			(fact) => fact.priorEvidence,
 		),
 		evidenceFacts: solutionProjection(
 			graph,
 			projection,
-			`${name}/evidenceFacts`,
+			`${name}/facts`,
 			"agenticMemoryApplicationEvidenceStoreFrameEvidenceFacts",
 			(fact) => fact.evidenceFacts,
 		),

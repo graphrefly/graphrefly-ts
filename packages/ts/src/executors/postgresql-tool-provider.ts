@@ -1,3 +1,4 @@
+import { moduleName } from "../graph/module-naming.js";
 import * as topologyModule from "../graph/topology.js";
 /**
  * PostgreSQL-compatible read-only Layer C adapter (D602).
@@ -421,7 +422,7 @@ export function postgresqlToolProviderRuntime(
 	if (opts.admittedRunRequests.length === 0) {
 		throw new TypeError("postgresql runtime requires explicit admitted run requests");
 	}
-	const name = opts.name ?? "postgresqlToolProviderRuntime";
+	const name = moduleName(graph, opts.name, "postgresqlToolProviderRuntime");
 	const providerId = opts.providerId ?? "postgresql";
 	const executorId = opts.executorId ?? `${providerId}:tool-executor`;
 	const profileId = opts.profileId ?? `${providerId}:read-only:${opts.adapterVersion}`;

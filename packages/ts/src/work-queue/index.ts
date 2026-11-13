@@ -1,3 +1,5 @@
+import { moduleName } from "../graph/module-naming.js";
+import { assertLocalName } from "../node/naming.js";
 /**
  * MessageBus-backed generic work queue (D299-D324).
  *
@@ -103,7 +105,8 @@ export function workQueue<T = unknown>(graph: Graph, opts: WorkQueueOptions<T>):
 	assertNonEmpty(opts.queueId, "workQueue.queueId");
 	assertNonEmpty(opts.topic, "workQueue.topic");
 	assertNonEmpty(opts.subscriptionId, "workQueue.subscriptionId");
-	const name = opts.name ?? `workQueue/${opts.queueId}`;
+	if (opts.name === undefined) assertLocalName(opts.queueId);
+	const name = moduleName(graph, opts.name, `workQueue/${opts.queueId}`);
 	const now = opts.now ?? Date.now;
 	const leaseDurationMs = opts.leaseDurationMs ?? 30_000;
 	const retry = opts.retry ?? { maxAttempts: 3, delayMs: 0 };

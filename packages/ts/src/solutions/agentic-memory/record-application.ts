@@ -1,5 +1,6 @@
 import type { DataIssue } from "../../data/index.js";
 import type { Graph } from "../../graph/graph.js";
+import { moduleName } from "../../graph/module-naming.js";
 import { canonicalTupleKey, compoundTupleKey } from "../../identity.js";
 import { strictCanonicalJsonBytes, strictJsonCodec } from "../../json/codec.js";
 import type { FactId } from "../../patterns/semantic-memory.js";
@@ -97,7 +98,7 @@ export function agenticMemoryRecordApplicationBundle<T = unknown>(
 	graph: Graph,
 	opts: AgenticMemoryRecordApplicationBundleOptions<T>,
 ): AgenticMemoryRecordApplicationBundle<T> {
-	const name = opts.name ?? "agenticMemoryRecordApplication";
+	const name = moduleName(graph, opts.name, "agenticMemoryRecordApplication");
 	const projection = solutionOccurrenceProjection(graph, opts.occurrences, {
 		name: `${name}/projection`,
 		factory: "agenticMemoryRecordApplication",
@@ -129,7 +130,7 @@ export function agenticMemoryRecordApplicationBundle<T = unknown>(
 		applicationDecisions: solutionOccurrenceSelect(
 			graph,
 			projection,
-			`${name}/applicationDecisions`,
+			`${name}/decisions`,
 			"agenticMemoryRecordApplicationDecisions",
 			(fact) => fact.applicationDecisions,
 		),

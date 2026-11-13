@@ -42,16 +42,16 @@ describe("reactiveCascadingCache (D104/D105/D107)", () => {
 
 		const snap = renderSnapshot(g);
 		expect(snap.nodes.map((n) => n.id).sort()).toEqual([
-			"cache.events",
-			"cache.status",
-			"cache.value",
+			"cache/events",
+			"cache/status",
+			"cache/value",
 			"request",
 		]);
 		expect(snap.edges).toEqual(
 			expect.arrayContaining([
-				{ from: "request", to: "cache.events" },
-				{ from: "cache.events", to: "cache.status" },
-				{ from: "cache.events", to: "cache.value" },
+				{ from: "request", to: "cache/events" },
+				{ from: "cache/events", to: "cache/status" },
+				{ from: "cache/events", to: "cache/value" },
 			]),
 		);
 	});

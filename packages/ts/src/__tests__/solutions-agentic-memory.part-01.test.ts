@@ -464,17 +464,17 @@ describe("agentic memory KG projection (D165)", () => {
 
 		expect(renderSnapshot(g).edges).toEqual(
 			expect.arrayContaining([
-				{ from: "records", to: "kg/projection" },
-				{ from: "drafts", to: "kg/projection" },
-				{ from: "kg/projection", to: "kg/assertions" },
-				{ from: "kg/projection", to: "kg/status" },
-				{ from: "kg/projection", to: "kg/errors" },
-				{ from: "kg/projection", to: "kg/cursor" },
+				{ from: "records", to: "kg" },
+				{ from: "drafts", to: "kg" },
+				{ from: "kg", to: "kg/assertions" },
+				{ from: "kg", to: "kg/status" },
+				{ from: "kg", to: "kg/errors" },
+				{ from: "kg", to: "kg/cursor" },
 			]),
 		);
 		expect(renderSnapshot(g).nodes).toEqual(
 			expect.arrayContaining([
-				expect.objectContaining({ id: "kg/projection", factory: "agenticMemoryKgProjection" }),
+				expect.objectContaining({ id: "kg", factory: "agenticMemoryKgProjection" }),
 			]),
 		);
 		expect(data<readonly AgenticMemoryKgProjectionError[]>(errors.messages).at(-1)).toEqual([]);
@@ -718,7 +718,7 @@ describe("agentic memory retention bundle (D167)", () => {
 				{ from: "commands", to: "retention/projection" },
 				{ from: "retention/projection", to: "retention/activeRecords" },
 				{ from: "retention/projection", to: "retention/archivedRecords" },
-				{ from: "retention/projection", to: "retention/consolidationRequests" },
+				{ from: "retention/projection", to: "retention/requests" },
 				{ from: "retention/projection", to: "retention/status" },
 				{ from: "retention/projection", to: "retention/errors" },
 				{ from: "retention/projection", to: "retention/cursor" },

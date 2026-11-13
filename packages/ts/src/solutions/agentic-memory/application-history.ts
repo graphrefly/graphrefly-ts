@@ -1,5 +1,6 @@
 import type { DataIssue } from "../../data/index.js";
 import type { Graph } from "../../graph/graph.js";
+import { moduleName } from "../../graph/module-naming.js";
 import { canonicalTupleKey } from "../../identity.js";
 import { strictCanonicalJsonBytes, strictJsonCodec } from "../../json/codec.js";
 import type { FactId } from "../../patterns/semantic-memory.js";
@@ -199,7 +200,7 @@ export function agenticMemoryRecordApplicationPriorEvidenceBundle(
 	graph: Graph,
 	opts: AgenticMemoryRecordApplicationPriorEvidenceBundleOptions,
 ): AgenticMemoryRecordApplicationPriorEvidenceBundle {
-	const name = opts.name ?? "agenticMemoryRecordApplicationPriorEvidence";
+	const name = moduleName(graph, opts.name, "agenticMemoryRecordApplicationPriorEvidence");
 	const projection = graph.node<AgenticMemoryRecordApplicationPriorEvidenceProjection>(
 		[opts.evidenceFacts],
 		(ctx) => {
@@ -230,7 +231,7 @@ export function agenticMemoryRecordApplicationPriorEvidenceBundle(
 		priorEvidence: solutionProjection(
 			graph,
 			projection,
-			`${name}/priorEvidence`,
+			name,
 			"agenticMemoryRecordApplicationPriorEvidence",
 			(fact) => fact.priorEvidence,
 		),
@@ -281,7 +282,7 @@ export function agenticMemoryRecordApplicationEvidenceFactsBundle<T = unknown>(
 	graph: Graph,
 	opts: AgenticMemoryRecordApplicationEvidenceFactsBundleOptions<T>,
 ): AgenticMemoryRecordApplicationEvidenceFactsBundle<T> {
-	const name = opts.name ?? "agenticMemoryRecordApplicationEvidenceFacts";
+	const name = moduleName(graph, opts.name, "agenticMemoryRecordApplicationEvidenceFacts");
 	const projection = graph.node<AgenticMemoryRecordApplicationEvidenceFactsProjection>(
 		[opts.applicationDecisions],
 		(ctx) => {
@@ -312,14 +313,14 @@ export function agenticMemoryRecordApplicationEvidenceFactsBundle<T = unknown>(
 		evidenceFacts: solutionProjection(
 			graph,
 			projection,
-			`${name}/evidenceFacts`,
+			name,
 			"agenticMemoryRecordApplicationEvidenceFacts",
 			(fact) => fact.evidenceFacts,
 		),
 		priorEvidence: solutionProjection(
 			graph,
 			projection,
-			`${name}/priorEvidence`,
+			`${name}/prior`,
 			"agenticMemoryRecordApplicationEvidenceFactsPriorEvidence",
 			(fact) => fact.priorEvidence,
 		),

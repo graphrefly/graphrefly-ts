@@ -1,3 +1,4 @@
+import { moduleName } from "../graph/module-naming.js";
 /**
  * Helper-first worker compute (D138/D148).
  *
@@ -161,7 +162,7 @@ export function workerDerived<TInput, TResult>(
 		}
 	};
 	return graph.node<TResult>(deps, fn, {
-		name: opts.name ?? "workerDerived",
+		name: moduleName(graph, opts.name, "workerDerived"),
 		factory: "workerDerived",
 		complete: "manual",
 		error: "manual",

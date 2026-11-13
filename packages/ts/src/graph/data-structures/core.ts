@@ -1,3 +1,4 @@
+import { moduleName } from "../module-naming.js";
 import * as topology from "../topology.js";
 /**
  * The shared reactiveCollection core (CSP-2.8, D60).
@@ -49,7 +50,7 @@ export interface CollectionBackend<S> {
 }
 
 export interface CollectionCoreOptions {
-	/** Debug/inspection name; the delta/snapshot nodes derive `${name}.delta` / `${name}.snapshot`. */
+	/** Debug/inspection name; the delta/snapshot nodes derive `${name}/delta` / `${name}/snapshot`. */
 	name?: string;
 }
 
@@ -168,7 +169,8 @@ export function lightReactiveView<C, S>(
 	parentDelta: Node<unknown>,
 	opts: LightReactiveViewOptions<S>,
 ): ReactiveView<C, S> {
-	const { factory, materializeSnapshot, name, onDispose } = opts;
+	const { factory, materializeSnapshot, onDispose } = opts;
+	const name = moduleName(graph, opts.name, factory.replaceAll(".", "/"));
 	const group = topology.group(graph, { name: name ?? factory });
 	const delta = group.node<C>(
 		[parentDelta],
@@ -178,13 +180,13 @@ export function lightReactiveView<C, S>(
 		},
 		{
 			factory: `${factory}.delta`,
-			name: name ? `${name}.delta` : undefined,
+			name: name ? `${name}/delta` : undefined,
 			meta: { kind: "collection_view_delta", factory },
 		},
 	);
 	const request = group.node<true>([], null, {
 		factory: `${factory}.request`,
-		name: name ? `${name}.request` : undefined,
+		name: name ? `${name}/request` : undefined,
 		meta: { kind: "collection_view_request", factory },
 	});
 	const snapshot = group.node<S>(
@@ -199,7 +201,7 @@ export function lightReactiveView<C, S>(
 		},
 		{
 			factory: `${factory}.snapshot`,
-			name: name ? `${name}.snapshot` : undefined,
+			name: name ? `${name}/snapshot` : undefined,
 			meta: { kind: "collection_view_snapshot", factory },
 			quiet: true,
 		},
@@ -231,14 +233,14 @@ export function collectionCore<S, C>(
 	opts: CollectionCoreOptions = {},
 	restore?: CollectionRestoreSpec,
 ): CollectionCore<S, C> {
-	const { name } = opts;
+	const name = moduleName(graph, opts.name, factory);
 	let bindSeq = 0;
 
 	// DELTA backbone: a bare source (D60 #2a / review #2 — node([], null), no `initial`, so a late
 	// subscriber gets no fake "initial change"; state is the snapshot port's job).
 	const delta = graph.node<C>([], null, {
 		factory: `${factory}.delta`,
-		name: name ? `${name}.delta` : undefined,
+		name: name ? `${name}/delta` : undefined,
 		meta: { kind: "collection_delta", collection: factory },
 		...(restore ? { recipe: { ref: restore.deltaRef, config: restore.config } } : {}),
 	});
@@ -246,7 +248,7 @@ export function collectionCore<S, C>(
 	// REQUEST state: a write asks the snapshot node for one materialization (graphrefly-ts:D172).
 	const request = graph.node<true>([], null, {
 		factory: `${factory}.request`,
-		name: name ? `${name}.request` : undefined,
+		name: name ? `${name}/request` : undefined,
 		meta: { kind: "collection_request", collection: factory },
 		...(restore ? { recipe: { ref: restore.requestRef, config: restore.config } } : {}),
 	});
@@ -266,7 +268,7 @@ export function collectionCore<S, C>(
 		{
 			quiet: true,
 			factory: `${factory}.snapshot`,
-			name: name ? `${name}.snapshot` : undefined,
+			name: name ? `${name}/snapshot` : undefined,
 			meta: { kind: "collection_snapshot", collection: factory },
 			...(restore ? { recipe: { ref: restore.snapshotRef, config: restore.config } } : {}),
 		},
@@ -297,7 +299,7 @@ export function collectionCore<S, C>(
 			},
 		};
 		const folder = graph.initNode(op, [src], {
-			name: name ? `${name}.bind#${bindSeq++}` : undefined,
+			name: name ? `${name}/bind${bindSeq++}` : undefined,
 			meta: { kind: "collection_bind_source", collection: factory },
 		});
 		return graph.retain(folder);

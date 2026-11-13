@@ -1,6 +1,7 @@
 import type { Ctx } from "../../ctx/types.js";
 import type { DataIssue } from "../../data/index.js";
 import type { Graph } from "../../graph/graph.js";
+import { moduleName } from "../../graph/module-naming.js";
 import { canonicalTupleKey, compoundTupleKey } from "../../identity.js";
 import type { BoundaryCapabilityKind, BoundaryCapabilityRef } from "../../inspection/boundary.js";
 import type { SourceRef } from "../../orchestration/agent-runtime.js";
@@ -44,7 +45,7 @@ export function workItemDomainActionCapabilityGuardProjector(
 	graph: Graph,
 	opts: WorkItemDomainActionCapabilityGuardOptions,
 ): WorkItemDomainActionCapabilityGuardBundle {
-	const name = opts.name ?? "workItemDomainActionCapabilityGuard";
+	const name = moduleName(graph, opts.name, "workItemDomainActionCapabilityGuard");
 	const deps =
 		opts.capabilityAdmissionStatus === undefined
 			? [opts.proposals, opts.capabilityAdmissions, opts.guardPolicies]

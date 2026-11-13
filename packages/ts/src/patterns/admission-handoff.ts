@@ -1,5 +1,6 @@
 import type { Ctx } from "../ctx/types.js";
 import type { Graph } from "../graph/graph.js";
+import { moduleName } from "../graph/module-naming.js";
 import type { Node } from "../node/node.js";
 
 /** A value proposed for a correlated admission handoff (graphrefly-ts:D147). */
@@ -173,7 +174,7 @@ export function admissionHandoff<T, R = unknown>(
 ): AdmissionHandoffBundle<T, R> {
 	assertPositiveBound(opts.maxPending, "maxPending");
 	assertPositiveBound(opts.maxRecent, "maxRecent");
-	const name = opts.name ?? "admissionHandoff";
+	const name = moduleName(graph, opts.name, "admissionHandoff");
 	const runtime = graph.node<AdmissionHandoffRuntimeFact<T, R>>(
 		[opts.candidates, opts.decisions],
 		(ctx) => {

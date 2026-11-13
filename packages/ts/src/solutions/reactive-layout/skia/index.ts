@@ -1,3 +1,5 @@
+import { moduleName } from "../../../graph/module-naming.js";
+import { assertLocalName } from "../../../node/naming.js";
 import type { Node } from "../../../node/node.js";
 import {
 	CapabilityMeasureAdapter,
@@ -121,6 +123,7 @@ export function skiaParagraphTextMeasureCapability(
 export function skiaReadyTextMeasurements(
 	opts: SkiaReadyTextMeasurementsOptions,
 ): Node<Measurements> {
+	assertLocalName(opts.name ?? opts.targetId ?? "text");
 	const targetId = opts.targetId ?? "text";
 	const adapter = opts.graph.node<MeasurementAdapter>(
 		[opts.capability],
@@ -130,7 +133,11 @@ export function skiaReadyTextMeasurements(
 			]);
 		},
 		{
-			name: opts.name ? `${opts.name}:measure-capability` : `${targetId}-measure-capability`,
+			name: moduleName(
+				opts.graph,
+				opts.name === undefined ? undefined : `${opts.name}/capability`,
+				`${targetId}/capability`,
+			),
 		},
 	);
 	return readinessTextMeasurements({

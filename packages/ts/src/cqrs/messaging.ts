@@ -1,3 +1,4 @@
+import { moduleName } from "../graph/module-naming.js";
 /**
  * Optional CQRS-over-messageBus recipe (D350/D351/D353).
  *
@@ -73,7 +74,7 @@ export function cqrsMessagingRecipe<TPayload = unknown, TCommand = unknown, TEve
 	graph: Graph,
 	opts: CqrsMessagingRecipeOptions<TPayload, TCommand, TEvent>,
 ): CqrsMessagingRecipeBundle<TCommand> {
-	const name = opts.name ?? "cqrsMessaging";
+	const name = moduleName(graph, opts.name, "cqrsMessaging");
 	const runtime = graph.node<CqrsMessagingFact<TCommand>>(
 		[opts.deliveries],
 		(ctx) => {
@@ -199,7 +200,7 @@ export function cqrsMessageAckCommands(
 			: [opts.commands, opts.status, opts.issues],
 		ackCommandsFn(config),
 		{
-			name: opts.name ?? "cqrsMessaging/ackCommands",
+			name: moduleName(graph, opts.name, "cqrsMessaging/ackCommands"),
 			factory: "cqrsMessagingAckCommands",
 			complete: "manual",
 			error: "manual",
@@ -275,7 +276,7 @@ export function cqrsEventOutboxCommands<TEvent>(
 	opts: { readonly name?: string } = {},
 ): Node<MessageBusCommand> {
 	return graph.node<MessageBusCommand>([events], outboxCommandsFn(topic), {
-		name: opts.name ?? "cqrsMessaging/outboxCommands",
+		name: moduleName(graph, opts.name, "cqrsMessaging/outboxCommands"),
 		factory: "cqrsMessagingOutboxCommands",
 		complete: "manual",
 		error: "manual",

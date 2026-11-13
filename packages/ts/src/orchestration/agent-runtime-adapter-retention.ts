@@ -288,7 +288,7 @@ export function buildRetentionPolicyReaders(
 		const node = isNodeOpt(maxSize)
 			? maxSize
 			: graph.node<number>([], null, {
-					name: `${name}/retentionPolicy/${index}/maxSize`,
+					name: `${name}/retentionPolicy${index}/maxSize`,
 					factory: "toolProviderAdapterRuntimeRetentionPolicy.maxSize",
 					initial: maxSize,
 				});

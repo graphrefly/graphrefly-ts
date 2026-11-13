@@ -1,4 +1,5 @@
 import type { Graph } from "../../graph/graph.js";
+import { moduleName } from "../../graph/module-naming.js";
 import { solutionOccurrenceJoin, solutionOccurrenceProjection } from "../occurrence.js";
 import { agenticMemoryConsolidationBundle } from "./consolidation.js";
 import { agenticMemoryRecordAdmissionBundle } from "./proposal-admission.js";
@@ -31,7 +32,7 @@ export function agenticMemoryConsolidationApplicationBundle<T = unknown>(
 	graph: Graph,
 	opts: AgenticMemoryConsolidationApplicationBundleOptions<T>,
 ): AgenticMemoryConsolidationApplicationBundle<T> {
-	const name = opts.name ?? "agenticMemoryConsolidationApplication";
+	const name = moduleName(graph, opts.name, "agenticMemoryPipeline");
 	const input = solutionOccurrenceProjection(graph, opts.occurrences, {
 		name: `${name}/input`,
 		factory: "agenticMemoryConsolidationApplicationInput",
@@ -47,7 +48,7 @@ export function agenticMemoryConsolidationApplicationBundle<T = unknown>(
 		name: `${name}/admission`,
 		maxOccurrences: opts.maxOccurrences,
 		occurrences: solutionOccurrenceJoin(graph, input, consolidation.recordProposals, {
-			name: `${name}/admission-input`,
+			name: `${name}/admissionInput`,
 			factory: "agenticMemoryConsolidationAdmissionInput",
 			maxOccurrences: opts.maxOccurrences,
 			project: (frame, proposals) =>
@@ -58,7 +59,7 @@ export function agenticMemoryConsolidationApplicationBundle<T = unknown>(
 		name: `${name}/application`,
 		maxOccurrences: opts.maxOccurrences,
 		occurrences: solutionOccurrenceJoin(graph, input, admission.admissions, {
-			name: `${name}/application-input`,
+			name: `${name}/applicationInput`,
 			factory: "agenticMemoryConsolidationRecordApplicationInput",
 			maxOccurrences: opts.maxOccurrences,
 			project: (frame, admissions) =>

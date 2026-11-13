@@ -1,3 +1,4 @@
+import { moduleName } from "../graph/module-naming.js";
 /**
  * Durable executor dispatch recipe over workQueue (D328/D331).
  *
@@ -123,7 +124,7 @@ export function executorWorkQueueRecipe(
 	graph: Graph,
 	opts: ExecutorWorkQueueRecipeOptions,
 ): ExecutorWorkQueueRecipeBundle {
-	const name = opts.name ?? "executorWorkQueue";
+	const name = moduleName(graph, opts.name, "executorWorkQueue");
 	const submitCommands =
 		opts.requests === undefined
 			? undefined

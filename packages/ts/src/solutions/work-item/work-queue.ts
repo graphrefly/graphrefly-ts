@@ -1,3 +1,4 @@
+import { moduleName } from "../../graph/module-naming.js";
 /**
  * WorkItem-over-workQueue recipe facts (D327/D331).
  *
@@ -117,7 +118,7 @@ export function workItemWorkQueueRecipe(
 	graph: Graph,
 	opts: WorkItemWorkQueueRecipeOptions,
 ): WorkItemWorkQueueRecipeBundle {
-	const name = opts.name ?? "workItemWorkQueue";
+	const name = moduleName(graph, opts.name, "workItemWorkQueue");
 	const submitCommands = graph.node<WorkQueueCommand<WorkItemQueuedWorkPayload>>(
 		[opts.effectRequests],
 		(ctx) => {

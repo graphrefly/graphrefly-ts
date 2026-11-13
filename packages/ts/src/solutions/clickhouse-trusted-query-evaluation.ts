@@ -1,6 +1,7 @@
 /** Focused ClickHouse trusted-query production-evaluation contracts and runtime glue (D628). */
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
+import { moduleName } from "../graph/module-naming.js";
 import * as topologyModule from "../graph/topology.js";
 import { canonicalTupleKey, compoundTupleKey } from "../identity.js";
 import type { Node } from "../node/node.js";
@@ -750,7 +751,7 @@ export function clickHouseTrustedQueryRuntime(
 ): ClickHouseTrustedQueryRuntimeBundle {
 	if (opts.admittedRunRequests.length === 0)
 		throw new TypeError("clickhouse runtime requires explicit admitted run requests");
-	const name = opts.name ?? "clickhouseTrustedQueryEvaluationRuntime";
+	const name = moduleName(graph, opts.name, "clickhouseTrustedQueryEvaluationRuntime");
 	if (!publicToken(name))
 		throw new TypeError("clickhouse-trusted-query-runtime-name-invalid-or-private-material");
 	const timeoutMs = positiveInteger(opts.timeoutMs, 30_000);

@@ -681,9 +681,9 @@ describe("checkpoint and restore: ported cases (TS layout, graphrefly-ts:D178)",
 		const g = graph();
 		reactiveList<number>(g, [1], { name: "list" });
 		const checkpoint = g.checkpoint();
-		const snapshot = checkpoint.nodes.find((n) => n.id === "list.snapshot");
+		const snapshot = checkpoint.nodes.find((n) => n.id === "list/snapshot");
 		if (snapshot === undefined) throw new Error("missing list snapshot");
-		snapshot.deps = ["list.request", "list.delta"];
+		snapshot.deps = ["list/request", "list/delta"];
 		expect(() => restoreGraph(checkpoint, { registry: defaultRestoreRegistry })).toThrow(
 			/dependencies that do not match/,
 		);
@@ -703,28 +703,28 @@ describe("collection backends (TS restore extension, graphrefly-ts:D178)", () =>
 		mapCollection.set("k", 42);
 		const restored = restoreGraph(original.checkpoint(), { registry: defaultRestoreRegistry });
 		const byId = Object.fromEntries(restored.checkpoint().nodes.map((n) => [n.id, n]));
-		expect(byId["list.delta"].backendState).toEqual([1, 2]);
-		expect(byId["idx.delta"].backendState).toEqual([{ primary: "a", secondary: 1, value: 10 }]);
-		expect(byId["log.delta"].backendState).toEqual(["a", "b"]);
-		expect(byId["map.intent"].backendState).toEqual([["k", 42]]);
-		for (const id of ["list.delta", "list.snapshot", "idx.snapshot", "log.snapshot", "map.delta"])
+		expect(byId["list/delta"].backendState).toEqual([1, 2]);
+		expect(byId["idx/delta"].backendState).toEqual([{ primary: "a", secondary: 1, value: 10 }]);
+		expect(byId["log/delta"].backendState).toEqual(["a", "b"]);
+		expect(byId["map/intent"].backendState).toEqual([["k", 42]]);
+		for (const id of ["list/delta", "list/snapshot", "idx/snapshot", "log/snapshot", "map/delta"])
 			expect(byId[id].values).toEqual([]);
-		expect(byId["map.delta"].deps).toEqual(["map.apply", "map.snapshotPrep"]);
-		expect(byId["map.snapshot"].deps).toEqual(["map.snapshotPrep"]);
-		expect(types(collect(restored.find("list.delta")))).toEqual(["START"]);
+		expect(byId["map/delta"].deps).toEqual(["map/apply", "map/snapshotPrep"]);
+		expect(byId["map/snapshot"].deps).toEqual(["map/snapshotPrep"]);
+		expect(types(collect(restored.find("list/delta")))).toEqual(["START"]);
 	});
 
 	it("the backend, not a saved snapshot value, is the collection's authority", () => {
 		const original = graph();
 		reactiveList<number>(original, [1, 2], { name: "list" });
 		const checkpoint = original.checkpoint();
-		const snapshot = checkpoint.nodes.find((n) => n.id === "list.snapshot");
+		const snapshot = checkpoint.nodes.find((n) => n.id === "list/snapshot");
 		if (snapshot === undefined) throw new Error("missing list snapshot");
 		snapshot.values = [["not-authority"]];
 		const restored = restoreGraph(checkpoint, { registry: defaultRestoreRegistry });
 		const byId = Object.fromEntries(restored.checkpoint().nodes.map((n) => [n.id, n]));
-		expect(byId["list.delta"].backendState).toEqual([1, 2]);
-		expect(byId["list.snapshot"].values).toEqual([]);
+		expect(byId["list/delta"].backendState).toEqual([1, 2]);
+		expect(byId["list/snapshot"].values).toEqual([]);
 	});
 
 	it("rejects malformed index and log backends", () => {
@@ -732,8 +732,8 @@ describe("collection backends (TS restore extension, graphrefly-ts:D178)", () =>
 		reactiveIndex<string, number>(original, { name: "idx" }).upsert("a", 1, 10);
 		reactiveLog<string>(original, ["a", "b"], { name: "log", maxSize: 2 });
 		const checkpoint = original.checkpoint();
-		const idxDelta = checkpoint.nodes.find((n) => n.id === "idx.delta");
-		const logDelta = checkpoint.nodes.find((n) => n.id === "log.delta");
+		const idxDelta = checkpoint.nodes.find((n) => n.id === "idx/delta");
+		const logDelta = checkpoint.nodes.find((n) => n.id === "log/delta");
 		if (!idxDelta || !logDelta) throw new Error("missing collection nodes");
 		idxDelta.backendState = [
 			{ primary: "a", secondary: 1, value: 10 },
@@ -753,7 +753,7 @@ describe("collection backends (TS restore extension, graphrefly-ts:D178)", () =>
 		const g = graph();
 		reactiveMap<string, number>(g, { name: "map" });
 		const checkpoint = g.checkpoint();
-		const intent = checkpoint.nodes.find((n) => n.id === "map.intent");
+		const intent = checkpoint.nodes.find((n) => n.id === "map/intent");
 		if (!intent) throw new Error("missing map intent");
 		intent.backendState = [["a", 1, "extra"]];
 		expect(() => restoreGraph(checkpoint, { registry: defaultRestoreRegistry })).toThrow(

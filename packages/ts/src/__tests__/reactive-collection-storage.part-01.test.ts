@@ -505,7 +505,7 @@ describe("D161 synchronous restore helpers", () => {
 
 		expect(list.toArray()).toEqual([1]);
 		expect(renderSnapshot(g).nodes.map((node) => node.id)).toEqual(
-			expect.arrayContaining(["list.delta", "list.snapshot"]),
+			expect.arrayContaining(["list/delta", "list/snapshot"]),
 		);
 	});
 
@@ -554,7 +554,7 @@ describe("D161 synchronous restore helpers", () => {
 			{ primary: "c", secondary: 3, value: 30 },
 		]);
 		expect(renderSnapshot(g).nodes.map((node) => node.id)).toEqual(
-			expect.arrayContaining(["map.delta", "map.snapshot", "index.delta", "index.snapshot"]),
+			expect.arrayContaining(["map/delta", "map/snapshot", "index/delta", "index/snapshot"]),
 		);
 	});
 });

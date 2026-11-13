@@ -1,5 +1,6 @@
 import { eachInputArray } from "../graph/each-input-array.js";
 import type { Graph } from "../graph/graph.js";
+import { moduleName } from "../graph/module-naming.js";
 import { compoundTupleKey } from "../identity.js";
 import type { Node } from "../node/node.js";
 import type { Message } from "../protocol/messages.js";
@@ -143,7 +144,7 @@ export function attachKeyedRateLimitAuthority(
 	authority: KeyedRateLimitAuthority,
 	opts: KeyedRateLimitAuthorityAdapterOptions = {},
 ): KeyedRateLimitAuthorityAdapterBundle {
-	const name = opts.name ?? "keyedRateLimitAuthority";
+	const name = moduleName(graph, opts.name, "keyedRateLimitAuthority");
 	const maxInFlight = boundedAdapterOption(opts.maxInFlight, DEFAULT_MAX_IN_FLIGHT, "maxInFlight");
 	const maxCompleted = boundedAdapterOption(
 		opts.maxCompleted,
@@ -319,7 +320,7 @@ export function attachKeyedRateLimitAuthority(
 	const correlationFacts = adapterProjection(
 		graph,
 		events,
-		`${name}/correlation-facts`,
+		`${name}/correlation`,
 		"keyedRateLimitAuthorityCorrelationFacts",
 		(fact): fact is KeyedRateLimitCorrelationFact =>
 			"format" in fact &&
@@ -329,7 +330,7 @@ export function attachKeyedRateLimitAuthority(
 	const authorityRequests = adapterProjection(
 		graph,
 		events,
-		`${name}/authority-requests`,
+		`${name}/requests`,
 		"keyedRateLimitAuthorityRequests",
 		(fact): fact is KeyedRateLimitRequest =>
 			"format" in fact && fact.format === "graphrefly.keyedRateLimitRequest",

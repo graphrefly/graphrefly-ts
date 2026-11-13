@@ -1,3 +1,4 @@
+import { moduleName } from "../module-naming.js";
 /**
  * Reactive dual-key index (CSP-2.8, D54/D60) — unique primary key, rows sorted by (secondary, primary).
  *
@@ -329,15 +330,16 @@ function createReactiveIndex<K, V = unknown>(
 	options: ReactiveIndexOptions,
 	initialRows: readonly IndexRow<K, V>[] = [],
 ): ReactiveIndex<K, V> {
-	const { capacity, name } = options;
+	const { capacity } = options;
+	const name = moduleName(graph, options.name, "reactiveIndex");
 	const lruEnabled = capacity?.order === "lru";
 	const backend = new IndexBackend<K, V>(lruEnabled, initialRows);
 	const core: CollectionCore<readonly IndexRow<K, V>[], IndexChange<K, V>> = collectionCore(
 		graph,
 		backend,
 		"reactiveIndex",
-		options,
-		name !== undefined && capacity === undefined
+		{ ...options, name },
+		options.name !== undefined && capacity === undefined
 			? {
 					deltaRef: "reactiveIndex.delta",
 					snapshotRef: "reactiveIndex.snapshot",
@@ -418,7 +420,7 @@ function createReactiveIndex<K, V = unknown>(
 		};
 		const deps = capacityPolicy ? [capacityPolicy as Node<unknown>] : [];
 		apply = graph.initNode(op, deps, {
-			name: name ? `${name}.capacityPolicy` : undefined,
+			name: name ? `${name}/capacityPolicy` : undefined,
 			meta: { kind: "collection_policy_apply", collection: "reactiveIndex" },
 		});
 		folders.bind(apply as Node<unknown>);
@@ -448,7 +450,7 @@ function createReactiveIndex<K, V = unknown>(
 					},
 					[],
 					{
-						name: name ? `${name}.maxSizePolicy` : undefined,
+						name: name ? `${name}/maxSizePolicy` : undefined,
 						meta: { kind: "collection_policy", collection: "reactiveIndex", policy: "maxSize" },
 					},
 				);
@@ -470,7 +472,10 @@ function createReactiveIndex<K, V = unknown>(
 					// structure's own backend, D60 #1 — not a foreign .cache peek).
 					ctx.down([["DATA", backend.toPrimaryMap()]]);
 				},
-				{ factory: "reactiveIndex.byPrimary" },
+				{
+					factory: "reactiveIndex.byPrimary",
+					name: moduleName(graph, undefined, `${name}/primary`),
+				},
 			);
 		}
 		return byPrimaryNode;
@@ -485,7 +490,7 @@ function createReactiveIndex<K, V = unknown>(
 		view = lightReactiveView<IndexChange<K, V>, readonly V[]>(graph, core.delta as Node<unknown>, {
 			...options,
 			factory: "reactiveIndex.range",
-			name: name ? `${name}.range#${rangeSeq++}` : undefined,
+			name: name ? `${name}/range${rangeSeq++}` : undefined,
 			materializeSnapshot: materialize,
 			onDispose: () => {
 				rangeMemo.deleteValue(view);
@@ -574,7 +579,7 @@ function createReactiveIndex<K, V = unknown>(
 				},
 			};
 			const folder = graph.initNode(op, [src], {
-				name: name ? `${name}.bind#${bindSeq++}` : undefined,
+				name: name ? `${name}/bind${bindSeq++}` : undefined,
 				meta: { kind: "collection_bind_source", collection: "reactiveIndex" },
 			});
 			bindDeps.add(folder as Node<unknown>);

@@ -1,3 +1,4 @@
+import { moduleName } from "../module-naming.js";
 /**
  * Reactive append-only log (CSP-2.8, D54/D60) — two-port collection with incremental views.
  *
@@ -177,6 +178,7 @@ export function reactiveLog<T>(
 	options: ReactiveLogOptions = {},
 ): ReactiveLog<T> {
 	const { maxSize, viewCache, ...coreOpts } = options;
+	const name = moduleName(graph, options.name, "reactiveLog");
 	const backend = new LogBackend<T>(initial, maxSize);
 	const restoreConfig =
 		coreOpts.name !== undefined
@@ -188,7 +190,7 @@ export function reactiveLog<T>(
 		graph,
 		backend,
 		"reactiveLog",
-		coreOpts,
+		{ ...coreOpts, name },
 		restoreConfig !== undefined
 			? {
 					deltaRef: "reactiveLog.delta",
@@ -255,7 +257,7 @@ export function reactiveLog<T>(
 					const all = backend.snapshot();
 					ctx.down([["DATA", n === 0 ? [] : all.slice(Math.max(0, all.length - n))]]);
 				},
-				{ factory: "reactiveLog.tail" },
+				{ factory: "reactiveLog.tail", name: moduleName(graph, undefined, `${name}/tail`) },
 			);
 			tailMemo.set(n, tnode);
 			return tnode;
@@ -278,7 +280,7 @@ export function reactiveLog<T>(
 				(ctx: Ctx) => {
 					ctx.down([["DATA", backend.snapshot().slice(start, stop)]]);
 				},
-				{ factory: "reactiveLog.slice" },
+				{ factory: "reactiveLog.slice", name: moduleName(graph, undefined, `${name}/slice`) },
 			);
 			sliceMemo.set(key, snode);
 			return snode;
@@ -299,7 +301,7 @@ export function reactiveLog<T>(
 			view = lightReactiveView<LogChange<T>, readonly T[]>(graph, core.delta as Node<unknown>, {
 				...coreOpts,
 				factory: "reactiveLog.page",
-				name: coreOpts.name ? `${coreOpts.name}.page#${pageSeq++}` : undefined,
+				name: name ? `${name}/page${pageSeq++}` : undefined,
 				materializeSnapshot: materialize,
 				onDispose: () => {
 					pageMemo.deleteValue(view);
@@ -333,7 +335,7 @@ export function reactiveLog<T>(
 					ctx.state.set(st);
 					ctx.down([["DATA", st.acc]]);
 				},
-				{ factory: "reactiveLog.scan" },
+				{ factory: "reactiveLog.scan", name: moduleName(graph, undefined, `${name}/scan`) },
 			);
 		},
 

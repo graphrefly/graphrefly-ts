@@ -50,13 +50,15 @@ jobs:
         uses: actions/checkout@v7
         with:
           repository: graphrefly/graphrefly
-          ref: 4771691460538cd387197571d930128abdac90a2
+          ref: f2e23490bafe94745f720da3ced5f0fff6fccd65
           path: .tmp/conformance-root
           sparse-checkout: spec/fixtures
           persist-credentials: false
 
       - name: Run the shared D808 behavioral and refusal probes
         run: pnpm exec tsx scripts/probe-d797-rereview.ts .tmp/conformance-root/spec/fixtures/d797-rereview.v1.json
+      - name: Run the shared D809 node naming probes
+        run: pnpm exec tsx scripts/probe-node-naming.ts .tmp/conformance-root/spec/fixtures/node-naming.v1.json
 
       - run: pnpm test
 

@@ -223,7 +223,7 @@ describe("reactive-layout solution (D181) — part 2", () => {
 			],
 			{ name: "blocks" },
 		);
-		const maxWidth = g.state(100, { name: "max-width" });
+		const maxWidth = g.state(100, { name: "maxWidth" });
 		const measurements = blockMeasurementProvider({
 			graph: g,
 			blocks,
@@ -240,19 +240,19 @@ describe("reactive-layout solution (D181) — part 2", () => {
 
 		expect(renderSnapshot(bundle.graph).edges).toEqual(
 			expect.arrayContaining([
-				{ from: "blocks", to: "blocks-measurements" },
-				{ from: "max-width", to: "blocks-measurements" },
-				{ from: "block-adapters", to: "blocks-measurements" },
-				{ from: "font", to: "blocks-measurements" },
-				{ from: "blocks-measurements", to: "reactive-block-layout:measured-blocks" },
+				{ from: "blocks", to: "blocks/measurements" },
+				{ from: "maxWidth", to: "blocks/measurements" },
+				{ from: "block-adapters", to: "blocks/measurements" },
+				{ from: "font", to: "blocks/measurements" },
+				{ from: "blocks/measurements", to: "reactiveBlockLayout/measuredBlocks" },
 				{
-					from: "reactive-block-layout:measured-blocks",
-					to: "reactive-block-layout:block-flow",
+					from: "reactiveBlockLayout/measuredBlocks",
+					to: "reactiveBlockLayout/flow",
 				},
-				{ from: "reactive-block-layout:gap", to: "reactive-block-layout:block-flow" },
+				{ from: "reactiveBlockLayout/gap", to: "reactiveBlockLayout/flow" },
 				{
-					from: "reactive-block-layout:block-flow",
-					to: "reactive-block-layout:total-height",
+					from: "reactiveBlockLayout/flow",
+					to: "reactiveBlockLayout/height",
 				},
 			]),
 		);
@@ -270,7 +270,7 @@ describe("reactive-layout solution (D181) — part 2", () => {
 			[{ kind: "text", id: "copy", text: "aa", lineHeight: 10 }],
 			{ name: "blocks" },
 		);
-		const maxWidth = g.state(100, { name: "max-width" });
+		const maxWidth = g.state(100, { name: "maxWidth" });
 		const adapterA: MeasurementAdapter = {
 			measureSegment(segment) {
 				return { width: segment === "-" ? 1 : segment.length * 5 };
@@ -317,7 +317,7 @@ describe("reactive-layout solution (D181) — part 2", () => {
 		const measurements = blockMeasurementProvider({
 			graph: g,
 			blocks,
-			maxWidth: g.state(100, { name: "max-width" }),
+			maxWidth: g.state(100, { name: "maxWidth" }),
 			adapters: blockAdaptersNode(g),
 			font: g.state("font", { name: "font" }),
 		});
@@ -355,7 +355,7 @@ describe("reactive-layout solution (D181) — part 2", () => {
 			blockMeasurementProvider({
 				graph: hyphenGraph,
 				blocks: hyphenBlocks,
-				maxWidth: hyphenGraph.state(100, { name: "max-width" }),
+				maxWidth: hyphenGraph.state(100, { name: "maxWidth" }),
 				adapters: hyphenGraph.state<BlockAdapters>(
 					{ text: hyphenAdapter },
 					{ name: "block-adapters" },
@@ -389,7 +389,7 @@ describe("reactive-layout solution (D181) — part 2", () => {
 					sparseBlocks as readonly ContentBlock[],
 					{ name: "blocks" },
 				),
-				maxWidth: sparseGraph.state(100, { name: "max-width" }),
+				maxWidth: sparseGraph.state(100, { name: "maxWidth" }),
 				adapters: blockAdaptersNode(sparseGraph),
 				font: sparseGraph.state("font", { name: "font" }),
 			}),
@@ -451,7 +451,7 @@ describe("reactive-layout solution (D181) — part 2", () => {
 		const flow = reactiveFlowLayout({
 			graph: flowGraph,
 			measurements: flowMeasurements,
-			lineHeight: flowGraph.state(Number.NaN, { name: "line-height" }),
+			lineHeight: flowGraph.state(Number.NaN, { name: "lineHeight" }),
 			container: flowGraph.state<FlowContainer>(
 				{ width: Number.NaN, height: -1 },
 				{ name: "container" },
@@ -510,7 +510,7 @@ describe("reactive-layout solution (D181) — part 2", () => {
 		const blocks = blockGraph.state<readonly ContentBlock[]>([{ kind: "text", text: "boom" }], {
 			name: "blocks",
 		});
-		const maxWidth = blockGraph.state(100, { name: "max-width" });
+		const maxWidth = blockGraph.state(100, { name: "maxWidth" });
 		const blockMeasurements = blockMeasurementProvider({
 			graph: blockGraph,
 			blocks,
@@ -617,19 +617,19 @@ describe("reactive-layout solution (D181) — part 2", () => {
 
 		expect(renderSnapshot(bundle.graph).edges).toEqual(
 			expect.arrayContaining([
-				{ from: "text", to: "text-measurements" },
-				{ from: "font", to: "text-measurements" },
-				{ from: "measure-capability", to: "text-measurements" },
-				{ from: "text-measurements", to: "reactive-flow-layout:segments" },
-				{ from: "reactive-flow-layout:segments", to: "reactive-flow-layout:flow-lines" },
+				{ from: "text", to: "text/measurements" },
+				{ from: "font", to: "text/measurements" },
+				{ from: "measure-capability", to: "text/measurements" },
+				{ from: "text/measurements", to: "reactiveFlowLayout/segments" },
+				{ from: "reactiveFlowLayout/segments", to: "reactiveFlowLayout/lines" },
 				{
-					from: "reactive-flow-layout:line-height",
-					to: "reactive-flow-layout:flow-lines",
+					from: "reactiveFlowLayout/lineHeight",
+					to: "reactiveFlowLayout/lines",
 				},
-				{ from: "reactive-flow-layout:container", to: "reactive-flow-layout:flow-lines" },
-				{ from: "reactive-flow-layout:columns", to: "reactive-flow-layout:flow-lines" },
-				{ from: "reactive-flow-layout:obstacles", to: "reactive-flow-layout:flow-lines" },
-				{ from: "text-measurements", to: "reactive-flow-layout:flow-lines" },
+				{ from: "reactiveFlowLayout/container", to: "reactiveFlowLayout/lines" },
+				{ from: "reactiveFlowLayout/columns", to: "reactiveFlowLayout/lines" },
+				{ from: "reactiveFlowLayout/obstacles", to: "reactiveFlowLayout/lines" },
+				{ from: "text/measurements", to: "reactiveFlowLayout/lines" },
 			]),
 		);
 		expect(data<{ readonly lines: readonly unknown[] }>(flow.messages).at(-1)?.lines.length).toBe(

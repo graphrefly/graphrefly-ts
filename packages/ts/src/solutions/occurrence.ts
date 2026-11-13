@@ -1,6 +1,7 @@
 import type { Graph } from "../graph/graph.js";
 import { canonicalTupleKey } from "../identity.js";
 import { stableJsonString } from "../json/codec.js";
+import { assertLocalName } from "../node/naming.js";
 import type { Node } from "../node/node.js";
 import { merge } from "../operators/index.js";
 
@@ -56,6 +57,7 @@ export function solutionOccurrenceJoin<L, R, O>(
 		project: (left: L, right: R) => O;
 	}>,
 ): Node<SolutionOccurrence<O>> {
+	assertLocalName(opts.name);
 	if (!Number.isSafeInteger(opts.maxOccurrences) || opts.maxOccurrences < 1)
 		throw new TypeError("solution occurrence join bound must be positive");
 	type Arrival =
@@ -297,6 +299,7 @@ export function solutionOccurrenceProjection<TInput, TOutput>(
 		readonly identity?: (value: TInput, projected: TOutput) => unknown;
 	}>,
 ): Node<SolutionOccurrence<TOutput>> {
+	assertLocalName(opts.name);
 	if (!Number.isSafeInteger(opts.maxOccurrences) || opts.maxOccurrences < 1)
 		throw new TypeError("solution occurrence retention bound must be a positive safe integer");
 	return graph.node<SolutionOccurrence<TOutput>>(

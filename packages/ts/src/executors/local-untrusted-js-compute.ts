@@ -6,6 +6,7 @@ import {
 	topologyFromRender,
 } from "../graph/describe.js";
 import type { Graph } from "../graph/graph.js";
+import { moduleName } from "../graph/module-naming.js";
 import * as topologyModule from "../graph/topology.js";
 import { compoundTupleKey } from "../identity.js";
 import { strictCanonicalJsonBytes } from "../json/codec.js";
@@ -348,7 +349,7 @@ export function localUntrustedJsComputeRuntime(
 ): LocalUntrustedJsComputeRuntimeBundle {
 	if (opts.driver.compatibility !== LOCAL_UNTRUSTED_JS_COMPUTE_COMPATIBILITY)
 		throw new TypeError("Local untrusted JS compute driver compatibility mismatch.");
-	const name = opts.name ?? "localUntrustedJsCompute";
+	const name = moduleName(graph, opts.name, "localUntrustedJsCompute");
 	const group = topologyModule.group(graph, { name });
 	const outputNode = <T>(suffix: string, factory: string) =>
 		group.node<T>([], null, {

@@ -1,5 +1,6 @@
 import type { ConstructionScope, StartupFact } from "../../graph/construction-scope.js";
 import type { Graph } from "../../graph/graph.js";
+import { assertLocalName } from "../../node/naming.js";
 import type { Node } from "../../node/node.js";
 import { merge } from "../../operators/index.js";
 import type { Message } from "../../protocol/messages.js";
@@ -27,15 +28,15 @@ export function causalColdNodeNames(name: string): readonly string[] {
 	const suffixes = [
 		"input/occurrences",
 		"input/admissions",
-		"input/branch-terminals",
-		"input/effect-proposals",
-		"input/effect-admissions",
-		"input/effect-outcomes",
+		"input/branchTerminals",
+		"input/effectProposals",
+		"input/effectAdmissions",
+		"input/effectOutcomes",
 		"input/evidence",
 		"input/watermarks",
 		"arrivals",
 		"authority",
-		"release-candidates",
+		"releaseCandidates",
 		"released",
 		"currentness",
 		"terminals",
@@ -43,8 +44,8 @@ export function causalColdNodeNames(name: string): readonly string[] {
 		"coverage",
 		"quiescence",
 		"issues",
-		"causal-quiescence",
-		"committed-effects",
+		"capability",
+		"committedEffects",
 	];
 	return suffixes.map((suffix) => `${name}/${suffix}`);
 }
@@ -65,6 +66,7 @@ class PreparedCausalOptions<T> {
 export function prepareCausalOptions<T>(
 	opts: CausalOccurrenceBundleOptions<T>,
 ): PreparedCausalOptions<T> {
+	assertLocalName(opts.name);
 	for (const [label, bound] of [
 		["maxOccurrences", opts.maxOccurrences],
 		["maxPending", opts.maxPending],
@@ -154,15 +156,15 @@ export function buildCausalNodes<T>(
 		[
 			lane(graph, opts.occurrences, `${opts.name}/input/occurrences`, "occurrences"),
 			lane(graph, opts.admissions, `${opts.name}/input/admissions`, "admissions"),
-			lane(graph, opts.branchTerminals, `${opts.name}/input/branch-terminals`, "branch-terminals"),
-			lane(graph, opts.effectProposals, `${opts.name}/input/effect-proposals`, "effect-proposals"),
+			lane(graph, opts.branchTerminals, `${opts.name}/input/branchTerminals`, "branch-terminals"),
+			lane(graph, opts.effectProposals, `${opts.name}/input/effectProposals`, "effect-proposals"),
 			lane(
 				graph,
 				opts.effectAdmissions,
-				`${opts.name}/input/effect-admissions`,
+				`${opts.name}/input/effectAdmissions`,
 				"effect-admissions",
 			),
-			lane(graph, opts.effectOutcomes, `${opts.name}/input/effect-outcomes`, "effect-outcomes"),
+			lane(graph, opts.effectOutcomes, `${opts.name}/input/effectOutcomes`, "effect-outcomes"),
 			lane(graph, opts.evidence, `${opts.name}/input/evidence`, "evidence"),
 			lane(graph, opts.watermarks, `${opts.name}/input/watermarks`, "watermarks"),
 		],
@@ -229,7 +231,7 @@ export function buildCausalNodes<T>(
 		},
 	);
 
-	const rawRelease = projectFact(graph, authority, `${opts.name}/release-candidates`, "release");
+	const rawRelease = projectFact(graph, authority, `${opts.name}/releaseCandidates`, "release");
 	// The release boundary is one quiet node (graphrefly-ts:D172): it forwards each release
 	// candidate, and a quiet node's output goes out after the current wave as a wave of its own
 	// (R-wave), so nothing below waits on the authority's wave.
@@ -277,7 +279,7 @@ export function buildCausalNodes<T>(
 			}
 		},
 		{
-			name: `${opts.name}/committed-effects`,
+			name: `${opts.name}/committedEffects`,
 			factory: "causalCommittedEffectsProjection",
 			invalidate: "manual",
 		},
@@ -301,15 +303,15 @@ export function causalOccurrenceRequiredEdges(
 ): readonly Readonly<{ from: string; to: string }>[] {
 	const arrivals = `${name}/arrivals`;
 	const authority = `${name}/authority`;
-	const releaseCandidates = `${name}/release-candidates`;
+	const releaseCandidates = `${name}/releaseCandidates`;
 	const released = `${name}/released`;
 	const internal = [
 		{ from: `${name}/input/occurrences`, to: arrivals },
 		{ from: `${name}/input/admissions`, to: arrivals },
-		{ from: `${name}/input/branch-terminals`, to: arrivals },
-		{ from: `${name}/input/effect-proposals`, to: arrivals },
-		{ from: `${name}/input/effect-admissions`, to: arrivals },
-		{ from: `${name}/input/effect-outcomes`, to: arrivals },
+		{ from: `${name}/input/branchTerminals`, to: arrivals },
+		{ from: `${name}/input/effectProposals`, to: arrivals },
+		{ from: `${name}/input/effectAdmissions`, to: arrivals },
+		{ from: `${name}/input/effectOutcomes`, to: arrivals },
 		{ from: `${name}/input/evidence`, to: arrivals },
 		{ from: `${name}/input/watermarks`, to: arrivals },
 		{ from: arrivals, to: authority },
@@ -321,15 +323,15 @@ export function causalOccurrenceRequiredEdges(
 		{ from: authority, to: `${name}/coverage` },
 		{ from: authority, to: `${name}/quiescence` },
 		{ from: authority, to: `${name}/issues` },
-		{ from: authority, to: `${name}/committed-effects` },
+		{ from: authority, to: `${name}/committedEffects` },
 	];
 	const inputLanes = [
 		"occurrences",
 		"admissions",
-		"branch-terminals",
-		"effect-proposals",
-		"effect-admissions",
-		"effect-outcomes",
+		"branchTerminals",
+		"effectProposals",
+		"effectAdmissions",
+		"effectOutcomes",
 		"evidence",
 		"watermarks",
 	];
@@ -359,10 +361,10 @@ export function assertCausalOccurrenceTopology(
 	for (const laneName of [
 		"occurrences",
 		"admissions",
-		"branch-terminals",
-		"effect-proposals",
-		"effect-admissions",
-		"effect-outcomes",
+		"branchTerminals",
+		"effectProposals",
+		"effectAdmissions",
+		"effectOutcomes",
 		"evidence",
 		"watermarks",
 	]) {

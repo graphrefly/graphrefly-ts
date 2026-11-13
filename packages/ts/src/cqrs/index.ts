@@ -1,3 +1,4 @@
+import { moduleName } from "../graph/module-naming.js";
 /**
  * Reusable application-infrastructure CQRS helpers (B63 / D125 / D129).
  *
@@ -236,7 +237,7 @@ export function cqrs<TCommand = unknown, TEvent = unknown>(
 	graph: Graph,
 	opts: CqrsOptions<TCommand, TEvent> = {},
 ): CqrsBundle<TCommand, TEvent> {
-	const name = opts.name ?? "cqrs";
+	const name = moduleName(graph, opts.name, "cqrs");
 	const handlers = normalizeHandlers(opts.handlers ?? []);
 	const knownEvents =
 		opts.events === undefined ? undefined : new Set(uniqueNames(opts.events, "cqrs.events"));
@@ -377,7 +378,7 @@ export function cqrsProjection<TState, TEvent = unknown>(
 	source: Pick<CqrsBundle<unknown, TEvent>, "events">,
 	opts: CqrsProjectionOptions<TState, TEvent>,
 ): CqrsProjection<TState> {
-	const name = opts.name ?? "cqrsProjection";
+	const name = moduleName(graph, opts.name, "cqrsProjection");
 	const eventFilter =
 		opts.events === undefined
 			? undefined

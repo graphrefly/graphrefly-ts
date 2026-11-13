@@ -1,5 +1,6 @@
 import type { DataIssue } from "../../data/index.js";
 import type { Graph } from "../../graph/graph.js";
+import { moduleName } from "../../graph/module-naming.js";
 import { canonicalTupleKey, compoundTupleKey } from "../../identity.js";
 import { stableJsonString, strictJsonCodec } from "../../json/codec.js";
 import type { EffectRunResult, SourceRef } from "../../orchestration/agent-runtime.js";
@@ -112,7 +113,7 @@ export function agenticWorkItemMemoryBridgeBundle<TInput = unknown, TRecord = un
 	graph: Graph,
 	opts: AgenticWorkItemMemoryBridgeBundleOptions<TInput, TRecord>,
 ): AgenticWorkItemMemoryBridgeBundle<TInput, TRecord> {
-	const name = opts.name ?? "agenticWorkItemMemoryBridge";
+	const name = moduleName(graph, opts.name, "agenticWorkItemMemoryBridge");
 	const projection = solutionOccurrenceProjection(graph, opts.occurrences, {
 		name: `${name}/projection`,
 		factory: "agenticWorkItemMemoryBridge",

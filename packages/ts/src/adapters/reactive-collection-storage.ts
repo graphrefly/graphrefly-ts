@@ -20,7 +20,10 @@ import type {
 } from "../graph/data-structures/change.js";
 import type { IndexRow } from "../graph/data-structures/reactive-index.js";
 import { assertGraphLocalNode, type Graph, type StateNode } from "../graph/graph.js";
+import { moduleName } from "../graph/module-naming.js";
+import { assertLocalName } from "../node/naming.js";
 import type { Node } from "../node/node.js";
+import { graphNodeIdOf } from "../node/runtime-accessors.js";
 import type { Message } from "../protocol/messages.js";
 import type {
 	AppendLogEntry,
@@ -183,8 +186,10 @@ export function persistReactiveCollection<T, K extends PersistableKind>(
 	opts: PersistReactiveCollectionOptions<K>,
 ): ReactiveCollectionPersistenceHandle {
 	const kind = opts.kind;
-	const name = opts.name ?? `${kind}.persistence`;
-	const snapshotKey = opts.snapshotKey ?? collectionSnapshotKey(opts.storagePrefix ?? name);
+	const name = moduleName(graph, opts.name, `${kind}/persistence`);
+	const snapshotKey =
+		opts.snapshotKey ??
+		collectionSnapshotKey(opts.storagePrefix ?? opts.name ?? `${kind}.persistence`);
 	const snapshotEveryChanges = validateSnapshotEveryChanges(opts.snapshotEveryChanges);
 	assertGraphLocalNode(graph, collection.delta as Node<unknown>, `${name}.collection.delta`);
 	assertGraphLocalNode(graph, collection.snapshot as Node<unknown>, `${name}.collection.snapshot`);
@@ -540,6 +545,7 @@ export function openPersistentReactiveList<T = unknown>(
 	graph: Graph,
 	opts: OpenPersistentReactiveListOptions<T>,
 ): Promise<PersistentReactiveList<T>> {
+	assertLocalName(opts.name);
 	const storagePrefix = opts.storagePrefix ?? opts.name ?? "reactive-collection";
 	const snapshotKey = opts.snapshotKey ?? collectionSnapshotKey(storagePrefix);
 	const loadOpts = { ...opts, snapshotKey, storagePrefix };
@@ -555,7 +561,7 @@ export function openPersistentReactiveList<T = unknown>(
 		const persistence = persistReactiveCollection<T, "reactiveList">(graph, collection, {
 			...opts,
 			kind: "reactiveList",
-			name: opts.name ? `${opts.name}/persistence` : undefined,
+			name: `${graphNodeIdOf(collection.delta).slice(0, -"/delta".length)}/persistence`,
 			snapshotKey,
 			storagePrefix,
 			initialChangeCursor: loaded.changes.cursor,
@@ -578,6 +584,7 @@ export function openPersistentReactiveLog<T = unknown>(
 	graph: Graph,
 	opts: OpenPersistentReactiveLogOptions<T>,
 ): Promise<PersistentReactiveLog<T>> {
+	assertLocalName(opts.name);
 	const storagePrefix = opts.storagePrefix ?? opts.name ?? "reactive-collection";
 	const snapshotKey = opts.snapshotKey ?? collectionSnapshotKey(storagePrefix);
 	const loadOpts = { ...opts, snapshotKey, storagePrefix };
@@ -593,7 +600,7 @@ export function openPersistentReactiveLog<T = unknown>(
 		const persistence = persistReactiveCollection<T, "reactiveLog">(graph, collection, {
 			...opts,
 			kind: "reactiveLog",
-			name: opts.name ? `${opts.name}/persistence` : undefined,
+			name: `${graphNodeIdOf(collection.delta).slice(0, -"/delta".length)}/persistence`,
 			snapshotKey,
 			storagePrefix,
 			initialChangeCursor: loaded.changes.cursor,
@@ -616,6 +623,7 @@ export function openPersistentReactiveMap<K = unknown, V = unknown>(
 	graph: Graph,
 	opts: OpenPersistentReactiveMapOptions<K, V>,
 ): Promise<PersistentReactiveMap<K, V>> {
+	assertLocalName(opts.name);
 	const storagePrefix = opts.storagePrefix ?? opts.name ?? "reactive-collection";
 	const snapshotKey = opts.snapshotKey ?? collectionSnapshotKey(storagePrefix);
 	const loadOpts = { ...opts, snapshotKey, storagePrefix };
@@ -631,7 +639,7 @@ export function openPersistentReactiveMap<K = unknown, V = unknown>(
 		const persistence = persistReactiveCollection<V, "reactiveMap">(graph, collection, {
 			...opts,
 			kind: "reactiveMap",
-			name: opts.name ? `${opts.name}/persistence` : undefined,
+			name: `${graphNodeIdOf(collection.delta).slice(0, -"/delta".length)}/persistence`,
 			snapshotKey,
 			storagePrefix,
 			initialChangeCursor: loaded.changes.cursor,
@@ -654,6 +662,7 @@ export function openPersistentReactiveIndex<K = unknown, V = unknown>(
 	graph: Graph,
 	opts: OpenPersistentReactiveIndexOptions<K, V>,
 ): Promise<PersistentReactiveIndex<K, V>> {
+	assertLocalName(opts.name);
 	const storagePrefix = opts.storagePrefix ?? opts.name ?? "reactive-collection";
 	const snapshotKey = opts.snapshotKey ?? collectionSnapshotKey(storagePrefix);
 	const loadOpts = { ...opts, snapshotKey, storagePrefix };
@@ -669,7 +678,7 @@ export function openPersistentReactiveIndex<K = unknown, V = unknown>(
 		const persistence = persistReactiveCollection<V, "reactiveIndex">(graph, collection, {
 			...opts,
 			kind: "reactiveIndex",
-			name: opts.name ? `${opts.name}/persistence` : undefined,
+			name: `${graphNodeIdOf(collection.delta).slice(0, -"/delta".length)}/persistence`,
 			snapshotKey,
 			storagePrefix,
 			initialChangeCursor: loaded.changes.cursor,

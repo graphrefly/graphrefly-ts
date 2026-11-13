@@ -1,5 +1,6 @@
 import type { DataIssue } from "../../data/index.js";
 import type { Graph } from "../../graph/graph.js";
+import { moduleName } from "../../graph/module-naming.js";
 import { cloneStrictJsonValue } from "../../json/codec.js";
 import type { Node } from "../../node/node.js";
 import {
@@ -356,7 +357,7 @@ export function agenticMemoryDurabilityGateBundle<TJson extends StrictJsonValue 
 	graph: Graph,
 	opts: AgenticMemoryDurabilityGateBundleOptions<TJson>,
 ): AgenticMemoryDurabilityGateBundle<TJson> {
-	const name = opts.name ?? "agenticMemoryDurabilityGate";
+	const name = moduleName(graph, opts.name, "agenticMemoryDurabilityGate");
 	const projection = graph.node<AgenticMemoryDurabilityGateProjection>(
 		[opts.attemptResult],
 		(ctx) => {

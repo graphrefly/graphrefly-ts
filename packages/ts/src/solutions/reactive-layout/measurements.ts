@@ -1,6 +1,8 @@
 import type { Ctx } from "../../ctx/types.js";
 import type { DataIssue } from "../../data/index.js";
 import type { Graph, StateNode } from "../../graph/graph.js";
+import { moduleName } from "../../graph/module-naming.js";
+import { assertLocalName } from "../../node/naming.js";
 import { Node } from "../../node/node.js";
 import {
 	CapabilityMeasureAdapter,
@@ -315,7 +317,9 @@ export function inputNode<T>(
  * @category reactive-layout
  */
 export function scopedName(scope: string, local: string): string {
-	return scope === local ? local : `${scope}:${local}`;
+	assertLocalName(scope);
+	assertLocalName(local);
+	return scope === local ? local : `${scope}/${local}`;
 }
 
 /** Generic sync text measurement provider that emits graph-visible measurement facts.
@@ -328,9 +332,11 @@ export function scopedName(scope: string, local: string): string {
  * ```
  */
 export function textMeasurementProvider(opts: TextMeasurementProviderOptions): Node<Measurements> {
+	assertLocalName(opts.name ?? opts.targetId ?? "text");
 	const targetId = opts.targetId ?? "text";
-	const name = opts.name ?? `${targetId}-measurements`;
-	const source = opts.source ?? name;
+	if (opts.name === undefined) assertLocalName(targetId);
+	const name = moduleName(opts.graph, opts.name, `${targetId}/measurements`);
+	const source = opts.source ?? opts.name ?? `${targetId}-measurements`;
 	const cache = new Map<string, Map<string, number>>();
 	let activeAdapter: MeasurementAdapter | null = null;
 	// R-lifetime: the cache is flushed when a lifetime closes (the setup's cleanup) and on INVALIDATE.
@@ -385,13 +391,16 @@ export function textMeasurementProvider(opts: TextMeasurementProviderOptions): N
 export function injectedTextMeasurements(
 	opts: InjectedTextMeasurementsOptions,
 ): Node<Measurements> {
+	assertLocalName(opts.name ?? opts.targetId ?? "text");
 	const targetId = opts.targetId ?? "text";
 	const adapter = opts.graph.state<MeasurementAdapter>(
 		new InjectedMeasureAdapter(opts.measure, { cache: opts.cache }),
 		{
-			name: opts.name
-				? scopedName(opts.name, "measure-capability")
-				: `${targetId}-measure-capability`,
+			name: moduleName(
+				opts.graph,
+				opts.name === undefined ? undefined : scopedName(opts.name, "capability"),
+				`${targetId}/capability`,
+			),
 		},
 	);
 	return textMeasurementProvider({
@@ -413,11 +422,14 @@ export function injectedTextMeasurements(
 export function precomputedTextMeasurements(
 	opts: PrecomputedTextMeasurementsOptions,
 ): Node<Measurements> {
+	assertLocalName(opts.name ?? opts.targetId ?? "text");
 	const targetId = opts.targetId ?? "text";
 	const adapter = opts.graph.state<MeasurementAdapter>(new PrecomputedMeasureAdapter(opts), {
-		name: opts.name
-			? scopedName(opts.name, "measure-capability")
-			: `${targetId}-measure-capability`,
+		name: moduleName(
+			opts.graph,
+			opts.name === undefined ? undefined : scopedName(opts.name, "capability"),
+			`${targetId}/capability`,
+		),
 	});
 	return textMeasurementProvider({
 		...opts,
@@ -436,11 +448,14 @@ export function precomputedTextMeasurements(
  * ```
  */
 export function cellTextMeasurements(opts: CellTextMeasurementsOptions): Node<Measurements> {
+	assertLocalName(opts.name ?? opts.targetId ?? "text");
 	const targetId = opts.targetId ?? "text";
 	const adapter = opts.graph.state<MeasurementAdapter>(new CellMeasureAdapter(opts), {
-		name: opts.name
-			? scopedName(opts.name, "measure-capability")
-			: `${targetId}-measure-capability`,
+		name: moduleName(
+			opts.graph,
+			opts.name === undefined ? undefined : scopedName(opts.name, "capability"),
+			`${targetId}/capability`,
+		),
 	});
 	return textMeasurementProvider({
 		...opts,
@@ -461,6 +476,7 @@ export function cellTextMeasurements(opts: CellTextMeasurementsOptions): Node<Me
 export function capabilityTextMeasurements(
 	opts: CapabilityTextMeasurementsOptions,
 ): Node<Measurements> {
+	assertLocalName(opts.name ?? opts.targetId ?? "text");
 	const targetId = opts.targetId ?? "text";
 	const adapter = opts.graph.node<MeasurementAdapter>(
 		[opts.capability],
@@ -470,9 +486,11 @@ export function capabilityTextMeasurements(
 			]);
 		},
 		{
-			name: opts.name
-				? scopedName(opts.name, "measure-capability")
-				: `${targetId}-measure-capability`,
+			name: moduleName(
+				opts.graph,
+				opts.name === undefined ? undefined : scopedName(opts.name, "capability"),
+				`${targetId}/capability`,
+			),
 		},
 	);
 	return textMeasurementProvider({
@@ -494,9 +512,11 @@ export function capabilityTextMeasurements(
 export function readinessTextMeasurements(
 	opts: ReadinessTextMeasurementsOptions,
 ): Node<Measurements> {
+	assertLocalName(opts.name ?? opts.targetId ?? "text");
 	const targetId = opts.targetId ?? "text";
-	const name = opts.name ?? `${targetId}-measurements`;
-	const source = opts.source ?? name;
+	if (opts.name === undefined) assertLocalName(targetId);
+	const name = moduleName(opts.graph, opts.name, `${targetId}/measurements`);
+	const source = opts.source ?? opts.name ?? `${targetId}-measurements`;
 	const cache = new Map<string, Map<string, number>>();
 	let activeAdapter: MeasurementAdapter | null = null;
 	let activeReadiness: MeasurementReadiness | null = null;
@@ -578,10 +598,11 @@ export function readinessTextMeasurements(
  * ```
  */
 export function readinessMeasurements(opts: ReadinessMeasurementsOptions): Node<Measurements> {
+	assertLocalName(opts.name ?? opts.targetId);
 	const targetId = opts.targetId ?? "measurement-readiness";
 	const measurementKind = opts.measurementKind ?? READINESS_MEASUREMENT_KIND;
-	const name = opts.name ?? `${targetId}-measurements`;
-	const source = opts.source ?? name;
+	const name = moduleName(opts.graph, opts.name, `${opts.targetId ?? "readiness"}/measurements`);
+	const source = opts.source ?? opts.name ?? `${targetId}-measurements`;
 	return opts.graph.node<Measurements>(
 		[opts.readiness],
 		(ctx: Ctx) => {
@@ -635,8 +656,8 @@ export function readinessMeasurements(opts: ReadinessMeasurementsOptions): Node<
  */
 export function imageSizeMeasurements(opts: ImageSizeMeasurementsOptions): Node<Measurements> {
 	const measurementKind = opts.measurementKind ?? IMAGE_SIZE_MEASUREMENT_KIND;
-	const name = opts.name ?? "image-size-measurements";
-	const source = opts.source ?? name;
+	const name = moduleName(opts.graph, opts.name, "imageMeasurements");
+	const source = opts.source ?? opts.name ?? "image-size-measurements";
 	return opts.graph.node<Measurements>(
 		[opts.images, opts.measurer],
 		(ctx: Ctx) => {
@@ -693,8 +714,8 @@ export function imageSizeMeasurements(opts: ImageSizeMeasurementsOptions): Node<
  */
 export function svgBoundsMeasurements(opts: SvgBoundsMeasurementsOptions): Node<Measurements> {
 	const measurementKind = opts.measurementKind ?? SVG_BOUNDS_MEASUREMENT_KIND;
-	const name = opts.name ?? "svg-bounds-measurements";
-	const source = opts.source ?? name;
+	const name = moduleName(opts.graph, opts.name, "svgMeasurements");
+	const source = opts.source ?? opts.name ?? "svg-bounds-measurements";
 	return opts.graph.node<Measurements>(
 		[opts.svgs, opts.measurer],
 		(ctx: Ctx) => {
@@ -760,7 +781,7 @@ export function mergeMeasurements(opts: MergeMeasurementsOptions): Node<Measurem
 			}
 			ctx.down([["DATA", facts]]);
 		},
-		{ name: opts.name ?? "measurements" },
+		{ name: moduleName(opts.graph, opts.name, "measurements") },
 	);
 }
 
@@ -805,7 +826,7 @@ export function blockAdaptersProvider(opts: BlockAdaptersProviderOptions): Node<
 			};
 			ctx.down([["DATA", adapters]]);
 		},
-		{ name: opts.name ?? "block-adapters" },
+		{ name: moduleName(opts.graph, opts.name, "blockAdapters") },
 	);
 }
 
@@ -822,8 +843,9 @@ export function blockMeasurementProvider(
 	opts: BlockMeasurementProviderOptions,
 ): Node<Measurements> {
 	const targetId = opts.targetId ?? "blocks";
-	const name = opts.name ?? `${targetId}-measurements`;
-	const source = opts.source ?? name;
+	if (opts.name === undefined) assertLocalName(targetId);
+	const name = moduleName(opts.graph, opts.name, `${targetId}/measurements`);
+	const source = opts.source ?? opts.name ?? `${targetId}-measurements`;
 	const cache = new Map<string, Map<string, number>>();
 	let activeTextAdapter: MeasurementAdapter | undefined;
 	const deps = [opts.blocks, opts.maxWidth, opts.adapters] as Node<unknown>[];

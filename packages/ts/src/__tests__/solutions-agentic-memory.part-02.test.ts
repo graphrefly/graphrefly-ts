@@ -794,7 +794,7 @@ describe("AgenticMemory D589 committed fact-log contract", () => {
 		expect(materializeAgenticMemoryCommittedFacts(read.facts).records).toEqual([committedRecord]);
 	});
 
-	it("materializes records/priorEvidence by library materialization and preserves snapshot+tail equivalence", async () => {
+	it("materializes records/prior by library materialization and preserves snapshot+tail equivalence", async () => {
 		const applied = applyAgenticMemoryRecordAdmissions(
 			[admitted({ admissionId: "d589-evidence", proposalId: "d589-evidence" })],
 			applicationPolicy(),
@@ -2341,7 +2341,7 @@ describe("AgenticMemory D590 durable-result gate boundary", () => {
 });
 
 describe("AgenticMemory D591 fact-log read materialization re-entry boundary", () => {
-	it("projects explicit read-result DATA into deterministic records/priorEvidence/evidence", async () => {
+	it("projects explicit read-result DATA into deterministic records/prior/evidence", async () => {
 		const log = memoryAgenticMemoryCommittedFactLog();
 		const firstRecord = record({
 			id: "record-d591-stream-order",
@@ -3043,7 +3043,7 @@ describe("AgenticMemory D593 materialized fact-log bootstrap/re-entry boundary",
 		expect(renderSnapshot(g).edges).toEqual(
 			expect.arrayContaining([
 				{ from: "materialization", to: "bootstrap/projection" },
-				{ from: "bootstrap/projection", to: "bootstrap/bootstrapInput" },
+				{ from: "bootstrap/projection", to: "bootstrap/input" },
 				{ from: "bootstrap/projection", to: "bootstrap/records" },
 				{ from: "bootstrap/projection", to: "bootstrap/priorEvidence" },
 				{ from: "bootstrap/projection", to: "bootstrap/evidence" },
@@ -4222,8 +4222,8 @@ describe("agentic memory consolidation bundle (D171)", () => {
 				{ from: "consolidation/occurrences", to: "consolidation/projection" },
 				{ from: "consolidation/occurrences", to: "consolidation/projection" },
 				{ from: "consolidation/projection", to: "consolidation/results" },
-				{ from: "consolidation/projection", to: "consolidation/proposedRecordDrafts" },
-				{ from: "consolidation/projection", to: "consolidation/recordProposals" },
+				{ from: "consolidation/projection", to: "consolidation/drafts" },
+				{ from: "consolidation/projection", to: "consolidation/proposals" },
 				{ from: "consolidation/projection", to: "consolidation/commands" },
 			]),
 		);
@@ -4357,15 +4357,15 @@ describe("agentic memory consolidation bundle (D171)", () => {
 		expect(renderSnapshot(g).edges).toEqual(
 			expect.arrayContaining([
 				{
-					from: "consolidationApplication/consolidation/recordProposals",
-					to: "consolidationApplication/admission-input/right",
+					from: "consolidationApplication/consolidation/proposals",
+					to: "consolidationApplication/admissionInput/right",
 				},
 				{
 					from: "consolidationApplication/admission/admissions",
-					to: "consolidationApplication/application-input/right",
+					to: "consolidationApplication/applicationInput/right",
 				},
 				{
-					from: "consolidationApplication/application-input",
+					from: "consolidationApplication/applicationInput",
 					to: "consolidationApplication/application/projection",
 				},
 				{
@@ -5277,7 +5277,7 @@ describe("agentic memory admission policy source projection (D583)", () => {
 		expect(renderSnapshot(g).edges).toEqual(
 			expect.arrayContaining([
 				{ from: "policySources", to: "policySource/projection" },
-				{ from: "policySource/projection", to: "policySource/admissionPolicy" },
+				{ from: "policySource/projection", to: "policySource/policy" },
 				{ from: "policySource/projection", to: "policySource/status" },
 				{ from: "policySource/projection", to: "policySource/issues" },
 				{ from: "policySource/projection", to: "policySource/audit" },
@@ -7113,7 +7113,7 @@ describe("agentic memory record application projector (D577)", () => {
 				{ from: "application/occurrences", to: "application/projection" },
 				{ from: "application/projection", to: "application/records" },
 				{ from: "application/projection", to: "application/appliedRecords" },
-				{ from: "application/projection", to: "application/applicationDecisions" },
+				{ from: "application/projection", to: "application/decisions" },
 				{ from: "application/projection", to: "application/status" },
 				{ from: "application/projection", to: "application/operationStatuses" },
 			]),
@@ -7500,19 +7500,19 @@ describe("agentic memory record application projector (D577)", () => {
 		const edges = renderSnapshot(g).edges;
 		expect(edges).toEqual(
 			expect.arrayContaining([
-				{ from: "application/projection", to: "application/applicationDecisions" },
+				{ from: "application/projection", to: "application/decisions" },
 				{
 					from: "application/decision-values",
 					to: "history/evidenceFacts/projection",
 				},
-				{ from: "history/evidenceFacts/projection", to: "history/evidenceFacts/evidenceFacts" },
-				{ from: "history/evidenceFacts/projection", to: "history/evidenceFacts/priorEvidence" },
+				{ from: "history/evidenceFacts/projection", to: "history/evidenceFacts" },
+				{ from: "history/evidenceFacts/projection", to: "history/evidenceFacts/prior" },
 			]),
 		);
 		expect(edges).not.toEqual(
 			expect.arrayContaining([
-				{ from: "history/evidenceFacts/priorEvidence", to: "application/projection" },
-				{ from: "history/evidenceFacts/evidenceFacts", to: "application/projection" },
+				{ from: "history/evidenceFacts/prior", to: "application/projection" },
+				{ from: "history/evidenceFacts", to: "application/projection" },
 			]),
 		);
 		expect(
@@ -7611,8 +7611,8 @@ describe("agentic memory record application projector (D577)", () => {
 		expect(renderSnapshot(g).edges).toEqual(
 			expect.arrayContaining([
 				{ from: "persisted/evidenceFacts", to: "history/prior/projection" },
-				{ from: "history/prior/projection", to: "history/prior/priorEvidence" },
-				{ from: "history/prior/priorEvidence", to: "caller/later-occurrence" },
+				{ from: "history/prior/projection", to: "history/prior" },
+				{ from: "history/prior", to: "caller/later-occurrence" },
 				{ from: "caller/later-occurrence", to: "later/application/projection" },
 			]),
 		);
@@ -8686,7 +8686,7 @@ describe("agentic memory context packing (D168)", () => {
 				{ from: "context", to: "packing/projection" },
 				{ from: "texts", to: "packing/projection" },
 				{ from: "policy", to: "packing/projection" },
-				{ from: "packing/projection", to: "packing/packedContext" },
+				{ from: "packing/projection", to: "packing/context" },
 				{ from: "packing/projection", to: "packing/status" },
 				{ from: "packing/projection", to: "packing/errors" },
 				{ from: "packing/projection", to: "packing/cursor" },

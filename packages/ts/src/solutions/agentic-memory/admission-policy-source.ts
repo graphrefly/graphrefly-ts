@@ -1,5 +1,6 @@
 import type { DataIssue } from "../../data/index.js";
 import type { Graph } from "../../graph/graph.js";
+import { moduleName } from "../../graph/module-naming.js";
 import { canonicalTupleKey, compoundTupleKey } from "../../identity.js";
 import type { FactId } from "../../patterns/semantic-memory.js";
 import { solutionProjection } from "./projection.js";
@@ -122,7 +123,7 @@ export function agenticMemoryRecordAdmissionPolicySourceBundle(
 	graph: Graph,
 	opts: AgenticMemoryRecordAdmissionPolicySourceBundleOptions,
 ): AgenticMemoryRecordAdmissionPolicySourceBundle {
-	const name = opts.name ?? "agenticMemoryRecordAdmissionPolicySource";
+	const name = moduleName(graph, opts.name, "agenticMemoryRecordAdmissionSource");
 	const projection = graph.node<AgenticMemoryRecordAdmissionPolicySourceProjection>(
 		[opts.policySources],
 		(ctx) => {
@@ -153,7 +154,7 @@ export function agenticMemoryRecordAdmissionPolicySourceBundle(
 		admissionPolicy: solutionProjection(
 			graph,
 			projection,
-			`${name}/admissionPolicy`,
+			`${name}/policy`,
 			"agenticMemoryRecordAdmissionPolicySourcePolicy",
 			(fact) => fact.admissionPolicy,
 		),

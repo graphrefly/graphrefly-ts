@@ -1,5 +1,6 @@
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
+import { moduleName } from "../graph/module-naming.js";
 import { canonicalTupleKey, compoundTupleKey, parseCanonicalTupleKey } from "../identity.js";
 import type { Node } from "../node/node.js";
 import type {
@@ -156,7 +157,7 @@ export function workQueueScheduledReadinessProjector<T = unknown>(
 		readonly records: Node<WorkQueueRecord<T>>;
 	},
 ): WorkQueueScheduledReadinessBundle {
-	const name = opts.name ?? "workQueueScheduledReadiness";
+	const name = moduleName(graph, opts.name, "workQueueScheduledReadiness");
 	const runtime = graph.node<WorkQueueScheduledReadinessFact>(
 		[opts.records],
 		(ctx) => {
@@ -216,7 +217,7 @@ export function workQueueScheduledReadinessProjector<T = unknown>(
 		readinessSchedules: projectRuntimeFact(
 			graph,
 			runtime,
-			`${name}/readinessSchedules`,
+			`${name}/schedules`,
 			"workQueueScheduledReadinessSchedules",
 			(fact) => (fact.kind === "readiness-schedule" ? fact.schedule : undefined),
 		),
@@ -275,7 +276,7 @@ export function workQueueReadinessHandoffProjector<T = unknown>(
 		readonly overdue?: Node<ScheduledReadinessOverdue>;
 	},
 ): WorkQueueReadinessHandoffBundle {
-	const name = opts.name ?? "workQueueReadinessHandoff";
+	const name = moduleName(graph, opts.name, "workQueueReadinessHandoff");
 	const deps =
 		opts.overdue === undefined
 			? ([opts.records, opts.ready] as const)
@@ -365,7 +366,7 @@ export function workQueueLeaseExpirationCommandProjector<T = unknown>(
 		readonly candidates: Node<WorkQueueReadinessCandidate>;
 	},
 ): WorkQueueLeaseExpirationCommandBundle<T> {
-	const name = opts.name ?? "workQueueLeaseExpirationCommands";
+	const name = moduleName(graph, opts.name, "workQueueLeaseExpirationCommands");
 	const runtime = graph.node<WorkQueueLeaseExpirationCommandFact<T>>(
 		[opts.candidates],
 		(ctx) => {
@@ -408,7 +409,7 @@ export function workQueueLeaseExpirationCommandProjector<T = unknown>(
 		commands: projectRuntimeFact(
 			graph,
 			runtime,
-			`${name}/commands`,
+			name,
 			"workQueueLeaseExpirationCommands",
 			(fact) => (fact.kind === "command" ? fact.command : undefined),
 		),

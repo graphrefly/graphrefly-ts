@@ -1,5 +1,6 @@
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
+import { moduleName } from "../graph/module-naming.js";
 import { canonicalTupleKey, compoundTupleKey } from "../identity.js";
 import type { Node } from "../node/node.js";
 import {
@@ -38,7 +39,7 @@ export function executorOutcomeViewProjector(
 		readonly policy?: ExecutorOutcomeViewPolicy;
 	},
 ): ExecutorOutcomeViewBundle {
-	const name = opts.name ?? "executorOutcomeViews";
+	const name = moduleName(graph, opts.name, "executorOutcomeViews");
 	const policy = {
 		audience: opts.policy?.audience ?? "agent-observation",
 		maxSummaryChars: opts.policy?.maxSummaryChars ?? 512,
@@ -78,7 +79,7 @@ export function executorOutcomeViewProjector(
 		{ name: `${name}/runtime`, factory: "executorOutcomeViewProjector" },
 	);
 	return {
-		views: projectRuntimeFact(graph, runtime, `${name}/views`, "executorOutcomeViews", (fact) =>
+		views: projectRuntimeFact(graph, runtime, name, "executorOutcomeViews", (fact) =>
 			fact.kind === "view" ? fact.view : undefined,
 		),
 		issues: projectRuntimeFact(

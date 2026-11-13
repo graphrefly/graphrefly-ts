@@ -1,3 +1,4 @@
+import { moduleName } from "../graph/module-naming.js";
 /**
  * Event-flow projector helpers (D326/D329/D331).
  *
@@ -176,8 +177,8 @@ export function eventFlow<T = unknown>(
 	graph: Graph,
 	opts: EventFlowOptions<T>,
 ): EventFlowBundle<T> {
-	const name = opts.name ?? opts.flowId ?? "eventFlow";
-	const flowId = opts.flowId ?? name;
+	const name = moduleName(graph, opts.name ?? opts.flowId, "eventFlow");
+	const flowId = opts.flowId ?? opts.name ?? "eventFlow";
 	const now = opts.now ?? Date.now;
 	const sources = normalizeSources(opts.sources);
 	// The user's Q13 (graphrefly-ts:D180): the sequences and high water are the flow's ledger, a
@@ -247,8 +248,8 @@ export function eventFlowProjection<TState, TPayload = unknown>(
 	opts: EventFlowProjectionOptions<TState, TPayload>,
 ): EventFlowProjectionBundle<TState> {
 	const records = isEventFlowBundle(flowOrRecords) ? flowOrRecords.records : flowOrRecords;
-	const name = opts.name ?? opts.projectionId ?? "eventFlowProjection";
-	const projectionId = opts.projectionId ?? name;
+	const name = moduleName(graph, opts.name ?? opts.projectionId, "eventFlowProjection");
+	const projectionId = opts.projectionId ?? opts.name ?? "eventFlowProjection";
 	const now = opts.now ?? Date.now;
 	type ProjectionState = {
 		value: TState;

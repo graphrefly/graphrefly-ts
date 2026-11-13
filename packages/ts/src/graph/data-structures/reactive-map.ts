@@ -1,3 +1,4 @@
+import { moduleName } from "../module-naming.js";
 /**
  * Reactive key–value map (CSP-2.8, D54/D60/D68) — two-port collection with policy opts.
  *
@@ -343,11 +344,12 @@ function createReactiveMap<K, V>(
 	options: ReactiveMapOptions<K, V>,
 	initialEntries: readonly (readonly [K, V])[] = [],
 ): ReactiveMap<K, V> {
-	const { maxSize, defaultTtl, retention, viewCache, now, name } = options;
+	const { maxSize, defaultTtl, retention, viewCache, now } = options;
+	const name = moduleName(graph, options.name, "reactiveMap");
 	const backend = new MapBackend<K, V>({ now });
 	for (const [key, value] of initialEntries) backend.set(key, value);
 	const restorable =
-		name !== undefined &&
+		options.name !== undefined &&
 		maxSize === undefined &&
 		defaultTtl === undefined &&
 		retention === undefined;
@@ -388,7 +390,7 @@ function createReactiveMap<K, V>(
 			opts: { initial: value },
 		};
 		return graph.initNode(op, [], {
-			name: name ? `${name}.${label}` : undefined,
+			name: name ? `${name}/${label}` : undefined,
 			meta: { kind: "collection_policy", collection: "reactiveMap", policy: label },
 		});
 	}
@@ -405,7 +407,7 @@ function createReactiveMap<K, V>(
 	// The map's host input: its methods write intents here (graphrefly-ts:D175).
 	const intent = graph.node<MapIntent<K, V>>([], null, {
 		factory: "reactiveMap.intent",
-		name: name ? `${name}.intent` : undefined,
+		name: name ? `${name}/intent` : undefined,
 		meta: { kind: "collection_intent", collection: "reactiveMap" },
 		...(restorable ? { recipe: { ref: "reactiveMap.intent" } } : {}),
 	});
@@ -580,7 +582,7 @@ function createReactiveMap<K, V>(
 		opts: { setup: folders.setup },
 	};
 	apply = graph.initNode(applyOp, policyInputs.deps as readonly Node<unknown>[], {
-		name: name ? `${name}.apply` : undefined,
+		name: name ? `${name}/apply` : undefined,
 		meta: { kind: "collection_policy_apply", collection: "reactiveMap" },
 		...(restorable ? { recipe: { ref: "reactiveMap.apply" } } : {}),
 	});
@@ -588,7 +590,7 @@ function createReactiveMap<K, V>(
 	// REQUEST state the quiet snapshotPrep declares as a dependency (graphrefly-ts:D172).
 	const request = graph.node<true>([], null, {
 		factory: "reactiveMap.request",
-		name: name ? `${name}.request` : undefined,
+		name: name ? `${name}/request` : undefined,
 		meta: { kind: "collection_request", collection: "reactiveMap" },
 		...(restorable ? { recipe: { ref: "reactiveMap.request" } } : {}),
 	});
@@ -614,7 +616,7 @@ function createReactiveMap<K, V>(
 		snapshotPrepOp,
 		[apply as Node<unknown>, request as Node<unknown>],
 		{
-			name: name ? `${name}.snapshotPrep` : undefined,
+			name: name ? `${name}/snapshotPrep` : undefined,
 			meta: { kind: "collection_snapshot_prep", collection: "reactiveMap" },
 			...(restorable ? { recipe: { ref: "reactiveMap.snapshotPrep" } } : {}),
 		},
@@ -632,7 +634,7 @@ function createReactiveMap<K, V>(
 		opts: {},
 	};
 	const delta = graph.initNode(deltaOp, [apply as Node<unknown>, snapshotPrep as Node<unknown>], {
-		name: name ? `${name}.delta` : undefined,
+		name: name ? `${name}/delta` : undefined,
 		meta: { kind: "collection_delta", collection: "reactiveMap" },
 		...(restorable ? { recipe: { ref: "reactiveMap.delta" } } : {}),
 	});
@@ -645,7 +647,7 @@ function createReactiveMap<K, V>(
 		opts: {},
 	};
 	const snapshot = graph.initNode(snapshotOp, [snapshotPrep as Node<unknown>], {
-		name: name ? `${name}.snapshot` : undefined,
+		name: name ? `${name}/snapshot` : undefined,
 		meta: { kind: "collection_snapshot", collection: "reactiveMap" },
 		...(restorable ? { recipe: { ref: "reactiveMap.snapshot" } } : {}),
 	});
@@ -685,7 +687,7 @@ function createReactiveMap<K, V>(
 		let view: ReactiveView<MapChange<K, V>, ReadonlyMap<K, V>>;
 		view = lightReactiveView<MapChange<K, V>, ReadonlyMap<K, V>>(graph, delta as Node<unknown>, {
 			factory: "reactiveMap.select",
-			name: name ? `${name}.select#${selectSeq++}` : undefined,
+			name: name ? `${name}/select${selectSeq++}` : undefined,
 			materializeSnapshot: () => selectedSnapshot(predicate),
 			onDispose: () => {
 				selectMemo.deleteValue(view);
@@ -753,7 +755,7 @@ function createReactiveMap<K, V>(
 				},
 			};
 			const folder = graph.initNode(op, [src], {
-				name: name ? `${name}.bind#${bindSeq++}` : undefined,
+				name: name ? `${name}/bind${bindSeq++}` : undefined,
 				meta: { kind: "collection_bind_source", collection: "reactiveMap" },
 			});
 			bindDeps.add(folder as Node<unknown>);

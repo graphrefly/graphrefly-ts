@@ -1,5 +1,6 @@
 import type { NodeFn } from "../ctx/types.js";
 import type { Graph } from "../graph/graph.js";
+import { moduleName } from "../graph/module-naming.js";
 import type { GraphRecipeContext, GraphRecipeFactory } from "../graph/restore.js";
 import type { Node } from "../node/node.js";
 
@@ -89,7 +90,7 @@ export function localFixedWindowRateLimitBundle<T>(
 	if (opts.nowRef !== undefined && opts.now === undefined) {
 		throw new TypeError("localFixedWindowRateLimitBundle: nowRef names the clock given as now");
 	}
-	const name = opts.name ?? "localFixedWindowRateLimit";
+	const name = moduleName(graph, opts.name, "localFixedWindowRateLimit");
 	const config: EventsConfig = {
 		max: opts.max,
 		windowMs: opts.windowMs,

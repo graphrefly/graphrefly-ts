@@ -1,3 +1,4 @@
+import { moduleName } from "../graph/module-naming.js";
 /**
  * Optional CQRS-over-workQueue recipe (D350/D352/D353).
  *
@@ -114,7 +115,7 @@ export function cqrsWorkQueueRecipe<TCommand = unknown>(
 	graph: Graph,
 	opts: CqrsWorkQueueRecipeOptions<TCommand>,
 ): CqrsWorkQueueRecipeBundle<TCommand> {
-	const name = opts.name ?? "cqrsWorkQueue";
+	const name = moduleName(graph, opts.name, "cqrsWorkQueue");
 	const deps =
 		opts.errors === undefined
 			? [opts.records, opts.status]

@@ -234,7 +234,7 @@ function clearRestoredCollectionMap(graph: Graph): void {
 
 function collectionBaseId(
 	id: string,
-	suffix: ".intent" | ".apply" | ".snapshotPrep" | ".delta" | ".snapshot" | ".request",
+	suffix: "/intent" | "/apply" | "/snapshotPrep" | "/delta" | "/snapshot" | "/request",
 	ref: string,
 ): string {
 	if (!id.endsWith(suffix)) {
@@ -341,7 +341,7 @@ function mapEntries(
 }
 
 function restoredList(ctx: GraphRestoreExtensionContext, ref: string): ReactiveList<unknown> {
-	const base = collectionBaseId(ctx.id, ".delta", ref);
+	const base = collectionBaseId(ctx.id, "/delta", ref);
 	if (ctx.deps.length !== 0) {
 		throw new Error(`restoreGraph: '${ref}' node '${ctx.id}' cannot restore deps`);
 	}
@@ -351,7 +351,7 @@ function restoredList(ctx: GraphRestoreExtensionContext, ref: string): ReactiveL
 }
 
 function restoredIndex(ctx: GraphRestoreExtensionContext, ref: string): ReactiveIndex<unknown> {
-	const base = collectionBaseId(ctx.id, ".delta", ref);
+	const base = collectionBaseId(ctx.id, "/delta", ref);
 	if (ctx.deps.length !== 0) {
 		throw new Error(`restoreGraph: '${ref}' node '${ctx.id}' cannot restore deps`);
 	}
@@ -365,7 +365,7 @@ function restoredLog(
 	ctx: GraphRestoreExtensionContext<LogConfig>,
 	ref: string,
 ): ReactiveLog<unknown> {
-	const base = collectionBaseId(ctx.id, ".delta", ref);
+	const base = collectionBaseId(ctx.id, "/delta", ref);
 	if (ctx.deps.length !== 0) {
 		throw new Error(`restoreGraph: '${ref}' node '${ctx.id}' cannot restore deps`);
 	}
@@ -382,7 +382,7 @@ function restoredLog(
 }
 
 function restoredMapNode(ctx: GraphRestoreExtensionContext, ref: string): Node<unknown> {
-	const base = collectionBaseId(ctx.id, ".intent", ref);
+	const base = collectionBaseId(ctx.id, "/intent", ref);
 	if (ctx.deps.length !== 0) {
 		throw new Error(`restoreGraph: '${ref}' node '${ctx.id}' cannot restore deps`);
 	}
@@ -399,12 +399,12 @@ function restoredMapNode(ctx: GraphRestoreExtensionContext, ref: string): Node<u
 function existingMapNode(
 	ctx: GraphRestoreExtensionContext,
 	ref: string,
-	suffix: ".apply" | ".snapshotPrep" | ".delta" | ".snapshot" | ".request",
+	suffix: "/apply" | "/snapshotPrep" | "/delta" | "/snapshot" | "/request",
 ): Node<unknown> {
 	const base = collectionBaseId(ctx.id, suffix, ref);
 	const item = restoredCollectionMap(ctx.graph).get(base);
 	if (item === undefined || item.kind !== "reactiveMap") {
-		throw new Error(`restoreGraph: '${ref}' node '${ctx.id}' is missing restored '${base}.intent'`);
+		throw new Error(`restoreGraph: '${ref}' node '${ctx.id}' is missing restored '${base}/intent'`);
 	}
 	const node = ctx.graph.find(ctx.id);
 	if (node === undefined) {
@@ -418,14 +418,14 @@ function existingCollection(
 	ref: string,
 	kind: RestoredCollection["kind"],
 ): RestoredCollection {
-	const base = collectionBaseId(ctx.id, ".snapshot", ref);
+	const base = collectionBaseId(ctx.id, "/snapshot", ref);
 	// The snapshot declares the delta and the request state (graphrefly-ts:D172).
 	if (ctx.deps.length !== 2) {
 		throw new Error(`restoreGraph: '${ref}' node '${ctx.id}' requires exactly two deps`);
 	}
 	const item = restoredCollectionMap(ctx.graph).get(base);
 	if (item === undefined || item.kind !== kind) {
-		throw new Error(`restoreGraph: '${ref}' node '${ctx.id}' is missing restored '${base}.delta'`);
+		throw new Error(`restoreGraph: '${ref}' node '${ctx.id}' is missing restored '${base}/delta'`);
 	}
 	return item;
 }
@@ -435,13 +435,13 @@ function existingCollectionRequest(
 	ref: string,
 	kind: RestoredCollection["kind"],
 ): Node<unknown> {
-	const base = collectionBaseId(ctx.id, ".request", ref);
+	const base = collectionBaseId(ctx.id, "/request", ref);
 	if (ctx.deps.length !== 0) {
 		throw new Error(`restoreGraph: '${ref}' node '${ctx.id}' cannot restore deps`);
 	}
 	const item = restoredCollectionMap(ctx.graph).get(base);
 	if (item === undefined || item.kind !== kind) {
-		throw new Error(`restoreGraph: '${ref}' node '${ctx.id}' is missing restored '${base}.delta'`);
+		throw new Error(`restoreGraph: '${ref}' node '${ctx.id}' is missing restored '${base}/delta'`);
 	}
 	return item.collection.request as Node<unknown>;
 }
@@ -566,7 +566,7 @@ export const reactiveMapApplyRestoreDescriptor: GraphRestoreExtension<undefined>
 		return noCollectionConfig(config, "reactiveMap.apply");
 	},
 	create(ctx) {
-		return existingMapNode(ctx, "reactiveMap.apply", ".apply");
+		return existingMapNode(ctx, "reactiveMap.apply", "/apply");
 	},
 };
 
@@ -576,7 +576,7 @@ export const reactiveMapRequestRestoreDescriptor: GraphRestoreExtension<undefine
 		return noCollectionConfig(config, "reactiveMap.request");
 	},
 	create(ctx) {
-		return existingMapNode(ctx, "reactiveMap.request", ".request");
+		return existingMapNode(ctx, "reactiveMap.request", "/request");
 	},
 };
 
@@ -586,7 +586,7 @@ export const reactiveMapSnapshotPrepRestoreDescriptor: GraphRestoreExtension<und
 		return noCollectionConfig(config, "reactiveMap.snapshotPrep");
 	},
 	create(ctx) {
-		return existingMapNode(ctx, "reactiveMap.snapshotPrep", ".snapshotPrep");
+		return existingMapNode(ctx, "reactiveMap.snapshotPrep", "/snapshotPrep");
 	},
 };
 
@@ -596,7 +596,7 @@ export const reactiveMapDeltaRestoreDescriptor: GraphRestoreExtension<undefined>
 		return noCollectionConfig(config, "reactiveMap.delta");
 	},
 	create(ctx) {
-		return existingMapNode(ctx, "reactiveMap.delta", ".delta");
+		return existingMapNode(ctx, "reactiveMap.delta", "/delta");
 	},
 };
 
@@ -606,7 +606,7 @@ export const reactiveMapSnapshotRestoreDescriptor: GraphRestoreExtension<undefin
 		return noCollectionConfig(config, "reactiveMap.snapshot");
 	},
 	create(ctx) {
-		return existingMapNode(ctx, "reactiveMap.snapshot", ".snapshot");
+		return existingMapNode(ctx, "reactiveMap.snapshot", "/snapshot");
 	},
 };
 

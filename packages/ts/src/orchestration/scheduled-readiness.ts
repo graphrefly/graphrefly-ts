@@ -1,5 +1,6 @@
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
+import { moduleName } from "../graph/module-naming.js";
 import { canonicalTupleKey, compoundTupleKey } from "../identity.js";
 import type { Node } from "../node/node.js";
 import {
@@ -123,7 +124,7 @@ export function scheduledReadinessProjector(
 		readonly clocks?: readonly Node<ScheduledReadinessClock>[];
 	},
 ): ScheduledReadinessBundle {
-	const name = opts.name ?? "scheduledReadiness";
+	const name = moduleName(graph, opts.name, "scheduledReadiness");
 	const clockDeps = opts.clocks ?? [];
 	const runtime = graph.node<ScheduledReadinessFact>(
 		[...opts.schedules, ...clockDeps],

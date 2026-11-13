@@ -429,12 +429,12 @@ describe("agentic WorkItem memory application recipe wiring (D572/D576/D577/D581
 			expect.arrayContaining([
 				{ from: "caller/complete-occurrence", to: "recipe/input" },
 				{ from: "recipe/input", to: "recipe/bridge/projection" },
-				{ from: "recipe/bridge/proposals", to: "recipe/admission-input/right" },
-				{ from: "recipe/input", to: "recipe/admission-input/left" },
-				{ from: "recipe/admission-input", to: "recipe/admission/projection" },
-				{ from: "recipe/admission/admissions", to: "recipe/application-input/right" },
-				{ from: "recipe/input", to: "recipe/application-input/left" },
-				{ from: "recipe/application-input", to: "recipe/application/projection" },
+				{ from: "recipe/bridge/proposals", to: "recipe/admissionInput/right" },
+				{ from: "recipe/input", to: "recipe/admissionInput/left" },
+				{ from: "recipe/admissionInput", to: "recipe/admission/projection" },
+				{ from: "recipe/admission/admissions", to: "recipe/applicationInput/right" },
+				{ from: "recipe/input", to: "recipe/applicationInput/left" },
+				{ from: "recipe/applicationInput", to: "recipe/application/projection" },
 				{ from: "recipe/application/projection", to: "recipe/application/records" },
 			]),
 		);

@@ -1,5 +1,6 @@
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
+import { moduleName } from "../graph/module-naming.js";
 import { compoundTupleKey } from "../identity.js";
 import type { Node } from "../node/node.js";
 import {
@@ -61,7 +62,7 @@ export function toolProviderRunAdmissionProjector(
 		readonly now?: () => number;
 	},
 ): ToolProviderRunAdmissionBundle {
-	const name = opts.name ?? "toolProviderRunAdmission";
+	const name = moduleName(graph, opts.name, "toolProviderRunAdmission");
 	const decisionDeps = opts.decisions ?? [];
 	const runtime = graph.node<ToolProviderRunAdmissionFact>(
 		[opts.inputs, ...opts.runRequests, ...decisionDeps],
@@ -174,7 +175,7 @@ export function toolProviderRunAdmissionProjector(
 				: undefined,
 	);
 	const approvedRunHandoff = admissionHandoff(graph, {
-		name: `${name}/approvedRunHandoff`,
+		name: `${name}/handoff`,
 		candidates: handoffCandidates,
 		decisions: handoffDecisions,
 		maxPending: 1_024,
@@ -197,7 +198,7 @@ export function toolProviderRunAdmissionProjector(
 			ctx.down(requests.map((v) => ["DATA", v] as const));
 		},
 		{
-			name: `${name}/approvedRunRequests`,
+			name: `${name}/requests`,
 			factory: "toolProviderRunAdmissionApprovedRunRequests",
 			meta: { source: "admission-handoff-accepted" },
 		},

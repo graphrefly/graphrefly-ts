@@ -115,7 +115,7 @@ export function createCausalCapabilities<T>(
 			}
 			ctx.down(values.map((v) => ["DATA", v] as const));
 		},
-		{ name: `${name}/causal-quiescence`, factory: "causalLifecycleQuiescence" },
+		{ name: `${name}/capability`, factory: "causalLifecycleQuiescence" },
 	);
 	const identity = Object.freeze({
 		released: ports.released,

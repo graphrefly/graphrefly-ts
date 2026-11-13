@@ -1,5 +1,6 @@
 import type { DataIssue } from "../data/index.js";
 import { assertGraphLocalNode, type Graph, type StateNode } from "../graph/graph.js";
+import { moduleName } from "../graph/module-naming.js";
 import type { Node } from "../node/node.js";
 import type { Message } from "../protocol/messages.js";
 import {
@@ -549,9 +550,12 @@ export function persistAgenticMemoryRecords<
 	records: Node<readonly AgenticMemoryRecord<TJson>[]>,
 	opts: PersistAgenticMemoryRecordsOptions,
 ): AgenticMemoryRecordsPersistenceHandle {
-	const name = opts.name ?? "agenticMemoryRecords.persistence";
+	const name = moduleName(graph, opts.name, "agenticMemoryRecords/persistence");
 	const snapshotKey =
-		opts.snapshotKey ?? agenticMemoryRecordsSnapshotKey(opts.storagePrefix ?? name);
+		opts.snapshotKey ??
+		agenticMemoryRecordsSnapshotKey(
+			opts.storagePrefix ?? opts.name ?? "agenticMemoryRecords.persistence",
+		);
 	const snapshotEveryChanges = validateSnapshotEveryChanges(opts.snapshotEveryChanges);
 	assertGraphLocalNode(graph, records as Node<unknown>, `${name}.records`);
 	let cursorValue: AgenticMemoryRecordsPersistenceCursor = {
@@ -809,6 +813,7 @@ export function openPersistentAgenticMemoryRecords<
 >(
 	opts: OpenPersistentAgenticMemoryRecordsOptions<TJson>,
 ): Promise<PersistentAgenticMemoryRecords<TJson>> {
+	const name = moduleName(opts.graph, opts.name, "agenticMemoryRecords");
 	const storagePrefix = opts.storagePrefix ?? opts.name ?? "agentic-memory";
 	const snapshotKey = opts.snapshotKey ?? agenticMemoryRecordsSnapshotKey(storagePrefix);
 	return loadAgenticMemoryRecordsState<TJson>({ ...opts, snapshotKey, storagePrefix }).then(
@@ -816,11 +821,11 @@ export function openPersistentAgenticMemoryRecords<
 			const records =
 				loaded.source === "empty" && opts.initial !== undefined ? opts.initial : loaded.records;
 			const node = opts.graph.state<readonly AgenticMemoryRecord<TJson>[]>(records, {
-				name: opts.name,
+				name,
 			});
 			const persistence = persistAgenticMemoryRecords(opts.graph, node, {
 				...opts,
-				name: opts.name ? `${opts.name}/persistence` : undefined,
+				name: `${name}/persistence`,
 				snapshotKey,
 				storagePrefix,
 				initialChangeCursor: loaded.changes.cursor,

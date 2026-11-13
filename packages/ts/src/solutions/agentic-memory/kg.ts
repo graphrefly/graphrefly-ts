@@ -1,4 +1,5 @@
 import type { Graph } from "../../graph/graph.js";
+import { moduleName } from "../../graph/module-naming.js";
 import type {
 	FactId,
 	KnowledgeAssertion,
@@ -46,7 +47,7 @@ export function agenticMemoryKgProjectionBundle(
 	graph: Graph,
 	opts: AgenticMemoryKgProjectionBundleOptions,
 ): AgenticMemoryKgProjectionBundle {
-	const name = opts.name ?? "agenticMemoryKgProjection";
+	const name = moduleName(graph, opts.name, "agenticMemoryKgProjection");
 	const projection = graph.node<AgenticMemoryKgProjectionSnapshot>(
 		[opts.records, opts.drafts],
 		(ctx) => {
@@ -89,7 +90,7 @@ export function agenticMemoryKgProjectionBundle(
 			]);
 		},
 		{
-			name: `${name}/projection`,
+			name,
 			factory: "agenticMemoryKgProjection",
 			complete: "manual",
 			error: "manual",

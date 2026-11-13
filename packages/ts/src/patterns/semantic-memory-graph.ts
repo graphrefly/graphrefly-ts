@@ -1,3 +1,4 @@
+import { moduleName } from "../graph/module-naming.js";
 /**
  * Graph-visible semantic-memory retrieval patterns.
  *
@@ -86,7 +87,7 @@ export function memoryRetrievalBundle<T = unknown>(
 	graph: Graph,
 	opts: MemoryRetrievalBundleOptions,
 ): MemoryRetrievalBundle<T> {
-	const name = opts.name ?? "memoryRetrieval";
+	const name = moduleName(graph, opts.name, "memoryRetrieval");
 	const { fragments, query } = opts;
 	const snapshot = graph.node<MemoryRetrievalSnapshot<T>>(
 		[fragments, query],
@@ -266,7 +267,7 @@ export function knowledgeGraphReducerBundle(
 	graph: Graph,
 	opts: KnowledgeGraphReducerBundleOptions,
 ): KnowledgeGraphReducerBundle {
-	const name = opts.name ?? "knowledgeGraph";
+	const name = moduleName(graph, opts.name, "knowledgeGraph");
 	const deps = opts.policy === undefined ? [opts.assertions] : [opts.assertions, opts.policy];
 	const snapshot = graph.node<KnowledgeGraphSnapshot>(
 		deps,

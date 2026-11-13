@@ -1,6 +1,7 @@
 import type { Ctx } from "../../ctx/types.js";
 import type { DataIssue } from "../../data/index.js";
 import type { Graph } from "../../graph/graph.js";
+import { moduleName } from "../../graph/module-naming.js";
 import {
 	emit,
 	emitAudit,
@@ -46,7 +47,7 @@ export function workItemAuthoringProjector<TInput = unknown>(
 	graph: Graph,
 	opts: WorkItemAuthoringProjectorOptions<TInput>,
 ): WorkItemAuthoringProjectorBundle<TInput> {
-	const name = opts.name ?? "workItemAuthoring";
+	const name = moduleName(graph, opts.name, "workItemAuthoring");
 	const runtime = graph.node<Fact<TInput>>(
 		[opts.facts],
 		(ctx) => {
@@ -68,7 +69,7 @@ export function workItemAuthoringProjector<TInput = unknown>(
 		},
 	);
 	return {
-		workItems: project(graph, runtime, `${name}/workItems`, "workItemAuthoringWorkItems", (fact) =>
+		workItems: project(graph, runtime, `${name}/items`, "workItemAuthoringWorkItems", (fact) =>
 			fact.kind === "work-item" ? fact.value : undefined,
 		),
 		status: project(graph, runtime, `${name}/status`, "workItemAuthoringStatus", (fact) =>

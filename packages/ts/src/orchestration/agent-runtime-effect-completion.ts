@@ -1,6 +1,7 @@
 import type { Ctx } from "../ctx/types.js";
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
+import { moduleName } from "../graph/module-naming.js";
 import type { Node } from "../node/node.js";
 import { dataIssue, forEachDepBatch, projectRuntimeFact, ref } from "./agent-runtime-common.js";
 import { candidateFromDecision } from "./agent-runtime-decision-interpreter.js";
@@ -44,7 +45,7 @@ export function effectRunCompletionProjector(
 		readonly now?: () => number;
 	},
 ): EffectRunCompletionBundle {
-	const name = opts.name ?? "effectRunCompletion";
+	const name = moduleName(graph, opts.name, "effectRunCompletion");
 	const decisions = opts.decisions ?? [];
 	const requestStatuses = opts.requestStatuses ?? [];
 	const requestFacts = opts.requestFacts ?? [];

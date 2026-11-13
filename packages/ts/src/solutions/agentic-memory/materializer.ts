@@ -1,5 +1,6 @@
 import type { DataIssue } from "../../data/index.js";
 import type { Graph } from "../../graph/graph.js";
+import { moduleName } from "../../graph/module-naming.js";
 import { canonicalTupleKey, compoundTupleKey } from "../../identity.js";
 import type { FactId } from "../../patterns/semantic-memory.js";
 import { solutionProjection } from "./projection.js";
@@ -328,7 +329,7 @@ export function agenticMemoryRecordMaterializerBundle<T = unknown>(
 	graph: Graph,
 	opts: AgenticMemoryRecordMaterializerBundleOptions<T>,
 ): AgenticMemoryRecordMaterializerBundle<T> {
-	const name = opts.name ?? "agenticMemoryRecordMaterializer";
+	const name = moduleName(graph, opts.name, "agenticMemoryRecordMaterializer");
 	const projection = graph.node<AgenticMemoryRecordMaterializationProjection<T>>(
 		[opts.records, opts.intents],
 		(ctx) => {

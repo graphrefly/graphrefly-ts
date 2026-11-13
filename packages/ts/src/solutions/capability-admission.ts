@@ -1,3 +1,4 @@
+import { moduleName } from "../graph/module-naming.js";
 /**
  * Product-owned capability admission facts (D357).
  *
@@ -169,7 +170,7 @@ export function capabilityAdmissionProjector(
 		readonly now?: () => number;
 	},
 ): CapabilityAdmissionBundle {
-	const name = opts.name ?? "capabilityAdmissions";
+	const name = moduleName(graph, opts.name, "capabilityAdmissions");
 	const policyDeps = opts.admissionPolicies ?? [];
 	const now = opts.now ?? Date.now;
 	const runtime = graph.node<CapabilityAdmissionFact>(
@@ -264,12 +265,8 @@ export function capabilityAdmissionProjector(
 		{ name: `${name}/runtime`, factory: "capabilityAdmissionProjector" },
 	);
 	return {
-		admissions: projectRuntimeFact(
-			graph,
-			runtime,
-			`${name}/admissions`,
-			"capabilityAdmissions",
-			(fact) => (fact.kind === "admission" ? fact.admission : undefined),
+		admissions: projectRuntimeFact(graph, runtime, name, "capabilityAdmissions", (fact) =>
+			fact.kind === "admission" ? fact.admission : undefined,
 		),
 		status: projectRuntimeFact(
 			graph,

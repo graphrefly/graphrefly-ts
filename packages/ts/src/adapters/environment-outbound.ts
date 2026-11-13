@@ -1,3 +1,4 @@
+import { moduleName } from "../graph/module-naming.js";
 /**
  * Graph-visible outbound environment adapters (D130/D132).
  *
@@ -347,7 +348,7 @@ export function toHttp<T>(
 	requestOf: HttpRequestOf<T>,
 	opts: OutboundAdapterOptions = {},
 ): OutboundBundle<T, HttpResponse> {
-	const name = opts.name ?? "toHttp";
+	const name = moduleName(graph, opts.name, "toHttp");
 	const events = outboundNode<T, HttpResponse>(
 		graph,
 		source,
@@ -381,7 +382,7 @@ export function toProcess<T>(
 	commandOf: ProcessCommandOf<T>,
 	opts: OutboundAdapterOptions = {},
 ): OutboundBundle<T, ProcessResult> {
-	const name = opts.name ?? "toProcess";
+	const name = moduleName(graph, opts.name, "toProcess");
 	const events = outboundNode<T, ProcessResult>(
 		graph,
 		source,
@@ -417,7 +418,7 @@ export function toWebSocket<T>(
 	sendOf: WebSocketSendOf<T>,
 	opts: OutboundAdapterOptions = {},
 ): OutboundBundle<T, WebSocketSendResult> {
-	const name = opts.name ?? "toWebSocket";
+	const name = moduleName(graph, opts.name, "toWebSocket");
 	const events = outboundNode<T, WebSocketSendResult>(
 		graph,
 		source,

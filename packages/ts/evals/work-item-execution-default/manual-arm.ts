@@ -66,7 +66,7 @@ export const composeD687ManualArm: D687ArmComposer = (graph, sources): D687ArmBu
 				]);
 			}
 		},
-		{ name: "d687/manual/workItemSeeds", factory: "workItemSeedProjector" },
+		{ name: "d687/manual/seeds", factory: "workItemSeedProjector" },
 	);
 	const plan = workItemEffectPlanProjector(graph, {
 		name: "d687/manual/plan",
@@ -122,7 +122,7 @@ export const composeD687ManualArm: D687ArmComposer = (graph, sources): D687ArmBu
 			}
 			ctx.state.set(state);
 		},
-		{ name: "d687/manual/effectRuns/effectRuns", factory: "workItemEffectRuns" },
+		{ name: "d687/manual/effectRuns", factory: "workItemEffectRuns" },
 	);
 	const effectRuns = { effectRuns: effectRunFacts };
 	const requestFacts = graph.node<AgentRequestFact<D687Input>>(

@@ -191,18 +191,18 @@ describe("reactive-layout solution (D181) — part 1", () => {
 
 		expect(renderSnapshot(bundle.graph).edges).toEqual(
 			expect.arrayContaining([
-				{ from: "text", to: "text-measurements" },
-				{ from: "font", to: "text-measurements" },
-				{ from: "measure-capability", to: "text-measurements" },
-				{ from: "text-measurements", to: "reactive-layout:segments" },
-				{ from: "reactive-layout:segments", to: "reactive-layout:line-breaks" },
-				{ from: "reactive-layout:max-width", to: "reactive-layout:line-breaks" },
-				{ from: "text-measurements", to: "reactive-layout:line-breaks" },
-				{ from: "reactive-layout:line-breaks", to: "reactive-layout:height" },
-				{ from: "reactive-layout:line-height", to: "reactive-layout:height" },
-				{ from: "reactive-layout:line-breaks", to: "reactive-layout:char-positions" },
-				{ from: "reactive-layout:segments", to: "reactive-layout:char-positions" },
-				{ from: "reactive-layout:line-height", to: "reactive-layout:char-positions" },
+				{ from: "text", to: "text/measurements" },
+				{ from: "font", to: "text/measurements" },
+				{ from: "measure-capability", to: "text/measurements" },
+				{ from: "text/measurements", to: "reactiveLayout/segments" },
+				{ from: "reactiveLayout/segments", to: "reactiveLayout/lineBreaks" },
+				{ from: "reactiveLayout/maxWidth", to: "reactiveLayout/lineBreaks" },
+				{ from: "text/measurements", to: "reactiveLayout/lineBreaks" },
+				{ from: "reactiveLayout/lineBreaks", to: "reactiveLayout/height" },
+				{ from: "reactiveLayout/lineHeight", to: "reactiveLayout/height" },
+				{ from: "reactiveLayout/lineBreaks", to: "reactiveLayout/charPositions" },
+				{ from: "reactiveLayout/segments", to: "reactiveLayout/charPositions" },
+				{ from: "reactiveLayout/lineHeight", to: "reactiveLayout/charPositions" },
 			]),
 		);
 
@@ -251,8 +251,8 @@ describe("reactive-layout solution (D181) — part 1", () => {
 		const g = graph({ name: "reactive-layout-node-controls" });
 		const text = g.state("one", { name: "text" });
 		const font = g.state("test", { name: "font" });
-		const lineHeight = g.state(Number.NaN, { name: "line-height" });
-		const maxWidth = g.state(-10, { name: "max-width" });
+		const lineHeight = g.state(Number.NaN, { name: "lineHeight" });
+		const maxWidth = g.state(-10, { name: "maxWidth" });
 		const measurements = textMeasurementProvider({
 			graph: g,
 			text,

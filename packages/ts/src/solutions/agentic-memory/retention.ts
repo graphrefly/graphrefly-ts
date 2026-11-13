@@ -1,4 +1,5 @@
 import type { Graph } from "../../graph/graph.js";
+import { moduleName } from "../../graph/module-naming.js";
 import type { FactId } from "../../patterns/semantic-memory.js";
 import { solutionProjection } from "./projection.js";
 import {
@@ -42,7 +43,7 @@ export function agenticMemoryRetentionBundle<T = unknown>(
 	graph: Graph,
 	opts: AgenticMemoryRetentionBundleOptions<T>,
 ): AgenticMemoryRetentionBundle<T> {
-	const name = opts.name ?? "agenticMemoryRetention";
+	const name = moduleName(graph, opts.name, "agenticMemoryRetention");
 	const projection = graph.node<AgenticMemoryRetentionSnapshot<T>>(
 		[opts.records, opts.commands],
 		(ctx) => {
@@ -112,7 +113,7 @@ export function agenticMemoryRetentionBundle<T = unknown>(
 		consolidationRequests: solutionProjection(
 			graph,
 			projection,
-			`${name}/consolidationRequests`,
+			`${name}/requests`,
 			"agenticMemoryRetentionConsolidationRequests",
 			(fact) => fact.consolidationRequests,
 		),

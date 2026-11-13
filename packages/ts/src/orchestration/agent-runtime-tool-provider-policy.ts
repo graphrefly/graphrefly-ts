@@ -1,5 +1,6 @@
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
+import { moduleName } from "../graph/module-naming.js";
 import { canonicalTupleKey, compoundTupleKey } from "../identity.js";
 import type { Node } from "../node/node.js";
 import {
@@ -465,7 +466,7 @@ export function toolProviderPolicyResolutionProjector(
 		readonly toolProviderCatalogs?: readonly Node<ToolProviderCatalog>[];
 	},
 ): ToolProviderPolicyResolutionBundle {
-	const name = opts.name ?? "toolProviderPolicyResolution";
+	const name = moduleName(graph, opts.name, "toolProviderPolicyResolution");
 	const routeDeps = opts.executorRoutes ?? [];
 	const catalogDeps = opts.toolProviderCatalogs ?? [];
 	const routeStart = 1;

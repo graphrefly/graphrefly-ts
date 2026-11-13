@@ -1,4 +1,5 @@
 import type { Graph } from "../../graph/graph.js";
+import { moduleName } from "../../graph/module-naming.js";
 import type { FactId } from "../../patterns/semantic-memory.js";
 import { solutionProjection } from "./projection.js";
 import {
@@ -44,7 +45,7 @@ export function agenticMemoryContextPackingBundle<T = unknown>(
 	graph: Graph,
 	opts: AgenticMemoryContextPackingBundleOptions<T>,
 ): AgenticMemoryContextPackingBundle<T> {
-	const name = opts.name ?? "agenticMemoryContextPacking";
+	const name = moduleName(graph, opts.name, "agenticMemoryPacking");
 	const projection = graph.node<AgenticMemoryContextPackingSnapshot>(
 		[opts.context, opts.texts, opts.policy],
 		(ctx) => {
@@ -74,7 +75,7 @@ export function agenticMemoryContextPackingBundle<T = unknown>(
 		packedContext: solutionProjection(
 			graph,
 			projection,
-			`${name}/packedContext`,
+			`${name}/context`,
 			"agenticMemoryPackedContext",
 			(fact) => fact.packedContext,
 		),

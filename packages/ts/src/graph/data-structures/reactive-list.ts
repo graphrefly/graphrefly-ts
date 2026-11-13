@@ -1,3 +1,4 @@
+import { moduleName } from "../module-naming.js";
 /**
  * Reactive positional list (CSP-2.8, D54/D60) — the two-port collection template.
  *
@@ -173,6 +174,7 @@ export function reactiveList<T>(
 	options: ReactiveListOptions = {},
 ): ReactiveList<T> {
 	const { maxSize } = options;
+	const name = moduleName(graph, options.name, "reactiveList");
 
 	function isNodeOpt(x: ReactiveListOpt<number> | undefined): x is Node<number> {
 		return x instanceof Node;
@@ -194,7 +196,7 @@ export function reactiveList<T>(
 		graph,
 		backend,
 		"reactiveList",
-		options,
+		{ ...options, name },
 		restorable
 			? {
 					deltaRef: "reactiveList.delta",
@@ -251,7 +253,7 @@ export function reactiveList<T>(
 		};
 		const deps = capacityPolicy ? [capacityPolicy as Node<unknown>] : [];
 		apply = graph.initNode(op, deps, {
-			name: options.name ? `${options.name}.capacityPolicy` : undefined,
+			name: name ? `${name}/capacityPolicy` : undefined,
 			meta: { kind: "collection_policy_apply", collection: "reactiveList" },
 		});
 		folders.bind(apply as Node<unknown>);
@@ -266,7 +268,7 @@ export function reactiveList<T>(
 			opts: { initial: value },
 		};
 		return graph.initNode(op, [], {
-			name: options.name ? `${options.name}.maxSizePolicy` : undefined,
+			name: name ? `${name}/maxSizePolicy` : undefined,
 			meta: { kind: "collection_policy", collection: "reactiveList", policy: "maxSize" },
 		});
 	}
@@ -346,7 +348,7 @@ export function reactiveList<T>(
 				},
 			};
 			const folder = graph.initNode(op, [src], {
-				name: options.name ? `${options.name}.bind#${bindSeq++}` : undefined,
+				name: name ? `${name}/bind${bindSeq++}` : undefined,
 				meta: { kind: "collection_bind_source", collection: "reactiveList" },
 			});
 			bindDeps.add(folder as Node<unknown>);

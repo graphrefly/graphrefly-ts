@@ -1,4 +1,6 @@
+import { moduleName } from "../graph/module-naming.js";
 import * as topologyModule from "../graph/topology.js";
+import { assertLocalName } from "../node/naming.js";
 /**
  * Graph-visible wire bridge envelope helpers (D134).
  *
@@ -270,7 +272,7 @@ export function wireBridge<TOutbound = unknown, TInbound = unknown>(
 	graph: Graph,
 	opts: WireBridgeOptions,
 ): WireBridgeBundle<TOutbound, TInbound> {
-	const name = opts.name ?? "wireBridge";
+	const name = moduleName(graph, opts.name, "wireBridge");
 	const policy = opts.retry ?? retryPolicy();
 	const command = graph.node<WireBridgeCommand<TOutbound>>([], null, {
 		name: `${name}/command`,
@@ -409,11 +411,12 @@ export function wireBridgeAckDriver<TOutbound = unknown, TInbound = unknown>(
 	bridge: WireBridgeBundle<TOutbound, TInbound>,
 	opts: WireBridgeAckDriverOptions,
 ): WireBridgeAckDriverBundle {
-	const name = opts.name ?? `${bridge.sessionId}/wireBridgeAckDriver`;
+	if (opts.name === undefined) assertLocalName(bridge.sessionId);
+	const name = moduleName(graph, opts.name, `${bridge.sessionId}/ackDriver`);
 	if (!Number.isFinite(opts.timeoutMs) || opts.timeoutMs < 0) {
 		throw new RangeError("wireBridgeAckDriver: timeoutMs must be a non-negative finite number");
 	}
-	const topology = topologyModule.group(graph, { name: `${name}.wireBridgeAckDriver` });
+	const topology = topologyModule.group(graph, { name });
 	const active = { current: true };
 	const events = topology.add(wireBridgeAckDriverEventsNode(graph, bridge, opts, name, active));
 	const commands = topology.add(
@@ -433,7 +436,9 @@ export function wireBridgeAckDriver<TOutbound = unknown, TInbound = unknown>(
 			if (released) return;
 			active.current = false;
 			try {
-				topology.release({ reason: `${name}.wireBridgeAckDriver.release` });
+				topology.release({
+					reason: `${opts.name ?? `${bridge.sessionId}/wireBridgeAckDriver`}.wireBridgeAckDriver.release`,
+				});
 				released = true;
 			} catch (error) {
 				active.current = true;
@@ -728,8 +733,8 @@ export function wireBridgeProtobuf(
 	bridge: WireBridgeBundle<WireBridgeProtobufData, WireBridgeProtobufData>,
 	opts: WireBridgeProtobufOptions = {},
 ): WireBridgeProtobufBundle {
-	const name = opts.name ?? "wireBridgeProtobuf";
-	const topology = topologyModule.group(graph, { name: `${name}.wireBridgeProtobuf` });
+	const name = moduleName(graph, opts.name, "wireBridgeProtobuf");
+	const topology = topologyModule.group(graph, { name });
 	const inboundBytes = topology.node<Uint8Array>([], null, {
 		name: `${name}/inboundBytes`,
 		factory: "wireBridgeProtobufInboundBytes",
@@ -985,9 +990,9 @@ export function remoteResponder<TRequest = unknown, TResponse = unknown>(
 	bridge: WireBridgeBundle<RemoteCallResponse<TResponse>, RemoteCallRequest<TRequest>>,
 	opts: RemoteResponderOptions<TRequest, TResponse> = {},
 ): RemoteResponderBundle<TRequest, TResponse> {
-	const name = opts.name ?? "remoteResponder";
+	const name = moduleName(graph, opts.name, "remoteResponder");
 	const handlers = normalizeRemoteHandlers(opts.handlers ?? []);
-	const topology = topologyModule.group(graph, { name: `${name}.remoteResponder` });
+	const topology = topologyModule.group(graph, { name });
 	const events = topology.add(
 		remoteResponderEventsNode(
 			graph,

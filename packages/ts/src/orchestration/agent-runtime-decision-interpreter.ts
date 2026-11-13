@@ -1,5 +1,6 @@
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
+import { moduleName } from "../graph/module-naming.js";
 import type { Node } from "../node/node.js";
 import {
 	dataIssue,
@@ -51,7 +52,7 @@ export function structuredAgentDecisionInterpreter(
 		readonly requestFacts?: readonly Node<AgentRequestFact>[];
 	} = {},
 ): StructuredAgentDecisionInterpreterBundle {
-	const name = opts.name ?? "structuredAgentDecisionInterpreter";
+	const name = moduleName(graph, opts.name, "structuredAgentDecisionInterpreter");
 	const requestFacts = opts.requestFacts ?? [];
 	const runtime = graph.node<StructuredAgentDecisionInterpreterFact>(
 		[outcomes, ...requestFacts],

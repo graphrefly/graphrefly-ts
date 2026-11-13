@@ -1,5 +1,6 @@
 import type { DataIssue } from "../../data/index.js";
 import type { Graph } from "../../graph/graph.js";
+import { moduleName } from "../../graph/module-naming.js";
 import { canonicalTupleKey, compoundTupleKey } from "../../identity.js";
 import type { FactId } from "../../patterns/semantic-memory.js";
 import { solutionOccurrenceProjection, solutionOccurrenceSelect } from "../occurrence.js";
@@ -54,7 +55,7 @@ export function agenticMemoryRecordAdmissionBundle<T = unknown>(
 	graph: Graph,
 	opts: AgenticMemoryRecordAdmissionBundleOptions<T>,
 ): AgenticMemoryRecordAdmissionBundle<T> {
-	const name = opts.name ?? "agenticMemoryRecordAdmission";
+	const name = moduleName(graph, opts.name, "agenticMemoryRecordAdmission");
 	const projection = solutionOccurrenceProjection(graph, opts.occurrences, {
 		name: `${name}/projection`,
 		factory: "agenticMemoryRecordAdmission",

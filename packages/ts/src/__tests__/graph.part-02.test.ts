@@ -316,19 +316,19 @@ describe("topology.group — graph-owned dynamic topology release (D152/D153)", 
 		const unsub = observeTopology(g).subscribe((event) => events.push(event));
 		const group = topology.group(g, { name: "view" });
 
-		const delta = group.derived([source], (n) => n! + 1, { name: "view.delta" });
-		const snapshot = group.derived([delta], (n) => n! * 2, { name: "view.snapshot" });
+		const delta = group.derived([source], (n) => n! + 1, { name: "view/delta" });
+		const snapshot = group.derived([delta], (n) => n! * 2, { name: "view/snapshot" });
 
-		expect(g.find("view.delta")).toBe(delta);
-		expect(g.find("view.snapshot")).toBe(snapshot);
+		expect(g.find("view/delta")).toBe(delta);
+		expect(g.find("view/snapshot")).toBe(snapshot);
 		expect(renderSnapshot(g).nodes.map((node) => node.id)).toEqual(
-			expect.arrayContaining(["source", "view.delta", "view.snapshot"]),
+			expect.arrayContaining(["source", "view/delta", "view/snapshot"]),
 		);
 		expect(Object.keys(graphProfile(g).nodes)).toEqual(
-			expect.arrayContaining(["source", "view.delta", "view.snapshot"]),
+			expect.arrayContaining(["source", "view/delta", "view/snapshot"]),
 		);
 		expect(g.checkpoint().nodes.map((node) => node.id)).toEqual(
-			expect.arrayContaining(["source", "view.delta", "view.snapshot"]),
+			expect.arrayContaining(["source", "view/delta", "view/snapshot"]),
 		);
 
 		group.release();
@@ -339,39 +339,39 @@ describe("topology.group — graph-owned dynamic topology release (D152/D153)", 
 		expect(events).toEqual([
 			{
 				kind: "node-registered",
-				path: "view.delta",
+				path: "view/delta",
 				deps: ["source"],
 				factory: "derived",
 				seq: 0,
 			},
 			{
 				kind: "node-registered",
-				path: "view.snapshot",
-				deps: ["view.delta"],
+				path: "view/snapshot",
+				deps: ["view/delta"],
 				factory: "derived",
 				seq: 1,
 			},
 			{
 				kind: "node-released",
-				path: "view.delta",
+				path: "view/delta",
 				deps: ["source"],
 				factory: "derived",
 				seq: 2,
 			},
 			{
 				kind: "node-released",
-				path: "view.snapshot",
-				deps: ["view.delta"],
+				path: "view/snapshot",
+				deps: ["view/delta"],
 				factory: "derived",
 				seq: 3,
 			},
 		]);
-		expect(g.find("view.delta")).toBeUndefined();
-		expect(g.find("view.snapshot")).toBeUndefined();
-		expect(renderSnapshot(g).nodes.map((node) => node.id)).not.toContain("view.delta");
-		expect(Object.keys(graphProfile(g).nodes)).not.toContain("view.delta");
-		expect(g.checkpoint().nodes.map((node) => node.id)).not.toContain("view.delta");
-		expect(() => g.state(0, { name: "view.delta" })).toThrow(/released/);
+		expect(g.find("view/delta")).toBeUndefined();
+		expect(g.find("view/snapshot")).toBeUndefined();
+		expect(renderSnapshot(g).nodes.map((node) => node.id)).not.toContain("view/delta");
+		expect(Object.keys(graphProfile(g).nodes)).not.toContain("view/delta");
+		expect(g.checkpoint().nodes.map((node) => node.id)).not.toContain("view/delta");
+		expect(() => g.state(0, { name: "view/delta" })).toThrow(/released/);
 		expect(() => group.node([], null, { name: "late" })).toThrow(/released/);
 		expect(g.find("late")).toBeUndefined();
 	});
@@ -593,18 +593,18 @@ describe("Graph.checkpoint — data shape (R-checkpoint / D802, TS layout D178)"
 		log.append("b");
 
 		const byId = Object.fromEntries(g.checkpoint().nodes.map((n) => [n.id, n]));
-		expect(byId["list.delta"].recipe).toEqual({ ref: "reactiveList.delta" });
-		expect(byId["list.delta"].backendState).toEqual([1, 2]);
-		expect(byId["list.delta"].lifetime).toBeUndefined();
-		expect(byId["list.snapshot"].recipe).toEqual({ ref: "reactiveList.snapshot" });
-		expect(byId["list.snapshot"].backendState).toBeUndefined();
+		expect(byId["list/delta"].recipe).toEqual({ ref: "reactiveList.delta" });
+		expect(byId["list/delta"].backendState).toEqual([1, 2]);
+		expect(byId["list/delta"].lifetime).toBeUndefined();
+		expect(byId["list/snapshot"].recipe).toEqual({ ref: "reactiveList.snapshot" });
+		expect(byId["list/snapshot"].backendState).toBeUndefined();
 
-		expect(byId["idx.delta"].backendState).toEqual([
+		expect(byId["idx/delta"].backendState).toEqual([
 			{ primary: "a", secondary: 1, value: 10 },
 			{ primary: "b", secondary: 2, value: 20 },
 		]);
-		expect(byId["log.delta"].recipe).toEqual({ ref: "reactiveLog.delta", config: { maxSize: 3 } });
-		expect(byId["log.delta"].backendState).toEqual(["a", "b"]);
+		expect(byId["log/delta"].recipe).toEqual({ ref: "reactiveLog.delta", config: { maxSize: 3 } });
+		expect(byId["log/delta"].backendState).toEqual(["a", "b"]);
 	});
 
 	it("does not save a collection's helper values or lifetimes; its backend is the authority", () => {
@@ -620,12 +620,12 @@ describe("Graph.checkpoint — data shape (R-checkpoint / D802, TS layout D178)"
 		const checkpoint = g.checkpoint();
 		expect(() => strictJsonCodec.encode(checkpoint)).not.toThrow();
 		const byId = Object.fromEntries(checkpoint.nodes.map((n) => [n.id, n]));
-		expect(byId["list.delta"].backendState).toEqual([1]);
-		expect(byId["list.snapshot"].values).toEqual([]);
-		expect(byId["list.snapshot"].lifetime).toBeNull();
-		expect(byId["map.intent"].backendState).toEqual([["k", 42]]);
-		expect(byId["map.snapshotPrep"].values).toEqual([]);
-		expect(byId["map.snapshot"].values).toEqual([]);
+		expect(byId["list/delta"].backendState).toEqual([1]);
+		expect(byId["list/snapshot"].values).toEqual([]);
+		expect(byId["list/snapshot"].lifetime).toBeNull();
+		expect(byId["map/intent"].backendState).toEqual([["k", 42]]);
+		expect(byId["map/snapshotPrep"].values).toEqual([]);
+		expect(byId["map/snapshot"].values).toEqual([]);
 	});
 
 	it("fails honestly when a collection backendState is not strict JSON", () => {
@@ -633,7 +633,7 @@ describe("Graph.checkpoint — data shape (R-checkpoint / D802, TS layout D178)"
 		reactiveList(g, [1n], { name: "big" });
 
 		expect(() => g.checkpoint()).toThrow(
-			"not restorable: big.delta: its retained values are not JSON",
+			"not restorable: big/delta: its retained values are not JSON",
 		);
 	});
 
@@ -654,8 +654,8 @@ describe("Graph.checkpoint — data shape (R-checkpoint / D802, TS layout D178)"
 		});
 
 		const byId = Object.fromEntries(g.checkpoint().nodes.map((n) => [n.id, n]));
-		expect(byId["capped.snapshot"].recipe).toBeUndefined();
-		expect(byId["limited.snapshot"].recipe).toBeUndefined();
+		expect(byId["capped/snapshot"].recipe).toBeUndefined();
+		expect(byId["limited/snapshot"].recipe).toBeUndefined();
 		expect(() => restoreGraph(g.checkpoint(), { registry: defaultRestoreRegistry })).toThrow(
 			/local-only/,
 		);

@@ -35,6 +35,7 @@ export interface GraphLifecycleRegistrar extends GraphRestoreRegistrar {
 	readIncoming(nodes: ReadonlySet<Node<unknown>>): Pick<RenderSnapshot, "edges">;
 	releaseNodes(nodes: readonly Node<unknown>[], opts?: { reason?: string }): void;
 	assertAvailableName(name: string): void;
+	allocateModuleName(prefix: string): string;
 	createOwned<T>(
 		deps: readonly Node<unknown>[],
 		fn: NodeFn | null,

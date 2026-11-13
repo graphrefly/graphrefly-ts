@@ -1,6 +1,7 @@
 import type { Ctx } from "../ctx/types.js";
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
+import { moduleName } from "../graph/module-naming.js";
 import { compoundTupleKey } from "../identity.js";
 import type { Node } from "../node/node.js";
 import type {
@@ -62,7 +63,7 @@ export function workItemEffectResultMapper(
 		readonly now?: () => number;
 	},
 ): WorkItemEvidenceMapperBundle {
-	const name = opts.name ?? "workItemEffectResultMapper";
+	const name = moduleName(graph, opts.name, "workItemEffectResultMapper");
 	const policyDeps = opts.mappingPolicies ?? [];
 	const deps = [
 		opts.workItems,

@@ -1,6 +1,7 @@
 import type { Ctx } from "../ctx/types.js";
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
+import { moduleName } from "../graph/module-naming.js";
 import type { Node } from "../node/node.js";
 import {
 	dataIssue,
@@ -66,7 +67,7 @@ export function requestSatisfactionProjector(
 		readonly promptBundles?: readonly Node<PromptBundle>[];
 	},
 ): AgentRequestSatisfactionBundle {
-	const name = opts.name ?? "requestSatisfaction";
+	const name = moduleName(graph, opts.name, "requestSatisfaction");
 	const profileDeps = opts.executorProfiles ?? [];
 	const routeDeps = opts.executorRoutes ?? [];
 	const outcomeDeps = opts.executorOutcomes ?? [];

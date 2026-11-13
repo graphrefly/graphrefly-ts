@@ -288,7 +288,7 @@ function assertGovernedTopology(consumer: ReturnType<typeof attachGovernedConsum
 	check(prefix !== undefined, "consumer graph needs a name");
 	const requests = id(`${prefix}/requests`);
 	const events = id(`${prefix}/authority/events`);
-	const correlation = id(`${prefix}/authority/correlation-facts`);
+	const correlation = id(`${prefix}/authority/correlation`);
 	const runtime = id(`${prefix}/authority/admission/runtime`);
 	const admissions = id(`${prefix}/authority/admission/admissions`);
 	const effect = id(`${prefix}/protected-effect`);

@@ -1,4 +1,5 @@
 import type { Graph } from "../../graph/graph.js";
+import { moduleName } from "../../graph/module-naming.js";
 import {
 	admitAgenticMemoryRecordProposals,
 	agenticMemoryRecordAdmissionBundle,
@@ -95,7 +96,7 @@ export function agenticWorkItemMemoryApplicationRecipeBundle<TInput = unknown, T
 		!(opts.through === "bridge" || opts.through === "admission" || opts.through === "application")
 	)
 		throw new TypeError("memory recipe requires an explicit lifecycle boundary");
-	const name = opts.name ?? "agenticWorkItemMemoryApplicationRecipe";
+	const name = moduleName(graph, opts.name, "agenticWorkItemMemoryRecipe");
 	const input = solutionOccurrenceProjection(graph, opts.occurrences, {
 		name: `${name}/input`,
 		factory: "agenticWorkItemMemoryApplicationInput",
@@ -114,7 +115,7 @@ export function agenticWorkItemMemoryApplicationRecipeBundle<TInput = unknown, T
 					name: `${name}/admission`,
 					maxOccurrences: opts.maxOccurrences,
 					occurrences: solutionOccurrenceJoin(graph, input, bridge.proposals, {
-						name: `${name}/admission-input`,
+						name: `${name}/admissionInput`,
 						factory: "agenticWorkItemMemoryAdmissionInput",
 						maxOccurrences: opts.maxOccurrences,
 						project: (frame, proposals) => {
@@ -135,7 +136,7 @@ export function agenticWorkItemMemoryApplicationRecipeBundle<TInput = unknown, T
 					name: `${name}/application`,
 					maxOccurrences: opts.maxOccurrences,
 					occurrences: solutionOccurrenceJoin(graph, input, admission.admissions, {
-						name: `${name}/application-input`,
+						name: `${name}/applicationInput`,
 						factory: "agenticWorkItemMemoryApplicationInput",
 						maxOccurrences: opts.maxOccurrences,
 						project: (frame, admissions) => {

@@ -102,7 +102,7 @@ export function runD686GraphArm(
 	const g = graph({ name: `${arm}/${scenario.scenarioId}` });
 	const sources: D686GraphArmSources = {
 		workItems: g.node([], null, { name: `${arm}/workItems` }),
-		workItemSeeds: g.node([], null, { name: `${arm}/workItemSeeds` }),
+		workItemSeeds: g.node([], null, { name: `${arm}/seeds` }),
 		proposals: g.node([], null, { name: `${arm}/proposals` }),
 		admittedResults: g.node([], null, { name: `${arm}/admittedResults` }),
 	};

@@ -1,3 +1,4 @@
+import { moduleName } from "../graph/module-naming.js";
 /**
  * Concrete Layer C tool-provider adapter pack v0 (D283/D359-D362).
  *
@@ -586,7 +587,7 @@ export function httpToolProviderRuntime(
 	graph: Graph,
 	opts: HttpToolProviderRuntimeOptions,
 ): HttpToolProviderRuntimeBundle {
-	const name = opts.name ?? "httpToolProviderRuntime";
+	const name = moduleName(graph, opts.name, "httpToolProviderRuntime");
 	const providerId = opts.providerId ?? "http";
 	const catalog = httpToolProviderCatalog(opts);
 	const outcomes = graph.node<ExecutorOutcome<HttpToolResult>>([], null, {

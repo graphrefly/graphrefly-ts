@@ -1,3 +1,5 @@
+import { moduleName } from "../graph/module-naming.js";
+import { assertLocalName } from "../node/naming.js";
 /**
  * Wire edge groups (R-bridge@2, graphrefly:D803, D804).
  *
@@ -153,7 +155,8 @@ export function wireEdgeGroupOut(graph: Graph, opts: WireEdgeGroupOutOptions): N
 	const { group } = opts;
 	const edgeIds = Object.keys(opts.edges);
 	if (edgeIds.length === 0) throw new RangeError("wireEdgeGroupOut: a group needs an edge");
-	const name = opts.name ?? `${group}/out`;
+	if (opts.name === undefined) assertLocalName(group);
+	const name = moduleName(graph, opts.name, `${group}/out`);
 	return graph.node<WireEdgeCause>(
 		edgeIds.map((e) => opts.edges[e] as Node<unknown>),
 		(ctx) => {
@@ -238,7 +241,7 @@ export function frameSource(
 	opts: { readonly name?: string } = {},
 ): Node<unknown> {
 	return graph.node<unknown>([], () => {}, {
-		name: opts.name ?? "frameSource",
+		name: moduleName(graph, opts.name, "frameSource"),
 		factory: "frameSource",
 		setup: (ctx) => {
 			const close = open((frame) => ctx.down([["DATA", frame]]));
@@ -286,7 +289,9 @@ export function wireEdgeGroupIn(graph: Graph, opts: WireEdgeGroupInOptions): Wir
 	if (declared.length === 0) throw new RangeError("wireEdgeGroupIn: a group needs an edge");
 	if (new Set(declared).size !== declared.length)
 		throw new RangeError("wireEdgeGroupIn: edge ids must be distinct");
-	const name = opts.name ?? `${group}/in`;
+	if (opts.name === undefined) assertLocalName(group);
+	for (const edgeId of declared) assertLocalName(edgeId);
+	const name = moduleName(graph, opts.name, `${group}/in`);
 	const gate = graph.node<WireEdgeGateOutput>([opts.frames], gateFn(group, declared), {
 		name,
 		factory: "wireEdgeGroupGate",
@@ -297,13 +302,13 @@ export function wireEdgeGroupIn(graph: Graph, opts: WireEdgeGroupInOptions): Wir
 		inbound.set(
 			edgeId,
 			graph.node<Uint8Array>([gate as Node<unknown>], inboundFn(edgeId), {
-				name: `${name}/${edgeId}`,
+				name: `${name}/edges/${edgeId}`,
 				factory: "wireEdgeGroupInbound",
 				...MANUAL,
 			}),
 		);
 	const issues = graph.node<WireEdgeGroupIssue>([gate as Node<unknown>], issuesFn, {
-		name: `${name}.issues`,
+		name: `${name}/issues`,
 		factory: "wireEdgeGroupIssues",
 		...MANUAL,
 	});

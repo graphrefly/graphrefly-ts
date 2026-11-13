@@ -1,4 +1,5 @@
 import type { Graph } from "../../graph/graph.js";
+import { moduleName } from "../../graph/module-naming.js";
 import { compoundTupleKey } from "../../identity.js";
 import type { FactId } from "../../patterns/semantic-memory.js";
 import { solutionOccurrenceProjection, solutionOccurrenceSelect } from "../occurrence.js";
@@ -57,7 +58,7 @@ export function agenticMemoryConsolidationBundle<T = unknown>(
 	graph: Graph,
 	opts: AgenticMemoryConsolidationBundleOptions<T>,
 ): AgenticMemoryConsolidationBundle<T> {
-	const name = opts.name ?? "agenticMemoryConsolidation";
+	const name = moduleName(graph, opts.name, "agenticMemoryConsolidation");
 	const projection = solutionOccurrenceProjection(graph, opts.occurrences, {
 		name: `${name}/projection`,
 		factory: "agenticMemoryConsolidation",
@@ -115,14 +116,14 @@ export function agenticMemoryConsolidationBundle<T = unknown>(
 		proposedRecordDrafts: solutionOccurrenceSelect(
 			graph,
 			projection,
-			`${name}/proposedRecordDrafts`,
+			`${name}/drafts`,
 			"agenticMemoryConsolidationRecordDrafts",
 			(fact) => fact.proposedRecordDrafts,
 		),
 		recordProposals: solutionOccurrenceSelect(
 			graph,
 			projection,
-			`${name}/recordProposals`,
+			`${name}/proposals`,
 			"agenticMemoryConsolidationRecordProposals",
 			(fact) => fact.recordProposals,
 		),

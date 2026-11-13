@@ -1,5 +1,6 @@
 import type { Ctx } from "../../../ctx/types.js";
 import type { Graph } from "../../../graph/graph.js";
+import { moduleName } from "../../../graph/module-naming.js";
 import type { Node } from "../../../node/node.js";
 import {
 	type CapabilityTextMeasurementsOptions,
@@ -144,6 +145,6 @@ export function reactNativeLayoutMeasurements(
 			}
 			ctx.down([["DATA", facts]]);
 		},
-		{ name: opts.name ?? "react-native-layout-measurements" },
+		{ name: moduleName(opts.graph, opts.name, "reactNativeMeasurements") },
 	);
 }

@@ -1,6 +1,7 @@
 import type { Ctx } from "../ctx/types.js";
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
+import { moduleName } from "../graph/module-naming.js";
 import { canonicalTupleKey, compoundTupleKey } from "../identity.js";
 import type { Node } from "../node/node.js";
 import type { ToolProviderAdapterRunProjectorPrivateRetentionHooks } from "./agent-runtime-adapter-retention.js";
@@ -154,7 +155,7 @@ export function toolProviderAdapterRunProjectorInternal(
 		readonly privateRetentionHooks?: ToolProviderAdapterRunProjectorPrivateRetentionHooks;
 	},
 ): ToolProviderAdapterRunBundle {
-	const name = opts.name ?? "toolProviderAdapterRun";
+	const name = moduleName(graph, opts.name, "toolProviderAdapterRun");
 	const explicitRunDeps = opts.runRequests ?? [];
 	const autoRunReadyInputs = opts.autoRunReadyInputs ?? true;
 	const runtime = graph.node<ToolProviderAdapterRunFact>(

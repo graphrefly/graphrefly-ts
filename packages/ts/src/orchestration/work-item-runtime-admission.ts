@@ -1,5 +1,6 @@
 import type { Ctx } from "../ctx/types.js";
 import type { Graph } from "../graph/graph.js";
+import { moduleName } from "../graph/module-naming.js";
 import { compoundTupleKey } from "../identity.js";
 import type { Node } from "../node/node.js";
 import type { AgentRuntimeAuditRecord } from "./agent-runtime.js";
@@ -49,7 +50,7 @@ export function workItemDomainActionAdmissionProjector(
 		readonly now?: () => number;
 	},
 ): WorkItemDomainActionAdmissionBundle {
-	const name = opts.name ?? "workItemDomainActionAdmissions";
+	const name = moduleName(graph, opts.name, "workItemDomainActionAdmissions");
 	const policyDeps = opts.admissionPolicies ?? [];
 	const policyStart = 2;
 	const now = opts.now ?? Date.now;
@@ -104,7 +105,7 @@ export function workItemDomainActionAdmissionProjector(
 		admissions: projectRuntimeFact(
 			graph,
 			runtime,
-			`${name}/admissions`,
+			name,
 			"workItemDomainActionAdmissions",
 			(fact) => (fact.kind === "admission" ? fact.admission : undefined),
 		),

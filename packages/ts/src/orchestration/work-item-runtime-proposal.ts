@@ -1,5 +1,6 @@
 import type { Ctx } from "../ctx/types.js";
 import type { Graph } from "../graph/graph.js";
+import { moduleName } from "../graph/module-naming.js";
 import { canonicalTupleKey, compoundTupleKey } from "../identity.js";
 import type { Node } from "../node/node.js";
 import type { AgentRuntimeAuditRecord, EffectRunResult } from "./agent-runtime.js";
@@ -44,7 +45,7 @@ export function workItemDomainActionProposalProjector(
 		readonly now?: () => number;
 	},
 ): WorkItemDomainActionProposalBundle {
-	const name = opts.name ?? "workItemDomainActionProposals";
+	const name = moduleName(graph, opts.name, "workItemDomainActionProposals");
 	const now = opts.now ?? Date.now;
 	const policyStart = 3;
 	const runtime = graph.node<WorkItemDomainActionProposalFact>(
@@ -99,12 +100,8 @@ export function workItemDomainActionProposalProjector(
 		{ name: `${name}/runtime`, factory: "workItemDomainActionProposalProjector" },
 	);
 	return {
-		proposals: projectRuntimeFact(
-			graph,
-			runtime,
-			`${name}/proposals`,
-			"workItemDomainActionProposals",
-			(fact) => (fact.kind === "proposal" ? fact.proposal : undefined),
+		proposals: projectRuntimeFact(graph, runtime, name, "workItemDomainActionProposals", (fact) =>
+			fact.kind === "proposal" ? fact.proposal : undefined,
 		),
 		status: projectRuntimeFact(
 			graph,

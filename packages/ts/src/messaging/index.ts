@@ -1,3 +1,5 @@
+import { moduleName } from "../graph/module-naming.js";
+import { assertLocalName } from "../node/naming.js";
 /**
  * Reusable application-infrastructure messaging namespace.
  *
@@ -123,7 +125,7 @@ export function messageBus<TTopic extends string>(
 	graph: Graph,
 	opts: MessageBusOptions<TTopic> = {},
 ): MessageBus<TTopic> {
-	const name = opts.name ?? "messageBus";
+	const name = moduleName(graph, opts.name, "messageBus");
 	const initialTopics = uniqueTopics(opts.topics ?? []);
 	const commandBody: NodeFn = (ctx) => {
 		const out: Message[] = [];
@@ -278,7 +280,8 @@ export function messageBus<TTopic extends string>(
 		},
 		topic<T = unknown>(topic: TTopic | string, projectionOpts: { name?: string } = {}) {
 			assertTopicKey(topic, "messageBus.topic");
-			const projectionName = projectionOpts.name ?? `${name}/${topic}/topic`;
+			if (projectionOpts.name === undefined) assertLocalName(topic);
+			const projectionName = moduleName(graph, projectionOpts.name, `${name}/topics/${topic}`);
 			const snapshotRequest = projectionRequest<MessageBusTopicParams>(
 				graph,
 				projectionName,
@@ -303,7 +306,7 @@ export function messageBus<TTopic extends string>(
 			return { snapshot, snapshotRequest, status, issues };
 		},
 		catalog(projectionOpts: { name?: string } = {}) {
-			const projectionName = projectionOpts.name ?? `${name}/catalog`;
+			const projectionName = moduleName(graph, projectionOpts.name, `${name}/catalog`);
 			const snapshotRequest = projectionRequest<MessageBusCatalogParams>(
 				graph,
 				projectionName,
@@ -327,7 +330,7 @@ export function messageBus<TTopic extends string>(
 			return { snapshot, snapshotRequest, status, issues };
 		},
 		deadLetter<T = unknown>(projectionOpts: { name?: string } = {}) {
-			const projectionName = projectionOpts.name ?? `${name}/deadLetter`;
+			const projectionName = moduleName(graph, projectionOpts.name, `${name}/deadLetter`);
 			const snapshotRequest = projectionRequest<MessageBusDeadLetterParams>(
 				graph,
 				projectionName,
@@ -358,14 +361,21 @@ export function messageBus<TTopic extends string>(
 		}) {
 			assertTopicKey(subscriptionOpts.topic, "messageBus.subscription");
 			assertNonEmpty(subscriptionOpts.subscriptionId, "messageBus.subscriptionId");
+			if (subscriptionOpts.name === undefined) {
+				assertLocalName(subscriptionOpts.topic);
+				assertLocalName(subscriptionOpts.subscriptionId);
+			}
+			const projectionName = moduleName(
+				graph,
+				subscriptionOpts.name,
+				`${name}/subscriptions/${subscriptionOpts.topic}/${subscriptionOpts.subscriptionId}`,
+			);
 			const sub = ensureSubscription(state, {
 				topic: subscriptionOpts.topic,
 				subscriptionId: subscriptionOpts.subscriptionId,
 				from: subscriptionOpts.from ?? "earliest",
 			});
-			const projectionName =
-				subscriptionOpts.name ??
-				`${name}/${subscriptionOpts.topic}/${subscriptionOpts.subscriptionId}`;
+
 			const availableRequest = projectionRequest<MessageBusAvailableParams>(
 				graph,
 				`${projectionName}/available`,
@@ -478,6 +488,7 @@ export function toTopic<T, TTopic extends string>(
 	if (state === undefined) throw new Error("toTopic: unknown message bus implementation");
 	if (state.graph !== graph) throw new Error("toTopic: bus and source graph must match");
 	assertTopicKey(topic, "toTopic");
+	if (opts.name === undefined) assertLocalName(topic);
 	const commands = graph.node<MessageBusCommand<T>>(
 		[source],
 		(ctx) => {
@@ -496,7 +507,7 @@ export function toTopic<T, TTopic extends string>(
 			ctx.down(commands.map((v) => ["DATA", v] as const));
 		},
 		{
-			name: opts.name ?? `${state.name}/${topic}/toTopic`,
+			name: moduleName(graph, opts.name, `${state.name}/topics/${topic}/toTopic`),
 			factory: "toTopic",
 			meta: { topic },
 			complete: "manual",

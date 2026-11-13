@@ -1,5 +1,6 @@
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
+import { moduleName } from "../graph/module-naming.js";
 import { canonicalTupleKey, compoundTupleKey } from "../identity.js";
 import type { Node } from "../node/node.js";
 import {
@@ -93,7 +94,7 @@ export function toolProviderAdapterInputProjector(
 		readonly policyResolutions: readonly Node<ToolProviderPolicyResolution>[];
 	},
 ): ToolProviderAdapterInputBundle {
-	const name = opts.name ?? "toolProviderAdapterInput";
+	const name = moduleName(graph, opts.name, "toolProviderAdapterInput");
 	const routeDeps = opts.executorRoutes ?? [];
 	const catalogDeps = opts.toolProviderCatalogs ?? [];
 	const routeStart = 1;

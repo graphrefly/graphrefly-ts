@@ -1,5 +1,7 @@
 import type { Ctx } from "../../../ctx/types.js";
 import type { Graph } from "../../../graph/graph.js";
+import { moduleName } from "../../../graph/module-naming.js";
+import { assertLocalName } from "../../../node/naming.js";
 import type { Node } from "../../../node/node.js";
 import {
 	capabilityTextMeasurements,
@@ -41,6 +43,7 @@ export interface NodeCanvasTextMeasurementsOptions {
 export function nodeCanvasTextMeasurements(
 	opts: NodeCanvasTextMeasurementsOptions,
 ): Node<Measurements> {
+	assertLocalName(opts.name ?? opts.targetId ?? "text");
 	const targetId = opts.targetId ?? "text";
 	const capability = opts.graph.node<TextMeasureCapability>(
 		[opts.context],
@@ -60,9 +63,11 @@ export function nodeCanvasTextMeasurements(
 			ctx.down([["DATA", value]]);
 		},
 		{
-			name: opts.name
-				? `${opts.name}:node-canvas-measure-capability`
-				: `${targetId}-node-canvas-measure-capability`,
+			name: moduleName(
+				opts.graph,
+				opts.name === undefined ? undefined : `${opts.name}/context`,
+				`${targetId}/context`,
+			),
 		},
 	);
 	return capabilityTextMeasurements({

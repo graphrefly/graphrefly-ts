@@ -1,4 +1,6 @@
 import type { Graph } from "../../../graph/graph.js";
+import { moduleName } from "../../../graph/module-naming.js";
+import { assertLocalName } from "../../../node/naming.js";
 import type { Node } from "../../../node/node.js";
 import {
 	type MeasurementAdapter,
@@ -99,11 +101,16 @@ export class CanvasMeasureAdapter implements MeasurementAdapter {
  * ```
  */
 export function canvasTextMeasurements(opts: CanvasTextMeasurementsOptions): Node<Measurements> {
+	assertLocalName(opts.name ?? opts.targetId ?? "text");
 	const targetId = opts.targetId ?? "text";
 	const adapter = opts.graph.state<MeasurementAdapter>(
 		new CanvasMeasureAdapter({ emojiCorrection: opts.emojiCorrection }),
 		{
-			name: opts.name ? `${opts.name}:measure-capability` : `${targetId}-canvas-measure-capability`,
+			name: moduleName(
+				opts.graph,
+				opts.name === undefined ? undefined : `${opts.name}/capability`,
+				`${targetId}/capability`,
+			),
 		},
 	);
 	return textMeasurementProvider({

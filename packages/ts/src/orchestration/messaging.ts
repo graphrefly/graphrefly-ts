@@ -1,3 +1,4 @@
+import { moduleName } from "../graph/module-naming.js";
 /**
  * Optional orchestration-over-messageBus recipe (D349/D351/D353).
  *
@@ -73,7 +74,7 @@ export function orchestrationMessagingRecipe<
 	graph: Graph,
 	opts: OrchestrationMessagingRecipeOptions<TPayload, TCommand, TEvent>,
 ): OrchestrationMessagingRecipeBundle<TCommand> {
-	const name = opts.name ?? "orchestrationMessaging";
+	const name = moduleName(graph, opts.name, "orchestrationMessaging");
 	const runtime = graph.node<OrchestrationMessagingFact<TCommand>>(
 		[opts.deliveries],
 		(ctx) => {
@@ -229,7 +230,7 @@ export function orchestrationMessageAckCommands(
 			ctx.down(commands.map((v) => ["DATA", v] as const));
 		},
 		{
-			name: opts.name ?? "orchestrationMessaging/ackCommands",
+			name: moduleName(graph, opts.name, "orchestrationMessaging/ackCommands"),
 			factory: "orchestrationMessagingAckCommands",
 			complete: "manual",
 			error: "manual",
@@ -275,7 +276,7 @@ export function processEventOutboxCommands<TEvent>(
 			ctx.down(commands.map((v) => ["DATA", v] as const));
 		},
 		{
-			name: opts.name ?? "orchestrationMessaging/outboxCommands",
+			name: moduleName(graph, opts.name, "orchestrationMessaging/outboxCommands"),
 			factory: "orchestrationMessagingOutboxCommands",
 			complete: "manual",
 			error: "manual",

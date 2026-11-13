@@ -1,5 +1,6 @@
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
+import { moduleName } from "../graph/module-naming.js";
 import type { RetentionPolicy } from "../graph/policies/types.js";
 import { canonicalTupleKey, compoundTupleKey } from "../identity.js";
 import type {
@@ -91,7 +92,7 @@ export function attachToolProviderAdapterRuntime<TArguments = unknown, TResult =
 	graph: Graph,
 	opts: ToolProviderAdapterRuntimeOptions<TArguments, TResult>,
 ): ToolProviderAdapterRuntimeHandle {
-	const name = opts.name ?? "toolProviderAdapterRuntime";
+	const name = moduleName(graph, opts.name, "toolProviderAdapterRuntime");
 	const bindings = normalizeToolProviderAdapterBindings(opts.bindings);
 	const retentionReaders = buildRetentionPolicyReaders(graph, name, opts.retention);
 	const retentionPolicy = graph.node<RuntimeRetentionPolicyFact>(
