@@ -42,5 +42,5 @@ count.set(2);
 
 Every node is built by a graph: `g.state`, `g.derived`, `g.effect`, `g.producer`,
 `g.node` for a raw `(ctx) => void` function, and `g.initNode(operator, deps)` for
-operators and sources. `@graphrefly/ts/core` holds the low-level types (`Node`,
+operators and sources. `@graphrefly/ts` holds the low-level types (`Node`,
 `Ctx`, `Message`) and the dispatcher.

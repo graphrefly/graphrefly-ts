@@ -10,7 +10,7 @@ Whether `v` is not a valid ERROR payload: SENTINEL or a boolean (R-messages).
 ## Import
 
 ```ts
-import { isInvalidErrorPayload } from "@graphrefly/ts/core";
+import { isInvalidErrorPayload } from "@graphrefly/ts";
 ```
 
 ## Signature
@@ -32,7 +32,7 @@ function isInvalidErrorPayload(v: unknown): boolean
 ## Example
 
 ```ts
-import { isInvalidErrorPayload } from "@graphrefly/ts/core";
+import { isInvalidErrorPayload } from "@graphrefly/ts";
 ```
 
 ## Source

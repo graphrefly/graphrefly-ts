@@ -11,7 +11,7 @@ classifier data changes affect future source items, but branch count is fixed at
 ## Import
 
 ```ts
-import { stratify } from "@graphrefly/ts/composition";
+import { stratify } from "@graphrefly/ts";
 ```
 
 ## Signature
@@ -43,7 +43,7 @@ A `Stratified<T, R>` value.
 ## Example
 
 ```ts
-import { stratify } from "@graphrefly/ts/composition";
+import { stratify } from "@graphrefly/ts";
 ```
 
 ## Source

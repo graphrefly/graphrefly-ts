@@ -10,7 +10,7 @@ Compose unary operator factories into a graph-registered chain.
 ## Import
 
 ```ts
-import { pipe } from "@graphrefly/ts/composition";
+import { pipe } from "@graphrefly/ts";
 ```
 
 ## Signature

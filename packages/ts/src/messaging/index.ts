@@ -4,7 +4,7 @@ import { assertLocalName } from "../node/naming.js";
  * Reusable application-infrastructure messaging namespace.
  *
  * D279/D282/D284/D285/D276: messageBus is a retained topic-log plus independent
- * subscription-cursor substrate. DynamicHub is intentionally retired; do not add aliases.
+ * subscription-cursor substrate.
  */
 
 import type { NodeFn } from "../ctx/types.js";

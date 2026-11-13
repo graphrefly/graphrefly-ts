@@ -520,7 +520,7 @@ export class Graph {
 	// inspection index (_add) so describe shows it (D6/inspect) while the node stays thin
 	// (R-node-thin). Operators are free-standing factory definitions (graph/operators.ts,
 	// graph/sources.ts) usable bare via the free initNode(); this funnel is the inspectable
-	// path. Replaces the per-operator methods.
+	// path.
 
 	/**
 	 * Instantiate an operator (or source) factory as a registered graph node. `deps` are
@@ -538,7 +538,7 @@ export class Graph {
 		for (const dep of deps as readonly Node<unknown>[])
 			assertGraphLocalNode(this, dep, `dep of '${entryOpts.name ?? op.factory}'`);
 		// Node<T> is invariant (T appears in NodeOptions.initial); widen the typed deps to the
-		// erased Node surface the free initNode / _add accept (same cast the old methods used).
+		// erased Node surface the free initNode / _add accept.
 		const erased = deps as readonly Node<unknown>[];
 		return this._createRegistered(op.factory, erased, entryOpts, (nodeOpts, acquired) =>
 			initNodeWithCore(this._core, op, erased, nodeOpts, acquired),

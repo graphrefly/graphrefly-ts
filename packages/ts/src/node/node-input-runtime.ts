@@ -36,7 +36,7 @@ export function nodeReceiveFromDep<T>(
 	arrays: readonly Wave[],
 	snapshot: boolean,
 ): void {
-	// Q15: a call straight from a delivery or marking loop continues that loop instead of recursing.
+	// a call straight from a delivery or marking loop continues that loop instead of recursing.
 	const tail = takeTailCall();
 	if (self[RELEASED]) return;
 	const input = self[DEP].inputs[idx];
@@ -161,7 +161,7 @@ function nodeTerminalPolicy<T>(self: Node<T>, t: unknown): "auto" | "manual" {
  *    run's only input (graphrefly:D806 (1), R-terminals@1, C-17);
  * 4. auto COMPLETE: once every dependency has ended, COMPLETE follows the run's output;
  * 5. a node marked pending that sent nothing gets the kernel's one RESOLVED.
- * All of it goes out as one delivery, so a dependent settles once on it. `tail` (Q15): this settle
+ * All of it goes out as one delivery, so a dependent settles once on it. `tail`: this settle
  * was reached straight from a delivery's last message, so its publication continues that loop.
  */
 export function nodeSettle<T>(self: Node<T>, force: boolean, tail = false): void {
@@ -269,7 +269,7 @@ function nodeSettleOutput<T>(
 ): void {
 	if (self[SLOT].quiet) {
 		if (now.length > 0) {
-			// Q15: in the delivery loop's tail, the loop sends `now` and then does the rest.
+			// in the delivery loop's tail, the loop sends `now` and then does the rest.
 			if (tail && nodePublishTail(self, now, quietSettleTail, rest)) return;
 			nodePublish(self, now);
 		}

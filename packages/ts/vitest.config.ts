@@ -17,11 +17,10 @@ export default defineConfig({
 	// Examples import public subpaths. Unit tests run before dist exists, so
 	// resolve those entries to source the same way keyed-rate-limit typecheck does.
 	resolve: {
-		alias: {
-			"@graphrefly/ts/core": resolve(src, "core/index.ts"),
-			"@graphrefly/ts/graph": resolve(src, "graph/index.ts"),
-			"@graphrefly/ts/render": resolve(src, "render/index.ts"),
-		},
+		alias: [
+			{ find: /^@graphrefly\/ts$/, replacement: resolve(src, "index.ts") },
+			{ find: /^@graphrefly\/ts\/graph$/, replacement: resolve(src, "graph/index.ts") },
+		],
 	},
 	test: {
 		include: ["src/**/*.test.ts"],

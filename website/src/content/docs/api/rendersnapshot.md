@@ -10,7 +10,7 @@ Materialize presentation data only for renderers; ordinary readers use describe 
 ## Import
 
 ```ts
-import { renderSnapshot } from "@graphrefly/ts/graph";
+import { renderSnapshot } from "@graphrefly/ts";
 ```
 
 ## Signature

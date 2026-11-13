@@ -1,24 +1,13 @@
 /**
- * Multi-source combinators + notifier-driven operators (CSP-2.7 catalog re-derive, D40 / D45).
+ * Multi-source combinators and notifier-driven operators (D40 / D45).
  *
- * Per-language sugar (D6/D24, never in parity). Each forms topology ONLY via DECLARED deps (D45) —
- * the frozen pure-ts reference (D41) builds these as a producer that calls `subscribeOr` on each
- * source INSIDE the fn body, which is the D45-banned describe island (an edge `describe` cannot
- * show). Re-derived here as static-dep kernel nodes, which run on any dependency (graphrefly-ts:D184),
- * with `ctx.state` (queue / phase / winner) — so every edge is a real subscription `describe`
- * shows truthfully (D3 / R-edges-derived). Multi-source completion / error reads
- * `ctx.deps[i].terminal` (R-terminals) via the manual COMPLETE policy.
+ * Per-language sugar with topology formed by declared dependencies. Static-dependency kernel
+ * nodes run on any dependency (graphrefly-ts:D184), with queue/phase/winner state in ctx.state.
+ * Every edge is visible in describe (R-edges-derived); completion and error read
+ * ctx.deps[i].terminal through the manual COMPLETE policy.
  *
- * Under D49 (no equals-absorption) `combine` emits a fresh tuple on EVERY contributing wave (no
- * substrate tuple-dedup; the pure-ts `equals` tuple comparator is gone) — pair with
- * `distinctUntilChanged` for opt-in dedup. SENTINEL ("a dep has never delivered DATA") is detected
- * via `ctx.deps[i].value === undefined` (R-sentinel: `undefined` is the global sentinel, `null` is a valid
- * value).
- *
- * NOT re-derived in this cut (flagged): the window family (`window`/`windowCount`/`windowTime`)
- * emits `Node<Node<T>>` nested sub-streams — the frozen reference creates child nodes inside the fn
- * body and pushes DATA into them imperatively, which is a describe island AND an open question for
- * how an emitted live sub-stream appears in `describe` (D45/D51). Deferred to a design pass.
+ * combine emits a fresh tuple on every contributing wave. Use distinctUntilChanged for opt-in
+ * deduplication. A dependency with no DATA has value undefined (R-sentinel); null is valid DATA.
  */
 
 import type { Ctx, DepTerminal } from "../ctx/types.js";

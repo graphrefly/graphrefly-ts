@@ -18,7 +18,7 @@
 //     can answer "which grapheme did the user click on?" against the
 //     current `layout/code-lines` and the raw snippet text.
 
-import type { Node } from "@graphrefly/ts/core";
+import type { Node } from "@graphrefly/ts";
 import { graph } from "@graphrefly/ts/graph";
 import {
 	analyzeAndMeasure,

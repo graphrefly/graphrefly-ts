@@ -69,9 +69,7 @@
 	},
 	"overrides": [
 		{
-			"includes": [
-				"scripts/**"
-			],
+			"includes": ["scripts/**"],
 			"linter": {
 				"rules": {
 					"suspicious": {
@@ -88,9 +86,7 @@
 			}
 		},
 		{
-			"includes": [
-				"demos/**"
-			],
+			"includes": ["demos/**"],
 			"linter": {
 				"rules": {
 					"a11y": {
@@ -115,9 +111,7 @@
 			}
 		},
 		{
-			"includes": [
-				"demos/reactive-layout/src/components/chapters/BlocksChapter.tsx"
-			],
+			"includes": ["demos/reactive-layout/src/components/chapters/BlocksChapter.tsx"],
 			"linter": {
 				"rules": {
 					"security": {
@@ -127,10 +121,7 @@
 			}
 		},
 		{
-			"includes": [
-				"examples/framework/vue/**",
-				"examples/framework/svelte/**"
-			],
+			"includes": ["examples/framework/vue/**", "examples/framework/svelte/**"],
 			"linter": {
 				"rules": {
 					"correctness": {
@@ -140,13 +131,20 @@
 			}
 		},
 		{
-			"includes": [
-				"examples/nestjs-graph-boundary/**"
-			],
+			"includes": ["examples/nestjs-graph-boundary/**"],
 			"javascript": {
 				"parser": {
 					"unsafeParameterDecoratorsEnabled": true
 				}
+			}
+		},
+		{
+			"includes": [
+				"scripts/fixtures/causal-preset-numeric-contract-v1.vectors.json",
+				"scripts/fixtures/causal-publication-material-v1-vectors.json"
+			],
+			"formatter": {
+				"enabled": false
 			}
 		}
 	]

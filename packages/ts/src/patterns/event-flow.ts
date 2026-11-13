@@ -181,7 +181,7 @@ export function eventFlow<T = unknown>(
 	const flowId = opts.flowId ?? opts.name ?? "eventFlow";
 	const now = opts.now ?? Date.now;
 	const sources = normalizeSources(opts.sources);
-	// The user's Q13 (graphrefly-ts:D180): the sequences and high water are the flow's ledger, a
+	// Under graphrefly-ts:D180, the sequences and high water are the flow's ledger, a
 	// state the runtime declares, so a resubscribe goes on from them instead of restarting at 1.
 	const { ledger, setup } = declaredLedger(graph, {
 		name: `${name}/ledger`,
@@ -256,7 +256,7 @@ export function eventFlowProjection<TState, TPayload = unknown>(
 		highWater: EventFlowHighWater;
 		sources: EventFlowSourceHighWater[];
 	};
-	// The user's Q13: the fold and its high water are the projection's ledger.
+	// The fold and its high water are the projection's ledger.
 	const { ledger, setup } = declaredLedger<ProjectionState>(graph, {
 		name: `${name}/ledger`,
 		initial: () => ({ value: opts.initial, highWater: emptyHighWater(projectionId), sources: [] }),

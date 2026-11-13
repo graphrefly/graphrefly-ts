@@ -10,7 +10,7 @@ D56 branch node body: declared deps `[source, rules]`, no internal subscribe isl
 ## Import
 
 ```ts
-import { stratifyBranch } from "@graphrefly/ts/composition";
+import { stratifyBranch } from "@graphrefly/ts";
 ```
 
 ## Signature
@@ -40,7 +40,7 @@ A `Node<T>` value.
 ## Example
 
 ```ts
-import { stratifyBranch } from "@graphrefly/ts/composition";
+import { stratifyBranch } from "@graphrefly/ts";
 ```
 
 ## Source

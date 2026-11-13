@@ -10,7 +10,7 @@ Render a D39 describe snapshot as deterministic JSON text.
 ## Import
 
 ```ts
-import { renderToJson } from "@graphrefly/ts/graph";
+import { renderToJson } from "@graphrefly/ts";
 ```
 
 ## Signature

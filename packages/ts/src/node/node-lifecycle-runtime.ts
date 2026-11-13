@@ -26,7 +26,7 @@ import {
 import type { Status } from "./types.js";
 
 /**
- * graphrefly-ts Q15: activation runs on an explicit stack of frames, not JS recursion, so a chain
+ * activation runs on an explicit stack of frames, not JS recursion, so a chain
  * of any depth activates. A frame is one subscription to one node (nodeSubscribeOwned): it
  * activates the node if needed, acquiring each dependency as a child frame on top of it, runs the
  * node's first run once every dependency is acquired, and then attaches the subscriber with START
@@ -233,7 +233,7 @@ function unwindActivations(base: number, thrown: unknown): never {
 function makeUnsubscribe(self: Node<unknown>, subscriber: Subscriber): () => void {
 	let left = false;
 	return () => {
-		// Q15: called straight from a teardown loop, the deactivation continues that loop.
+		// called straight from a teardown loop, the deactivation continues that loop.
 		const tail = teardownTail;
 		teardownTail = false;
 		if (left) return;
@@ -276,7 +276,7 @@ function nodeDepLink<T>(self: Node<T>, depNode: Node<unknown>): DepLink {
 }
 
 /**
- * graphrefly-ts Q15: closing lifetimes runs on an explicit stack, not JS recursion, so releasing a
+ * closing lifetimes runs on an explicit stack, not JS recursion, so releasing a
  * chain of any depth works. A frame is one lifetime closing; when releasing one of its
  * dependencies leaves that dependency without subscribers, the dependency's deactivation is a
  * frame on top of it, closed to its end before the next dependency is released, as the recursive

@@ -288,7 +288,7 @@ function canonicalSubpathForSource(filePath) {
 		sourcePath.startsWith("node/") ||
 		sourcePath.startsWith("protocol/")
 	) {
-		return "./core";
+		return ".";
 	}
 	if (
 		sourcePath === "graph/operators.ts" ||
@@ -299,7 +299,7 @@ function canonicalSubpathForSource(filePath) {
 		return "./operators";
 	}
 	if (sourcePath === "graph/sources.ts") return "./sources";
-	if (sourcePath === "graph/composition.ts") return "./composition";
+	if (sourcePath === "graph/composition.ts" || sourcePath === "graph/render.ts") return ".";
 	if (sourcePath.startsWith("graph/data-structures/")) return "./data-structures";
 	if (sourcePath.startsWith("graph/")) return "./graph";
 	if (sourcePath.startsWith("sources/browser")) return "./sources/browser";

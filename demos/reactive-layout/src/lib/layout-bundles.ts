@@ -1,4 +1,4 @@
-import type { Node } from "@graphrefly/ts/core";
+import type { Node } from "@graphrefly/ts";
 import { graph, type StateNode } from "@graphrefly/ts/graph";
 import {
 	type BlockAdapters,

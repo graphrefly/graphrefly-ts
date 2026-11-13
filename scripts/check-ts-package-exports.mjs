@@ -19,7 +19,10 @@ const PKG = join(ROOT, "packages", "ts");
 const TSC = join(ROOT, "node_modules", ".bin", "tsc");
 const packageJson = JSON.parse(readFileSync(join(PKG, "package.json"), "utf8"));
 const nodeBuiltins = new Set(builtinModules.flatMap((name) => [name, `node:${name}`]));
-const removedEcosystemSubpaths = [
+const removedSubpaths = [
+	"./core",
+	"./composition",
+	"./render",
 	"./adapters/nestjs",
 	"./adapters/nestjs/microservices",
 	"./adapters/nestjs/native",
@@ -584,11 +587,8 @@ const rateLimitPublicExports = declarationExportNames(
 );
 assert(rateLimitPublicExports.length > 0, "./rate-limit must expose public DTS symbols");
 
-for (const subpath of removedEcosystemSubpaths) {
-	assert(
-		packageJson.exports?.[subpath] === undefined,
-		`${subpath} must move to an ecosystem package`,
-	);
+for (const subpath of removedSubpaths) {
+	assert(packageJson.exports?.[subpath] === undefined, `${subpath} must not be a public subpath`);
 }
 
 for (const subpath of Object.keys(expectedSubpaths)) {

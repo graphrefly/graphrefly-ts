@@ -106,7 +106,7 @@ export function nodeCreationIndex(node: Node<unknown>): number {
 }
 
 export class Node<T = unknown> {
-	// The node's kernel state (review §5.7), keyed by the internal symbols of ./node-keys.ts: the
+	// The node's kernel state, keyed by the internal symbols of ./node-keys.ts: the
 	// node-*-runtime modules read and write it directly. `private`, so the published declarations
 	// show the keys without their types.
 	private readonly [CORE]: NodeCore;

@@ -565,7 +565,7 @@ export function keyedRateLimitAdmissionBundle(
 	// as a state node the runtime declares (a drawable edge, strict JSON, so a checkpoint captures
 	// it). Within a lifetime the runtime's private state is the working copy, seeded from the ledger
 	// by the setup; the lifetime's cleanup writes it back, a queued request that lands before any
-	// later lifetime starts (REVIEW-D797-migration-fable 2.12; graphrefly-ts:D180).
+	// later lifetime starts (graphrefly-ts:D180).
 	const ledger = graph.state<KeyedRateLimitRuntimeState>(initialRuntimeState(), {
 		name: `${name}/ledger`,
 		factory: "keyedRateLimitLedger",

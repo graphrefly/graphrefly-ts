@@ -5,6 +5,7 @@ import {
 	createNodeInput as useStore,
 	createNodeValue as useSubscribe,
 } from "@graphrefly/solid";
+import type { Node } from "@graphrefly/ts";
 import type {
 	JotaiAtom,
 	NanoAtom,
@@ -12,7 +13,6 @@ import type {
 	WritableNanoAtom,
 	ZustandStoreApi,
 } from "@graphrefly/ts/adapters";
-import type { Node } from "@graphrefly/ts/core";
 import { createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js";
 import {
 	counterGraph,

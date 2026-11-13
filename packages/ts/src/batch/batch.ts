@@ -29,7 +29,7 @@ import {
 
 /**
  * A node a batch stages output for. The batch reaches it only through the node runtime functions
- * below, so a node has no public batch entry (graphrefly-ts:D175, REVIEW-D797-migration-fable 2.13).
+ * below, so a node has no public batch entry (graphrefly-ts:D175).
  */
 export type BatchTarget = Node<unknown>;
 

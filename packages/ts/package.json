@@ -46,16 +46,6 @@
 				"default": "./dist/adapters/observe-storage.cjs"
 			}
 		},
-		"./composition": {
-			"import": {
-				"types": "./dist/composition/index.d.ts",
-				"default": "./dist/composition/index.js"
-			},
-			"require": {
-				"types": "./dist/composition/index.d.cts",
-				"default": "./dist/composition/index.cjs"
-			}
-		},
 		"./committed-facts": {
 			"import": {
 				"types": "./dist/committed-facts/index.d.ts",
@@ -104,16 +94,6 @@
 			"require": {
 				"types": "./dist/data/index.d.cts",
 				"default": "./dist/data/index.cjs"
-			}
-		},
-		"./core": {
-			"import": {
-				"types": "./dist/core/index.d.ts",
-				"default": "./dist/core/index.js"
-			},
-			"require": {
-				"types": "./dist/core/index.d.cts",
-				"default": "./dist/core/index.cjs"
 			}
 		},
 		"./data-structures": {
@@ -456,16 +436,6 @@
 			"require": {
 				"types": "./dist/patterns/event-flow.d.cts",
 				"default": "./dist/patterns/event-flow.cjs"
-			}
-		},
-		"./render": {
-			"import": {
-				"types": "./dist/render/index.d.ts",
-				"default": "./dist/render/index.js"
-			},
-			"require": {
-				"types": "./dist/render/index.d.cts",
-				"default": "./dist/render/index.cjs"
 			}
 		},
 		"./scoring": {

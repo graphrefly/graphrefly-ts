@@ -13,8 +13,6 @@ import type {
 import * as adapters from "../adapters/index.js";
 import * as observeStorage from "../adapters/observe-storage.js";
 import * as committedFacts from "../committed-facts/index.js";
-import * as composition from "../composition/index.js";
-import * as core from "../core/index.js";
 import * as cqrs from "../cqrs/index.js";
 import * as cqrsMessagingRecipe from "../cqrs/messaging.js";
 import * as cqrsWorkQueueRecipe from "../cqrs/work-queue.js";
@@ -185,7 +183,6 @@ import * as orchestrationWorkQueueRecipe from "../orchestration/work-queue.js";
 import * as eventFlowPatterns from "../patterns/event-flow.js";
 import * as patterns from "../patterns/index.js";
 import * as rateLimit from "../rate-limit/index.js";
-import * as render from "../render/index.js";
 import * as scoring from "../scoring/index.js";
 import * as agenticMemoryBrowser from "../solutions/agentic-memory/browser.js";
 import * as agenticMemory from "../solutions/agentic-memory/index.js";
@@ -258,8 +255,6 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 			"./adapters",
 			"./adapters/observe-storage",
 			"./committed-facts",
-			"./composition",
-			"./core",
 			"./cqrs",
 			"./cqrs/messaging",
 			"./cqrs/work-queue",
@@ -296,7 +291,6 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 			"./patterns",
 			"./patterns/event-flow",
 			"./rate-limit",
-			"./render",
 			"./scoring",
 			"./solutions",
 			"./solutions/agentic-memory",
@@ -337,6 +331,9 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(exportsJson.exports?.["./solutions/workspace-intents"]).toBeUndefined();
 		expect(exportsJson.exports?.["./presets"]).toBeUndefined();
 		expect(exportsJson.exports?.["./utils"]).toBeUndefined();
+		expect(exportsJson.exports?.["./core"]).toBeUndefined();
+		expect(exportsJson.exports?.["./composition"]).toBeUndefined();
+		expect(exportsJson.exports?.["./render"]).toBeUndefined();
 		expect(exportsJson.exports?.["./graph/render"]).toBeUndefined();
 		expect(exportsJson.exports?.["./graph/sources"]).toBeUndefined();
 		expect(exportsJson.exports?.["./graph/operators"]).toBeUndefined();
@@ -386,10 +383,10 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 	});
 
 	it("exposes the clean-slate layer surfaces from source barrels", () => {
-		// R-graph-domain@3 (graphrefly-ts:D179): nodes are built by a graph; core has no node().
-		expect(core).not.toHaveProperty("node");
-		expect(core).not.toHaveProperty("batch");
-		expect(typeof core.Node).toBe("function");
+		// R-graph-domain@3 (graphrefly-ts:D179): nodes are built by a graph; the main entry has no free node().
+		expect(rootPackage).not.toHaveProperty("node");
+		expect(rootPackage).not.toHaveProperty("batch");
+		expect(typeof rootPackage.Node).toBe("function");
 		expect(typeof graphLayer.Graph).toBe("function");
 		expect(typeof graphLayer.graph).toBe("function");
 		expect(typeof graphLayer.domWebSocketDriver).toBe("function");
@@ -397,10 +394,10 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof graphLayer.fetchHttpDriver).toBe("function");
 		// R-graph-surface@1 / R-primary-api-clean@2 (graphrefly:D805): no observe stream helpers and no tiers.
 		expect(graphLayer).not.toHaveProperty("filterObserve");
-		expect(core).not.toHaveProperty("messageTier");
-		expect(core).not.toHaveProperty("TIER_VALUE");
-		expect(core).not.toHaveProperty("isDeferredTier");
-		expect(core).not.toHaveProperty("isValueTier");
+		expect(rootPackage).not.toHaveProperty("messageTier");
+		expect(rootPackage).not.toHaveProperty("TIER_VALUE");
+		expect(rootPackage).not.toHaveProperty("isDeferredTier");
+		expect(rootPackage).not.toHaveProperty("isValueTier");
 		expect(typeof graphLayer.GRAPH_CHECKPOINT_FORMAT).toBe("string");
 		expect(typeof graphLayer.reachable).toBe("function");
 		expect(typeof graphLayer.restoreGraph).toBe("function");
@@ -428,10 +425,10 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(typeof sources.throwError).toBe("function");
 		expect(Object.hasOwn(sources, "fromFSWatch")).toBe(false);
 		expect(Object.hasOwn(sources, "fromRaf")).toBe(false);
-		expect("topologyDiff" in composition).toBe(false);
+		expect("topologyDiff" in rootPackage).toBe(false);
 		expect(typeof dataStructures.reactiveMap).toBe("function");
-		expect(typeof render.renderToJson).toBe("function");
-		expect(typeof render.renderToMermaidUrl).toBe("function");
+		expect(typeof rootPackage.renderToJson).toBe("function");
+		expect(typeof rootPackage.renderToMermaidUrl).toBe("function");
 		expect(typeof adapters.jotaiAtom).toBe("function");
 		expect(typeof adapters.nanoAtom).toBe("function");
 		expect(typeof adapters.recordReadableStore).toBe("function");
@@ -1797,9 +1794,6 @@ describe("package subpath barrels (D40/D41 intent parity)", () => {
 		expect(Object.hasOwn(storage, "snapshotNodeVersionData")).toBe(false);
 		expect(Object.hasOwn(graphLayer, "attachSnapshotStorage")).toBe(false);
 		expect(Object.hasOwn(graphLayer, "restoreSnapshot")).toBe(false);
-		expect(Object.hasOwn(core, "strictCanonicalJsonBytes")).toBe(false);
-		expect(Object.hasOwn(core, "assertNodeVersionDataCompatible")).toBe(false);
-		expect(Object.hasOwn(core, "snapshotNodeVersionData")).toBe(false);
 	});
 
 	it("exports storage/node as a package subpath", () => {

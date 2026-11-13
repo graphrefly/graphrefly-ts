@@ -125,7 +125,7 @@ import { graph } from "@graphrefly/ts/graph";
 import { map, switchMap } from "@graphrefly/ts/operators";
 import { fromPromise, timer } from "@graphrefly/ts/sources";
 import { memoryKv } from "@graphrefly/ts/storage";
-import { renderToMermaid } from "@graphrefly/ts/render";
+import { renderToMermaid } from "@graphrefly/ts";
 import { useNodeValue } from "@graphrefly/react";
 ```
 

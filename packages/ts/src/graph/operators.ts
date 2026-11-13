@@ -835,8 +835,7 @@ interface SettleState<S> {
  * settle: forward each DATA unchanged, watch for convergence, COMPLETE once the source has been
  * quiet for `quietWaves` consecutive waves (or `maxWaves` elapsed). "Wave" = one fn invocation
  * (a DATA batch OR a bare undirty RESOLVED end-of-wave). No polling (R-no-polling) — the counter
- * advances only on real upstream waves. `settle`'s own `equals` is a body comparator, NOT the
- * removed substrate `equals` (D49).
+ * advances only on real upstream waves. `settle`'s `equals` is an operator-level body comparator.
  * @param opts - Options that configure the helper.
  * @returns A `Operator<S, S>` value.
  * @category operators

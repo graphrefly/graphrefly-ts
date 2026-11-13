@@ -10,7 +10,7 @@ Encode arbitrary Mermaid source as a mermaid.live deep link.
 ## Import
 
 ```ts
-import { mermaidLiveUrl } from "@graphrefly/ts/graph";
+import { mermaidLiveUrl } from "@graphrefly/ts";
 ```
 
 ## Signature

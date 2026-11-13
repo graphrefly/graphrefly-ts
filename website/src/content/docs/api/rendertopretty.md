@@ -10,7 +10,7 @@ Render a D39 describe snapshot as compact human-readable plaintext.
 ## Import
 
 ```ts
-import { renderToPretty } from "@graphrefly/ts/graph";
+import { renderToPretty } from "@graphrefly/ts";
 ```
 
 ## Signature

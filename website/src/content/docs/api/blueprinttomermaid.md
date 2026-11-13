@@ -13,7 +13,7 @@ envelope. It never reads runtime values, status, or a live Graph.
 ## Import
 
 ```ts
-import { blueprintToMermaid } from "@graphrefly/ts/graph";
+import { blueprintToMermaid } from "@graphrefly/ts";
 ```
 
 ## Signature

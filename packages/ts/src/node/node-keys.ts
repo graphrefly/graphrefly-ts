@@ -1,5 +1,5 @@
 /**
- * @internal The keys of the kernel state a Node holds (review §5.7). The node is its state: the
+ * @internal The keys of the kernel state a Node holds. The node is its state: the
  * node-*-runtime modules read and write these members directly, with no forwarding layer. Node
  * declares them `private`, so the published declarations list them without their types; a kernel
  * module reaches them by element access (`node[SLOT]`), which only a module importing the key can

@@ -10,7 +10,7 @@ Render a D39 describe snapshot as D2 diagram text.
 ## Import
 
 ```ts
-import { renderToD2 } from "@graphrefly/ts/graph";
+import { renderToD2 } from "@graphrefly/ts";
 ```
 
 ## Signature

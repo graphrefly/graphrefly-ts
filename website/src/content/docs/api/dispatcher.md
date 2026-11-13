@@ -20,7 +20,7 @@ index (F-PERF).
 ## Import
 
 ```ts
-import { Dispatcher } from "@graphrefly/ts/core";
+import { Dispatcher } from "@graphrefly/ts";
 ```
 
 ## Signature
@@ -32,7 +32,7 @@ class Dispatcher
 ## Example
 
 ```ts
-import { Dispatcher } from "@graphrefly/ts/core";
+import { Dispatcher } from "@graphrefly/ts";
 
 const dispatcher = new Dispatcher();
 ```

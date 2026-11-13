@@ -1,3 +1,4 @@
+import type { Node } from "@graphrefly/ts";
 import {
 	zustandStore as createZustandStore,
 	type JotaiAtom,
@@ -10,7 +11,6 @@ import {
 	type WritableNode,
 	type ZustandStoreApi,
 } from "@graphrefly/ts/adapters";
-import type { Node } from "@graphrefly/ts/core";
 import { type Graph, graph } from "@graphrefly/ts/graph";
 import { createLeaderboardLayout } from "./layout-integration";
 

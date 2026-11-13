@@ -10,7 +10,7 @@ Render a D39 describe snapshot as a mermaid.live deep link.
 ## Import
 
 ```ts
-import { renderToMermaidUrl } from "@graphrefly/ts/graph";
+import { renderToMermaidUrl } from "@graphrefly/ts";
 ```
 
 ## Signature

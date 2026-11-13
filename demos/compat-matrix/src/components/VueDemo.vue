@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { Node } from "@graphrefly/ts";
 import type {
 	NanoAtom,
 	WritableJotaiAtom,
@@ -6,7 +7,6 @@ import type {
 	WritableNode,
 	ZustandStoreApi,
 } from "@graphrefly/ts/adapters";
-import type { Node } from "@graphrefly/ts/core";
 import { useNodeInput, useNodeRecord, useNodeValue as useSubscribe } from "@graphrefly/vue";
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import {

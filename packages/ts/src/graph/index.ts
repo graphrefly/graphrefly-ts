@@ -1,6 +1,4 @@
-export * from "../composition/index.js";
 export * from "../data-structures/index.js";
-export * from "../render/index.js";
 export {
 	canonicalTopologyBytes,
 	canonicalTopologyJson,
@@ -55,6 +53,17 @@ export {
 	type GraphCheckpointSugar,
 	type GraphCheckpointTerminal,
 } from "./checkpoint.js";
+export {
+	type PipeOperator,
+	pipe,
+	type RenderChangeset,
+	type RenderEvent,
+	type Stratified,
+	type StratifyOptions,
+	type StratifyRule,
+	stratify,
+	stratifyBranch,
+} from "./composition.js";
 export type {
 	DescribedNode,
 	GraphTopologyEdge,
@@ -137,7 +146,27 @@ export type {
 } from "./inspect.js";
 export { graphProfile, observeTopology } from "./inspect.js";
 export { operatorRestoreRegistry } from "./operator-restore.js";
-export { renderSnapshot } from "./render.js";
+export {
+	blueprintToMermaid,
+	type DiagramDirection,
+	type GraphBlueprintToMermaidOptions,
+	type MermaidLiveTheme,
+	type MermaidLiveUrlOptions,
+	mermaidLiveUrl,
+	type RenderToAsciiOptions,
+	type RenderToD2Options,
+	type RenderToJsonOptions,
+	type RenderToMermaidOptions,
+	type RenderToMermaidUrlOptions,
+	type RenderToPrettyOptions,
+	renderSnapshot,
+	renderToAscii,
+	renderToD2,
+	renderToJson,
+	renderToMermaid,
+	renderToMermaidUrl,
+	renderToPretty,
+} from "./render.js";
 export {
 	type BackoffPolicy,
 	backoffDelayMs,

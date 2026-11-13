@@ -60,7 +60,7 @@ import { graph } from "@graphrefly/ts/graph";
 import { map, filter, scan, switchMap } from "@graphrefly/ts/operators";
 import { fromPromise, fromEvent, timer } from "@graphrefly/ts/sources";
 import { memoryKv } from "@graphrefly/ts/storage";
-import { inspectToMermaid } from "@graphrefly/ts/render";
+import { inspectToMermaid } from "@graphrefly/ts";
 import type { DataIssue, DataResult } from "@graphrefly/ts/data";
 ```
 
@@ -78,7 +78,7 @@ sequence, and user experience levels do not select different runtime semantics.
 | Task | Entry | Responsibility |
 |---|---|---|
 | Compose an application and inspect its graph | `@graphrefly/ts/graph` or the root | Named nodes, explicit dependencies, composition and inspection |
-| Implement a node or runtime integration | `@graphrefly/ts/core` | Low-level Node, Ctx and message types and the dispatcher; nodes are still built with `graph.node` |
+| Implement a node or runtime integration | `@graphrefly/ts` | Low-level Node, Ctx and message types and the dispatcher; nodes are still built with `graph.node` |
 | Represent business results and issues | `@graphrefly/ts/data` | Passive `DataResult<T>` and `DataIssue` payloads; no protocol ERROR or lifecycle behavior |
 | Reuse a horizontal graph pattern | `@graphrefly/ts/patterns` | Existing patterns such as `admissionHandoff` and `eventFlow` |
 | Use a domain solution | An existing focused `@graphrefly/ts/solutions/*` entry | The selected domain's inputs, policies and lifecycle contract |

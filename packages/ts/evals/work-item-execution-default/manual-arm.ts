@@ -1,4 +1,4 @@
-import type { Ctx } from "../../src/core/index.js";
+import type { Ctx } from "../../src/index.js";
 import type {
 	AgentRequestFact,
 	AgentRequestIssued,

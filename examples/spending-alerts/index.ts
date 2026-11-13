@@ -13,7 +13,7 @@ import { renderSnapshot } from "../../packages/ts/src/graph/render.js";
  *   npx tsx examples/spending-alerts/index.ts
  */
 
-import { renderToPretty } from "@graphrefly/ts/render";
+import { renderToPretty } from "@graphrefly/ts";
 import { spendingAlertsGraph, type Transaction } from "./pipeline.js";
 
 const { graph, feed } = spendingAlertsGraph({

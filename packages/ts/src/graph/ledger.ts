@@ -1,5 +1,5 @@
 /**
- * A bundle's durable ledger (the user's Q13, graphrefly-ts:D180): idempotency, cursor and audit
+ * A bundle's durable ledger (graphrefly-ts:D180): idempotency, cursor and audit
  * state that must outlive a deactivation is held in a state node the bundle owns and the runtime
  * declares as a dependency, so the relation is a drawable edge (R-no-imperative@2) and a
  * checkpoint captures it. Within a lifetime the runtime's private state is the working copy: the

@@ -10,7 +10,7 @@ Render a D39 describe snapshot as Mermaid flowchart text.
 ## Import
 
 ```ts
-import { renderToMermaid } from "@graphrefly/ts/graph";
+import { renderToMermaid } from "@graphrefly/ts";
 ```
 
 ## Signature

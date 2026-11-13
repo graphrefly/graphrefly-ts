@@ -400,7 +400,7 @@ export function runD687DefaultQualification(input: D687EvidenceInput) {
 				!source.includes("workItemExecutionRecipe") && !source.includes("workItemSeedProjector"),
 		);
 	const allowedPublicSourceModules = new Set([
-		"../../src/core/index.js",
+		"../../src/index.js",
 		"../../src/orchestration/index.js",
 		"../../src/solutions/work-item/scheduling.js",
 	]);

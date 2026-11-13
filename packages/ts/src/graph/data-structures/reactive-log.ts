@@ -10,10 +10,8 @@ import { moduleName } from "../module-naming.js";
  *   - `append(undefined)` throws: `undefined` is the substrate SENTINEL (R-messages / R-sentinel),
  *     not a valid value.
  *   - empty log: the snapshot is `[]` (a real empty array); a never-appended `scan` seeds its initial.
- *     There is NO `[[RESOLVED]]`-for-empty dual role (D49 narrowed RESOLVED to undirty-only, D60 #5b).
  *   - `attach(upstream)` = the D54 widening (a declared input-fold dep), NOT an imperative subscribe.
- *   - {@link mergeReactiveLogs} is a DECLARED-DEP merge (deps=[...delta streams]), NOT the old
- *     internal-subscribe island (D45 must-fix, D60 #5e).
+ *   - {@link mergeReactiveLogs} is a DECLARED-DEP merge (deps=[...delta streams]).
  *   - storage persistence = D57 (binding-layer observe-sink), out of scope here.
  *
  * Per-language (D6/D24, never in parity, no conformance).

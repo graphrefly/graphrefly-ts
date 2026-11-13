@@ -73,7 +73,7 @@ export function nodeDown<T>(self: Node<T>, msgs: Wave): void {
 }
 
 /**
- * graphrefly-ts Q15: wave delivery and pending marking run on explicit work stacks, not JS
+ * wave delivery and pending marking run on explicit work stacks, not JS
  * recursion, so a chain of any depth works. The order is the recursive order: a dependent that
  * settles on the last message of a delivery publishes as a frame on top of the stack, the loop
  * delivers that frame to its end (and everything it causes) before it goes on with the delivery
@@ -89,7 +89,7 @@ export const TAIL_MARK = 2;
 let tailCall = NOT_TAIL;
 
 /**
- * Q15: whether this call into a dependent came straight from a delivery or marking loop. Read
+ * whether this call into a dependent came straight from a delivery or marking loop. Read
  * once, on entry to the dependent's input, so nothing that input runs sees it.
  */
 export function takeTailCall(): number {
@@ -98,7 +98,7 @@ export function takeTailCall(): number {
 	return t;
 }
 
-/** What a settling caller still does after its publication's fanout (Q15). */
+/** What a settling caller still does after its publication's fanout. */
 export type SettleTail = (self: Node<unknown>, rest: Message[][] | undefined) => void;
 
 /** One publication being delivered: the recursive delivery loop's state, kept on the heap. */
@@ -135,7 +135,7 @@ export function nodePublish<T>(self: Node<T>, arrays: readonly Message[][]): voi
 }
 
 /**
- * Q15: a publication in tail position of the delivery loop (a dependent settling on a delivery's
+ * a publication in tail position of the delivery loop (a dependent settling on a delivery's
  * last message). Its fanout, then `after`, run as a frame of the loop that is already running.
  * Returns false when nothing goes out; the caller then does its own tail at once.
  */
@@ -222,7 +222,7 @@ function nodeBeginPublish<T>(
 	};
 }
 
-/** Q15: run the frames above `base` to their end, each frame's tail after all it caused. */
+/** run the frames above `base` to their end, each frame's tail after all it caused. */
 function driveDeliveries(base: number): void {
 	try {
 		while (deliveries.length > base) {
@@ -264,7 +264,7 @@ function nodeDeliverStep(d: Delivery): boolean {
 		}
 		// One delivery: the dependent gets every array, each an input array of its own, and
 		// settles once, after the last of them. Only that settling publishes, so its publication is
-		// a frame on top of this one (Q15).
+		// a frame on top of this one.
 		tailCall = TAIL_DELIVERY;
 		sub.fn(out, false);
 		tailCall = NOT_TAIL;
@@ -283,7 +283,7 @@ export function nodeCloseEndedLifetime<T>(self: Node<T>): void {
 	nodeResetDepState(self);
 }
 
-/** One node's pending mark being sent: the recursive marking loop's state (Q15). */
+/** One node's pending mark being sent: the recursive marking loop's state. */
 interface Marking {
 	readonly subs: Subscriber[];
 	i: number;
@@ -292,9 +292,9 @@ interface Marking {
 const markings: Marking[] = [];
 
 /**
- * R-wave: the kernel's pending mark, sent ahead of the values to dependents only. Q15: `tail` is a
+ * R-wave: the kernel's pending mark, sent ahead of the values to dependents only. `tail` is a
  * dependent marking its own cone straight from the marking loop; its mark becomes a frame of that
- * loop, sent to its end before the loop goes on, as the recursive call was.
+ * loop, sent to its end before the loop goes on.
  */
 export function nodeMarkDependents<T>(self: Node<T>, tail = false): void {
 	if (self[RELEASED]) return;

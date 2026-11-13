@@ -37,7 +37,7 @@ export const SENTINEL = undefined;
  * @category core
  * @example
  * ```ts
- * import { isInvalidErrorPayload } from "@graphrefly/ts/core";
+ * import { isInvalidErrorPayload } from "@graphrefly/ts";
  * ```
  */
 export function isInvalidErrorPayload(v: unknown): boolean {
@@ -51,7 +51,7 @@ export function isInvalidErrorPayload(v: unknown): boolean {
  * @category core
  * @example
  * ```ts
- * import { errorPayload } from "@graphrefly/ts/core";
+ * import { errorPayload } from "@graphrefly/ts";
  * ```
  */
 export function errorPayload(reason: unknown, fallback = "error without a valid payload"): unknown {
@@ -84,7 +84,7 @@ export function isMessageType(t: unknown): t is MessageType {
  * @category core
  * @example
  * ```ts
- * import { isTerminal } from "@graphrefly/ts/core";
+ * import { isTerminal } from "@graphrefly/ts";
  * ```
  */
 export function isTerminal(t: MessageType): boolean {

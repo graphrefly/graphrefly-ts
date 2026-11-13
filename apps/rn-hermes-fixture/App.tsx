@@ -10,7 +10,7 @@
  * both. Renders a PASS/FAIL banner so a single screenshot confirms
  * the run; mirrors to console for device logs.
  */
-import type { Node } from "@graphrefly/ts/core";
+import type { Node } from "@graphrefly/ts";
 import { type Graph, graph } from "@graphrefly/ts/graph";
 import { useEffect, useState } from "react";
 import { Platform, ScrollView, Text, View } from "react-native";

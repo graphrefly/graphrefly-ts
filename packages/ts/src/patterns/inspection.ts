@@ -1,6 +1,6 @@
 import { graphProfile } from "../graph/inspect.js";
 /**
- * Horizontal inspection patterns re-derived from old presets (B62 / D125).
+ * Horizontal inspection patterns.
  *
  * These helpers compose GraphReFly graph inspection egresses. They do not
  * add graph nodes, hidden subscriptions, policy gates, or storage ownership.

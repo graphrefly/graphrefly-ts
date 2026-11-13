@@ -41,7 +41,7 @@ export interface HandleStat {
  *
  * @example
  * ```ts
- * import { Dispatcher } from "@graphrefly/ts/core";
+ * import { Dispatcher } from "@graphrefly/ts";
  *
  * const dispatcher = new Dispatcher();
  * ```

@@ -1,10 +1,10 @@
 import { afterEach, describe, expect, it } from "vitest";
-import numericVectors from "../../../../scripts/fixtures/causal-preset-numeric-contract-v1.vectors.json";
 import type {
 	Assessment,
 	BusinessFrame,
 } from "../../../../examples/spending-alerts/causal-business.js";
 import type { Publication } from "../../../../examples/spending-alerts/causal-publication.js";
+import numericVectors from "../../../../scripts/fixtures/causal-preset-numeric-contract-v1.vectors.json";
 import { referenceNumbers } from "../../../../scripts/fixtures/spending-numeric-oracle.js";
 import {
 	evaluationFixture,

@@ -1,6 +1,6 @@
-import type { Node } from "@graphrefly/ts/core";
+import type { Node } from "@graphrefly/ts";
+import { renderToMermaid } from "@graphrefly/ts";
 import { type Graph, graph } from "@graphrefly/ts/graph";
-import { renderToMermaid } from "@graphrefly/ts/render";
 import { graphTopology } from "../../../../packages/ts/src/graph/blueprint.js";
 import { renderSnapshot } from "../../../../packages/ts/src/graph/render.js";
 

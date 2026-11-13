@@ -27,7 +27,7 @@
  * @module
  */
 
-import type { Ctx } from "@graphrefly/ts/core";
+import type { Ctx } from "@graphrefly/ts";
 import { Graph } from "@graphrefly/ts/graph";
 
 export interface Transaction {

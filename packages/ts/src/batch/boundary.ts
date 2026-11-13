@@ -35,7 +35,7 @@ export interface WaveDomain {
 }
 
 /**
- * R-failure@3 with graphrefly-ts:D181 (the user's Q9): a failure that has no caller goes to the
+ * R-failure@3 with graphrefly-ts:D181: a failure that has no caller goes to the
  * graph's host reporter only; with no reporter it goes to console.error. A reporter that throws
  * is ignored.
  */

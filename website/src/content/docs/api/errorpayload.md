@@ -10,7 +10,7 @@ A host failure that is not a valid ERROR payload becomes an Error diagnostic (R-
 ## Import
 
 ```ts
-import { errorPayload } from "@graphrefly/ts/core";
+import { errorPayload } from "@graphrefly/ts";
 ```
 
 ## Signature
@@ -36,7 +36,7 @@ The error payload result.
 ## Example
 
 ```ts
-import { errorPayload } from "@graphrefly/ts/core";
+import { errorPayload } from "@graphrefly/ts";
 ```
 
 ## Source

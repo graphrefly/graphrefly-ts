@@ -2,10 +2,10 @@
 
 The self-contained `@graphrefly/ts` package.
 
-- [Project entrypoint](README.md)
-- [Agent routing](AGENTS.md)
-- [Documentation map](docs/README.md)
-- [Package usage](docs/usage.md)
-- [Development and checks](docs/development.md)
+- [Project entrypoint](https://github.com/graphrefly/graphrefly-ts/blob/main/README.md)
+- [Agent routing](https://github.com/graphrefly/graphrefly-ts/blob/main/AGENTS.md)
+- [Documentation map](https://github.com/graphrefly/graphrefly-ts/blob/main/docs/README.md)
+- [Package usage](https://github.com/graphrefly/graphrefly-ts/blob/main/docs/usage.md)
+- [Development and checks](https://github.com/graphrefly/graphrefly-ts/blob/main/docs/development.md)
 - [Package API](https://ts.graphrefly.dev/)
-- [Root authority](../graphrefly/AGENTS.md)
+- [Root authority](https://github.com/graphrefly/graphrefly/blob/main/AGENTS.md)

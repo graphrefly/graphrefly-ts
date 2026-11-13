@@ -173,7 +173,7 @@ export function agenticMemoryRecordCodec<TJson extends StrictJsonValue = StrictJ
 /**
  * D167 solution-level retention command projection.
  *
- * Archive/restore/setPersistenceLevel are derived views over current records;
+ * Archive, restore and setPersistenceLevel are derived views over current records;
  * requestConsolidation emits request facts only.
  */
 

@@ -17,14 +17,14 @@ This matrix is the fast inventory view. Use it to find what exists today, where 
 |---|---|---|
 | Root convenience surface | Primary package entry | `@graphrefly/ts` |
 | Core graph layer | Graph API | `@graphrefly/ts/graph` |
-| Protocol/core primitives | Node, ctx, and message-level API | `@graphrefly/ts/core` |
+| Protocol/core primitives | Node, ctx, and message-level API | `@graphrefly/ts` |
 | Data contracts | Data-only result and issue types | `@graphrefly/ts/data` |
 | Operators | Tree-shakeable operator factories | `@graphrefly/ts/operators` |
 | Sources | Universal source factories | `@graphrefly/ts/sources` |
 | Browser sources | Browser-only source factories | `@graphrefly/ts/sources/browser` |
 | Node sources | Node-only source factories | `@graphrefly/ts/sources/node` |
-| Render | Pure renderers over `graph.inspect()` snapshots (`inspectTo*`) | `@graphrefly/ts/render` |
-| Composition | Topology composition helpers | `@graphrefly/ts/composition` |
+| Render | Pure renderers over `graph.inspect()` snapshots (`inspectTo*`) | `@graphrefly/ts` |
+| Composition | Topology composition helpers | `@graphrefly/ts` |
 | Committed facts | Domain-neutral committed-fact journal mechanics over passive append logs | `@graphrefly/ts/committed-facts` |
 | Data structures | Reactive list/map/index/log helpers | `@graphrefly/ts/data-structures` |
 | Passive storage | Storage codecs, KV, append-log, WAL, and read-through helpers | `@graphrefly/ts/storage` |

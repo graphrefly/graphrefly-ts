@@ -138,7 +138,7 @@ export interface StratifyBranchOptions<T> extends Omit<NodeOptions<T>, "dispatch
  * @category composition
  * @example
  * ```ts
- * import { stratifyBranch } from "@graphrefly/ts/composition";
+ * import { stratifyBranch } from "@graphrefly/ts";
  * ```
  */
 export function stratifyBranch<T, R>(
@@ -206,7 +206,7 @@ export interface Stratified<T, R> {
  * @category composition
  * @example
  * ```ts
- * import { stratify } from "@graphrefly/ts/composition";
+ * import { stratify } from "@graphrefly/ts";
  * ```
  */
 export function stratify<T, R>(

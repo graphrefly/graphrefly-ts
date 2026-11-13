@@ -10,7 +10,7 @@ A terminal message: COMPLETE or ERROR (R-terminals).
 ## Import
 
 ```ts
-import { isTerminal } from "@graphrefly/ts/core";
+import { isTerminal } from "@graphrefly/ts";
 ```
 
 ## Signature
@@ -32,7 +32,7 @@ function isTerminal(t: MessageType): boolean
 ## Example
 
 ```ts
-import { isTerminal } from "@graphrefly/ts/core";
+import { isTerminal } from "@graphrefly/ts";
 ```
 
 ## Source

@@ -10,7 +10,7 @@ Render a D39 describe snapshot as a compact ASCII adjacency diagram.
 ## Import
 
 ```ts
-import { renderToAscii } from "@graphrefly/ts/graph";
+import { renderToAscii } from "@graphrefly/ts";
 ```
 
 ## Signature

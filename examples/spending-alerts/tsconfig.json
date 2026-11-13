@@ -9,9 +9,8 @@
 		"noEmit": true,
 		"baseUrl": ".",
 		"paths": {
-			"@graphrefly/ts/core": ["../../packages/ts/src/core/index.ts"],
 			"@graphrefly/ts/graph": ["../../packages/ts/src/graph/index.ts"],
-			"@graphrefly/ts/render": ["../../packages/ts/src/render/index.ts"]
+			"@graphrefly/ts": ["../../packages/ts/src/index.ts"]
 		}
 	},
 	"include": [
