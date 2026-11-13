@@ -1,9 +1,0 @@
-{
-  "passed": true,
-  "reindexedCorruptionsRejected": [
-    "unknown-sample",
-    "missing-profile",
-    "negative-delta",
-    "hidden-failure"
-  ]
-}

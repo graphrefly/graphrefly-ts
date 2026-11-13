@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import numericVectors from "../../../../docs/design/causal-preset-numeric-contract-v1.vectors.json";
+import numericVectors from "../../../../scripts/fixtures/causal-preset-numeric-contract-v1.vectors.json";
 import type {
 	Assessment,
 	BusinessFrame,

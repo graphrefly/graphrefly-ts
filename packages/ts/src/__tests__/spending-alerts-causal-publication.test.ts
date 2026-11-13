@@ -237,7 +237,7 @@ describe("private publication material-v1", () => {
 		const v = JSON.parse(
 			readFileSync(
 				new URL(
-					"../../../../docs/design/causal-publication-material-v1-vectors.json",
+					"../../../../scripts/fixtures/causal-publication-material-v1-vectors.json",
 					import.meta.url,
 				),
 				"utf8",

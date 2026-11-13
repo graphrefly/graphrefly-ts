@@ -1,4 +1,0 @@
-{
-	"exitCode": 0,
-	"command": ["pnpm", "run", "lint:no-raw-async"]
-}

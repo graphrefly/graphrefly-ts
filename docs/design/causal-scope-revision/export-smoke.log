@@ -1,3 +1,0 @@
-check-ts-package-exports: package ESM/CJS/DTS subpath smoke passed
-
-DONE exit=0
