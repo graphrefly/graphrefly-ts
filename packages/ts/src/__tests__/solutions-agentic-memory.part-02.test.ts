@@ -4222,8 +4222,8 @@ describe("agentic memory consolidation bundle (D171)", () => {
 				{ from: "consolidation/occurrences", to: "consolidation/projection" },
 				{ from: "consolidation/occurrences", to: "consolidation/projection" },
 				{ from: "consolidation/projection", to: "consolidation/results" },
-				{ from: "consolidation/projection", to: "consolidation/drafts" },
-				{ from: "consolidation/projection", to: "consolidation/proposals" },
+				{ from: "consolidation/projection", to: "consolidation/proposedRecordDrafts" },
+				{ from: "consolidation/projection", to: "consolidation/recordProposals" },
 				{ from: "consolidation/projection", to: "consolidation/commands" },
 			]),
 		);
@@ -4357,7 +4357,7 @@ describe("agentic memory consolidation bundle (D171)", () => {
 		expect(renderSnapshot(g).edges).toEqual(
 			expect.arrayContaining([
 				{
-					from: "consolidationApplication/consolidation/proposals",
+					from: "consolidationApplication/consolidation/recordProposals",
 					to: "consolidationApplication/admissionInput/right",
 				},
 				{
@@ -5277,7 +5277,7 @@ describe("agentic memory admission policy source projection (D583)", () => {
 		expect(renderSnapshot(g).edges).toEqual(
 			expect.arrayContaining([
 				{ from: "policySources", to: "policySource/projection" },
-				{ from: "policySource/projection", to: "policySource/policy" },
+				{ from: "policySource/projection", to: "policySource" },
 				{ from: "policySource/projection", to: "policySource/status" },
 				{ from: "policySource/projection", to: "policySource/issues" },
 				{ from: "policySource/projection", to: "policySource/audit" },
@@ -8686,7 +8686,7 @@ describe("agentic memory context packing (D168)", () => {
 				{ from: "context", to: "packing/projection" },
 				{ from: "texts", to: "packing/projection" },
 				{ from: "policy", to: "packing/projection" },
-				{ from: "packing/projection", to: "packing/context" },
+				{ from: "packing/projection", to: "packing/packed" },
 				{ from: "packing/projection", to: "packing/status" },
 				{ from: "packing/projection", to: "packing/errors" },
 				{ from: "packing/projection", to: "packing/cursor" },

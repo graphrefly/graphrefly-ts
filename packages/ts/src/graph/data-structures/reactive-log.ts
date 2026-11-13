@@ -205,7 +205,6 @@ export function reactiveLog<T>(
 	const tailMemo = new Map<number, Node<readonly T[]>>();
 	const sliceMemo = new Map<string, Node<readonly T[]>>();
 	const pageMemo = new ViewMemoCache<string, ReactiveView<LogChange<T>, readonly T[]>>(viewCache);
-	let pageSeq = 0;
 
 	return {
 		delta: core.delta,
@@ -301,7 +300,7 @@ export function reactiveLog<T>(
 			view = lightReactiveView<LogChange<T>, readonly T[]>(graph, core.delta as Node<unknown>, {
 				...coreOpts,
 				factory: "reactiveLog.page",
-				name: name ? `${name}/page${pageSeq++}` : undefined,
+				name: name ? moduleName(graph, undefined, `${name}/page`) : undefined,
 				materializeSnapshot: materialize,
 				onDispose: () => {
 					pageMemo.deleteValue(view);

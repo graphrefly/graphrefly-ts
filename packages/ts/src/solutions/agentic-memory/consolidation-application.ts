@@ -32,7 +32,7 @@ export function agenticMemoryConsolidationApplicationBundle<T = unknown>(
 	graph: Graph,
 	opts: AgenticMemoryConsolidationApplicationBundleOptions<T>,
 ): AgenticMemoryConsolidationApplicationBundle<T> {
-	const name = moduleName(graph, opts.name, "agenticMemoryPipeline");
+	const name = moduleName(graph, opts.name, "agenticMemoryConsolidationApplication");
 	const input = solutionOccurrenceProjection(graph, opts.occurrences, {
 		name: `${name}/input`,
 		factory: "agenticMemoryConsolidationApplicationInput",

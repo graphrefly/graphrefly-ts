@@ -360,8 +360,6 @@ function createReactiveIndex<K, V = unknown>(
 	>(options.viewCache, ([aStart, aEnd], [bStart, bEnd]) => {
 		return cmpOrd(aStart, bStart) === 0 && cmpOrd(aEnd, bEnd) === 0;
 	});
-	let bindSeq = 0;
-	let rangeSeq = 0;
 	let capacityPolicy: Node<number> | undefined;
 	let apply: Node<IndexChange<K, V>> | undefined;
 	let releaseApply = () => {};
@@ -474,7 +472,7 @@ function createReactiveIndex<K, V = unknown>(
 				},
 				{
 					factory: "reactiveIndex.byPrimary",
-					name: moduleName(graph, undefined, `${name}/primary`),
+					name: moduleName(graph, undefined, `${name}/byPrimary`),
 				},
 			);
 		}
@@ -490,7 +488,7 @@ function createReactiveIndex<K, V = unknown>(
 		view = lightReactiveView<IndexChange<K, V>, readonly V[]>(graph, core.delta as Node<unknown>, {
 			...options,
 			factory: "reactiveIndex.range",
-			name: name ? `${name}/range${rangeSeq++}` : undefined,
+			name: name ? moduleName(graph, undefined, `${name}/range`) : undefined,
 			materializeSnapshot: materialize,
 			onDispose: () => {
 				rangeMemo.deleteValue(view);
@@ -579,7 +577,7 @@ function createReactiveIndex<K, V = unknown>(
 				},
 			};
 			const folder = graph.initNode(op, [src], {
-				name: name ? `${name}/bind${bindSeq++}` : undefined,
+				name: name ? moduleName(graph, undefined, `${name}/bind`) : undefined,
 				meta: { kind: "collection_bind_source", collection: "reactiveIndex" },
 			});
 			bindDeps.add(folder as Node<unknown>);

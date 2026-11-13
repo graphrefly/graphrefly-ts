@@ -398,8 +398,8 @@ export function injectedTextMeasurements(
 		{
 			name: moduleName(
 				opts.graph,
-				opts.name === undefined ? undefined : scopedName(opts.name, "capability"),
-				`${targetId}/capability`,
+				opts.name === undefined ? undefined : scopedName(opts.name, "measureCapability"),
+				`${targetId}/measureCapability`,
 			),
 		},
 	);
@@ -427,8 +427,8 @@ export function precomputedTextMeasurements(
 	const adapter = opts.graph.state<MeasurementAdapter>(new PrecomputedMeasureAdapter(opts), {
 		name: moduleName(
 			opts.graph,
-			opts.name === undefined ? undefined : scopedName(opts.name, "capability"),
-			`${targetId}/capability`,
+			opts.name === undefined ? undefined : scopedName(opts.name, "measureCapability"),
+			`${targetId}/measureCapability`,
 		),
 	});
 	return textMeasurementProvider({
@@ -453,8 +453,8 @@ export function cellTextMeasurements(opts: CellTextMeasurementsOptions): Node<Me
 	const adapter = opts.graph.state<MeasurementAdapter>(new CellMeasureAdapter(opts), {
 		name: moduleName(
 			opts.graph,
-			opts.name === undefined ? undefined : scopedName(opts.name, "capability"),
-			`${targetId}/capability`,
+			opts.name === undefined ? undefined : scopedName(opts.name, "measureCapability"),
+			`${targetId}/measureCapability`,
 		),
 	});
 	return textMeasurementProvider({
@@ -488,8 +488,8 @@ export function capabilityTextMeasurements(
 		{
 			name: moduleName(
 				opts.graph,
-				opts.name === undefined ? undefined : scopedName(opts.name, "capability"),
-				`${targetId}/capability`,
+				opts.name === undefined ? undefined : scopedName(opts.name, "measureCapability"),
+				`${targetId}/measureCapability`,
 			),
 		},
 	);
@@ -656,7 +656,7 @@ export function readinessMeasurements(opts: ReadinessMeasurementsOptions): Node<
  */
 export function imageSizeMeasurements(opts: ImageSizeMeasurementsOptions): Node<Measurements> {
 	const measurementKind = opts.measurementKind ?? IMAGE_SIZE_MEASUREMENT_KIND;
-	const name = moduleName(opts.graph, opts.name, "imageMeasurements");
+	const name = moduleName(opts.graph, opts.name, "imageSizeMeasurements");
 	const source = opts.source ?? opts.name ?? "image-size-measurements";
 	return opts.graph.node<Measurements>(
 		[opts.images, opts.measurer],
@@ -714,7 +714,7 @@ export function imageSizeMeasurements(opts: ImageSizeMeasurementsOptions): Node<
  */
 export function svgBoundsMeasurements(opts: SvgBoundsMeasurementsOptions): Node<Measurements> {
 	const measurementKind = opts.measurementKind ?? SVG_BOUNDS_MEASUREMENT_KIND;
-	const name = moduleName(opts.graph, opts.name, "svgMeasurements");
+	const name = moduleName(opts.graph, opts.name, "svgBoundsMeasurements");
 	const source = opts.source ?? opts.name ?? "svg-bounds-measurements";
 	return opts.graph.node<Measurements>(
 		[opts.svgs, opts.measurer],

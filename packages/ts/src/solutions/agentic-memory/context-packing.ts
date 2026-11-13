@@ -45,7 +45,7 @@ export function agenticMemoryContextPackingBundle<T = unknown>(
 	graph: Graph,
 	opts: AgenticMemoryContextPackingBundleOptions<T>,
 ): AgenticMemoryContextPackingBundle<T> {
-	const name = moduleName(graph, opts.name, "agenticMemoryPacking");
+	const name = moduleName(graph, opts.name, "agenticMemoryContextPacking");
 	const projection = graph.node<AgenticMemoryContextPackingSnapshot>(
 		[opts.context, opts.texts, opts.policy],
 		(ctx) => {
@@ -75,7 +75,7 @@ export function agenticMemoryContextPackingBundle<T = unknown>(
 		packedContext: solutionProjection(
 			graph,
 			projection,
-			`${name}/context`,
+			`${name}/packed`,
 			"agenticMemoryPackedContext",
 			(fact) => fact.packedContext,
 		),

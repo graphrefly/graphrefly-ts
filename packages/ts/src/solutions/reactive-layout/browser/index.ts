@@ -108,8 +108,8 @@ export function canvasTextMeasurements(opts: CanvasTextMeasurementsOptions): Nod
 		{
 			name: moduleName(
 				opts.graph,
-				opts.name === undefined ? undefined : `${opts.name}/capability`,
-				`${targetId}/capability`,
+				opts.name === undefined ? undefined : `${opts.name}/measureCapability`,
+				`${targetId}/canvasMeasureCapability`,
 			),
 		},
 	);

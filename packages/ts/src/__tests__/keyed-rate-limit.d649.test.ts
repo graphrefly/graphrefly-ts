@@ -512,8 +512,8 @@ describe("D648/D649 host authority adapter and topology", () => {
 		expect(edge("requests", "authority/events")).toBe(true);
 		expect(edge("authority/events", "authority/requests")).toBe(true);
 		expect(edge("authority/events", "authority/outcomes")).toBe(true);
-		expect(edge("authority/events", "authority/correlation")).toBe(true);
-		expect(edge("authority/correlation", "authority/admission/runtime")).toBe(true);
+		expect(edge("authority/events", "authority/correlationFacts")).toBe(true);
+		expect(edge("authority/correlationFacts", "authority/admission/runtime")).toBe(true);
 		expect(edge("requests", "authority/admission/runtime")).toBe(false);
 		expect(edge("authority/admission/admissions", "protected-effect")).toBe(true);
 		expect(edge("requests", "protected-effect")).toBe(false);

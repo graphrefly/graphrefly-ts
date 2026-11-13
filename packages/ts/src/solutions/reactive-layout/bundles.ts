@@ -256,7 +256,7 @@ export function reactiveBlockLayout(opts: ReactiveBlockLayoutOptions): ReactiveB
 				emitLayoutError(ctx, error, "reactiveBlockLayout total height failed");
 			}
 		},
-		{ name: scopedName(name, "height") },
+		{ name: scopedName(name, "totalHeight") },
 	);
 	return {
 		graph: g,

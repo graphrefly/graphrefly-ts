@@ -96,7 +96,7 @@ export function agenticWorkItemMemoryApplicationRecipeBundle<TInput = unknown, T
 		!(opts.through === "bridge" || opts.through === "admission" || opts.through === "application")
 	)
 		throw new TypeError("memory recipe requires an explicit lifecycle boundary");
-	const name = moduleName(graph, opts.name, "agenticWorkItemMemoryRecipe");
+	const name = moduleName(graph, opts.name, "agenticWorkItemMemoryApplicationRecipe");
 	const input = solutionOccurrenceProjection(graph, opts.occurrences, {
 		name: `${name}/input`,
 		factory: "agenticWorkItemMemoryApplicationInput",

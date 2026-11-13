@@ -113,7 +113,7 @@ export function agenticMemoryRetentionBundle<T = unknown>(
 		consolidationRequests: solutionProjection(
 			graph,
 			projection,
-			`${name}/requests`,
+			`${name}/consolidationRequests`,
 			"agenticMemoryRetentionConsolidationRequests",
 			(fact) => fact.consolidationRequests,
 		),

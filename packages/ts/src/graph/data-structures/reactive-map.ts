@@ -430,13 +430,11 @@ function createReactiveMap<K, V>(
 	let ttlTimer: Node<unknown> | null = null;
 	let ttlTimerDue: number | undefined;
 	const bindDeps = new WeakSet<Node<unknown>>();
-	let bindSeq = 0;
 	let apply: Node<MapChange<K, V>>;
 	const selectMemo = new ViewMemoCache<
 		(value: V, key: K) => boolean,
 		ReactiveView<MapChange<K, V>, ReadonlyMap<K, V>>
 	>(viewCache);
-	let selectSeq = 0;
 
 	const policyInputs = new PolicyInputs([intent as Node<unknown>]);
 	const lruReader = policyInputs.add(lruPolicy);
@@ -687,7 +685,7 @@ function createReactiveMap<K, V>(
 		let view: ReactiveView<MapChange<K, V>, ReadonlyMap<K, V>>;
 		view = lightReactiveView<MapChange<K, V>, ReadonlyMap<K, V>>(graph, delta as Node<unknown>, {
 			factory: "reactiveMap.select",
-			name: name ? `${name}/select${selectSeq++}` : undefined,
+			name: name ? moduleName(graph, undefined, `${name}/select`) : undefined,
 			materializeSnapshot: () => selectedSnapshot(predicate),
 			onDispose: () => {
 				selectMemo.deleteValue(view);
@@ -755,7 +753,7 @@ function createReactiveMap<K, V>(
 				},
 			};
 			const folder = graph.initNode(op, [src], {
-				name: name ? `${name}/bind${bindSeq++}` : undefined,
+				name: name ? moduleName(graph, undefined, `${name}/bind`) : undefined,
 				meta: { kind: "collection_bind_source", collection: "reactiveMap" },
 			});
 			bindDeps.add(folder as Node<unknown>);

@@ -199,7 +199,7 @@ describe("collectionCore two-port shape (D60) via reactiveList", () => {
 		]);
 		expect(renderSnapshot(g).edges).toContainEqual({ from: "max", to: "list/capacityPolicy" });
 		expect(renderSnapshot(g).edges).toContainEqual({
-			from: "list/bind0",
+			from: "list/bind",
 			to: "list/capacityPolicy",
 		});
 	});
@@ -220,8 +220,8 @@ describe("D54 Node<T> widening — in-graph producer drives the structure (decla
 			{ kind: "append", value: 2 },
 		]);
 		expect(list.toArray()).toEqual([0, 1, 2]);
-		expect(renderSnapshot(g).edges).toContainEqual({ from: "src", to: "list/bind0" });
-		expect(renderSnapshot(g).nodes.find((n) => n.id === "list/bind0")?.factory).toBe(
+		expect(renderSnapshot(g).edges).toContainEqual({ from: "src", to: "list/bind" });
+		expect(renderSnapshot(g).nodes.find((n) => n.id === "list/bind")?.factory).toBe(
 			"reactiveList.bindSource",
 		);
 	});
@@ -613,25 +613,25 @@ describe("reactiveMap (D60 #3) — lazy TTL + LRU + delete-reason", () => {
 
 		const snap = renderSnapshot(g);
 		expect(snap.nodes.find((n) => n.id === "map/delta")?.factory).toBe("reactiveMap.delta");
-		expect(snap.nodes.find((n) => n.id === "map/select0/delta")?.factory).toBe(
+		expect(snap.nodes.find((n) => n.id === "map/select/delta")?.factory).toBe(
 			"reactiveMap.select.delta",
 		);
-		expect(snap.nodes.find((n) => n.id === "map/select0/snapshot")?.factory).toBe(
+		expect(snap.nodes.find((n) => n.id === "map/select/snapshot")?.factory).toBe(
 			"reactiveMap.select.snapshot",
 		);
-		expect(snap.edges).toContainEqual({ from: "map/delta", to: "map/select0/delta" });
+		expect(snap.edges).toContainEqual({ from: "map/delta", to: "map/select/delta" });
 		expect(snap.edges).toContainEqual({
-			from: "map/select0/delta",
-			to: "map/select0/snapshot",
+			from: "map/select/delta",
+			to: "map/select/snapshot",
 		});
 		view.dispose();
 		const after = renderSnapshot(g);
 		expect(after.edges).not.toContainEqual({
 			from: "map/delta",
-			to: "map/select0/delta",
+			to: "map/select/delta",
 		});
-		expect(after.nodes.map((n) => n.id)).not.toContain("map/select0/delta");
-		expect(after.nodes.map((n) => n.id)).not.toContain("map/select0/snapshot");
+		expect(after.nodes.map((n) => n.id)).not.toContain("map/select/delta");
+		expect(after.nodes.map((n) => n.id)).not.toContain("map/select/snapshot");
 	});
 
 	it("select viewCache evicts only memo refs, not live D121 view nodes", () => {
@@ -645,10 +645,10 @@ describe("reactiveMap (D60 #3) — lazy TTL + LRU + delete-reason", () => {
 
 		expect(m.select(gt1)).toBe(second);
 		expect(m.select(gt0)).not.toBe(first);
-		expect(g.find("map/select0/delta")).toBe(first.delta);
+		expect(g.find("map/select/delta")).toBe(first.delta);
 		expect(g.find("map/select1/delta")).toBe(second.delta);
 		first.dispose();
-		expect(g.find("map/select0/delta")).toBeUndefined();
+		expect(g.find("map/select/delta")).toBeUndefined();
 		m.dispose();
 		expect(
 			renderSnapshot(g)
@@ -684,14 +684,14 @@ describe("reactiveMap (D60 #3) — lazy TTL + LRU + delete-reason", () => {
 		const src = g.node<readonly [string, number]>([], null, { name: "src" });
 		const m = reactiveMap<string, number>(g, { name: "map" });
 		m.setFrom(src as Node<readonly [string, number]>);
-		expect(renderSnapshot(g).edges).toContainEqual({ from: "map/bind0", to: "map/apply" });
+		expect(renderSnapshot(g).edges).toContainEqual({ from: "map/bind", to: "map/apply" });
 
 		expect(() => src.set(1 as unknown as readonly [string, number])).not.toThrow();
 		expect(m.size).toBe(0);
-		expect(renderSnapshot(g).edges).toContainEqual({ from: "src", to: "map/bind0" });
+		expect(renderSnapshot(g).edges).toContainEqual({ from: "src", to: "map/bind" });
 		// The apply node ended with the folder's ERROR; its closed lifetime is back on its declared
 		// dependencies (R-lifetime), so the attached folder is no longer one.
-		expect(renderSnapshot(g).nodes.find((n) => n.id === "map/bind0")?.factory).toBe(
+		expect(renderSnapshot(g).nodes.find((n) => n.id === "map/bind")?.factory).toBe(
 			"reactiveMap.bindSource",
 		);
 	});

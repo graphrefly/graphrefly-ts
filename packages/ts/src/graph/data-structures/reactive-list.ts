@@ -208,7 +208,6 @@ export function reactiveList<T>(
 	);
 	const binds: Array<() => void> = [];
 	const bindDeps = new WeakSet<Node<unknown>>();
-	let bindSeq = 0;
 	let capacityPolicy: Node<number> | undefined;
 	let apply: Node<ListChange<T>> | undefined;
 	let releaseApply = () => {};
@@ -348,7 +347,7 @@ export function reactiveList<T>(
 				},
 			};
 			const folder = graph.initNode(op, [src], {
-				name: name ? `${name}/bind${bindSeq++}` : undefined,
+				name: name ? moduleName(graph, undefined, `${name}/bind`) : undefined,
 				meta: { kind: "collection_bind_source", collection: "reactiveList" },
 			});
 			bindDeps.add(folder as Node<unknown>);

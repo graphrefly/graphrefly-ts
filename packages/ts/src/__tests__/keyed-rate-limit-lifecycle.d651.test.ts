@@ -612,7 +612,7 @@ describe("B111.6 inspection and injected-authority evidence", () => {
 		const edge = (from: string, to: string) =>
 			after.edges.some((candidate) => candidate.from === from && candidate.to === to);
 		expect(edge("requests", "authority/events")).toBe(true);
-		expect(edge("authority/correlation", "authority/admission/runtime")).toBe(true);
+		expect(edge("authority/correlationFacts", "authority/admission/runtime")).toBe(true);
 		expect(edge("authority/admission/admissions", "protected-effect")).toBe(true);
 		expect(edge("requests", "authority/admission/runtime")).toBe(false);
 		expect(edge("requests", "protected-effect")).toBe(false);
@@ -629,7 +629,7 @@ describe("B111.6 inspection and injected-authority evidence", () => {
 				"authority/admission/runtime",
 				"authority/admission/status",
 				"authority/requests",
-				"authority/correlation",
+				"authority/correlationFacts",
 				"authority/cursor",
 				"authority/errors",
 				"authority/events",

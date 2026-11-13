@@ -718,7 +718,7 @@ describe("agentic memory retention bundle (D167)", () => {
 				{ from: "commands", to: "retention/projection" },
 				{ from: "retention/projection", to: "retention/activeRecords" },
 				{ from: "retention/projection", to: "retention/archivedRecords" },
-				{ from: "retention/projection", to: "retention/requests" },
+				{ from: "retention/projection", to: "retention/consolidationRequests" },
 				{ from: "retention/projection", to: "retention/status" },
 				{ from: "retention/projection", to: "retention/errors" },
 				{ from: "retention/projection", to: "retention/cursor" },

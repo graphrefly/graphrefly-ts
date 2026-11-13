@@ -65,8 +65,8 @@ export function nodeCanvasTextMeasurements(
 		{
 			name: moduleName(
 				opts.graph,
-				opts.name === undefined ? undefined : `${opts.name}/context`,
-				`${targetId}/context`,
+				opts.name === undefined ? undefined : `${opts.name}/nodeCanvasMeasureCapability`,
+				`${targetId}/nodeCanvasMeasureCapability`,
 			),
 		},
 	);

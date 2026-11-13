@@ -104,22 +104,22 @@ describe("reactiveIndex (D60 #4) — ordered snapshot + Z reverse-lookup", () =>
 
 		const snap = renderSnapshot(g);
 		expect(snap.nodes.find((n) => n.id === "idx/delta")?.factory).toBe("reactiveIndex.delta");
-		expect(snap.nodes.find((n) => n.id === "idx/range0/delta")?.factory).toBe(
+		expect(snap.nodes.find((n) => n.id === "idx/range/delta")?.factory).toBe(
 			"reactiveIndex.range.delta",
 		);
-		expect(snap.nodes.find((n) => n.id === "idx/range0/snapshot")?.factory).toBe(
+		expect(snap.nodes.find((n) => n.id === "idx/range/snapshot")?.factory).toBe(
 			"reactiveIndex.range.snapshot",
 		);
-		expect(snap.edges).toContainEqual({ from: "idx/delta", to: "idx/range0/delta" });
+		expect(snap.edges).toContainEqual({ from: "idx/delta", to: "idx/range/delta" });
 		expect(snap.edges).toContainEqual({
-			from: "idx/range0/delta",
-			to: "idx/range0/snapshot",
+			from: "idx/range/delta",
+			to: "idx/range/snapshot",
 		});
 		idx.range("a", "z").dispose();
 		const after = renderSnapshot(g);
-		expect(after.edges).not.toContainEqual({ from: "idx/delta", to: "idx/range0/delta" });
-		expect(after.nodes.map((n) => n.id)).not.toContain("idx/range0/delta");
-		expect(after.nodes.map((n) => n.id)).not.toContain("idx/range0/snapshot");
+		expect(after.edges).not.toContainEqual({ from: "idx/delta", to: "idx/range/delta" });
+		expect(after.nodes.map((n) => n.id)).not.toContain("idx/range/delta");
+		expect(after.nodes.map((n) => n.id)).not.toContain("idx/range/snapshot");
 	});
 
 	it("range viewCache evicts only memo refs, not live D121 view nodes", () => {
@@ -134,10 +134,10 @@ describe("reactiveIndex (D60 #4) — ordered snapshot + Z reverse-lookup", () =>
 
 		expect(idx.range("c", "z")).toBe(second);
 		expect(idx.range("a", "c")).not.toBe(first);
-		expect(g.find("idx/range0/delta")).toBe(first.delta);
+		expect(g.find("idx/range/delta")).toBe(first.delta);
 		expect(g.find("idx/range1/delta")).toBe(second.delta);
 		first.dispose();
-		expect(g.find("idx/range0/delta")).toBeUndefined();
+		expect(g.find("idx/range/delta")).toBeUndefined();
 		idx.dispose();
 		expect(
 			renderSnapshot(g)
@@ -393,7 +393,7 @@ describe("reactiveIndex (D60 #4) — ordered snapshot + Z reverse-lookup", () =>
 		]);
 		expect(renderSnapshot(g).edges).toContainEqual({ from: "max", to: "idx/capacityPolicy" });
 		expect(renderSnapshot(g).edges).toContainEqual({
-			from: "idx/bind0",
+			from: "idx/bind",
 			to: "idx/capacityPolicy",
 		});
 	});
@@ -466,25 +466,25 @@ describe("reactiveLog (D60 #5) — incremental view/scan + SENTINEL reject + dec
 
 		const snap = renderSnapshot(g);
 		expect(snap.nodes.find((n) => n.id === "log/delta")?.factory).toBe("reactiveLog.delta");
-		expect(snap.nodes.find((n) => n.id === "log/page0/delta")?.factory).toBe(
+		expect(snap.nodes.find((n) => n.id === "log/page/delta")?.factory).toBe(
 			"reactiveLog.page.delta",
 		);
-		expect(snap.nodes.find((n) => n.id === "log/page0/snapshot")?.factory).toBe(
+		expect(snap.nodes.find((n) => n.id === "log/page/snapshot")?.factory).toBe(
 			"reactiveLog.page.snapshot",
 		);
-		expect(snap.edges).toContainEqual({ from: "log/delta", to: "log/page0/delta" });
+		expect(snap.edges).toContainEqual({ from: "log/delta", to: "log/page/delta" });
 		expect(snap.edges).toContainEqual({
-			from: "log/page0/delta",
-			to: "log/page0/snapshot",
+			from: "log/page/delta",
+			to: "log/page/snapshot",
 		});
 		page.dispose();
 		const after = renderSnapshot(g);
-		expect(after.edges).not.toContainEqual({ from: "log/delta", to: "log/page0/delta" });
-		expect(after.nodes.map((n) => n.id)).not.toContain("log/page0/delta");
-		expect(after.nodes.map((n) => n.id)).not.toContain("log/page0/snapshot");
-		expect(g.find("log/page0/delta")).toBeUndefined();
-		expect(g.checkpoint().nodes.map((n) => n.id)).not.toContain("log/page0/delta");
-		expect(() => g.node([], null, { name: "log/page0/delta" })).toThrow(
+		expect(after.edges).not.toContainEqual({ from: "log/delta", to: "log/page/delta" });
+		expect(after.nodes.map((n) => n.id)).not.toContain("log/page/delta");
+		expect(after.nodes.map((n) => n.id)).not.toContain("log/page/snapshot");
+		expect(g.find("log/page/delta")).toBeUndefined();
+		expect(g.checkpoint().nodes.map((n) => n.id)).not.toContain("log/page/delta");
+		expect(() => g.node([], null, { name: "log/page/delta" })).toThrow(
 			/released and cannot be reused/,
 		);
 		expect(() => page.delta.subscribe(() => {})).toThrow(/released from its graph lifecycle/);
@@ -502,10 +502,10 @@ describe("reactiveLog (D60 #5) — incremental view/scan + SENTINEL reject + dec
 
 		expect(log.page(1, 1)).toBe(second);
 		expect(log.page(0, 1)).not.toBe(first);
-		expect(g.find("log/page0/delta")).toBe(first.delta);
+		expect(g.find("log/page/delta")).toBe(first.delta);
 		expect(g.find("log/page1/delta")).toBe(second.delta);
 		first.dispose();
-		expect(g.find("log/page0/delta")).toBeUndefined();
+		expect(g.find("log/page/delta")).toBeUndefined();
 		log.dispose();
 		expect(
 			renderSnapshot(g)
@@ -520,14 +520,14 @@ describe("reactiveLog (D60 #5) — incremental view/scan + SENTINEL reject + dec
 		const page = log.page(0, 2);
 		const downstream = g.node([page.snapshot as Node<unknown>], relayFirst, { name: "consumer" });
 
-		expect(() => page.dispose()).toThrow(/consumer.*still depends.*log\/page0\/snapshot/);
-		expect(renderSnapshot(g).nodes.map((n) => n.id)).toContain("log/page0/snapshot");
+		expect(() => page.dispose()).toThrow(/consumer.*still depends.*log\/page\/snapshot/);
+		expect(renderSnapshot(g).nodes.map((n) => n.id)).toContain("log/page/snapshot");
 
 		g.replace(downstream, [], () => {});
 		page.dispose();
 		const after = renderSnapshot(g);
-		expect(after.nodes.map((n) => n.id)).not.toContain("log/page0/delta");
-		expect(after.nodes.map((n) => n.id)).not.toContain("log/page0/snapshot");
+		expect(after.nodes.map((n) => n.id)).not.toContain("log/page/delta");
+		expect(after.nodes.map((n) => n.id)).not.toContain("log/page/snapshot");
 		expect(after.nodes.map((n) => n.id).some((id) => id.startsWith("~reactiveLog.page"))).toBe(
 			false,
 		);

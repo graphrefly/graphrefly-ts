@@ -192,6 +192,7 @@ const constructors: [string, Build][] = [
 			const map = reactiveMap<string, number>(g);
 			map.select((value) => value > 0);
 			map.select((value) => value < 0);
+			map.select((value) => value === 0);
 			const index = reactiveIndex<string, number>(g);
 			index.range("a", "z");
 			index.range("b", "y");
@@ -449,6 +450,7 @@ const constructors: [string, Build][] = [
 			attachToolProviderAdapterRuntime(g, {
 				inputs: input("inputs"),
 				bindings: [],
+				retention: { executions: { maxSize: 2 }, runStatuses: { maxSize: 3 } },
 				name: suppliedName,
 			}),
 	],
@@ -1456,8 +1458,11 @@ function checkName(name: string) {
 	for (let i = 1; i < segments.length; i++) {
 		const prefix = new Set(words(segments[i - 1]!));
 		const repeated = words(segments[i]!).filter((word) => prefix.has(word));
-		// Runtime status and per-request status are distinct outputs in the same module.
-		const qualified = segments[i] === "runtimeStatus" && prefix.has("runtime");
+		// Keep qualifiers that separate existing outputs or stages with identical child roles.
+		const qualified =
+			(segments[i] === "runtimeStatus" && prefix.has("runtime")) ||
+			(segments[i - 1] === "agenticMemoryConsolidationApplication" &&
+				["consolidation", "application", "applicationInput"].includes(segments[i]!));
 		if (!qualified) expect(repeated, name).toEqual([]);
 	}
 }
@@ -1490,37 +1495,73 @@ describe("R-naming@1 public module default names", () => {
 	});
 });
 
+describe("R-naming@1 semantic default names", () => {
+	it.each([
+		["agenticMemoryConsolidationApplicationBundle", "agenticMemoryConsolidationApplication/input"],
+		[
+			"agenticWorkItemMemoryApplicationRecipeBundle",
+			"agenticWorkItemMemoryApplicationRecipe/input",
+		],
+		["agenticMemoryContextPackingBundle", "agenticMemoryContextPacking/packed"],
+		["agenticMemoryRecordAdmissionPolicySourceBundle", "agenticMemoryRecordAdmissionPolicySource"],
+		["imageSizeMeasurements", "imageSizeMeasurements"],
+		["svgBoundsMeasurements", "svgBoundsMeasurements"],
+		["reactNativeLayoutMeasurements", "reactNativeLayoutMeasurements"],
+	])("preserves semantic words in %s", async (factory, expected) => {
+		const g = graph();
+		const input: Input = (name) =>
+			g.find(`input/${name}`) ?? g.node([], null, { name: `input/${name}` });
+		const entry = constructors.find(([name]) => name === factory);
+		expect(entry, factory).toBeDefined();
+		await entry![1](g, input);
+		expect(g.find(expected), expected).toBeDefined();
+	});
+});
+
 describe("R-naming@1 deferred module construction", () => {
 	it("names lazy collection views and binding nodes", () => {
 		const g = graph();
 		const list = reactiveList<number>(g);
 		const source = g.node<number>([], null, { name: "source" });
 		const stop1 = list.appendFrom(source),
-			stop2 = list.appendFrom(source);
+			stop2 = list.appendFrom(source),
+			stop3 = list.appendFrom(source);
 		const map = reactiveMap<string, number>(g);
-		map.select((value) => value > 0);
+		const positive = (value: number) => value > 0;
+		const selected = map.select(positive);
+		expect(map.select(positive)).toBe(selected);
 		map.select((value) => value < 0);
+		map.select((value) => value === 0);
 		const index = reactiveIndex<string, number>(g);
-		index.range("a", "z");
+		const range = index.range("a", "z");
+		expect(index.range("a", "z")).toBe(range);
 		index.range("a", "b");
+		index.range("c", "d");
 		const log = reactiveLog<number>(g);
-		log.page(0, 2);
+		const page = log.page(0, 2);
+		expect(log.page(0, 2)).toBe(page);
 		log.page(2, 4);
+		log.page(4, 6);
 		for (const node of g.describe()) if (!node.id.startsWith("~")) checkName(node.id);
 		expect(g.describe().map((node) => node.id)).toEqual(
 			expect.arrayContaining([
-				"reactiveList/bind0",
+				"reactiveList/bind",
 				"reactiveList/bind1",
-				"reactiveMap/select0/delta",
+				"reactiveList/bind2",
+				"reactiveMap/select/delta",
 				"reactiveMap/select1/delta",
-				"reactiveIndex/range0/delta",
+				"reactiveMap/select2/delta",
+				"reactiveIndex/range/delta",
 				"reactiveIndex/range1/delta",
-				"reactiveLog/page0/delta",
+				"reactiveIndex/range2/delta",
+				"reactiveLog/page/delta",
 				"reactiveLog/page1/delta",
+				"reactiveLog/page2/delta",
 			]),
 		);
 		stop1();
 		stop2();
+		stop3();
 	});
 	it.each(
 		constructors.filter(([name]) =>

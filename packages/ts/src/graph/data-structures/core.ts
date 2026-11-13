@@ -234,7 +234,6 @@ export function collectionCore<S, C>(
 	restore?: CollectionRestoreSpec,
 ): CollectionCore<S, C> {
 	const name = moduleName(graph, opts.name, factory);
-	let bindSeq = 0;
 
 	// DELTA backbone: a bare source (D60 #2a / review #2 — node([], null), no `initial`, so a late
 	// subscriber gets no fake "initial change"; state is the snapshot port's job).
@@ -299,7 +298,7 @@ export function collectionCore<S, C>(
 			},
 		};
 		const folder = graph.initNode(op, [src], {
-			name: name ? `${name}/bind${bindSeq++}` : undefined,
+			name: name ? moduleName(graph, undefined, `${name}/bind`) : undefined,
 			meta: { kind: "collection_bind_source", collection: factory },
 		});
 		return graph.retain(folder);

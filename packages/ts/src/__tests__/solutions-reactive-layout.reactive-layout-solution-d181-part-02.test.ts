@@ -252,7 +252,7 @@ describe("reactive-layout solution (D181) — part 2", () => {
 				{ from: "reactiveBlockLayout/gap", to: "reactiveBlockLayout/flow" },
 				{
 					from: "reactiveBlockLayout/flow",
-					to: "reactiveBlockLayout/height",
+					to: "reactiveBlockLayout/totalHeight",
 				},
 			]),
 		);

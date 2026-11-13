@@ -320,7 +320,7 @@ export function attachKeyedRateLimitAuthority(
 	const correlationFacts = adapterProjection(
 		graph,
 		events,
-		`${name}/correlation`,
+		`${name}/correlationFacts`,
 		"keyedRateLimitAuthorityCorrelationFacts",
 		(fact): fact is KeyedRateLimitCorrelationFact =>
 			"format" in fact &&

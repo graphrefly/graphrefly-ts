@@ -123,7 +123,7 @@ export function agenticMemoryRecordAdmissionPolicySourceBundle(
 	graph: Graph,
 	opts: AgenticMemoryRecordAdmissionPolicySourceBundleOptions,
 ): AgenticMemoryRecordAdmissionPolicySourceBundle {
-	const name = moduleName(graph, opts.name, "agenticMemoryRecordAdmissionSource");
+	const name = moduleName(graph, opts.name, "agenticMemoryRecordAdmissionPolicySource");
 	const projection = graph.node<AgenticMemoryRecordAdmissionPolicySourceProjection>(
 		[opts.policySources],
 		(ctx) => {
@@ -154,7 +154,7 @@ export function agenticMemoryRecordAdmissionPolicySourceBundle(
 		admissionPolicy: solutionProjection(
 			graph,
 			projection,
-			`${name}/policy`,
+			name,
 			"agenticMemoryRecordAdmissionPolicySourcePolicy",
 			(fact) => fact.admissionPolicy,
 		),

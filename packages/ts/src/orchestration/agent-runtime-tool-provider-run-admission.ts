@@ -175,7 +175,7 @@ export function toolProviderRunAdmissionProjector(
 				: undefined,
 	);
 	const approvedRunHandoff = admissionHandoff(graph, {
-		name: `${name}/handoff`,
+		name: `${name}/approvedHandoff`,
 		candidates: handoffCandidates,
 		decisions: handoffDecisions,
 		maxPending: 1_024,
@@ -198,7 +198,7 @@ export function toolProviderRunAdmissionProjector(
 			ctx.down(requests.map((v) => ["DATA", v] as const));
 		},
 		{
-			name: `${name}/requests`,
+			name: `${name}/approvedRequests`,
 			factory: "toolProviderRunAdmissionApprovedRunRequests",
 			meta: { source: "admission-handoff-accepted" },
 		},

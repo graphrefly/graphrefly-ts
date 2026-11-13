@@ -145,6 +145,6 @@ export function reactNativeLayoutMeasurements(
 			}
 			ctx.down([["DATA", facts]]);
 		},
-		{ name: moduleName(opts.graph, opts.name, "reactNativeMeasurements") },
+		{ name: moduleName(opts.graph, opts.name, "reactNativeLayoutMeasurements") },
 	);
 }

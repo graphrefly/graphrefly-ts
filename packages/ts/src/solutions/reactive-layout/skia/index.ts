@@ -135,8 +135,8 @@ export function skiaReadyTextMeasurements(
 		{
 			name: moduleName(
 				opts.graph,
-				opts.name === undefined ? undefined : `${opts.name}/capability`,
-				`${targetId}/capability`,
+				opts.name === undefined ? undefined : `${opts.name}/measureCapability`,
+				`${targetId}/measureCapability`,
 			),
 		},
 	);

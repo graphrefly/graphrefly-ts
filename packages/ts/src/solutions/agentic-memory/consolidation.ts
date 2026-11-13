@@ -116,14 +116,14 @@ export function agenticMemoryConsolidationBundle<T = unknown>(
 		proposedRecordDrafts: solutionOccurrenceSelect(
 			graph,
 			projection,
-			`${name}/drafts`,
+			`${name}/proposedRecordDrafts`,
 			"agenticMemoryConsolidationRecordDrafts",
 			(fact) => fact.proposedRecordDrafts,
 		),
 		recordProposals: solutionOccurrenceSelect(
 			graph,
 			projection,
-			`${name}/proposals`,
+			`${name}/recordProposals`,
 			"agenticMemoryConsolidationRecordProposals",
 			(fact) => fact.recordProposals,
 		),
