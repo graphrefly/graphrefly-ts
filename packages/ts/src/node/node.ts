@@ -1,3 +1,4 @@
+import { assertLocalName } from "./naming.js";
 /**
  * The node primitive — the thinnest substrate object (R-node-thin / D5).
  *
@@ -125,6 +126,7 @@ export class Node<T = unknown> {
 		handleOrFn: Handle | NodeFn | null,
 		opts: NodeOptions<T> = {},
 	) {
+		assertLocalName(opts.name);
 		creationOrder.set(this as Node<unknown>, nextCreation++);
 		// R-node: a node with dependencies is a computed node and has a function; a node without
 		// one is a state and has no dependencies.

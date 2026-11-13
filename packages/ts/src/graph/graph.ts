@@ -18,6 +18,7 @@ import { isWaveActive, observeFailures, reportFailure } from "../batch/boundary.
 import type { Ctx, NodeFn } from "../ctx/types.js";
 import { type Dispatcher, defaultDispatcher } from "../dispatcher/index.js";
 import { NodeCore } from "../node/core.js";
+import { assertLocalName } from "../node/naming.js";
 import {
 	checkpointStateOfNode,
 	getNodeOwner,
@@ -205,6 +206,7 @@ export class Graph {
 		}
 	}
 	private _assertAvailableId(id: string): void {
+		assertLocalName(id);
 		if (this._byId.has(id))
 			throw new Error(`graph: duplicate node id '${id}' (checkpoint/describe ids must be unique)`);
 		if (id.startsWith("~") && this._core.hasGraphId(id))
@@ -261,6 +263,7 @@ export class Graph {
 	}
 
 	private _nodeOpts<T>(opts: SugarOpts<T>): NodeOptions<T> {
+		assertLocalName(opts.name);
 		if (opts.meta !== undefined) {
 			normalizeTopologyMeta(opts.meta, `graph node '${opts.name ?? opts.factory ?? "node"}' meta`);
 		}
@@ -1151,6 +1154,7 @@ class GraphRegistration implements GraphLifecycleRegistrar {
 		if (typeof opts.at !== "string" || opts.at.length === 0) {
 			throw new TypeError("topology.mount: at must be a non-empty string");
 		}
+		assertLocalName(opts.at);
 		if (this.host._mounts.some((mounted) => mounted.at === opts.at)) {
 			throw new Error(`topology.mount: duplicate sibling mount id '${opts.at}'`);
 		}

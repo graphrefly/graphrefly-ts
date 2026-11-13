@@ -668,7 +668,7 @@ describe("checkpoint and restore: ported cases (TS layout, graphrefly-ts:D178)",
 		const badMount = parent.checkpoint();
 		if (badMount.mounts) badMount.mounts[0].checkpoint.nodes[0].id = "child::leaf";
 		expect(() => restoreGraph(badMount, { registry: defaultRestoreRegistry })).toThrow(
-			/child-local node id/,
+			"name must not contain '::'",
 		);
 		const emptyMount = parent.checkpoint();
 		if (emptyMount.mounts) emptyMount.mounts[0].at = "";

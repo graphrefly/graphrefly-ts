@@ -1,4 +1,5 @@
 import type { NodeFn } from "../ctx/types.js";
+import { assertLocalName } from "../node/naming.js";
 import type { Node } from "../node/node.js";
 import type { Graph, StateNode } from "./graph.js";
 import { graphRegistrations } from "./graph-lifecycle.js";
@@ -57,6 +58,7 @@ export class GraphTopologyGroup implements TopologyGroup {
 	private _released = false;
 
 	constructor(graph: Graph, opts: TopologyGroupOptions = {}) {
+		assertLocalName(opts.name);
 		this._graph = graph;
 		this.name = opts.name;
 	}

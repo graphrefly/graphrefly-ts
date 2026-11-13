@@ -1,3 +1,4 @@
+import { assertLocalName } from "../node/naming.js";
 /**
  * Checkpoint restore (R-checkpoint@1, graphrefly:D802; TS layout graphrefly-ts:D178).
  *
@@ -809,6 +810,8 @@ function validateCheckpointNodeJson(
 	for (const node of Array.isArray(checkpoint.nodes) ? checkpoint.nodes : []) {
 		if (node == null || typeof node.id !== "string") continue;
 		const id = node.id;
+		assertLocalName(id);
+		if (typeof node.name === "string") assertLocalName(node.name);
 		if (node.values !== undefined) checkpointJsonOf(id, CHECKPOINT_REFUSAL.values, node.values);
 		if (node.recipe?.config !== undefined)
 			checkpointJsonOf(id, CHECKPOINT_REFUSAL.recipeConfig, node.recipe.config);
@@ -823,8 +826,10 @@ function validateCheckpointNodeJson(
 				checkpointJsonOf(id, CHECKPOINT_REFUSAL.errorPayload, received.terminal.error);
 		}
 	}
-	for (const mount of Array.isArray(checkpoint.mounts) ? checkpoint.mounts : [])
+	for (const mount of Array.isArray(checkpoint.mounts) ? checkpoint.mounts : []) {
+		if (typeof mount?.at === "string") assertLocalName(mount.at);
 		if (mount?.checkpoint) validateCheckpointNodeJson(mount.checkpoint, seen);
+	}
 }
 
 function prepareCheckpoint(
@@ -844,6 +849,9 @@ function prepareCheckpoint(
 	for (const node of assertArray(checkpoint.nodes, `${path}.nodes`) as GraphCheckpointNode[]) {
 		assertRecord(node, `${path}.nodes[]`);
 		const id = assertString(node.id, `${path}.nodes[].id`);
+		assertLocalName(id);
+		if (node.name !== undefined) assertString(node.name, `node '${id}' name`);
+		assertLocalName(node.name);
 		if (nodes.has(id)) throw new Error(`restoreGraph: duplicate node id '${id}'`);
 		if (mountAt !== undefined && id.startsWith(`${mountAt}::`))
 			throw new Error(
@@ -876,6 +884,7 @@ function prepareCheckpoint(
 	for (const mount of checkpoint.mounts ?? []) {
 		assertRecord(mount, `${path}.mounts[]`);
 		const at = assertString(mount.at, `${path}.mounts[].at`);
+		assertLocalName(at);
 		if (at.length === 0) throw new Error("restoreGraph: mount path must not be empty");
 		if (mountPaths.has(at)) throw new Error(`restoreGraph: duplicate mount path '${at}'`);
 		mountPaths.add(at);

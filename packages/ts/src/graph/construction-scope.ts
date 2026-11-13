@@ -1,4 +1,5 @@
 import type { NodeFn } from "../ctx/types.js";
+import { assertLocalName } from "../node/naming.js";
 import type { Node, StateNode } from "../node/node.js";
 import { VALUE } from "../node/node-keys.js";
 import { nodeSubscribeOwned } from "../node/node-lifecycle-runtime.js";
@@ -88,6 +89,7 @@ export function prepareConstruction(
 	graph: Graph,
 	manifest: ConstructionManifest,
 ): ConstructionScope {
+	assertLocalName(manifest.name);
 	const registrar = graphRegistrations.get(graph);
 	stableBoundary(registrar);
 	if (registrar === undefined) throw new Error("construction graph is not registered");
