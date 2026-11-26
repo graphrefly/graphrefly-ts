@@ -274,6 +274,17 @@ export {
 	type ValveOpts,
 	valve,
 } from "./graph/operators.js";
+export {
+	PAUSABLE_RECIPE,
+	type Pausable,
+	type PauseLocks,
+	pausable,
+	pausableFn,
+	pausableOf,
+	pausableRestoreDescriptor,
+	pauseControl,
+	pauseLocks,
+} from "./graph/pause.js";
 export type {
 	CapacityPolicy,
 	OrderedCapacityPolicy,
@@ -313,6 +324,19 @@ export {
 	retryPolicy,
 	shouldRetry,
 } from "./graph/resilience.js";
+export {
+	RESTART_OWNER_REF,
+	type Restartable,
+	type RestartableOptions,
+	type RestartOwnerConfig,
+	type RestartRetry,
+	restartable,
+	restartableOf,
+	restartOwner,
+	restartRecipes,
+	restartRetry,
+	restartRetryDelayMs,
+} from "./graph/restart.js";
 export {
 	defaultRestoreRegistry,
 	type GraphRecipeBuild,
@@ -357,6 +381,7 @@ export {
 	fromWebhookWithOptions,
 	fromWebSocket,
 	fromWebSocketWithOptions,
+	hostTimers,
 	interval,
 	matchesCron,
 	type NodeInput,
@@ -370,6 +395,7 @@ export {
 	type SingleFromAnyOptions,
 	singleFromAny,
 	type TimerSourceOpts,
+	type Timers,
 	throwError,
 	timer,
 } from "./graph/sources.js";

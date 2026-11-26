@@ -145,13 +145,10 @@ describe("bundle recipes restore through a checkpoint (R-checkpoint@1)", () => {
 		const local = build(() => clock.t);
 		collect(local.g, ["rl/status"]);
 		set(local.g, "hits", "a");
-		const localCheckpoint = roundTrip(local.g);
-		expect(localCheckpoint.nodes.find((n) => n.id === "rl/events")?.recipe).toBeUndefined();
-		expect(() =>
-			restoreGraph(localCheckpoint, {
-				registry: { ...defaultRestoreRegistry, ...localFixedWindowRateLimitRestoreRegistry },
-			}),
-		).toThrow(/local-only/);
+		// R-checkpoint@2: refused at capture, naming the node.
+		expect(() => roundTrip(local.g)).toThrow(
+			`not restorable: rl/events: local-only, built or replaced without a recipe`,
+		);
 	});
 
 	it("breakerBundle: an open breaker stays open, then half-opens on time", () => {
@@ -441,7 +438,9 @@ describe("bundle recipes restore through a checkpoint (R-checkpoint@1)", () => {
 		// A handler with no ref cannot be named: the runtime is local-only.
 		const local = graph({ name: "local" });
 		cqrs(local, { name: "bank", handlers: [cqrsCommandHandler("deposit", deposit)] });
-		expect(roundTrip(local).nodes.find((n) => n.id === "bank/runtime")?.recipe).toBeUndefined();
+		expect(() => roundTrip(local)).toThrow(
+			`not restorable: bank/runtime: local-only, built or replaced without a recipe`,
+		);
 	});
 
 	it("cqrs messaging ack and outbox commands: a pending delivery is acked after restore", () => {

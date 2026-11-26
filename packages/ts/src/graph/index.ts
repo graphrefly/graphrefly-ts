@@ -147,6 +147,17 @@ export type {
 export { graphProfile, observeTopology } from "./inspect.js";
 export { operatorRestoreRegistry } from "./operator-restore.js";
 export {
+	PAUSABLE_RECIPE,
+	type Pausable,
+	type PauseLocks,
+	pausable,
+	pausableFn,
+	pausableOf,
+	pausableRestoreDescriptor,
+	pauseControl,
+	pauseLocks,
+} from "./pause.js";
+export {
 	blueprintToMermaid,
 	type DiagramDirection,
 	type GraphBlueprintToMermaidOptions,
@@ -178,6 +189,19 @@ export {
 	retryPolicy,
 	shouldRetry,
 } from "./resilience.js";
+export {
+	RESTART_OWNER_REF,
+	type Restartable,
+	type RestartableOptions,
+	type RestartOwnerConfig,
+	type RestartRetry,
+	restartable,
+	restartableOf,
+	restartOwner,
+	restartRecipes,
+	restartRetry,
+	restartRetryDelayMs,
+} from "./restart.js";
 export {
 	defaultRestoreRegistry,
 	type GraphRecipeBuild,

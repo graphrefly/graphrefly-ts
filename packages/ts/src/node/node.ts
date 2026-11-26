@@ -36,7 +36,6 @@ export {
 	isNodeRuntimeQuiescentForRelease,
 	isNodeRuntimeReleased,
 	releaseRuntimeOfNode,
-	restoreStateOfNode,
 	setGraphNodeIdResolver,
 	setNodeOwner,
 	setNodeTopologyDepsChangedObserver,

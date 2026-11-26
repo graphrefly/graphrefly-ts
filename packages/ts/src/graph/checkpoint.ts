@@ -11,7 +11,11 @@ import { type StrictJsonValue, strictJsonCodec } from "../json/codec.js";
 import type { Node } from "../node/node.js";
 import { nodeBackendContributor, setNodeBackendContributor } from "../node/runtime-accessors.js";
 
-export const GRAPH_CHECKPOINT_FORMAT = "graphrefly-ts/checkpoint@1" as const;
+/**
+ * graphrefly-ts:D194 (5): the second format saves which dependencies were replaced and not yet
+ * told (R-checkpoint@3); a checkpoint of the first is refused at restore.
+ */
+export const GRAPH_CHECKPOINT_FORMAT = "graphrefly-ts/checkpoint@2" as const;
 
 export type GraphCheckpointFormat = typeof GRAPH_CHECKPOINT_FORMAT;
 
@@ -49,6 +53,11 @@ export interface GraphCheckpointPolicies {
 export interface GraphCheckpointReceived {
 	values: GraphCheckpointJson[];
 	terminal: GraphCheckpointTerminal;
+	/**
+	 * R-checkpoint@3: the dependency was replaced while the node stayed active and the node's
+	 * function has not been told yet; the restored node's first run is told.
+	 */
+	replaced?: true;
 }
 
 /** A computed node's lifetime at capture: its private state and what it received. */
@@ -123,7 +132,7 @@ export const CHECKPOINT_REFUSAL = {
 	errorPayload: "its ERROR payload is not JSON",
 	/** TS package extension: describe metadata saved beside the node. */
 	meta: "its meta is not JSON",
-	/** Restore: a computed node whose instance carries no recipe. */
+	/** R-checkpoint@2: a computed node whose instance carries no recipe, refused at capture. */
 	localOnly: "local-only, built or replaced without a recipe",
 	missingRecipe: "missing recipe",
 	missingReceived: "missing received records",

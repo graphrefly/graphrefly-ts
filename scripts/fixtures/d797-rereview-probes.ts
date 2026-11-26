@@ -178,7 +178,8 @@ export function runRereviewProbes() {
 	stopBatchTrigger();
 
 	const cg = graph();
-	cg.node([], () => {}, { name: "n", recipe: { ref: "missing" } });
+	// The root fixture's input: recipe ref absent, so the refusal names it (R-checkpoint@3).
+	cg.node([], () => {}, { name: "n", recipe: { ref: "absent" } });
 	let checkpointMissingRecipe = "accepted";
 	try {
 		restoreGraph(cg.checkpoint(), { registry: {} });
@@ -246,7 +247,9 @@ export function runCheckpointReasonProbes(): Record<string, string> {
 				break;
 		}
 		try {
-			restoreGraph(input, { registry: reason === "missingRecipe" ? {} : registry });
+			// A recipe without a reference: the missing-recipe reason, no reference after it.
+			if (reason === "missingRecipe") node.recipe = {} as never;
+			restoreGraph(input, { registry });
 			output[reason] = "accepted";
 		} catch (error) {
 			output[reason] = (error as Error).message;

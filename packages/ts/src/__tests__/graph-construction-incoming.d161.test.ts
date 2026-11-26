@@ -93,7 +93,14 @@ describe("D161 B1 incoming inspection", () => {
 			const events: TopologyEvent[] = [];
 			stops.push(observeTopology(inspected).subscribe((e) => events.push(e)));
 			inspected.node([hidden(inspected)], relayFirst, { name: "later" });
-			return { events, snapshot: renderSnapshot(f.g), checkpoint: f.g.checkpoint() };
+			// R-checkpoint@2: the capture refuses the first local-only node, the same in both runs.
+			let checkpoint: unknown;
+			try {
+				checkpoint = f.g.checkpoint();
+			} catch (error) {
+				checkpoint = String(error);
+			}
+			return { events, snapshot: renderSnapshot(f.g), checkpoint };
 		}
 		expect(run(true)).toEqual(run(false));
 	});

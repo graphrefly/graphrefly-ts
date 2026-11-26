@@ -9,10 +9,7 @@ import {
 import { Graph } from "../../packages/ts/src/graph/graph.js";
 import * as topology from "../../packages/ts/src/graph/topology.js";
 import type { Node } from "../../packages/ts/src/node/node.js";
-import {
-	checkpointStateOfNode,
-	restoreStateOfNode,
-} from "../../packages/ts/src/node/runtime-accessors.js";
+import { checkpointStateOfNode } from "../../packages/ts/src/node/runtime-accessors.js";
 import type { CausalBinding } from "../../packages/ts/src/solutions/causal-occurrence/capabilities.js";
 import {
 	causalColdNodeNames,
@@ -189,14 +186,14 @@ export function publicationRun(
 	if (options.capture) scope.node = original;
 	const owner = scope.seal(startup, built.causal.roots);
 	scope.transferToGraph(owner);
-	// Fault injection: end the owned root with ERROR from outside before its first activation, as a
-	// seed would (the kernel's internal path; no public input ends a computed node).
-	if (options.fault)
-		restoreStateOfNode(built.causal.roots[0] as Node<unknown>, {
-			values: [],
-			terminal: new Error("owned startup fault"),
-			privateState: undefined,
-		});
+	// Fault injection: the owned root ends with ERROR at its first run, through a replace before
+	// its first activation (graphrefly-ts:D817 phase 2 took out the after-construction seed).
+	if (options.fault) {
+		const root = built.causal.roots[0] as Node<unknown>;
+		graph.replace(root, graph.definition(root).deps, (ctx) =>
+			ctx.down([["ERROR", new Error("owned startup fault")]]),
+		);
+	}
 	startConstruction(graph, owner);
 	let latest: unknown,
 		ui: (() => void) | undefined,

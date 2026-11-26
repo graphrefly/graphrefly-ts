@@ -9,7 +9,6 @@ import { describe, expect, it } from "vitest";
 import type { NodeFn } from "../ctx/types.js";
 import type { GraphRecipeFactory, GraphSugarRecipeFactory } from "../graph/restore.js";
 import {
-	defaultRestoreRegistry,
 	type Graph,
 	graph,
 	type Message,
@@ -51,8 +50,9 @@ describe("refusal text: not restorable: <node id>: <reason>", () => {
 		collect(n);
 		const saved = g.checkpoint();
 		expect(saved.nodes[0]!.lifetime?.received).toEqual([]);
+		// R-checkpoint@3: restore names the reference of a missing recipe.
 		expect(refusal(() => restoreGraph(saved, { registry: {} }))).toBe(
-			"not restorable: n: missing recipe",
+			"not restorable: n: missing recipe answer",
 		);
 		delete saved.nodes[0]!.lifetime;
 		expect(refusal(() => restoreGraph(saved, { registry }))).toBe(
@@ -60,14 +60,12 @@ describe("refusal text: not restorable: <node id>: <reason>", () => {
 		);
 	});
 
-	it("restore refuses a computed node built without a recipe", () => {
+	it("capture refuses a computed node built without a recipe", () => {
 		const g = graph();
 		const src = g.state(1, { name: "src" });
 		collect(g.derived([src], (n: number) => n + 1, { name: "plus" }));
-		// Capture saves a local-only node; it is refused at restore, not at capture.
-		const checkpoint = g.checkpoint();
-		expect(checkpoint.nodes.find((n) => n.id === "plus")?.recipe).toBeUndefined();
-		expect(refusal(() => restoreGraph(checkpoint, { registry: defaultRestoreRegistry }))).toBe(
+		// R-checkpoint@2: a local-only node is refused at capture, not written for restore to refuse.
+		expect(refusal(() => g.checkpoint())).toBe(
 			"not restorable: plus: local-only, built or replaced without a recipe",
 		);
 	});

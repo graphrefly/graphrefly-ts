@@ -14,8 +14,7 @@ import { assertLocalName } from "../node/naming.js";
 import type { NodeFn } from "../ctx/types.js";
 import { strictCanonicalJsonBytes } from "../json/codec.js";
 import type { Node, OperatorHost } from "../node/node.js";
-import { restoreStateOfNode, wrapFnOfNode } from "../node/runtime-accessors.js";
-import type { NodeOptions } from "../node/types.js";
+import type { NodeOptions, NodeSeed } from "../node/types.js";
 import { isInvalidErrorPayload, SENTINEL } from "../protocol/messages.js";
 import {
 	CHECKPOINT_REFUSAL,
@@ -40,6 +39,7 @@ import {
 	restoreReactiveMapFromBackendState,
 } from "./data-structures/reactive-map.js";
 import {
+	buildWithRestoreSeeds,
 	type Graph,
 	graph,
 	hostOfGraph,
@@ -50,7 +50,9 @@ import {
 } from "./graph.js";
 import { operatorRestoreRegistry } from "./operator-restore.js";
 import { map, operatorNodeFn, operatorSetup, take } from "./operators.js";
-import { type RestoredReceived, restoredFirstRun, restoredNote } from "./restore-first-run.js";
+import { pausableRestoreDescriptor } from "./pause.js";
+import { restartRecipes } from "./restart.js";
+import { type RestoredReceived, restoredNote } from "./restore-first-run.js";
 import { timer } from "./sources.js";
 import * as topology from "./topology.js";
 
@@ -140,6 +142,11 @@ export type GraphRestoreRegistry =
 
 export interface RestoreGraphOptions {
 	registry: GraphRestoreRegistry;
+	/**
+	 * R-node / R-checkpoint@2: the restored graph refuses computed nodes built or replaced without
+	 * a recipe. A checkpoint does not hold this requirement, so a host that wants it asks here.
+	 */
+	requireRecipe?: boolean;
 }
 
 type TakeConfig = { n: number };
@@ -616,6 +623,8 @@ export const defaultRestoreRegistry: Readonly<Record<string, GraphRestoreEntry>>
 	map: mapRestoreDescriptor,
 	take: takeRestoreDescriptor,
 	timer: timerRestoreDescriptor,
+	"pause.pausable": pausableRestoreDescriptor,
+	...restartRecipes(),
 	"reactiveList.delta": reactiveListDeltaRestoreDescriptor,
 	"reactiveList.request": reactiveListRequestRestoreDescriptor,
 	"reactiveList.snapshot": reactiveListSnapshotRestoreDescriptor,
@@ -705,9 +714,12 @@ function entryFor(
 	ref: string,
 	id: string,
 ): GraphRecipeFactory | GraphRestoreExtension {
+	// R-checkpoint@2: a recipe without a reference is a missing recipe; one the registry lacks is
+	// named with its reference.
+	if (ref === "") throw notRestorable(id, CHECKPOINT_REFUSAL.missingRecipe);
 	const entry = registryGet(registry, ref);
 	if (!isFactory(entry) && !isExtension(entry))
-		throw notRestorable(id, CHECKPOINT_REFUSAL.missingRecipe);
+		throw notRestorable(id, `${CHECKPOINT_REFUSAL.missingRecipe} ${ref}`);
 	if (entry.ref !== ref)
 		throw new Error(`restoreGraph: registry entry for '${ref}' reports ref '${entry.ref}'`);
 	return entry;
@@ -740,10 +752,7 @@ function prepareNode(node: GraphCheckpointNode, registry: GraphRestoreRegistry):
 			assertArray(node.lifetime.deps, `node '${id}' lifetime.deps`).forEach((dep, i) => {
 				assertString(dep, `${id}.lifetime.deps[${i}]`);
 			});
-			// This explicit field records a rewire, whose dependency list is distinct.
-			// Initial declared dependencies retain their existing multiplicity semantics.
-			if (new Set(node.lifetime.deps).size !== node.lifetime.deps.length)
-				throw notRestorable(id, "duplicate lifetime dependency");
+			// A lifetime may repeat a dependency, as a declared list may (graphrefly:D821).
 		}
 		if (!Array.isArray(node.lifetime.received))
 			throw notRestorable(id, CHECKPOINT_REFUSAL.missingReceived);
@@ -755,12 +764,14 @@ function prepareNode(node: GraphCheckpointNode, registry: GraphRestoreRegistry):
 				r == null ||
 				typeof r !== "object" ||
 				!Array.isArray(r.values) ||
-				r.terminal === undefined
+				r.terminal === undefined ||
+				(Object.hasOwn(r, "replaced") && r.replaced !== true)
 			)
 				throw notRestorable(id, CHECKPOINT_REFUSAL.missingReceived);
 			return {
 				values: r.values,
 				terminal: restoredTerminal(r.terminal, `${id}.lifetime.received[${i}]`),
+				...(r.replaced === true ? { replaced: true as const } : {}),
 			};
 		});
 	}
@@ -779,7 +790,9 @@ function prepareNode(node: GraphCheckpointNode, registry: GraphRestoreRegistry):
 		return { checkpoint: node, entry: undefined, config: undefined, terminal };
 	}
 	assertRecord(node.recipe, `node '${id}' recipe`);
-	const ref = assertString(node.recipe.ref, `node '${id}' recipe.ref`);
+	if (typeof node.recipe.ref !== "string" || node.recipe.ref === "")
+		throw notRestorable(id, CHECKPOINT_REFUSAL.missingRecipe);
+	const ref = node.recipe.ref;
 	const sugar = node.recipe.sugar;
 	if (sugar !== undefined && (!isCheckpointSugar(sugar) || node.kind !== "computed"))
 		throw new Error(
@@ -934,13 +947,15 @@ function recipeContext(
 		host: hostOfGraph(out, deps),
 		make(recipe) {
 			const entry = registryGet(registry, recipe.ref);
-			if (!isFactory(entry)) throw notRestorable(id, CHECKPOINT_REFUSAL.missingRecipe);
+			if (!isFactory(entry))
+				throw notRestorable(id, `${CHECKPOINT_REFUSAL.missingRecipe} ${recipe.ref}`);
 			const config = entry.validateConfig ? entry.validateConfig(recipe.config) : recipe.config;
 			return buildRecipe(entry, config, ctx);
 		},
 		definition<S, T>(ref: string) {
 			const entry = registryGet(registry, ref);
-			if (!isDefinition(entry)) throw notRestorable(id, CHECKPOINT_REFUSAL.missingRecipe);
+			if (!isDefinition(entry))
+				throw notRestorable(id, `${CHECKPOINT_REFUSAL.missingRecipe} ${ref}`);
 			return entry as unknown as GraphRestoreDefinition<S, T>;
 		},
 	};
@@ -958,8 +973,42 @@ function policyOptions(
 	};
 }
 
-function constructPrepared(prepared: PreparedCheckpoint, registry: GraphRestoreRegistry): Graph {
-	const out = graph({ name: prepared.checkpoint.name });
+/**
+ * R-checkpoint: each saved node's construction seed: its values, terminal, private state and
+ * lifetime dependencies, and for an open computed node with a lifetime a note of what it had
+ * received, which its first run compares.
+ */
+function restoreSeedsOf(
+	prepared: PreparedCheckpoint,
+): Map<string, { seed: NodeSeed; firstRun: boolean }> {
+	const seeds = new Map<string, { seed: NodeSeed; firstRun: boolean }>();
+	for (const [id, item] of prepared.nodes) {
+		const node = item.checkpoint;
+		const lifetime = node.lifetime;
+		// An ended node never runs again, so it gets no note (R-checkpoint@1).
+		const received: RestoredReceived[] | undefined =
+			item.terminal !== undefined ? undefined : item.received;
+		seeds.set(id, {
+			seed: {
+				values: node.values,
+				terminal: item.terminal,
+				privateState: lifetime?.state === undefined ? SENTINEL : lifetime.state,
+				// A ctx.rewire's lifetime dependencies; the declared ones come back when it closes.
+				...(lifetime?.deps === undefined ? {} : { deps: [...lifetime.deps] }),
+				...(received === undefined ? {} : { note: restoredNote(received) }),
+			},
+			firstRun: received !== undefined,
+		});
+	}
+	return seeds;
+}
+
+function constructPrepared(
+	prepared: PreparedCheckpoint,
+	registry: GraphRestoreRegistry,
+	requireRecipe: boolean,
+): Graph {
+	const out = graph({ name: prepared.checkpoint.name, requireRecipe });
 	try {
 		const built = new Map<string, Node<unknown>>();
 		// R-checkpoint: each node is built after its declared dependencies, otherwise in checkpoint
@@ -1030,28 +1079,15 @@ function constructPrepared(prepared: PreparedCheckpoint, registry: GraphRestoreR
 				built.set(id, made);
 				return made;
 			});
-		for (const id of prepared.nodes.keys()) buildNode(id);
+		// R-checkpoint: every node gets its seed at construction (graphrefly-ts:D194).
+		const unseeded = buildWithRestoreSeeds(out, restoreSeedsOf(prepared), () => {
+			for (const id of prepared.nodes.keys()) buildNode(id);
+		});
+		if (unseeded.length > 0)
+			throw notRestorable(unseeded[0] as string, "its restore did not build it under its id");
 
 		for (const mount of prepared.mounts) {
-			topology.mount(out, constructPrepared(mount.prepared, registry), mount.at);
-		}
-
-		for (const [id, made] of built) {
-			const item = prepared.nodes.get(id) as Prepared;
-			const node = item.checkpoint;
-			const lifetime = node.lifetime;
-			// An ended node never runs again, so it gets no note (R-checkpoint@1).
-			const received: RestoredReceived[] | undefined =
-				item.terminal !== undefined ? undefined : item.received;
-			if (received !== undefined) wrapFnOfNode(made, restoredFirstRun);
-			restoreStateOfNode(made, {
-				values: node.values,
-				terminal: item.terminal,
-				privateState: lifetime?.state === undefined ? SENTINEL : lifetime.state,
-				// A ctx.rewire's lifetime dependencies; the declared ones come back when it closes.
-				...(lifetime?.deps === undefined ? {} : { deps: [...lifetime.deps] }),
-				...(received === undefined ? {} : { note: restoredNote(received) }),
-			});
+			topology.mount(out, constructPrepared(mount.prepared, registry, requireRecipe), mount.at);
 		}
 	} finally {
 		clearRestoredCollectionMap(out);
@@ -1062,9 +1098,9 @@ function constructPrepared(prepared: PreparedCheckpoint, registry: GraphRestoreR
 /**
  * Restore a new graph from a checkpoint and a registry of recipes (R-checkpoint).
  *
- * @param checkpoint - A `graphrefly-ts/checkpoint@1` checkpoint.
+ * @param checkpoint - A `graphrefly-ts/checkpoint@2` checkpoint; an earlier format is refused.
  * @param options - The registry of recipe factories, restore extensions and named definitions,
- *   and an optional dispatcher override.
+ *   and whether the restored graph requires a recipe on every computed node.
  * @returns A new graph with no subscribers; no recipe function has run.
  * @example
  * ```ts
@@ -1086,7 +1122,7 @@ export function restoreGraph(checkpoint: GraphCheckpoint, options: RestoreGraphO
 		throw new Error("restoreGraph: registry must be a Map or object");
 	}
 	for (const key of Object.keys(options)) {
-		if (key !== "registry") {
+		if (key !== "registry" && key !== "requireRecipe") {
 			throw new Error(`restoreGraph: unknown option '${key}'`);
 		}
 	}
@@ -1094,5 +1130,7 @@ export function restoreGraph(checkpoint: GraphCheckpoint, options: RestoreGraphO
 	// JSON admission owns one detached input tree before any registry callback sees its data.
 	const detached = toCheckpointJson(checkpoint) as unknown as GraphCheckpoint;
 	const prepared = prepareCheckpoint(detached, options.registry);
-	return constructPrepared(prepared, options.registry);
+	if (options.requireRecipe !== undefined && typeof options.requireRecipe !== "boolean")
+		throw new Error("restoreGraph: requireRecipe must be a boolean");
+	return constructPrepared(prepared, options.registry, options.requireRecipe === true);
 }

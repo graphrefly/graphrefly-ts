@@ -119,6 +119,22 @@ export const apiSidebar = [
 				"link": "/api/observetopology"
 			},
 			{
+				"label": "pauseControl()",
+				"link": "/api/pausecontrol"
+			},
+			{
+				"label": "pauseLocks()",
+				"link": "/api/pauselocks"
+			},
+			{
+				"label": "pausable()",
+				"link": "/api/pausable"
+			},
+			{
+				"label": "pausableOf()",
+				"link": "/api/pausableof"
+			},
+			{
 				"label": "renderToMermaid()",
 				"link": "/api/rendertomermaid"
 			},
@@ -169,6 +185,30 @@ export const apiSidebar = [
 			{
 				"label": "backoffDelayMs()",
 				"link": "/api/backoffdelayms"
+			},
+			{
+				"label": "restartRetry()",
+				"link": "/api/restartretry"
+			},
+			{
+				"label": "restartRetryDelayMs()",
+				"link": "/api/restartretrydelayms"
+			},
+			{
+				"label": "restartOwner()",
+				"link": "/api/restartowner"
+			},
+			{
+				"label": "restartable()",
+				"link": "/api/restartable"
+			},
+			{
+				"label": "restartableOf()",
+				"link": "/api/restartableof"
+			},
+			{
+				"label": "restartRecipes()",
+				"link": "/api/restartrecipes"
 			},
 			{
 				"label": "restoreGraph()",

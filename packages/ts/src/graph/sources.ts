@@ -43,6 +43,21 @@ import { initNode, type Operator } from "./operators.js";
  * Values accepted by {@link fromAny}: an existing Node, a Promise, an (a)sync iterable, or a
  * bare scalar. The universal coercion target for higher-order operators (CSP-2.7).
  */
+/**
+ * Timers an operator is given, as graphrefly reference/operators/recover.mjs has them: the
+ * operator starts and clears them and reads no time itself (graphrefly-ts:D194 (4)).
+ */
+export interface Timers {
+	set(fn: () => void, ms: number): unknown;
+	clear(handle: unknown): void;
+}
+
+/** The host's timers: the default of an operator given none. */
+export const hostTimers: Timers = Object.freeze({
+	set: (fn: () => void, ms: number): unknown => setTimeout(fn, ms),
+	clear: (handle: unknown): void => clearTimeout(handle as ReturnType<typeof setTimeout>),
+});
+
 export type NodeInput<T> = Node<T> | PromiseLike<T> | AsyncIterable<T> | Iterable<T> | T;
 
 /** Host-boundary options for {@link singleFromAny}. */

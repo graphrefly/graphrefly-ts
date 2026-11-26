@@ -308,7 +308,7 @@ describe("C-38 restore keeps the saved state, refreshes once on a changed input,
 		const { checkpoint } = captured();
 		const text = JSON.stringify(checkpoint);
 		expect(text).not.toMatch(/"version"|"revision"|"cid"|"configVersion"/);
-		expect(checkpoint.format).toBe("graphrefly-ts/checkpoint@1");
+		expect(checkpoint.format).toBe("graphrefly-ts/checkpoint@2");
 	});
 
 	it("captures inside a wave or a batch body are refused", () => {
@@ -325,7 +325,7 @@ describe("C-38 restore keeps the saved state, refreshes once on a changed input,
 				}
 				ctx.down([["DATA", 1]]);
 			},
-			{ name: "probe" },
+			{ name: "probe", recipe: { ref: "probe" } },
 		);
 		collect(probe);
 		expect(String(inWave)).toMatch(/wave boundary/);
@@ -560,24 +560,23 @@ describe("checkpoint and restore: ported cases (TS layout, graphrefly-ts:D178)",
 	it("keeps an inline map local-only while built-in operators carry recipes", () => {
 		const g = graph();
 		const src = g.state(1, { name: "src" });
+		g.initNode(take<number>(2), [src], { name: "limited" });
+		g.initNode(timer(5), [], { name: "once" });
+		const recipes = Object.fromEntries(g.checkpoint().nodes.map((n) => [n.id, n.recipe]));
+		expect(recipes).toEqual({
+			src: undefined,
+			limited: { ref: "take", config: { n: 2 } },
+			once: { ref: "timer", config: { ms: 5 } },
+		});
+		// R-checkpoint@2: a local-only node is refused at capture, naming the first one.
 		g.initNode(
 			map((n: number) => n + 1),
 			[src],
 			{ name: "inline" },
 		);
-		g.initNode(take<number>(2), [src], { name: "limited" });
 		g.initNode(take<number>(1), [src], { name: "optOut", recipe: undefined });
-		g.initNode(timer(5), [], { name: "once" });
-		const recipes = Object.fromEntries(g.checkpoint().nodes.map((n) => [n.id, n.recipe]));
-		expect(recipes).toEqual({
-			src: undefined,
-			inline: undefined,
-			limited: { ref: "take", config: { n: 2 } },
-			optOut: undefined,
-			once: { ref: "timer", config: { ms: 5 } },
-		});
-		expect(() => restoreGraph(g.checkpoint(), { registry: defaultRestoreRegistry })).toThrow(
-			/local-only/,
+		expect(() => g.checkpoint()).toThrow(
+			"not restorable: inline: local-only, built or replaced without a recipe",
 		);
 	});
 

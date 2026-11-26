@@ -6,7 +6,6 @@ import { renderSnapshot } from "../graph/render.js";
 import * as topology from "../graph/topology.js";
 import type { Message, TopologyEvent } from "../index.js";
 import {
-	defaultRestoreRegistry,
 	GRAPH_CHECKPOINT_FORMAT,
 	graph,
 	Node,
@@ -14,7 +13,6 @@ import {
 	reactiveList,
 	reactiveLog,
 	reactiveMap,
-	restoreGraph,
 	strictJsonCodec,
 } from "../index.js";
 import { kernelOfNode } from "../node/node.js";
@@ -272,7 +270,10 @@ describe("observeTopology — read-only topology egress (D145)", () => {
 		expect(events).toEqual([]);
 		expect(g.find("derived")).toBe(derived);
 		expect(renderSnapshot(g).nodes.map((node) => node.id)).toContain("derived");
-		expect(g.checkpoint().nodes.map((node) => node.id)).toContain("derived");
+		// R-checkpoint@2: the capture names the still-registered local-only node.
+		expect(() => g.checkpoint()).toThrow(
+			`not restorable: derived: local-only, built or replaced without a recipe`,
+		);
 	});
 
 	it("emits node-released for committed releases even when cleanup later throws", () => {
@@ -326,8 +327,9 @@ describe("topology.group — graph-owned dynamic topology release (D152/D153)", 
 		expect(Object.keys(graphProfile(g).nodes)).toEqual(
 			expect.arrayContaining(["source", "view/delta", "view/snapshot"]),
 		);
-		expect(g.checkpoint().nodes.map((node) => node.id)).toEqual(
-			expect.arrayContaining(["source", "view/delta", "view/snapshot"]),
+		// R-checkpoint@2: the capture names the first registered local-only node.
+		expect(() => g.checkpoint()).toThrow(
+			`not restorable: view/delta: local-only, built or replaced without a recipe`,
 		);
 
 		group.release();
@@ -411,7 +413,10 @@ describe("Graph.checkpoint — data shape (R-checkpoint / D802, TS layout D178)"
 	it("returns a strict-JSON checkpoint with topology, values, lifetimes and mounts", () => {
 		const parent = graph({ name: "parent" });
 		const count = parent.state(0, { name: "count" });
-		const doubled = parent.derived([count], (n) => n! * 2, { name: "doubled" });
+		const doubled = parent.derived([count], (n) => n! * 2, {
+			name: "doubled",
+			recipe: { ref: "doubled" },
+		});
 		collect(doubled);
 		count.set(5);
 		const child = graph({ name: "child" });
@@ -425,8 +430,7 @@ describe("Graph.checkpoint — data shape (R-checkpoint / D802, TS layout D178)"
 		expect(byId.count).toMatchObject({ kind: "state", factory: "state", values: [5] });
 		expect(byId.count.recipe).toBeUndefined();
 		expect(byId.doubled).toMatchObject({ kind: "computed", values: [10], deps: ["count"] });
-		// No recipe: local-only.
-		expect(byId.doubled.recipe).toBeUndefined();
+		expect(byId.doubled.recipe?.ref).toBe("doubled");
 		expect(byId.doubled.lifetime).toEqual({
 			received: [{ values: [5], terminal: { kind: "none" } }],
 		});
@@ -436,7 +440,7 @@ describe("Graph.checkpoint — data shape (R-checkpoint / D802, TS layout D178)"
 
 	it("saves a lifetime that ran without sending a value", () => {
 		const g = graph();
-		const quiet = g.producer(() => {}, { name: "quiet" });
+		const quiet = g.producer(() => {}, { name: "quiet", recipe: { ref: "quiet" } });
 		collect(quiet);
 
 		const node = g.checkpoint().nodes.find((n) => n.id === "quiet");
@@ -447,7 +451,7 @@ describe("Graph.checkpoint — data shape (R-checkpoint / D802, TS layout D178)"
 	it("keeps no value apart from null and an empty array; an inactive computed node holds nothing", () => {
 		const g = graph();
 		const src = g.state(0, { name: "src" });
-		g.derived([src], (n) => n, { name: "cold" });
+		g.derived([src], (n) => n, { name: "cold", recipe: { ref: "cold" } });
 		g.state(null, { name: "nil" });
 		g.state([], { name: "empty" });
 
@@ -467,7 +471,7 @@ describe("Graph.checkpoint — data shape (R-checkpoint / D802, TS layout D178)"
 				ctx.state.set({ latest: ctx.deps[0].value, runs: 1 });
 				ctx.down([["DATA", "ok"]]);
 			},
-			{ name: "memo" },
+			{ name: "memo", recipe: { ref: "memo" } },
 		);
 		collect(memo);
 
@@ -652,11 +656,9 @@ describe("Graph.checkpoint — data shape (R-checkpoint / D802, TS layout D178)"
 			capacity: { order: "primary", maxSize: 2 },
 		});
 
-		const byId = Object.fromEntries(g.checkpoint().nodes.map((n) => [n.id, n]));
-		expect(byId["capped/snapshot"].recipe).toBeUndefined();
-		expect(byId["limited/snapshot"].recipe).toBeUndefined();
-		expect(() => restoreGraph(g.checkpoint(), { registry: defaultRestoreRegistry })).toThrow(
-			/local-only/,
+		// R-checkpoint@2: local-only nodes are refused at capture, the first one named.
+		expect(() => g.checkpoint()).toThrow(
+			`not restorable: capped/snapshot: local-only, built or replaced without a recipe`,
 		);
 	});
 });

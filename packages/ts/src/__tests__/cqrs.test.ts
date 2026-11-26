@@ -700,9 +700,11 @@ describe("CQRS application infrastructure (B63 / D125 / D129)", () => {
 			name: "orders",
 			events: ["OrderPlaced"],
 			handlers: [
-				cqrsCommandHandler("PlaceOrder", () => [
-					{ id: "event-1", type: "OrderPlaced", payload: {} },
-				]),
+				cqrsCommandHandler(
+					"PlaceOrder",
+					() => [{ id: "event-1", type: "OrderPlaced", payload: {} }],
+					{ ref: "orders.place" },
+				),
 			],
 		});
 

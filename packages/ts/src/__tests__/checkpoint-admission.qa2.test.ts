@@ -301,7 +301,7 @@ it("admits the union of declared and lifetime dependencies before any callback",
 	expect(build).not.toHaveBeenCalled();
 });
 
-it("preserves captured initial duplicate deps but rejects duplicates in an explicit saved rewire", () => {
+it("preserves captured initial duplicate deps and a saved rewire that repeats one (graphrefly:D821)", () => {
 	const g = graph();
 	const source = g.state(1, { name: "source" });
 	const n = g.node([source, source], () => {}, { name: "n", recipe: { ref: "r" } });
@@ -313,11 +313,14 @@ it("preserves captured initial duplicate deps but rejects duplicates in an expli
 	const restored = restoreGraph(cp, { registry });
 	expect(restored.describe().find((node) => node.id === "n")!.deps).toEqual(["source", "source"]);
 	build.mockClear();
+	// R-checkpoint@3 / C-53: a lifetime may repeat a dependency, as a declared list may.
 	savedNode(cp).lifetime!.deps = ["source", "source"];
-	expect(() => restoreGraph(cp, { registry })).toThrow(
-		"not restorable: n: duplicate lifetime dependency",
-	);
-	expect(build).not.toHaveBeenCalled();
+	expect(
+		restoreGraph(cp, { registry })
+			.describe()
+			.find((node) => node.id === "n")!.deps,
+	).toEqual(["source", "source"]);
+	expect(build).toHaveBeenCalledTimes(1);
 });
 
 it.each([

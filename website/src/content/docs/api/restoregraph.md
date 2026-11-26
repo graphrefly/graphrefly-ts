@@ -26,8 +26,8 @@ function restoreGraph(
 
 | Parameter | Type | Description |
 |---|---|---|
-| `checkpoint` | `GraphCheckpoint` | A `graphrefly-ts/checkpoint@1` checkpoint. |
-| `options` | `RestoreGraphOptions` | The registry of recipe factories, restore extensions and named definitions, and an optional dispatcher override. |
+| `checkpoint` | `GraphCheckpoint` | A `graphrefly-ts/checkpoint@2` checkpoint; an earlier format is refused. |
+| `options` | `RestoreGraphOptions` | The registry of recipe factories, restore extensions and named definitions, and whether the restored graph requires a recipe on every computed node. |
 
 ## Returns
 

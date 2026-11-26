@@ -15,7 +15,14 @@ import type { OwnedConstruction } from "./construction-scope.js";
  */
 
 import type { Ctx, NodeFn } from "../ctx/types.js";
-import { idle, Kernel, batch as kernelBatch, kOf, observeFailures } from "../node/kernel.js";
+import {
+	idle,
+	Kernel,
+	batch as kernelBatch,
+	kOf,
+	observeFailures,
+	replacedInputs,
+} from "../node/kernel.js";
 import { assertLocalName } from "../node/naming.js";
 import {
 	checkpointStateOfNode,
@@ -44,7 +51,7 @@ import {
 	failNodeAcquisition,
 	type NodeAcquisition,
 } from "../node/owned-acquisition.js";
-import type { NodeDefinition, ReplaceOptions } from "../node/types.js";
+import type { NodeDefinition, NodeSeed, ReplaceOptions } from "../node/types.js";
 import { errorPayload, SENTINEL } from "../protocol/messages.js";
 import { normalizeTopologyMeta } from "./blueprint.js";
 import {
@@ -82,7 +89,7 @@ import {
 	type TopologyStream,
 } from "./inspect.js";
 import { initNodeWithCore, type Operator } from "./operators.js";
-import { realNodeFn, receivedInNote } from "./restore-first-run.js";
+import { realNodeFn, receivedInNote, restoredFirstRun } from "./restore-first-run.js";
 
 export type {
 	TopologyGroup,
@@ -176,6 +183,7 @@ export class Graph {
 		this._core.environment = opts.environment ?? EnvironmentDrivers.empty();
 		this._profile = opts.profile ? new WeakMap() : undefined;
 		this._core.report = opts.report;
+		this._core.requireRecipe = opts.requireRecipe === true;
 		this._core.resolveId = (id) => {
 			const n = this._byId.get(id);
 			return n === undefined ? undefined : kOf(n);
@@ -200,13 +208,22 @@ export class Graph {
 		this._assertDepsLocal(deps, `dep of '${opts.name ?? factory}'`);
 		const name = id ?? opts.name;
 		if (name !== undefined) this._assertAvailableId(name);
-		const nodeOpts =
+		// R-checkpoint: a node a restore builds gets its seed at construction (graphrefly-ts:D194).
+		const restoring = name === undefined ? undefined : restoreSeeds.get(this)?.get(name);
+		const plainOpts =
 			name === undefined ? this._nodeOpts(opts) : { ...this._nodeOpts(opts), id: name };
+		const nodeOpts = restoring === undefined ? plainOpts : { ...plainOpts, seed: restoring.seed };
 		const acquired = supplied ?? { name: name ?? factory };
 		constructionAcquisitions.set(nodeOpts, acquired);
 		try {
 			const n = create(nodeOpts, acquired);
 			this._addWithId(n, factory, deps, opts, name ?? `${factory}#${this._seq++}`, acquired);
+			if (restoring !== undefined) {
+				restoreSeeds.get(this)?.delete(name as string);
+				// Its first run compares what it had received (R-checkpoint), before any profiling.
+				const record = kOf(n);
+				if (restoring.firstRun && record.fn !== null) record.fn = restoredFirstRun(record.fn);
+			}
 			this._profileFn(n);
 			return n;
 		} catch (cause) {
@@ -578,6 +595,9 @@ export class Graph {
 	retain(target: Node<unknown> | string): () => void {
 		const node = typeof target === "string" ? this._describedNode(target, "retain") : target;
 		assertGraphLocalNode(this, node, "retained node");
+		// R-checkpoint: a restore returns a graph with no subscribers, so a module's hold taken
+		// while its nodes are rebuilt is not taken (graphrefly-ts:D194 (1)).
+		if (restoreSeeds.has(this)) return () => {};
 		return node.subscribe(() => {});
 	}
 
@@ -881,7 +901,7 @@ export class Graph {
 		if (opts.name !== undefined) out.name = opts.name;
 		// A state needs no recipe; one that carries one (a collection's input) keeps it.
 		const recipe = opts.unregistered ? undefined : checkpointRecipe(slot.recipe, id);
-		if (recipe !== undefined) out.recipe = recipe;
+		if (recipe !== undefined && recipe !== MISSING_REFERENCE) out.recipe = recipe;
 		if (!isState) {
 			out.policies = {
 				complete: slot.completePolicy,
@@ -898,6 +918,10 @@ export class Graph {
 			out.meta = checkpointJsonOf(id, CHECKPOINT_REFUSAL.meta, opts.meta) as {
 				[key: string]: GraphCheckpointJson;
 			};
+		// R-checkpoint@2: a computed node that cannot be rebuilt is refused at capture, after what is
+		// not JSON: no recipe is local-only, a recipe without a reference is a missing recipe.
+		if (!isState && recipe === undefined) throw notRestorable(id, CHECKPOINT_REFUSAL.localOnly);
+		if (recipe === MISSING_REFERENCE) throw notRestorable(id, CHECKPOINT_REFUSAL.missingRecipe);
 		return out;
 	}
 
@@ -915,12 +939,19 @@ export class Graph {
 		const state = checkpointStateOfNode(node);
 		if (state.terminal !== undefined) return undefined;
 		// Restored and not run since: what it had received is its seed's note (R-checkpoint@1).
+		// R-checkpoint@3: a dependency replaced while the node stayed active, of which its function
+		// has not been told, is saved as such.
+		const replaced = replacedInputs(kOf(node));
 		const received =
 			receivedInNote(state.seedNote) ??
 			(state.activated
-				? slot.deps.map((dep) => {
+				? slot.deps.map((dep, i) => {
 						const d = checkpointStateOfNode(dep);
-						return { values: d.values, terminal: d.terminal };
+						return {
+							values: d.values,
+							terminal: d.terminal,
+							...(replaced[i] === true ? { replaced: true as const } : {}),
+						};
 					})
 				: undefined);
 		if (received === undefined) return undefined;
@@ -933,6 +964,7 @@ export class Graph {
 					r.values,
 				) as GraphCheckpointJson[],
 				terminal: checkpointTerminal(r.terminal, id),
+				...(r.replaced === true ? { replaced: true as const } : {}),
 			})),
 		};
 		if (state.privateState !== SENTINEL)
@@ -970,12 +1002,24 @@ function slotOf(node: Node<unknown>) {
 	};
 }
 
-/** R-node: a recipe the checkpoint can save is a factory reference with a JSON configuration. */
-function checkpointRecipe(recipe: unknown, id: string): GraphCheckpointRecipe | undefined {
-	if (recipe === undefined) return undefined;
+/** A recipe given without a reference (R-checkpoint@2: refused as a missing recipe). */
+const MISSING_REFERENCE = Symbol("missing recipe reference");
+
+/**
+ * R-node: a recipe the checkpoint can save is a factory reference, a non-empty string, with a JSON
+ * configuration. A recipe with no reference gives MISSING_REFERENCE, which the capture refuses
+ * after the node's JSON checks.
+ */
+function checkpointRecipe(
+	recipe: unknown,
+	id: string,
+): GraphCheckpointRecipe | typeof MISSING_REFERENCE | undefined {
+	if (recipe === undefined || recipe === null) return undefined;
 	const r = recipe as { ref?: unknown; config?: unknown; sugar?: unknown };
-	if (typeof recipe !== "object" || recipe === null || typeof r.ref !== "string")
-		throw notRestorable(id, "its recipe is not { ref, config }");
+	if (typeof recipe === "object" && r.config !== undefined)
+		checkpointJsonOf(id, CHECKPOINT_REFUSAL.recipeConfig, r.config);
+	if (typeof recipe !== "object" || typeof r.ref !== "string" || r.ref === "")
+		return MISSING_REFERENCE;
 	const out: GraphCheckpointRecipe = { ref: r.ref };
 	if (r.config !== undefined)
 		out.config = checkpointJsonOf(id, CHECKPOINT_REFUSAL.recipeConfig, r.config);
@@ -1145,6 +1189,34 @@ export function releaseGraphNodes(
 	const registrar = graphRegistrations.get(graph);
 	if (registrar === undefined) throw new Error("graph: unknown lifecycle registrar");
 	registrar.releaseNodes(nodes, opts);
+}
+
+/** A seed a restore gives a node at construction, and whether its first run compares. */
+interface RestoreSeed {
+	readonly seed: NodeSeed;
+	readonly firstRun: boolean;
+}
+
+/** The seeds of a graph being restored, by node id, until each node is built. */
+const restoreSeeds = new WeakMap<Graph, Map<string, RestoreSeed>>();
+
+/**
+ * @internal R-checkpoint: build `graph`'s restored nodes in `build`, each given its seed at
+ * construction; a module's hold is not taken meanwhile. Returns the ids whose seed no node took.
+ */
+export function buildWithRestoreSeeds(
+	graph: Graph,
+	seeds: ReadonlyMap<string, RestoreSeed>,
+	build: () => void,
+): string[] {
+	const pending = new Map(seeds);
+	restoreSeeds.set(graph, pending);
+	try {
+		build();
+	} finally {
+		restoreSeeds.delete(graph);
+	}
+	return [...pending.keys()];
 }
 
 /** @internal D94 descriptor path: register a restored state node without widening Graph. */

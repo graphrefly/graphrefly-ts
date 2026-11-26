@@ -23,7 +23,6 @@ import {
 	isNodeRuntimeQuiescentForRelease,
 	isNodeRuntimeReleased,
 	releaseRuntimeOfNode,
-	restoreStateOfNode,
 	subscriberCountOfNode,
 } from "../node/runtime-accessors.js";
 import { relayFirst } from "./helpers/relay.js";
@@ -65,7 +64,6 @@ describe("D167 issued runtime identity and lifecycle", () => {
 		const n = new Graph().node([], null, { initial: 3 });
 		for (const fake of [{}, { ...n }, Object.create(n)] as Node<unknown>[]) {
 			expect(() => checkpointStateOfNode(fake)).toThrow("unknown node state");
-			expect(() => restoreStateOfNode(fake, {} as never)).toThrow("unknown node state");
 			expect(isNodeRuntimeReleased(fake)).toBe(false);
 			expect(isNodeRuntimeQuiescentForRelease(fake)).toBe(false);
 			expect(subscriberCountOfNode(fake)).toBe(0);
@@ -76,7 +74,6 @@ describe("D167 issued runtime identity and lifecycle", () => {
 		releaseRuntimeOfNode(n);
 		expect(isNodeRuntimeReleased(n)).toBe(true);
 		expect(() => checkpointStateOfNode(n)).toThrow("unknown node state");
-		expect(() => restoreStateOfNode(n, {} as never)).toThrow("unknown node state");
 		expect(isNodeRuntimeQuiescentForRelease(n)).toBe(false);
 		releaseRuntimeOfNode(n);
 	});

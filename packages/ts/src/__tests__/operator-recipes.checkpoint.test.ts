@@ -365,7 +365,14 @@ describe("sources carry recipes and restore (R-checkpoint@1)", () => {
 			[],
 			{ name: "fnValue" },
 		);
-		g.initNode(fromTimer(5, { signal: new AbortController().signal }), [], { name: "signalled" });
-		expect(g.checkpoint().nodes.map((n) => n.recipe)).toEqual([undefined, undefined]);
+		// R-checkpoint@2: a local-only node is refused at capture.
+		expect(() => g.checkpoint()).toThrow(
+			`not restorable: fnValue: local-only, built or replaced without a recipe`,
+		);
+		const h = graph();
+		h.initNode(fromTimer(5, { signal: new AbortController().signal }), [], { name: "signalled" });
+		expect(() => h.checkpoint()).toThrow(
+			`not restorable: signalled: local-only, built or replaced without a recipe`,
+		);
 	});
 });

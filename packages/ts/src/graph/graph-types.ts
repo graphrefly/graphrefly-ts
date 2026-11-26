@@ -53,6 +53,11 @@ export interface GraphOptions {
 	 * ignored; with no reporter nothing is kept.
 	 */
 	report?: HostReporter;
+	/**
+	 * R-node: refuse every computed node built, or replaced, without a recipe. A checkpoint does
+	 * not hold this requirement; a restore that wants it asks again (R-checkpoint@2).
+	 */
+	requireRecipe?: boolean;
 }
 
 /** A failure reported to the graph's host reporter (R-failure@3). */

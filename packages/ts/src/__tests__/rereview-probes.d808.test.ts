@@ -16,7 +16,7 @@ describe("D808 cross-runtime rereview traces", () => {
 			lateAfterCommitFailure: [42],
 			replaceCleanup: [42],
 			endedBatch: { updaterRuns: 0, otherValue: 0, reports: 1 },
-			checkpointMissingRecipe: "not restorable: n: missing recipe",
+			checkpointMissingRecipe: "not restorable: n: missing recipe absent",
 			quietError: ["auto", "manual"].flatMap((invalidate) =>
 				[true, false].map((retained) => ({
 					invalidate,

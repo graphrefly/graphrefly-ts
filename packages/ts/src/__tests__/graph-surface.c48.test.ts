@@ -247,10 +247,14 @@ it.each([publicApi, graphApi])("exposes only the topology namespace without acti
 	const parent = graph({ name: "parent" }),
 		child = graph({ name: "child" });
 	let invocations = 0;
-	const n = child.node([], () => {
-		invocations++;
-		throw new Error("must stay cold");
-	});
+	const n = child.node(
+		[],
+		() => {
+			invocations++;
+			throw new Error("must stay cold");
+		},
+		{ recipe: { ref: "cold" } },
+	);
 	const members = topology.group(child, { name: "cold group" });
 	members.add(n);
 	const before = renderSnapshot(parent);

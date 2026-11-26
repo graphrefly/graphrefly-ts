@@ -450,40 +450,6 @@ export function makeKNode(k: Kernel, spec: MakeNodeSpec): KNode {
 	return n;
 }
 
-/**
- * R-checkpoint (restore): give a node that has never been activated a seed, as if it had been
- * built with it. Kept for the restore of phase 1; phase 2 builds restored nodes with their seed.
- */
-export function seedKNode(n: KNode, seed: KernelSeed): void {
-	// Phase 1 only (phase 2 builds restored nodes with their seed): a collection holds its apply
-	// node from construction, so it and its input state may be active here. A restored graph has
-	// no subscribers (R-checkpoint), so an active computed node drops its holds and deactivates
-	// before it is seeded; a state has no lifetime and takes its values as at construction, its
-	// dependents' records of it following.
-	if (n.active && n.kind !== "state") {
-		n.subs = [];
-		exec(n.kernel, deactivateTask(n));
-	}
-	for (const v of seed.values ?? []) assertPayload(["DATA", v]);
-	const ended = terminalOf(seed.terminal);
-	if (ended !== null) assertPayload(ended);
-	n.values = [...(seed.values ?? [])];
-	n.has = n.values.length > 0;
-	n.cache = n.values.at(-1);
-	n.ended = ended;
-	n.privateState = seed.privateState;
-	n.seedDeps = seed.deps !== undefined ? [...seed.deps] : null;
-	n.seedNote = n.kind === "state" || ended !== null ? undefined : seed.note;
-	if (!n.active) n.inputs = n.deps.map(freshInput);
-	for (const sub of n.subs) {
-		if (sub.kind !== "node") continue;
-		const input = sub.node.inputs[sub.dep] as Input;
-		input.has = n.has;
-		input.value = n.cache;
-		input.ended = n.ended;
-	}
-}
-
 // ---- Batch staging (R-request-order) ---------------------------------------------------------
 
 /**

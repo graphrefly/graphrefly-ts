@@ -17,6 +17,11 @@ export interface RestoredReceived {
 	readonly values: readonly unknown[];
 	/** `true` for COMPLETE, an ERROR payload, or `undefined` while it was open. */
 	readonly terminal: true | unknown | undefined;
+	/**
+	 * R-checkpoint@3: it was replaced while the node stayed active and the function has not been
+	 * told yet; it counts as changed, and the first run is told.
+	 */
+	readonly replaced?: true;
 }
 
 /** The note restore gives a restored node's seed. */
@@ -57,10 +62,15 @@ export function restoredFirstRun(real: NodeFn): NodeFn {
 			const terminal = terminalValue(dep.terminal);
 			const valuesSame = same([...(was?.values ?? [])], [...values]);
 			const endSame = same(was?.terminal ?? null, terminal ?? null);
-			if (valuesSame && endSame) return unchanged(dep, undefined);
+			const replaced = was?.replaced === true;
+			if (valuesSame && endSame && !replaced) return unchanged(dep, undefined, false);
 			changed = true;
-			// A dependency that only ended gives only its end.
-			return valuesSame ? unchanged(dep, dep.terminal) : dep;
+			// A dependency that only ended gives only its end; one saved as replaced is told.
+			return valuesSame
+				? unchanged(dep, endSame ? undefined : dep.terminal, replaced)
+				: replaced
+					? told(dep)
+					: dep;
 		});
 		if (changed) real(ctxWithDeps(ctx, shown));
 	};
@@ -70,17 +80,43 @@ export function restoredFirstRun(real: NodeFn): NodeFn {
 
 const NO_WAVES: readonly (readonly unknown[])[] = Object.freeze([]);
 
-/** A dependency that brings nothing to this run but `terminal`; it still holds its value. */
-function unchanged(dep: CtxDep, terminal: DepTerminal | undefined): CtxDep {
+/** A changed dependency saved as replaced: as it is, and told it was replaced. */
+function told(dep: CtxDep): CtxDep {
+	return {
+		get id() {
+			return dep.id;
+		},
+		get waves() {
+			return dep.waves;
+		},
+		get terminal() {
+			return dep.terminal;
+		},
+		replaced: true,
+		get value() {
+			return dep.value;
+		},
+		get has() {
+			return dep.has;
+		},
+		get invalidated() {
+			return dep.invalidated;
+		},
+	};
+}
+
+/**
+ * A dependency that brings nothing to this run but `terminal`; it still holds its value. It is
+ * told it was replaced when the checkpoint saved it so (R-checkpoint@3).
+ */
+function unchanged(dep: CtxDep, terminal: DepTerminal | undefined, replaced: boolean): CtxDep {
 	return {
 		get id() {
 			return dep.id;
 		},
 		waves: NO_WAVES,
 		terminal,
-		get replaced() {
-			return dep.replaced;
-		},
+		replaced: replaced || dep.replaced,
 		get value() {
 			return dep.value;
 		},

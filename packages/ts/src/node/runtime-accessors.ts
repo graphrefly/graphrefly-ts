@@ -1,9 +1,8 @@
-import type { NodeFn } from "../ctx/types.js";
-import { idle, kOf, seedKNode, status, subscriberCount, terminalValue } from "./kernel.js";
+import { idle, kOf, status, subscriberCount, terminalValue } from "./kernel.js";
 import type { Node } from "./node.js";
 import type { RuntimeReleaseFailure } from "./owned-acquisition.js";
 
-import type { NodeCheckpointState, NodeSeed } from "./types.js";
+import type { NodeCheckpointState } from "./types.js";
 
 type TopologyDepsChangedObserver = (
 	node: Node<unknown>,
@@ -122,23 +121,6 @@ export function checkpointStateOfNode(n: Node<unknown>): NodeCheckpointState {
 		privateState: k.privateState,
 		seedNote: k.seedNote,
 	};
-}
-
-/** @internal R-checkpoint restore commit: install a seed without a protocol wave or subscription. */
-export function restoreStateOfNode(n: Node<unknown>, seed: NodeSeed): void {
-	if (liveRegistration(n) === undefined) throw new Error("restoreGraph: unknown node state");
-	seedKNode(kOf(n), seed);
-}
-
-/**
- * @internal R-checkpoint@1: give a node `wrap` of its function in place of it, keeping the instance,
- * its values and lifetime (a restore wraps a restored node's function).
- */
-export function wrapFnOfNode(n: Node<unknown>, wrap: (fn: NodeFn) => NodeFn): void {
-	if (liveRegistration(n) === undefined) throw new Error("restoreGraph: unknown node state");
-	const k = kOf(n);
-	if (k.fn === null) return;
-	k.fn = wrap(k.fn);
 }
 
 /**

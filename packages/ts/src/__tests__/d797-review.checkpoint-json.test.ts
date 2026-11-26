@@ -11,9 +11,13 @@ describe("checkpoint JSON (D797 review)", () => {
 		const g = graph();
 		const s = g.state(1, { name: "s" });
 		let cleaned = 0;
-		const e = g.effect([s], () => () => {
-			cleaned += 1;
-		});
+		const e = g.effect(
+			[s],
+			() => () => {
+				cleaned += 1;
+			},
+			{ recipe: { ref: "cleanup" } },
+		);
 		const stop = e.subscribe(() => {});
 		s.set(2);
 		expect(() => g.checkpoint()).not.toThrow();
