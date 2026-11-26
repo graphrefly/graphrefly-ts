@@ -5,8 +5,8 @@ import type { TopologyEvent } from "../graph/inspect.js";
 import { observeTopology } from "../graph/inspect.js";
 import { renderSnapshot } from "../graph/render.js";
 import * as topology from "../graph/topology.js";
-import type { NodeCore } from "../node/core.js";
-import { Node, withNodeCore } from "../node/node.js";
+import type { Kernel } from "../node/kernel.js";
+import { Node } from "../node/node.js";
 import { releaseRuntimeOfNode } from "../node/runtime-accessors.js";
 import { relayFirst } from "./helpers/relay.js";
 
@@ -21,11 +21,8 @@ function graph() {
 }
 /** An unregistered node of `g`'s domain (R-graph-domain@3: every node belongs to a graph). */
 function hidden(g: Graph, deps: Node<unknown>[] = []) {
-	const core = (g as unknown as { _core: NodeCore })._core;
-	const n = withNodeCore(
-		core,
-		() => new Node(deps, deps.length === 0 ? null : relayFirst, { factory: "hidden" }),
-	);
+	const core = (g as unknown as { _core: Kernel })._core;
+	const n = new Node(core, deps, deps.length === 0 ? null : relayFirst, { factory: "hidden" });
 	bare.push(n);
 	return n;
 }

@@ -12,9 +12,8 @@ import { assertLocalName } from "../node/naming.js";
  */
 
 import type { NodeFn } from "../ctx/types.js";
-import type { Dispatcher } from "../dispatcher/index.js";
 import { strictCanonicalJsonBytes } from "../json/codec.js";
-import type { Node } from "../node/node.js";
+import type { Node, OperatorHost } from "../node/node.js";
 import { restoreStateOfNode, wrapFnOfNode } from "../node/runtime-accessors.js";
 import type { NodeOptions } from "../node/types.js";
 import { isInvalidErrorPayload, SENTINEL } from "../protocol/messages.js";
@@ -43,13 +42,14 @@ import {
 import {
 	type Graph,
 	graph,
+	hostOfGraph,
 	isCheckpointSugar,
 	restoreNodeInGraph,
 	restoreStateNodeInGraph,
 	sugarNodeParts,
 } from "./graph.js";
 import { operatorRestoreRegistry } from "./operator-restore.js";
-import { map, operatorNodeFn, take } from "./operators.js";
+import { map, operatorNodeFn, operatorSetup, take } from "./operators.js";
 import { type RestoredReceived, restoredFirstRun, restoredNote } from "./restore-first-run.js";
 import { timer } from "./sources.js";
 import * as topology from "./topology.js";
@@ -73,6 +73,8 @@ export interface GraphRecipeContext {
 	readonly graph: Graph;
 	/** The node's id. */
 	readonly id: string;
+	/** The host of the graph being restored, over the node's declared dependencies. */
+	readonly host: OperatorHost;
 	/** Build another registered recipe, for a recipe that takes another by reference. */
 	make(recipe: GraphCheckpointRecipe): GraphRecipeBuild;
 	/** A registered named function. */
@@ -138,7 +140,6 @@ export type GraphRestoreRegistry =
 
 export interface RestoreGraphOptions {
 	registry: GraphRestoreRegistry;
-	dispatcher?: Dispatcher;
 }
 
 type TakeConfig = { n: number };
@@ -173,8 +174,8 @@ export const takeRestoreDescriptor: GraphRecipeFactory<TakeConfig> = {
 	validateConfig(config) {
 		return { n: finiteNumber(objectConfig(config, "take").n, "take", "n") };
 	},
-	build(config) {
-		return { fn: operatorNodeFn(take(config.n)) };
+	build(config, ctx) {
+		return { fn: operatorNodeFn(take(config.n), ctx.host) };
 	},
 };
 
@@ -188,7 +189,7 @@ export const mapRestoreDescriptor: GraphRecipeFactory<MapConfig> = {
 		return { fn: obj.fn };
 	},
 	build(config, ctx) {
-		return { fn: operatorNodeFn(map(ctx.definition(config.fn))) };
+		return { fn: operatorNodeFn(map(ctx.definition(config.fn)), ctx.host) };
 	},
 };
 
@@ -203,11 +204,11 @@ export const timerRestoreDescriptor: GraphRecipeFactory<TimerConfig> = {
 					period: finiteNumber(raw.period, "timer", "period"),
 				};
 	},
-	build(config) {
+	build(config, ctx) {
 		// The timer is opened by the setup, which runs at the restored node's first activation.
 		const op =
 			config.period === undefined ? timer(config.ms) : timer(config.ms, { period: config.period });
-		return { fn: operatorNodeFn(op), setup: op.opts?.setup };
+		return { fn: operatorNodeFn(op, ctx.host), setup: operatorSetup(op, ctx.host) };
 	},
 };
 
@@ -921,10 +922,16 @@ function buildRecipe(
 	return result;
 }
 
-function recipeContext(registry: GraphRestoreRegistry, out: Graph, id: string): GraphRecipeContext {
+function recipeContext(
+	registry: GraphRestoreRegistry,
+	out: Graph,
+	id: string,
+	deps: readonly Node<unknown>[] = [],
+): GraphRecipeContext {
 	const ctx: GraphRecipeContext = {
 		graph: out,
 		id,
+		host: hostOfGraph(out, deps),
 		make(recipe) {
 			const entry = registryGet(registry, recipe.ref);
 			if (!isFactory(entry)) throw notRestorable(id, CHECKPOINT_REFUSAL.missingRecipe);
@@ -951,12 +958,8 @@ function policyOptions(
 	};
 }
 
-function constructPrepared(
-	prepared: PreparedCheckpoint,
-	registry: GraphRestoreRegistry,
-	dispatcher?: Dispatcher,
-): Graph {
-	const out = graph({ name: prepared.checkpoint.name, dispatcher });
+function constructPrepared(prepared: PreparedCheckpoint, registry: GraphRestoreRegistry): Graph {
+	const out = graph({ name: prepared.checkpoint.name });
 	try {
 		const built = new Map<string, Node<unknown>>();
 		// R-checkpoint: each node is built after its declared dependencies, otherwise in checkpoint
@@ -997,7 +1000,7 @@ function constructPrepared(
 				} else if (item.sugar !== undefined) {
 					// R-checkpoint: a sugar node gets only its value-level callback from the registry and
 					// is built with the same sugar and gate; a setup from the registry is refused.
-					const build = buildRecipe(item.entry, config, recipeContext(registry, out, id)) as
+					const build = buildRecipe(item.entry, config, recipeContext(registry, out, id, deps)) as
 						| GraphRecipeBuild
 						| GraphSugarRecipeBuild;
 					if (build.setup !== undefined)
@@ -1013,7 +1016,7 @@ function constructPrepared(
 						...(parts.setup === undefined ? {} : { setup: parts.setup }),
 					});
 				} else {
-					const build = buildRecipe(item.entry, config, recipeContext(registry, out, id));
+					const build = buildRecipe(item.entry, config, recipeContext(registry, out, id, deps));
 					made = restoreNodeInGraph(out, id, node.factory, deps, build.fn, {
 						...common,
 						...policyOptions(node.policies as GraphCheckpointPolicies),
@@ -1030,7 +1033,7 @@ function constructPrepared(
 		for (const id of prepared.nodes.keys()) buildNode(id);
 
 		for (const mount of prepared.mounts) {
-			topology.mount(out, constructPrepared(mount.prepared, registry, dispatcher), mount.at);
+			topology.mount(out, constructPrepared(mount.prepared, registry), mount.at);
 		}
 
 		for (const [id, made] of built) {
@@ -1083,7 +1086,7 @@ export function restoreGraph(checkpoint: GraphCheckpoint, options: RestoreGraphO
 		throw new Error("restoreGraph: registry must be a Map or object");
 	}
 	for (const key of Object.keys(options)) {
-		if (key !== "registry" && key !== "dispatcher") {
+		if (key !== "registry") {
 			throw new Error(`restoreGraph: unknown option '${key}'`);
 		}
 	}
@@ -1091,5 +1094,5 @@ export function restoreGraph(checkpoint: GraphCheckpoint, options: RestoreGraphO
 	// JSON admission owns one detached input tree before any registry callback sees its data.
 	const detached = toCheckpointJson(checkpoint) as unknown as GraphCheckpoint;
 	const prepared = prepareCheckpoint(detached, options.registry);
-	return constructPrepared(prepared, options.registry, options.dispatcher);
+	return constructPrepared(prepared, options.registry);
 }

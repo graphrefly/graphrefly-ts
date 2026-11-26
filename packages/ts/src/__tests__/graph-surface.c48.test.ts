@@ -1,7 +1,7 @@
 import * as graphApi from "../graph/index.js";
 import * as publicApi from "../index.js";
 /**
- * C-48 (R-graph-surface@1, graphrefly:D805): the graph layer's find, describe, observe and retain,
+ * C-48 (R-graph-surface@2, graphrefly:D805): the graph layer's find, describe, observe and retain,
  * with R-node, R-subscription and R-lifetime; and how each one's stop behaves within a wave.
  */
 
@@ -26,7 +26,7 @@ function c48() {
 	return { g, a, b, c, d, kept: () => kept };
 }
 
-describe("C-48: find, describe, observe and retain (R-graph-surface@1)", () => {
+describe("C-48: find, describe, observe and retain (R-graph-surface@2)", () => {
 	it("does not let an explicit name steal a live helper's described id", () => {
 		const g = graph();
 		const source = g.state(1);
@@ -177,7 +177,7 @@ function twoArrays() {
 	return { g, a, n };
 }
 
-describe("stop within a wave (R-request-order, C-33, R-graph-surface@1)", () => {
+describe("stop within a wave (R-request-order, C-33, R-graph-surface@2)", () => {
 	it("subscribe: an unsubscribe in the first array is a request; the run's second array still arrives", () => {
 		const { a, n } = twoArrays();
 		const seen: Wave[] = [];

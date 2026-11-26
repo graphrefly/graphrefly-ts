@@ -39,8 +39,8 @@ it("queues an old invocation's output separately from a newer invocation", () =>
 			old = ctx;
 			return;
 		}
-		old.emit(42);
-		ctx.emit(7);
+		old.down([["DATA", 42]]);
+		ctx.down([["DATA", 7]]);
 	});
 	const seen: unknown[] = [];
 	const stop = n.subscribe((msgs) => {
@@ -67,7 +67,7 @@ it("uses exact node-level checkpoint refusal reasons", () => {
 it("drops quiet auto ERROR when immediate INVALIDATE retires its lifetime", () => {
 	const g = graph();
 	const source = g.state(1);
-	const q = g.node([source], (ctx) => ctx.emit(ctx.deps[0].value), { quiet: true });
+	const q = g.node([source], (ctx) => ctx.down([["DATA", ctx.deps[0].value]]), { quiet: true });
 	const events: string[] = [];
 	const stop = q.subscribe((msgs) => {
 		for (const m of msgs) {

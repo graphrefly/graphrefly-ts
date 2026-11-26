@@ -1,11 +1,7 @@
 import type { NodeFn } from "../ctx/types.js";
-import type { Dispatcher } from "../dispatcher/index.js";
-import type { EnvironmentDrivers } from "../graph/environment.js";
-import { idle, type Kernel, kOf, kOfMaybe, seedKNode, terminalValue } from "./kernel.js";
+import { idle, kOf, seedKNode, status, subscriberCount, terminalValue } from "./kernel.js";
 import type { Node } from "./node.js";
 import type { RuntimeReleaseFailure } from "./owned-acquisition.js";
-
-type NodeCore = Kernel;
 
 import type { NodeCheckpointState, NodeSeed } from "./types.js";
 
@@ -15,10 +11,6 @@ type TopologyDepsChangedObserver = (
 	deps: readonly Node<unknown>[],
 ) => void;
 
-let constructingCore: NodeCore | undefined;
-/** The dispatcher a node built in a staged or running graph takes when its options name none. */
-let constructingDispatcher: Dispatcher | undefined;
-let constructingEnvironment: EnvironmentDrivers | undefined;
 // D167: exact issued identity, runtime access and optional attachments share one owner record.
 type NodeRegistration =
 	| {
@@ -63,104 +55,6 @@ export function nodeBackendContributor(node: Node<unknown>): (() => unknown) | u
 	return liveRegistration(node)?.backendContributor;
 }
 
-/** @internal Run a Node/StateNode constructor against a graph-local core without widening the public constructor. */
-export function withNodeCore<TNode extends Node<unknown>>(
-	core: NodeCore,
-	create: () => TNode,
-	dispatcher?: Dispatcher,
-): TNode {
-	const prev = constructingCore;
-	const prevDispatcher = constructingDispatcher;
-	constructingCore = core;
-	constructingDispatcher = dispatcher;
-	try {
-		return create();
-	} finally {
-		constructingCore = prev;
-		constructingDispatcher = prevDispatcher;
-	}
-}
-
-/** @internal Consume the dispatcher staged with the core by withNodeCore. */
-export function takeConstructingDispatcher(): Dispatcher | undefined {
-	const dispatcher = constructingDispatcher;
-	constructingDispatcher = undefined;
-	return dispatcher;
-}
-
-/** @internal Consume the graph-local NodeCore staged by withNodeCore. */
-export function takeConstructingNodeCore(): NodeCore | undefined {
-	const core = constructingCore;
-	constructingCore = undefined;
-	return core;
-}
-
-/**
- * R-graph-domain@3 (graphrefly-ts:D179): the graph of the node whose function or setup is running.
- * A node built during a run, with no graph staged for it, belongs to that run's graph (an inner of
- * a *Map, a timer an operator opens). Nested runs (a write to another graph that runs at once)
- * set and restore it.
- */
-let runningCore: NodeCore | undefined;
-let runningEnvironment: EnvironmentDrivers | undefined;
-let runningDispatcher: Dispatcher | undefined;
-
-/** @internal Run a node's function or setup with its graph as the running graph. */
-export function withRunningGraph<R>(
-	core: NodeCore,
-	environment: EnvironmentDrivers,
-	dispatcher: Dispatcher,
-	run: () => R,
-): R {
-	const prevCore = runningCore;
-	const prevEnvironment = runningEnvironment;
-	const prevDispatcher = runningDispatcher;
-	runningCore = core;
-	runningEnvironment = environment;
-	runningDispatcher = dispatcher;
-	try {
-		return run();
-	} finally {
-		runningCore = prevCore;
-		runningEnvironment = prevEnvironment;
-		runningDispatcher = prevDispatcher;
-	}
-}
-
-/** @internal The running graph's core and drivers, for a node built during a run. */
-export function runningGraph():
-	| {
-			readonly core: NodeCore;
-			readonly environment: EnvironmentDrivers | undefined;
-			readonly dispatcher: Dispatcher | undefined;
-	  }
-	| undefined {
-	return runningCore === undefined
-		? undefined
-		: { core: runningCore, environment: runningEnvironment, dispatcher: runningDispatcher };
-}
-
-/** @internal Run a Node/StateNode constructor with graph-owned environment drivers (D130/D131). */
-export function withEnvironmentDrivers<TNode extends Node<unknown>>(
-	environment: EnvironmentDrivers,
-	create: () => TNode,
-): TNode {
-	const prev = constructingEnvironment;
-	constructingEnvironment = environment;
-	try {
-		return create();
-	} finally {
-		constructingEnvironment = prev;
-	}
-}
-
-/** @internal Consume graph-owned environment drivers staged by withEnvironmentDrivers. */
-export function takeConstructingEnvironmentDrivers(): EnvironmentDrivers | undefined {
-	const environment = constructingEnvironment;
-	constructingEnvironment = undefined;
-	return environment;
-}
-
 /** @internal Graph-domain ownership token for D22 intra-graph guards. */
 export function getNodeOwner(n: Node<unknown>): unknown {
 	return liveRegistration(n)?.graphAttachment?.owner;
@@ -173,7 +67,7 @@ export function getNodeOwner(n: Node<unknown>): unknown {
  */
 export function nodeOwnerForGraphUse(n: Node<unknown>, label: string): unknown {
 	const record = registrations.get(n);
-	if (record?.kind === "retired" || (record?.kind === "live" && kOfMaybe(n)?.released)) {
+	if (record?.kind === "retired") {
 		throw new Error(`${label} has been released from its graph lifecycle (D122)`);
 	}
 	return record?.kind === "live" ? record.graphAttachment?.owner : undefined;
@@ -227,16 +121,13 @@ export function checkpointStateOfNode(n: Node<unknown>): NodeCheckpointState {
 		activated: k.active,
 		privateState: k.privateState,
 		seedNote: k.seedNote,
-		handle: k.handle,
 	};
 }
 
 /** @internal R-checkpoint restore commit: install a seed without a protocol wave or subscription. */
 export function restoreStateOfNode(n: Node<unknown>, seed: NodeSeed): void {
 	if (liveRegistration(n) === undefined) throw new Error("restoreGraph: unknown node state");
-	const k = kOf(n);
-	if (k.released) throw new Error("restoreGraph has been released from its graph lifecycle (D122)");
-	seedKNode(k, seed);
+	seedKNode(kOf(n), seed);
 }
 
 /**
@@ -247,47 +138,45 @@ export function wrapFnOfNode(n: Node<unknown>, wrap: (fn: NodeFn) => NodeFn): vo
 	if (liveRegistration(n) === undefined) throw new Error("restoreGraph: unknown node state");
 	const k = kOf(n);
 	if (k.fn === null) return;
-	const wrapped = wrap(k.fn);
-	const old = k.handle;
-	k.handle = k.dispatcher.register(wrapped);
-	if (old !== null) k.dispatcher.unregister(old);
-	k.fn = wrapped;
+	k.fn = wrap(k.fn);
 }
 
-/** @internal D122 graph-owned ephemeral lifecycle release (graphrefly-ts:D193 (1), until phase 3). */
+/**
+ * @internal D122 graph-owned ephemeral lifecycle release (graphrefly-ts:D193 (1), until phase 3):
+ * the node's registration closes, so every later use through the graph layer and the node's handle
+ * is refused. The kernel holds no release state (D193 (6)); a released node is one nothing holds.
+ */
 export function releaseRuntimeOfNode(n: Node<unknown>): void {
 	if (liveRegistration(n) === undefined) return;
-	const k = kOf(n);
-	if (k.released) return;
-	k.released = true;
-	if (k.handle !== null) {
-		const handle = k.handle;
-		k.handle = null;
-		k.dispatcher.unregister(handle);
-	}
+	closeNodeRegistration(n);
 }
 
-/** @internal D124 guard for graph-owned ephemeral lifecycle release. */
+/** @internal The handle's guard: a released node takes no request (D122). */
+export function assertNodeNotReleased(n: Node<unknown>, label: string): void {
+	if (registrations.get(n)?.kind === "retired")
+		throw new Error(`${label} has been released from its graph lifecycle (D122)`);
+}
+
+/** @internal D124 guard for graph-owned ephemeral lifecycle release, from the kernel's reads. */
 export function isNodeRuntimeQuiescentForRelease(n: Node<unknown>): boolean {
 	if (liveRegistration(n) === undefined) return false;
 	const k = kOf(n);
-	return idle(k.kernel) && !(k.lifetime !== null && !k.lifetime.open);
+	return idle(k.kernel) && status(k).lifecycle !== "closing";
 }
 
-/** @internal D124 graph-owned release subscriber accounting. */
+/** @internal D124 graph-owned release subscriber accounting (the kernel's transitional read). */
 export function subscriberCountOfNode(n: Node<unknown>): number {
-	return liveRegistration(n) === undefined ? 0 : kOf(n).subs.length;
+	return liveRegistration(n) === undefined ? 0 : subscriberCount(kOf(n));
 }
 
 /** @internal D124 graph-owned release internal-subscriber accounting. */
 export function isNodeActiveForRelease(n: Node<unknown>): boolean {
-	return liveRegistration(n) !== undefined && kOf(n).active;
+	return liveRegistration(n) !== undefined && status(kOf(n)).lifecycle !== "inactive";
 }
 
 /** @internal D122 guard for graph-owned ephemeral lifecycle release. */
 export function isNodeRuntimeReleased(n: Node<unknown>): boolean {
-	const record = registrations.get(n);
-	return record?.kind === "retired" || (record?.kind === "live" && kOf(n).released);
+	return registrations.get(n)?.kind === "retired";
 }
 
 /** The graph layer's id for a node, registered by the graph module (R-invocation@3 ctx.deps[i].id). */

@@ -12,7 +12,7 @@ import type { RenderSnapshot } from "./describe.js";
 import type { Graph } from "./graph.js";
 import { type GraphLifecycleRegistrar, graphRegistrations } from "./graph-lifecycle.js";
 import type { SugarOpts } from "./graph-types.js";
-import { type Operator, operatorNodeFn } from "./operators.js";
+import { type Operator, operatorNodeFn, operatorSetup } from "./operators.js";
 
 export interface StartupFact {
 	readonly kind: "graph-startup";
@@ -53,8 +53,6 @@ export class ColdConstructionError extends Error {
 		readonly cleanupErrors: readonly {
 			readonly resource: string;
 			readonly cause: unknown;
-			readonly handle?: RuntimeReleaseFailure["handle"];
-			readonly dispatcher?: RuntimeReleaseFailure["dispatcher"];
 			readonly core?: RuntimeReleaseFailure["core"];
 		}[],
 	) {
@@ -161,8 +159,6 @@ export class ConstructionScope {
 			throw new Error("node is outside construction manifest");
 		const acquired: NodeAcquisition = {
 			name,
-			dispatcher: undefined,
-			handle: undefined,
 			core: undefined,
 			node: undefined,
 			registered: false,
@@ -176,10 +172,13 @@ export class ConstructionScope {
 		deps: readonly Node<TIn>[],
 		opts: SugarOpts<TOut> = {},
 	): Node<TOut> {
-		return this.node(deps, operatorNodeFn(op), {
+		const host = this.registrar.operatorHost(deps);
+		const setup = operatorSetup(op, host);
+		return this.node(deps, operatorNodeFn(op, host), {
 			factory: op.factory,
 			...op.opts,
 			...(op.recipe === undefined ? {} : { recipe: op.recipe }),
+			...(setup === undefined ? {} : { setup }),
 			...opts,
 		});
 	}

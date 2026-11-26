@@ -33,7 +33,7 @@ import * as topology from "../topology.js";
  * Per-language (D6/D24, never in parity, no conformance).
  */
 
-import { type Ctx, depLiveBatch } from "../../ctx/types.js";
+import { type Ctx, markRequestFirstRun, requestWrites } from "../../ctx/types.js";
 import type { Node } from "../../node/node.js";
 import { errorPayload } from "../../protocol/messages.js";
 import { type GraphCheckpointJson, registerBackendStateContributor } from "../checkpoint.js";
@@ -192,7 +192,7 @@ export function lightReactiveView<C, S>(
 	const snapshot = group.node<S>(
 		[delta as Node<unknown>, request as Node<unknown>],
 		(ctx: Ctx): void => {
-			if (depLiveBatch(ctx, 1) === null) return;
+			if (requestWrites(ctx, 1) === null) return;
 			try {
 				ctx.down([["DATA", materializeSnapshot()]]);
 			} catch (e) {
@@ -204,6 +204,7 @@ export function lightReactiveView<C, S>(
 			name: name ? `${name}/snapshot` : undefined,
 			meta: { kind: "collection_view_snapshot", factory },
 			quiet: true,
+			setup: markRequestFirstRun,
 		},
 	);
 
@@ -259,13 +260,14 @@ export function collectionCore<S, C>(
 	const snapshot = graph.node<S>(
 		[delta as Node<unknown>, request as Node<unknown>],
 		(ctx: Ctx): void => {
-			if (depLiveBatch(ctx, 1) === null) return;
+			if (requestWrites(ctx, 1) === null) return;
 			if (backend.version === deliveredVersion) return;
 			deliveredVersion = backend.version;
 			ctx.down([["DATA", backend.snapshot()]]);
 		},
 		{
 			quiet: true,
+			setup: markRequestFirstRun,
 			factory: `${factory}.snapshot`,
 			name: name ? `${name}/snapshot` : undefined,
 			meta: { kind: "collection_snapshot", collection: factory },

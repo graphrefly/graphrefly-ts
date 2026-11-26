@@ -2,12 +2,11 @@
  * The fn-invocation context and per-dep input shapes.
  *
  * Canonical authority: ~/src/graphrefly/spec/rules.jsonl
- *   R-invocation (ctx, deps, private state, down, rewire, signal), R-lifetime (setup, cleanup,
- *   signal), R-messages (output goes only downstream; there is no ctx.up).
+ *   R-invocation@4 (ctx: deps, private state, down, rewire, signal, seed), R-lifetime@2 (setup,
+ *   cleanup, signal), R-messages@1 (output goes only downstream; there is no ctx.up). The ctx
+ *   carries nothing else (graphrefly-ts:D193).
  */
 
-import type { Dispatcher } from "../dispatcher/index.js";
-import type { EnvironmentDrivers } from "../graph/environment.js";
 import type { Node } from "../node/node.js";
 import type { Wave } from "../protocol/messages.js";
 
@@ -18,55 +17,13 @@ import type { Wave } from "../protocol/messages.js";
  */
 export type Sink = (msgs: Wave) => void;
 
-/**
- * @internal A dependent node's connection to one dependency: one call per delivery, with every
- * array the dependency publishes for the wave, in order; each array is an input array of its own
- * and the delivery ends with the call. `snapshot` marks the START array a new dependent receives,
- * which is not a live wave. A single array holding a bare PENDING is the kernel's pending mark,
- * sent ahead of the values through the whole cone (R-wave).
- */
-export type DependentSink = (arrays: readonly Wave[], snapshot: boolean) => void;
-
-export interface CtxDepWaveOrigin {
-	/** For each array dependency `depIndex` delivered in the run, whether it came live. */
-	readonly live: (depIndex: number) => readonly boolean[] | undefined;
-}
-
-const ctxDepWaveOrigins = new WeakMap<Ctx, CtxDepWaveOrigin>();
-
-/** @internal Attach per-dep wave-origin state without exposing it on the public Ctx shape. */
-export function setCtxDepWaveOrigin(ctx: Ctx, origin: CtxDepWaveOrigin): void {
-	ctxDepWaveOrigins.set(ctx, origin);
-}
-
-/** Internal node-construction binding for graph-local helper-created deps. */
-export const CTX_NODE_BINDING: unique symbol = Symbol("graphrefly.ctx.nodeBinding");
-
-export interface CtxNodeBinding {
-	readonly dispatcher: Dispatcher;
-	create<T>(factory: () => Node<T>): Node<T>;
-	/** Internal: a rewire by difference, computed when the request runs. */
-	rewireDiff(add: readonly Node<unknown>[], remove: readonly Node<unknown>[]): void;
-	/** Internal: a rewire by difference applied now, from inside a request; failures throw. */
-	rewireDiffNow(add: readonly Node<unknown>[], remove: readonly Node<unknown>[]): void;
-}
-
-/** @internal Operators grow and shrink their inner set by difference (R-request-order order). */
-export function ctxRewireDiff(
-	ctx: Ctx,
-	add: readonly Node<unknown>[],
-	remove: readonly Node<unknown>[] = [],
-): void {
-	ctx[CTX_NODE_BINDING]?.rewireDiff(add, remove);
-}
-
-/** A dependency's terminal in this invocation (R-invocation@3): COMPLETE, or ERROR with its payload. */
+/** A dependency's terminal in this invocation (R-invocation@4): COMPLETE, or ERROR with its payload. */
 export type DepTerminal =
 	| { readonly kind: "complete" }
 	| { readonly kind: "error"; readonly error: unknown };
 
 /**
- * One dependency during its supplying setup/function invocation (R-invocation@3).
+ * One dependency during its supplying setup/function invocation (R-invocation@4).
  * Accessing any field after that invocation returns throws; captured plain values remain usable.
  */
 export interface CtxDep {
@@ -105,30 +62,22 @@ export interface CtxState {
 }
 
 /**
- * The single argument to a node fn: `(ctx) => void` (R-invocation / D8). All emission
- * is explicit via `ctx.down`; there is no return-value framing.
+ * The single argument to a node fn: `(ctx) => void` (R-invocation). All output is explicit via
+ * `ctx.down`; there is no return-value framing.
  */
 export interface Ctx {
 	/**
 	 * Emit downstream toward sinks: the function's only output (R-invocation). Nothing travels up
-	 * the graph (R-messages). PENDING and RESOLVED are the kernel's and are rejected here (R-wave).
-	 * An empty array sends nothing and starts no wave.
+	 * the graph (R-messages). START, PENDING and RESOLVED are the kernel's and are rejected here
+	 * (R-wave). An empty array sends nothing and starts no wave.
 	 */
 	down(msgs: Wave): void;
-	/**
-	 * Send `values` as DATA, in order, as exactly one array, the same as
-	 * `ctx.down(values.map((v) => ["DATA", v]))`; with no values it sends nothing. Each call is its
-	 * own array: consecutive calls are never merged. It is sugar for a few values the code fixes:
-	 * the values are spread as arguments, and an engine refuses a call with too many (on Node 24,
-	 * past about 120,000). When the count follows the input, build the array and use `ctx.down`.
-	 */
-	emit(...values: readonly unknown[]): void;
-	/** The dependencies, one view each, in dependency order (R-invocation@3). */
+	/** The dependencies, one view each, in dependency order (R-invocation@4). */
 	deps: readonly CtxDep[];
 	/** Private state for the current lifetime (R-invocation, R-lifetime). */
 	state: CtxState;
 	/**
-	 * R-invocation@3 / R-subscription@3: on the first run of an instance built with a seed, the
+	 * R-invocation@4 / R-subscription@5: on the first run of an instance built with a seed, the
 	 * seed's opaque note; `undefined` on every other run.
 	 */
 	readonly seed: unknown;
@@ -139,8 +88,6 @@ export interface Ctx {
 	 * stop on this signal.
 	 */
 	signal: AbortSignal;
-	/** Graph-owned environment drivers for source/adapter boundaries (D130/D131). */
-	environment(): EnvironmentDrivers;
 	/**
 	 * R-request-order: change this node's own dependencies for its current lifetime. A request:
 	 * it runs after the wave, and is dropped if the lifetime has closed. The instance keeps its
@@ -149,12 +96,11 @@ export interface Ctx {
 	 * input wave. When the lifetime closes the dependencies go back to the declared ones.
 	 */
 	rewire(deps: readonly Node<unknown>[]): void;
-	[CTX_NODE_BINDING]?: CtxNodeBinding;
 }
 
 /**
  * @internal This ctx with `deps` in place of its dependency views: the same node, lifetime and
- * note (R-checkpoint@1: a restored node's first run sees only its changed dependencies).
+ * note (R-checkpoint: a restored node's first run sees only its changed dependencies).
  */
 export function ctxWithDeps(ctx: Ctx, deps: readonly CtxDep[]): Ctx {
 	const guarded = deps.map(
@@ -189,30 +135,48 @@ export function ctxWithDeps(ctx: Ctx, deps: readonly CtxDep[]): Ctx {
 			},
 		}),
 	);
-	const out: Ctx = {
-		...ctx,
+	return {
 		get deps() {
 			void ctx.deps;
 			return guarded;
 		},
+		get state() {
+			return ctx.state;
+		},
+		get seed() {
+			return ctx.seed;
+		},
+		get signal() {
+			return ctx.signal;
+		},
+		down: (msgs) => ctx.down(msgs),
+		rewire: (list) => ctx.rewire(list),
 	};
-	const origin = ctxDepWaveOrigins.get(ctx);
-	if (origin !== undefined) ctxDepWaveOrigins.set(out, origin);
-	return out;
 }
 
-/** A node fn (R-invocation). Registered in the dispatcher's function table, indexed by Handle. */
+/** A node fn (R-invocation). */
 export type NodeFn = (ctx: Ctx) => void;
 
-/** Internal adapter helper: the waves dependency `depIndex` delivered live, not as a snapshot. */
-export function depLiveWaves(ctx: Ctx, depIndex: number): readonly (readonly unknown[])[] {
-	const waves = ctx.deps[depIndex].waves;
-	const live = ctxDepWaveOrigins.get(ctx)?.live(depIndex) ?? [];
-	return waves.filter((_, index) => live[index]);
+/** The first run's ctx of each lifetime of a request node, marked by its setup. */
+const firstRuns = new WeakMap<AbortSignal, Ctx>();
+
+/**
+ * @internal A request node's setup: R-lifetime runs a setup once per lifetime, just before the
+ * first run, with that run's ctx, which this marks as the run that sees the snapshots.
+ */
+export function markRequestFirstRun(ctx: Ctx): void {
+	firstRuns.set(ctx.signal, ctx);
 }
 
-/** Internal adapter helper: the values dependency `depIndex` delivered live; null when none came. */
-export function depLiveBatch(ctx: Ctx, depIndex: number): readonly unknown[] | null {
-	const waves = depLiveWaves(ctx, depIndex);
+/**
+ * @internal The values a request input `depIndex` received in this run, or null when none came.
+ * A lifetime's first run sees its dependencies' snapshots (R-lifetime), so what a request state
+ * held when the node activated is not a request: the node is built with
+ * `setup: markRequestFirstRun`, and the run its setup marked returns null. A restored node whose
+ * first run does not reach its function leaves no later run marked.
+ */
+export function requestWrites(ctx: Ctx, depIndex: number): readonly unknown[] | null {
+	if (firstRuns.get(ctx.signal) === ctx) return null;
+	const waves = ctx.deps[depIndex]?.waves ?? [];
 	return waves.length === 0 ? null : waves.flat();
 }

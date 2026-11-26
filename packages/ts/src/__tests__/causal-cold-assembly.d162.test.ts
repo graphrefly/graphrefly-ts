@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { Dispatcher, type Handle } from "../dispatcher/index.js";
 import {
 	ColdConstructionError,
 	type ConstructionScope,
@@ -32,7 +31,6 @@ import { asState } from "./helpers/as-state.js";
 import { relayFirst } from "./helpers/relay.js";
 
 const graphs: Graph[] = [];
-const dispatchers = new Map<Graph, CountingDispatcher>();
 const stops: Array<() => void> = [];
 afterEach(() => {
 	vi.restoreAllMocks();
@@ -45,23 +43,10 @@ afterEach(() => {
 		group.release();
 	}
 });
-function trackedGraph(dispatcher = new CountingDispatcher()) {
-	const g = new Graph({ dispatcher });
+function trackedGraph() {
+	const g = new Graph();
 	graphs.push(g);
-	dispatchers.set(g, dispatcher);
 	return g;
-}
-class CountingDispatcher extends Dispatcher {
-	readonly live = new Set<Handle>();
-	override register(...args: Parameters<Dispatcher["register"]>): Handle {
-		const handle = super.register(...args);
-		this.live.add(handle);
-		return handle;
-	}
-	override unregister(handle: Handle): void {
-		super.unregister(handle);
-		this.live.delete(handle);
-	}
 }
 
 function causal(graph = new Graph(), fault = false) {
@@ -138,14 +123,12 @@ function combined(
 	empty = false,
 	finalFailure?: Error,
 ) {
-	const dispatcher = new CountingDispatcher();
-	const f = causal(trackedGraph(dispatcher));
+	const f = causal(trackedGraph());
 	const a = empty
 		? f.graph.node<number>([], null, { name: "external/a" })
 		: f.graph.state(2, { name: "external/a" });
 	const b = f.graph.state(3, { name: "external/b" });
 	const before = renderSnapshot(f.graph);
-	const handlesBefore = dispatcher.live.size;
 	const scope = prepareConstruction(f.graph, {
 		name: "run",
 		epoch: 1,
@@ -241,9 +224,7 @@ function combined(
 			value,
 			count,
 			final,
-			dispatcher,
 			before,
-			handlesBefore,
 			calls: () => calls,
 		};
 	} catch (error) {
@@ -371,7 +352,6 @@ describe("D162 private shared cold assembly", () => {
 	])("cleans all acquired members when acquisition %i throws after registration", (at) => {
 		let graph: Graph | undefined;
 		let baseline = 0;
-		let handles: Set<Handle>;
 		let n = 0;
 		const shared: number[] = [];
 		// The exception happens after the real node acquisition, so cleanup must use its journal.
@@ -384,8 +364,6 @@ describe("D162 private shared cold assembly", () => {
 					if (n === 1) {
 						graph = graphs.at(-1)!;
 						baseline = renderSnapshot(graph).nodes.length - 1;
-						handles = new Set(dispatchers.get(graph)!.live);
-						// Native startup has no fn handle; this is the exact external handle set.
 						const a = graph.find("external/a")!;
 						stops.push(
 							a.subscribe((incoming) => {
@@ -404,7 +382,6 @@ describe("D162 private shared cold assembly", () => {
 		expect(renderSnapshot(graph!).nodes.some((n) => n.name?.startsWith("run/"))).toBe(false);
 		expect(constructionOf(graph!, "run")).toBeUndefined();
 		expect(shared).toEqual([2]);
-		expect(dispatchers.get(graph!)!.live).toEqual(handles!);
 		asState(graph!.find("external/a")!).set(7);
 		expect(shared).toEqual([2, 7]);
 	});

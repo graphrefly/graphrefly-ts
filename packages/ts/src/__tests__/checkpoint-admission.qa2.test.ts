@@ -8,7 +8,7 @@ function capture() {
 	const g = graph();
 	const source = g.state({ n: 1 }, { name: "source" });
 	g.node([], () => {}, { name: "first", recipe: { ref: "r" } });
-	const node = g.node([source], (ctx) => ctx.emit(ctx.deps[0].value), {
+	const node = g.node([source], (ctx) => ctx.down([["DATA", ctx.deps[0].value]]), {
 		name: "n",
 		quiet: true,
 		complete: "manual",

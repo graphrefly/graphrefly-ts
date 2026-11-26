@@ -42,8 +42,8 @@
  * lists it only when it is a live dep of a registered node (a first-cut limit, like the *Map inners).
  */
 
-import { type Ctx, ctxRewireDiff, type NodeFn } from "../ctx/types.js";
-import { buildBeside, type Node } from "../node/node.js";
+import type { Ctx } from "../ctx/types.js";
+import { hostOf, type Node, type OperatorHost } from "../node/node.js";
 import { errorPayload } from "../protocol/messages.js";
 import { eachInputArray } from "./each-input-array.js";
 import { exhaustMap, mergeMap, switchMap } from "./higher-order.js";
@@ -51,10 +51,11 @@ import { filter, initNode, initNodeBeside, map, merge, type Operator } from "./o
 import { interval, type NodeInput, nodeFromInput, of, timer } from "./sources.js";
 
 /** A bare inner that emits `v` once after `ms`, then COMPLETEs (timer(ms)→map(v); auto-completes). */
-function delayedValue<S>(v: S, ms: number): Node<S> {
+function delayedValue<S>(host: OperatorHost, v: S, ms: number): Node<S> {
 	return initNode(
+		host,
 		map(() => v),
-		[initNode(timer(ms), [])],
+		[initNode(host, timer(ms), [])],
 	);
 }
 
@@ -64,12 +65,13 @@ function delayedValue<S>(v: S, ms: number): Node<S> {
  * emits v + COMPLETE at t=0; `filter(()=>false)` over `timer(ms)` emits no DATA and COMPLETEs at
  * t=ms; merge forwards v at t=0 and COMPLETEs (all deps complete) at t=ms.
  */
-function throttleWindow<S>(v: S, ms: number): Node<S> {
+function throttleWindow<S>(host: OperatorHost, v: S, ms: number): Node<S> {
 	const silentTimer = initNode(
+		host,
 		filter<number>(() => false),
-		[initNode(timer(ms), [])],
+		[initNode(host, timer(ms), [])],
 	) as Node<S>;
-	return initNode(merge<S>(), [initNode(of(v), []), silentTimer]);
+	return initNode(host, merge<S>(), [initNode(host, of(v), []), silentTimer]);
 }
 
 /**
@@ -84,7 +86,7 @@ function throttleWindow<S>(v: S, ms: number): Node<S> {
  * ```
  */
 export function delay<S>(ms: number): Operator<S, S> {
-	return { ...mergeMap<S, S>((v) => delayedValue(v, ms)), factory: "delay" };
+	return { ...mergeMap<S, S>((v, host) => delayedValue(host, v, ms)), factory: "delay" };
 }
 
 /**
@@ -107,7 +109,7 @@ export function delay<S>(ms: number): Operator<S, S> {
  * ```
  */
 export function debounce<S>(ms: number): Operator<S, S> {
-	return { ...switchMap<S, S>((v) => delayedValue(v, ms)), factory: "debounce" };
+	return { ...switchMap<S, S>((v, host) => delayedValue(host, v, ms)), factory: "debounce" };
 }
 
 /**
@@ -127,7 +129,7 @@ export function debounce<S>(ms: number): Operator<S, S> {
  * ```
  */
 export function throttle<S>(ms: number): Operator<S, S> {
-	return { ...exhaustMap<S, S>((v) => throttleWindow(v, ms)), factory: "throttle" };
+	return { ...exhaustMap<S, S>((v, host) => throttleWindow(host, v, ms)), factory: "throttle" };
 }
 
 // ── B41 tail: value-triggered (audit) + subscribe-armed (timeout/bufferTime) ──
@@ -160,8 +162,12 @@ interface AuditState<S> {
  * import { audit } from "@graphrefly/ts/operators";
  * ```
  */
-export function audit<S>(durationSelector: (v: S) => NodeInput<unknown>): Operator<S, S> {
-	const body: NodeFn = (ctx: Ctx) => {
+export function audit<S>(
+	durationSelector: (v: S, host: OperatorHost) => NodeInput<unknown>,
+): Operator<S, S> {
+	const body = (ctx: Ctx, host: OperatorHost): void => {
+		// The notifier is a dependency only while a window is open (R-request-order: one list).
+		const source = host.deps[0] as Node<unknown>;
 		try {
 			const st: AuditState<S> = ctx.state.get<AuditState<S>>() ?? {
 				windowOpen: false,
@@ -191,7 +197,7 @@ export function audit<S>(durationSelector: (v: S) => NodeInput<unknown>): Operat
 				st.windowOpen = false;
 				st.notifier = null;
 				st.latest = undefined;
-				if (old) ctxRewireDiff(ctx, [], [old]);
+				if (old) ctx.rewire([source]);
 			}
 
 			// source/notifier ERROR → forward ERROR, but first remove the helper-owned notifier.
@@ -201,7 +207,7 @@ export function audit<S>(durationSelector: (v: S) => NodeInput<unknown>): Operat
 				const err = ((t) => (t?.kind === "error" ? t.error : undefined))(
 					sourceError ? sourceTerminal : notifierTerminal,
 				);
-				if (st.notifier) ctxRewireDiff(ctx, [], [st.notifier]);
+				if (st.notifier) ctx.rewire([source]);
 				ctx.state.set({ windowOpen: false, latest: undefined, notifier: null });
 				ctx.down([["ERROR", err]]);
 				return;
@@ -210,7 +216,7 @@ export function audit<S>(durationSelector: (v: S) => NodeInput<unknown>): Operat
 			// source COMPLETE → flush the pending latest (B44 audit flush-on-complete) then COMPLETE.
 			if (sourceTerminal?.kind === "complete") {
 				if (st.windowOpen && st.latest !== undefined) ctx.down([["DATA", st.latest.v]]);
-				if (st.notifier) ctxRewireDiff(ctx, [], [st.notifier]);
+				if (st.notifier) ctx.rewire([source]);
 				ctx.state.set({ windowOpen: false, latest: undefined, notifier: null });
 				ctx.down([["COMPLETE"]]);
 				return;
@@ -218,10 +224,10 @@ export function audit<S>(durationSelector: (v: S) => NodeInput<unknown>): Operat
 
 			// a fresh source value with no open window → open one (value-triggered, trailing edge).
 			if (!st.windowOpen && sb != null && sb.length > 0 && st.latest !== undefined) {
-				const n = nodeFromInput<unknown>(durationSelector(st.latest.v), { iter: true });
+				const n = nodeFromInput<unknown>(host, durationSelector(st.latest.v, host), { iter: true });
 				st.windowOpen = true;
 				st.notifier = n;
-				ctxRewireDiff(ctx, [n]); // (a same-wave close+reopen issues remove-before-add)
+				ctx.rewire([source, n]); // a same-run close and reopen: this list is the last asked for
 			}
 
 			ctx.state.set(st);
@@ -249,7 +255,7 @@ export function audit<S>(durationSelector: (v: S) => NodeInput<unknown>): Operat
  * ```
  */
 export function auditTime<S>(ms: number): Operator<S, S> {
-	return { ...audit<S>(() => initNode(timer(ms), [])), factory: "auditTime" };
+	return { ...audit<S>((_v, host) => initNode(host, timer(ms), [])), factory: "auditTime" };
 }
 
 /** Per-node bookkeeping for {@link timeout}: the live idle timer (reset on each source value). */
@@ -281,9 +287,10 @@ interface TimeoutState {
  * ```
  */
 export function timeout<S>(source: Node<S>, ms: number): Node<S> {
-	const makeTimer = (): Node<unknown> => buildBeside(source, () => initNode(timer(ms), []));
+	const host = hostOf(source);
+	const makeTimer = (): Node<unknown> => initNode(host, timer(ms), []);
 	const initial = makeTimer();
-	const body: NodeFn = (ctx: Ctx) => {
+	const body = (ctx: Ctx): void => {
 		try {
 			const st: TimeoutState = ctx.state.get<TimeoutState>() ?? { timer: initial };
 			const srcBatch = ctx.deps[0].waves.length === 0 ? null : ctx.deps[0].waves.flat();
@@ -295,24 +302,22 @@ export function timeout<S>(source: Node<S>, ms: number): Node<S> {
 				eachInputArray(ctx, 0, (v, out) => {
 					out.push(["DATA", v]);
 				});
-				const old = st.timer;
 				const next = makeTimer();
 				st.timer = next;
 				ctx.state.set(st);
-				if (old) ctxRewireDiff(ctx, [], [old]); // remove-before-add (alignment)
-				ctxRewireDiff(ctx, [next]);
+				ctx.rewire([source as Node<unknown>, next]); // the old timer is released
 				return; // a value-bearing wave is never also a timeout-fire wave
 			}
 
 			// source COMPLETE → forward COMPLETE (no timeout fires).
 			if (srcTerminal?.kind === "complete") {
-				if (st.timer) ctxRewireDiff(ctx, [], [st.timer]);
+				if (st.timer) ctx.rewire([source as Node<unknown>]);
 				ctx.down([["COMPLETE"]]);
 				return;
 			}
 			// source ERROR (absorbed via the manual ERROR policy) → forward it.
 			if (srcTerminal?.kind === "error") {
-				if (st.timer) ctxRewireDiff(ctx, [], [st.timer]);
+				if (st.timer) ctx.rewire([source as Node<unknown>]);
 				ctx.down([["ERROR", srcTerminal?.kind === "error" ? srcTerminal.error : undefined]]);
 				return;
 			}
@@ -361,8 +366,8 @@ export function timeout<S>(source: Node<S>, ms: number): Node<S> {
  * ```
  */
 export function bufferTime<S>(source: Node<S>, ms: number): Node<S[]> {
-	const iv: Node<unknown> = buildBeside(source, () => initNode(interval(ms), []));
-	const body: NodeFn = (ctx: Ctx) => {
+	const iv: Node<unknown> = initNode(hostOf(source), interval(ms), []);
+	const body = (ctx: Ctx): void => {
 		const srcBatch = ctx.deps[0].waves.length === 0 ? null : ctx.deps[0].waves.flat();
 		const tick = ctx.deps[1];
 		const tickBatch = tick === undefined || tick.waves.length === 0 ? null : tick.waves.flat();
@@ -372,13 +377,13 @@ export function bufferTime<S>(source: Node<S>, ms: number): Node<S[]> {
 		if (srcTerminal?.kind === "complete") {
 			ctx.down([["DATA", [...buf]]]);
 			ctx.state.set([]);
-			ctxRewireDiff(ctx, [], [iv]);
+			ctx.rewire([source as Node<unknown>]);
 			ctx.down([["COMPLETE"]]);
 			return;
 		}
 		if (srcTerminal?.kind === "error") {
 			ctx.state.set([]);
-			ctxRewireDiff(ctx, [], [iv]);
+			ctx.rewire([source as Node<unknown>]);
 			ctx.down([["ERROR", srcTerminal?.kind === "error" ? srcTerminal.error : undefined]]);
 			return;
 		}

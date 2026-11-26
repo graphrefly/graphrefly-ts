@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { Dispatcher, graph } from "../index.js";
+import { graph } from "../index.js";
 import { profileSummary } from "../patterns/index.js";
 
 describe("patterns inspection helpers (B62 / D125)", () => {
 	it("profileSummary rolls up graph-local profile counters", () => {
-		const g = graph({ dispatcher: new Dispatcher(), profile: true });
+		const g = graph({ profile: true });
 		const count = g.state(0, { name: "count" });
 		const doubled = g.derived([count], (n) => n! * 2, { name: "doubled" });
 		doubled.subscribe(() => {});

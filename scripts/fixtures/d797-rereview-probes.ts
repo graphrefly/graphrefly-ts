@@ -10,8 +10,8 @@ function stopProbes(): { observeStop: unknown[]; subscribeStop: unknown[] } {
 		[source],
 		(ctx) => {
 			if (ctx.deps[0].value === 1) {
-				ctx.emit(1);
-				ctx.emit(2);
+				ctx.down([["DATA", 1]]);
+				ctx.down([["DATA", 2]]);
 			}
 		},
 		{ name: "n" },
@@ -45,13 +45,13 @@ export function runQuietErrorProbes() {
 			const q = g.node(
 				[a],
 				(ctx) => {
-					if (retained && ctx.deps[0].has) ctx.emit(ctx.deps[0].value);
+					if (retained && ctx.deps[0].has) ctx.down([["DATA", ctx.deps[0].value]]);
 				},
 				{ quiet: true, invalidate },
 			);
 			const d = g.node([q, b], (ctx) => {
 				if (ctx.deps.every((dep) => dep.has))
-					ctx.emit((ctx.deps[0].value as number) + (ctx.deps[1].value as number));
+					ctx.down([["DATA", (ctx.deps[0].value as number) + (ctx.deps[1].value as number)]]);
 			});
 			const values: unknown[] = [],
 				events: string[] = [];
@@ -79,7 +79,7 @@ export function runRereviewProbes() {
 	const quiet = qg.node(
 		[source],
 		(ctx) => {
-			if (ctx.deps[0].terminal) ctx.emit(99);
+			if (ctx.deps[0].terminal) ctx.down([["DATA", 99]]);
 		},
 		{ quiet: true },
 	);
@@ -126,7 +126,7 @@ export function runRereviewProbes() {
 			bad.set(() => {
 				throw new Error("commit fails");
 			});
-			lateCtx.emit(42);
+			lateCtx.down([["DATA", 42]]);
 		});
 	} catch {
 		/* The batch throws; the independent late request still runs. */
@@ -201,7 +201,7 @@ export function runRereviewProbes() {
 export function runCheckpointReasonProbes(): Record<string, string> {
 	const g = graph();
 	const source = g.state(1, { name: "source" });
-	const fn = (ctx: Ctx) => ctx.emit(ctx.deps[0].value);
+	const fn = (ctx: Ctx) => ctx.down([["DATA", ctx.deps[0].value]]);
 	const n = g.node([source], fn, { name: "n", recipe: { ref: "n" } });
 	const stop = g.retain(n);
 	const saved = g.checkpoint();

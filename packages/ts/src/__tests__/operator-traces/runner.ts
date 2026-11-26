@@ -9,7 +9,9 @@
  * step, under which every node of a trace is rebuilt from its op and args.
  */
 import { vi } from "vitest";
-import { type Operator, operatorNodeFn } from "../../graph/operators.js";
+import { hostOfGraph } from "../../graph/graph.js";
+import { type Operator, operatorNodeFn, operatorSetup } from "../../graph/operators.js";
+import type { GraphRecipeContext } from "../../graph/restore.js";
 import type { Ctx, NodeFn } from "../../index.js";
 import {
 	auditTime,
@@ -501,17 +503,18 @@ function registryFor(trace: Trace, env: Env): Record<string, GraphRestoreEntry> 
 		const op = node.op;
 		registry[recipeRef(node)] = {
 			ref: recipeRef(node),
-			build(config: unknown) {
+			build(config: unknown, rctx: unknown) {
 				const { id, args } = config as { id: string; args: Record<string, unknown> };
 				const n: TraceNode = { id, op, args };
 				if (["arrays", "empty", "once"].includes(op)) return { fn: helperFn(n) };
 				if (op === "derived") return { fn: callback(args.f as string, args, env) };
 				const operator = operatorFor(n, env);
 				if (operator === null) throw new Error(`trace: ${op} has no recipe in TS`);
-				const setup = operator.opts?.setup;
+				const host = (rctx as GraphRecipeContext).host;
+				const setup = operatorSetup(operator, host);
 				return setup === undefined
-					? { fn: operatorNodeFn(operator) }
-					: { fn: operatorNodeFn(operator), setup };
+					? { fn: operatorNodeFn(operator, host) }
+					: { fn: operatorNodeFn(operator, host), setup };
 			},
 		} as GraphRestoreEntry;
 	}
@@ -710,8 +713,9 @@ export async function runTrace(trace: Trace): Promise<TraceResult> {
 					if (node.op === "derived") throw new Refused("replace of a derived node");
 					const op = operatorFor(node, env);
 					if (op === null) throw new Refused(`replace of ${node.op}`);
-					const setup = op.opts?.setup;
-					g.replace(a as string, deps, operatorNodeFn(op), {
+					const host = hostOfGraph(g, deps);
+					const setup = operatorSetup(op, host);
+					g.replace(a as string, deps, operatorNodeFn(op, host), {
 						recipe: recipeOf(node),
 						...(setup === undefined ? {} : { setup }),
 					});

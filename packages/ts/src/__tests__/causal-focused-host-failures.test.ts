@@ -20,7 +20,6 @@ import {
 	oracleHash,
 } from "../../../../scripts/fixtures/spending-preset-oracle.js";
 import type { NodeFn } from "../ctx/types.js";
-import { Dispatcher, type Handle } from "../dispatcher/index.js";
 import { ColdConstructionError, ConstructionScope } from "../graph/construction-scope.js";
 import { Graph } from "../graph/graph.js";
 import { renderSnapshot } from "../graph/render.js";
@@ -211,39 +210,21 @@ it("unarrived normal pack frontier blocks normal end after earlier successful ef
 	}
 });
 for (const target of ["hostGuard", "runEndReady"] as const) {
-	it(`late dispatcher acquisition at ${target} preserves failure and aborts owned nodes`, () => {
-		let allocating = "";
+	it(`late node acquisition at ${target} preserves failure and aborts owned nodes`, () => {
 		const failure = new Error(`cannot register spending/${target}`);
-		class FailingDispatcher extends Dispatcher {
-			readonly live = new Set<Handle>();
-			override register(...args: Parameters<Dispatcher["register"]>): Handle {
-				if (allocating === `spending/${target}`) throw failure;
-				const handle = super.register(...args);
-				this.live.add(handle);
-				return handle;
-			}
-			override unregister(handle: Handle): void {
-				super.unregister(handle);
-				this.live.delete(handle);
-			}
-		}
-		const dispatcher = new FailingDispatcher();
-		const graph = new Graph({ dispatcher });
+		const graph = new Graph();
 		const { inputs } = inputsFor(graph);
 		const before = renderSnapshot(graph);
 		const original = ConstructionScope.prototype.node;
+		// The acquisition of the target name fails; every node acquired before it is cold-owned.
 		const spy = vi.spyOn(ConstructionScope.prototype, "node").mockImplementation(function (
 			this: ConstructionScope,
 			deps,
 			fn,
 			options,
 		) {
-			allocating = options?.name ?? "";
-			try {
-				return original.call(this, deps, fn, options);
-			} finally {
-				allocating = "";
-			}
+			if (options?.name === `spending/${target}`) throw failure;
+			return original.call(this, deps, fn, options);
 		});
 		let caught: unknown;
 		try {
@@ -264,7 +245,6 @@ for (const target of ["hostGuard", "runEndReady"] as const) {
 		expect((caught as ColdConstructionError).cleanupErrors).toEqual([]);
 		expect((caught as Error).message).toContain(`cannot register spending/${target}`);
 		expect(renderSnapshot(graph)).toEqual(before);
-		expect(dispatcher.live.size).toBe(0);
 	});
 }
 it("64 sequential writes within original pending bound retain lifetime records and end normally", async () => {

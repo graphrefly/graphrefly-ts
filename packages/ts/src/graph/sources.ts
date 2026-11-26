@@ -15,7 +15,7 @@
  */
 
 import type { Ctx } from "../ctx/types.js";
-import type { Node, NodeOptions } from "../node/node.js";
+import type { Node, NodeOptions, OperatorHost } from "../node/node.js";
 import { errorPayload, type Message } from "../protocol/messages.js";
 import { type GraphCheckpointJson, toCheckpointJson } from "./checkpoint.js";
 import type {
@@ -66,11 +66,12 @@ export interface SingleFromAnyOptions<K> {
 function source<T>(
 	factory: string,
 	// biome-ignore lint/suspicious/noConfusingVoidType: setup returns a cleanup fn OR nothing — the void arm keeps no-return source bodies (e.g. `of`/`fromIter`) ergonomic, same idiom as EffectFn.
-	setup: (ctx: Ctx) => void | (() => void),
+	setup: (ctx: Ctx, host: OperatorHost) => void | (() => void),
 ): Operator<never, T> {
 	// R-lifetime: a source's work is its lifetime's setup, run once just before the first run in the
-	// lifetime; what it returns is the lifetime's cleanup.
-	return { factory, opts: { setup }, body: () => {} };
+	// lifetime; what it returns is the lifetime's cleanup. It is given its graph's host, whose
+	// environment drivers a driver-backed source reads (graphrefly-ts:D193 (3)).
+	return { factory, setup, body: () => {} };
 }
 
 function assertNonEmptyString(value: string, label: string): void {
@@ -109,9 +110,12 @@ function runDriverCancel(cancel: DriverCancel): void {
 function driverOneShotSource<T>(
 	factory: string,
 	missing: string,
-	start: (ctx: Ctx, callback: (result: DriverResult<T>) => void) => DriverCancel | undefined,
+	start: (
+		host: OperatorHost,
+		callback: (result: DriverResult<T>) => void,
+	) => DriverCancel | undefined,
 ): Operator<never, T> {
-	return source<T>(factory, (ctx) => {
+	return source<T>(factory, (ctx, host) => {
 		const active = { value: true };
 		const cancelSlot: { value: DriverCancel | undefined } = { value: undefined };
 		const callback = (result: DriverResult<T>) => {
@@ -122,7 +126,7 @@ function driverOneShotSource<T>(
 		};
 		let cancel: DriverCancel | undefined;
 		try {
-			cancel = start(ctx, callback);
+			cancel = start(host, callback);
 		} catch (e) {
 			active.value = false;
 			ctx.down([["ERROR", errorPayload(e)]]);
@@ -141,11 +145,11 @@ function driverOneShotSource<T>(
 function driverStreamSource<T, E extends { readonly kind: string }>(
 	factory: string,
 	missing: string,
-	start: (ctx: Ctx, callback: (event: E) => void) => DriverCancel | undefined,
+	start: (host: OperatorHost, callback: (event: E) => void) => DriverCancel | undefined,
 	dataOf: (event: E) => T | undefined,
 	errorOf: (event: E) => unknown,
 ): Operator<never, T> {
-	return source<T>(factory, (ctx) => {
+	return source<T>(factory, (ctx, host) => {
 		const active = { value: true };
 		const cancelSlot: { value: DriverCancel | undefined } = { value: undefined };
 		const callback = (event: E) => {
@@ -163,7 +167,7 @@ function driverStreamSource<T, E extends { readonly kind: string }>(
 		};
 		let cancel: DriverCancel | undefined;
 		try {
-			cancel = start(ctx, callback);
+			cancel = start(host, callback);
 		} catch (e) {
 			active.value = false;
 			ctx.down([["ERROR", errorPayload(e)]]);
@@ -636,7 +640,7 @@ function processSource(factory: string, command: ProcessCommand): Operator<never
 	return driverOneShotSource<ProcessResult>(
 		factory,
 		`${factory}: missing process driver`,
-		(ctx, callback) => ctx.environment().processDriver()?.run(command, callback),
+		(host, callback) => host.environment.processDriver()?.run(command, callback),
 	);
 }
 
@@ -672,7 +676,7 @@ export function fromHttpWithOptions(request: HttpRequest): Operator<never, HttpR
 	return driverOneShotSource<HttpResponse>(
 		"fromHttp",
 		"fromHttp: missing http driver",
-		(ctx, callback) => ctx.environment().httpDriver()?.request(request, callback),
+		(host, callback) => host.environment.httpDriver()?.request(request, callback),
 	);
 }
 
@@ -707,7 +711,7 @@ export function fromSSEWithOptions(request: SseRequest): Operator<never, SseEven
 	return driverStreamSource<SseEvent, SseDriverEvent>(
 		"fromSSE",
 		"fromSSE: missing sse driver",
-		(ctx, callback) => ctx.environment().sseDriver()?.connect(request, callback),
+		(host, callback) => host.environment.sseDriver()?.connect(request, callback),
 		(event) => (event.kind === "event" ? event.event : undefined),
 		(event) => (event.kind === "error" ? event.error : undefined),
 	);
@@ -746,7 +750,7 @@ export function fromWebSocketWithOptions(
 	return driverStreamSource<WebSocketEvent, WebSocketDriverEvent>(
 		"fromWebSocket",
 		"fromWebSocket: missing websocket driver",
-		(ctx, callback) => ctx.environment().webSocketDriver()?.connect(request, callback),
+		(host, callback) => host.environment.webSocketDriver()?.connect(request, callback),
 		(event) => (event.kind === "event" ? event.event : undefined),
 		(event) => (event.kind === "error" ? event.error : undefined),
 	);
@@ -785,7 +789,7 @@ export function fromWebhookWithOptions(
 	return driverStreamSource<WebhookEvent, WebhookDriverEvent>(
 		"fromWebhook",
 		"fromWebhook: missing webhook driver",
-		(ctx, callback) => ctx.environment().webhookDriver()?.register(registration, callback),
+		(host, callback) => host.environment.webhookDriver()?.register(registration, callback),
 		(event) => (event.kind === "event" ? event.event : undefined),
 		(event) => (event.kind === "error" ? event.error : undefined),
 	);
@@ -1258,16 +1262,17 @@ export function fromAny<T>(
 }
 
 /**
- * @internal Coerce inside a node's run or a graph's construction scope: the coerced node is built
- * in the running graph (graphrefly-ts:D179), unregistered, as a *Map inner is.
+ * @internal Coerce on an operator's host: the coerced node is built in that host's graph,
+ * unregistered, as a *Map inner is (graphrefly-ts:D193 (5): the graph is named, not implied).
  */
 export function nodeFromInput<T>(
+	host: OperatorHost,
 	input: NodeInput<T>,
 	opts: NodeOptions<T> & { iter?: boolean } = {},
 ): Node<T> {
 	if (isNode(input)) return input as Node<T>;
 	const { iter, ...nodeOpts } = opts;
-	return initNode(inputOperator(input, iter), [], nodeOpts);
+	return initNode(host, inputOperator(input, iter), [], nodeOpts);
 }
 
 /**

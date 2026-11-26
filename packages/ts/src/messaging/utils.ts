@@ -1,4 +1,4 @@
-import { type Ctx, depLiveBatch } from "../ctx/types.js";
+import { type Ctx, requestWrites } from "../ctx/types.js";
 import { canonicalTupleKey } from "../identity.js";
 import type { StateNode } from "../node/node.js";
 import type { MessageBusCommand } from "./types.js";
@@ -9,7 +9,7 @@ import type { MessageBusCommand } from "./types.js";
  * of an earlier request), otherwise the last written object (a non-object write counts as `{}`).
  */
 export function requestParams<T>(ctx: Ctx, depIndex: number): T | undefined {
-	const writes = depLiveBatch(ctx, depIndex);
+	const writes = requestWrites(ctx, depIndex);
 	if (writes === null) return undefined;
 	const last = writes[writes.length - 1];
 	return (typeof last === "object" && last !== null && !Array.isArray(last) ? last : {}) as T;

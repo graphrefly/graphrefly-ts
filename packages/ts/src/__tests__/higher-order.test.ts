@@ -8,7 +8,7 @@ import { renderSnapshot } from "../graph/render.js";
 
 import { describe, expect, it } from "vitest";
 import type { Ctx, Graph, Message, Node } from "../index.js";
-import { concatMap, Dispatcher, exhaustMap, graph, mergeMap, repeat, switchMap } from "../index.js";
+import { concatMap, exhaustMap, graph, mergeMap, repeat, switchMap } from "../index.js";
 import { recordOfNode } from "../node/node.js";
 import { collect } from "./helpers/collect.js";
 
@@ -16,13 +16,8 @@ const data = (m: Message[]) =>
 	m.filter((x) => x[0] === "DATA").map((x) => (x as ["DATA", unknown])[1]);
 const coreOf = (n: Node<unknown>) => recordOfNode(n).kernel;
 
-class CountingDispatcher extends Dispatcher {
-	register(...args: Parameters<Dispatcher["register"]>): ReturnType<Dispatcher["register"]> {
-		this.registerCount += 1;
-		return super.register(...args);
-	}
-	registerCount = 0;
-}
+/** How many nodes a graph's kernel has built (graphrefly-ts:D193: no dispatcher to count). */
+const builtIn = (n: Node<unknown>) => coreOf(n).created;
 
 /** A controllable inner source whose activation + deactivation (cancellation) are observable. */
 function subject(g: Graph) {
@@ -52,26 +47,24 @@ function subject(g: Graph) {
 }
 
 describe("mergeMap (D47 / R-request-order)", () => {
-	it("binds coerced runtime inners to the owning graph dispatcher/core (B34b / D22)", () => {
-		const dispatcher = new CountingDispatcher();
-		const g = graph({ dispatcher });
+	it("binds coerced runtime inners to the owning graph (B34b / D22)", () => {
+		const g = graph();
 		const s = g.node<number>([], null);
 		const op = g.initNode(
 			mergeMap((v: number) => [v, v + 1]),
 			[s],
 		);
 
-		expect(dispatcher.registerCount).toBe(1); // the mergeMap operator body itself
+		const before = builtIn(op);
 		const { msgs } = collect(op);
 		s.set(1);
 
-		expect(dispatcher.registerCount).toBeGreaterThan(1); // the fromAny/fromIter inner
+		expect(builtIn(op)).toBeGreaterThan(before); // the fromAny/fromIter inner, in op's graph
 		expect(data(msgs)).toEqual([1, 2]);
 	});
 
 	it("does not let coercion-time user getters consume the graph core binding (B34b)", () => {
-		const dispatcher = new CountingDispatcher();
-		const g = graph({ dispatcher });
+		const g = graph();
 		const s = g.node<number>([], null);
 		const trapGraph = graph();
 		// Assigned inside the proxy trap, which control-flow narrowing cannot see.
@@ -98,7 +91,6 @@ describe("mergeMap (D47 / R-request-order)", () => {
 		expect(coreOf(trapNode as unknown as Node<unknown>)).not.toBe(coreOf(op));
 		expect(inner).toBeDefined();
 		expect(coreOf(inner as Node<unknown>)).toBe(coreOf(op));
-		expect(dispatcher.registerCount).toBeGreaterThan(1);
 	});
 
 	it("keeps all inners live and interleaves their emissions; a completed inner is bounded", () => {

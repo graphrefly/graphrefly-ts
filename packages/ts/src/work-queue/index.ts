@@ -7,6 +7,7 @@ import { assertLocalName } from "../node/naming.js";
  * independent from orchestration/WorkItem/executor registries.
  */
 
+import { markRequestFirstRun } from "../ctx/types.js";
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
 import { canonicalTupleKey, compoundTupleKey } from "../identity.js";
@@ -389,6 +390,7 @@ export function workQueue<T = unknown>(graph: Graph, opts: WorkQueueOptions<T>):
 					name: projectionName,
 					factory: "workQueueWorkSnapshot",
 					quiet: true,
+					setup: markRequestFirstRun,
 					complete: "manual",
 					error: "manual",
 				},

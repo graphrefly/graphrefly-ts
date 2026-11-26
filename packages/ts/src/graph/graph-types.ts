@@ -1,4 +1,3 @@
-import type { Dispatcher } from "../dispatcher/index.js";
 import type { Node, NodeOptions } from "../node/node.js";
 import type { GraphCheckpointJson } from "./checkpoint.js";
 import type { EnvironmentDrivers } from "./environment.js";
@@ -19,8 +18,8 @@ export type EffectFn<D extends readonly Node<unknown>[]> = (
 	// biome-ignore lint/suspicious/noConfusingVoidType: effect returns void OR a cleanup fn — the void arm keeps `(v) => { sideEffect(v) }` ergonomic (React EffectCallback idiom); dropping it would force an explicit `return undefined`.
 ) => void | (() => void);
 
-/** Sugar options — node options minus graph-owned dispatcher plus naming/meta. */
-export interface SugarOpts<T = unknown> extends Omit<NodeOptions<T>, "dispatcher"> {
+/** Sugar options: node options plus naming and meta. */
+export interface SugarOpts<T = unknown> extends NodeOptions<T> {
 	name?: string;
 	meta?: Record<string, unknown>;
 }
@@ -41,15 +40,11 @@ export interface SugarRecipe {
 
 export interface GraphOptions {
 	name?: string;
-	/** Bind to a dispatcher (default = process-global, D26). */
-	dispatcher?: Dispatcher;
 	/** Graph-owned environment drivers for source/adapter boundaries (D130/D131). */
 	environment?: EnvironmentDrivers;
 	/**
-	 * Turn on the dispatcher profile recorder (D39 / F-PERF default off). NOTE: this
-	 * switches recording on for the WHOLE bound dispatcher (the default is process-global,
-	 * D26) — every graph sharing it then pays the recorder cost. For isolated profiling
-	 * use a dedicated dispatcher: `graph({ dispatcher: new Dispatcher(), profile: true })`.
+	 * Count and time each run of this graph's registered nodes, for graphProfile (D39; default
+	 * off). The count is the graph's own (graphrefly-ts:D193 (2)).
 	 */
 	profile?: boolean;
 	/**

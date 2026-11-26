@@ -1,12 +1,11 @@
 import { readFileSync } from "node:fs";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { releaseGraphNodes } from "../graph/graph.js";
 import { graphProfile, observeTopology } from "../graph/inspect.js";
 import { renderSnapshot } from "../graph/render.js";
 import * as topology from "../graph/topology.js";
 import type { Message, TopologyEvent } from "../index.js";
 import {
-	Dispatcher,
 	defaultRestoreRegistry,
 	GRAPH_CHECKPOINT_FORMAT,
 	graph,
@@ -18,14 +17,15 @@ import {
 	restoreGraph,
 	strictJsonCodec,
 } from "../index.js";
-import { buildBeside } from "../node/node.js";
-import { LIFECYCLE, LIFETIME } from "../node/node-keys.js";
+import { kernelOfNode } from "../node/node.js";
+import * as runtimeAccessors from "../node/runtime-accessors.js";
 import { asState } from "./helpers/as-state.js";
 import { collect } from "./helpers/collect.js";
 
 function demand(request: Node<true>): void {
 	asState(request).set(true);
 }
+afterEach(() => vi.restoreAllMocks());
 const _types = (msgs: Message[]) => msgs.map((m) => m[0]);
 const TEST_JSON_DECODER = new TextDecoder();
 const decodeTestJsonBytes = (bytes: Uint8Array) => TEST_JSON_DECODER.decode(bytes);
@@ -280,14 +280,13 @@ describe("observeTopology — read-only topology egress (D145)", () => {
 		const panic = g.state(1, { name: "panic" });
 		const later = g.state(2, { name: "later" });
 		let laterCleanupRan = false;
-		panic[LIFECYCLE].activated = true;
-		panic[LIFETIME].cleanup = () => {
-			throw new Error("cleanup boom");
-		};
-		later[LIFECYCLE].activated = true;
-		later[LIFETIME].cleanup = () => {
-			laterCleanupRan = true;
-		};
+		// The release of panic's runtime throws after the graph committed the release of both.
+		const release = runtimeAccessors.releaseRuntimeOfNode;
+		vi.spyOn(runtimeAccessors, "releaseRuntimeOfNode").mockImplementation((node) => {
+			release(node);
+			if (node === panic) throw new Error("cleanup boom");
+			if (node === later) laterCleanupRan = true;
+		});
 		const events: TopologyEvent[] = [];
 		const unsub = observeTopology(g).subscribe((event) => events.push(event));
 
@@ -310,7 +309,7 @@ describe("observeTopology — read-only topology egress (D145)", () => {
 
 describe("topology.group — graph-owned dynamic topology release (D152/D153)", () => {
 	it("creates registered child nodes and releases them atomically from inspection surfaces", () => {
-		const g = graph({ dispatcher: new Dispatcher(), profile: true });
+		const g = graph({ profile: true });
 		const source = g.state(1, { name: "source" });
 		const events: TopologyEvent[] = [];
 		const unsub = observeTopology(g).subscribe((event) => events.push(event));
@@ -387,7 +386,7 @@ describe("topology.group — graph-owned dynamic topology release (D152/D153)", 
 		expect(() => group.add(other)).toThrow(/different graph/);
 
 		// An unregistered node of the same graph (R-graph-domain@3: no node is standalone).
-		const bare = buildBeside(registered, () => new Node([], null));
+		const bare = new Node(kernelOfNode(registered), [], null);
 		expect(() => group.add(bare)).toThrow(/not a registered graph node/);
 	});
 
@@ -664,7 +663,7 @@ describe("Graph.checkpoint — data shape (R-checkpoint / D802, TS layout D178)"
 
 describe("Graph release-local subscriber accounting — D122/D124", () => {
 	it("counts real active fan-out/fan-in subscriptions and preserves the rejected group", () => {
-		const g = graph({ dispatcher: new Dispatcher(), profile: true });
+		const g = graph({ profile: true });
 		const group = topology.group(g, { name: "diamond" });
 		const a = group.state(2, { name: "a" });
 		const b = group.state(3, { name: "b" });

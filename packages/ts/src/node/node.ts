@@ -6,8 +6,7 @@ import { assertLocalName } from "./naming.js";
  */
 
 import type { NodeFn, Sink } from "../ctx/types.js";
-import { defaultDispatcher, type Handle } from "../dispatcher/index.js";
-import { EnvironmentDrivers } from "../graph/environment.js";
+import type { EnvironmentDrivers } from "../graph/environment.js";
 import {
 	bindKNode,
 	copyData,
@@ -27,15 +26,7 @@ import {
 	failNodeAcquisition,
 	type NodeAcquisition,
 } from "./owned-acquisition.js";
-import {
-	issueNodeRegistration,
-	runningGraph,
-	takeConstructingDispatcher,
-	takeConstructingEnvironmentDrivers,
-	takeConstructingNodeCore,
-	withEnvironmentDrivers,
-	withNodeCore,
-} from "./runtime-accessors.js";
+import { assertNodeNotReleased, issueNodeRegistration } from "./runtime-accessors.js";
 import type { NodeDefinition, NodeOptions, ReplaceOptions, Status } from "./types.js";
 
 export {
@@ -50,8 +41,6 @@ export {
 	setNodeOwner,
 	setNodeTopologyDepsChangedObserver,
 	subscriberCountOfNode,
-	withEnvironmentDrivers,
-	withNodeCore,
 } from "./runtime-accessors.js";
 export type { NodeCheckpointState, NodeOptions, NodeSeed, Status } from "./types.js";
 
@@ -77,49 +66,32 @@ export function nodeCreationIndex(node: Node<unknown>): number {
  * @category core
  */
 export class Node<T = unknown> {
+	/** @internal Build a node in `kernel`'s graph; the graph layer and operator hosts call this. */
 	constructor(
-		deps: Node<unknown>[],
-		handleOrFn: Handle | NodeFn | null,
+		kernel: Kernel,
+		deps: readonly Node<unknown>[],
+		fn: NodeFn | null,
 		opts: NodeOptions<T> = {},
 	) {
 		assertLocalName(opts.name);
 		// R-node: a node with dependencies is a computed node and has a function; a node without
 		// one is a state and has no dependencies.
-		if (handleOrFn === null && deps.length > 0)
+		if (fn === null && deps.length > 0)
 			throw new TypeError("node: a node with dependencies needs a function (R-node)");
 		const suppliedAcquisition = constructionAcquisitions.get(opts);
 		const acquisition: NodeAcquisition = suppliedAcquisition ?? { name: "bare node" };
 		constructionAcquisitions.delete(opts);
-		const staged = takeConstructingNodeCore();
-		const stagedDispatcher = takeConstructingDispatcher();
-		const stagedEnvironment = takeConstructingEnvironmentDrivers();
-		const running = staged === undefined ? runningGraph() : undefined;
-		const kernel = staged ?? running?.core;
-		const dispatcher =
-			opts.dispatcher ?? stagedDispatcher ?? running?.dispatcher ?? defaultDispatcher;
-		const environment = stagedEnvironment ?? running?.environment ?? EnvironmentDrivers.empty();
 		try {
-			// R-graph-domain@3: a node belongs to one graph's domain; there is no standalone node.
-			if (kernel === undefined)
-				throw new Error("node: a node is built by a graph (graph.node, graph.state, ...)");
 			for (const d of deps)
 				if (kOf(d).kernel !== kernel)
 					throw new Error(
 						"node: dependencies belong to different graphs; cross-graph deps require a wire bridge (R-graph-domain)",
 					);
-			let handle: Handle | null;
-			if (handleOrFn === null) handle = null;
-			else if (typeof handleOrFn === "function") handle = dispatcher.register(handleOrFn);
-			else handle = handleOrFn;
-			if (handle !== null && typeof handleOrFn === "function") {
-				acquisition.dispatcher = dispatcher;
-				acquisition.handle = handle;
-			}
 			const record = makeKNode(kernel, {
 				node: this as Node<unknown>,
-				kind: handleOrFn === null ? "state" : "node",
+				kind: fn === null ? "state" : "node",
 				deps: deps.map(kOf),
-				fn: typeof handleOrFn === "function" ? handleOrFn : null,
+				fn,
 				id: opts.id ?? opts.name,
 				complete: opts.complete,
 				error: opts.error,
@@ -127,11 +99,8 @@ export class Node<T = unknown> {
 				quiet: opts.quiet,
 				setup: opts.setup,
 				recipe: opts.recipe,
-				initial: opts.initial === null ? null : opts.initial,
+				initial: opts.initial,
 				seed: opts.seed,
-				handle,
-				dispatcher,
-				environment,
 				name: opts.name,
 				factory: opts.factory,
 			});
@@ -168,22 +137,18 @@ export class Node<T = unknown> {
 		return kOf(this as Node<unknown>).deps.map((d) => d.node);
 	}
 
-	/** The function's handle in the dispatcher's table, or null for a state (phase 1b removes it). */
-	get handle(): Handle | null {
-		return kOf(this as Node<unknown>).handle;
-	}
-
 	/**
 	 * R-subscription@5: a new sink first receives one array, START followed by the node's snapshot;
 	 * after that every array the node sends, each with the kernel's PENDING first. A request: during
 	 * a wave it waits for the wave to end. Returns the unsubscribe.
 	 */
 	subscribe(sink: Sink): () => void {
+		assertNodeNotReleased(this as Node<unknown>, "subscribe");
 		return subscribe(kOf(this as Node<unknown>), sink);
 	}
 }
 
-/** @internal The kernel record of this node, terminal as the package's shape. */
+/** @internal The node's terminal in the package's shape: true, the ERROR payload, or undefined. */
 export function terminalOfNode(node: Node<unknown>): unknown {
 	return terminalValue(kOf(node).ended);
 }
@@ -193,22 +158,60 @@ export function terminalOfNode(node: Node<unknown>): unknown {
  * inputs (R-node, graphrefly-ts:D175).
  */
 export function makeNode<T>(
-	deps: Node<unknown>[],
-	handleOrFn: Handle | NodeFn | null,
+	kernel: Kernel,
+	deps: readonly Node<unknown>[],
+	fn: NodeFn | null,
 	opts: NodeOptions<T>,
 ): Node<T> {
-	return deps.length === 0 && handleOrFn === null
-		? new StateNode<T>(deps, null, opts)
-		: new Node<T>(deps, handleOrFn, opts);
+	return deps.length === 0 && fn === null
+		? new StateNode<T>(kernel, deps, null, opts)
+		: new Node<T>(kernel, deps, fn, opts);
 }
 
 /**
- * Internal: build nodes in the graph of `beside` (R-graph-domain@3), for helpers that take a node
- * and open helper nodes of their own (a timer beside its source). One node per call.
+ * What an operator or source is given where it is built (graphrefly-ts:D193 (3), (5)): its graph's
+ * environment drivers and a way to build nodes in that graph, such as an inner or a timer.
  */
-export function buildBeside<N extends Node<unknown>>(beside: Node<unknown>, create: () => N): N {
-	const n = kOf(beside);
-	return withEnvironmentDrivers(n.environment, () => withNodeCore(n.kernel, create, n.dispatcher));
+export interface OperatorHost {
+	readonly environment: EnvironmentDrivers;
+	/** The dependencies the operator's node was built with (its declared ones); [] otherwise. */
+	readonly deps: readonly Node<unknown>[];
+	/** Build a node in this graph: a state with no dependencies and no function, else computed. */
+	node<T>(deps: readonly Node<unknown>[], fn: NodeFn | null, opts?: NodeOptions<T>): Node<T>;
+}
+
+const hosts = new WeakMap<Kernel, OperatorHost>();
+
+/** @internal The host of a kernel's graph. */
+export function hostOfKernel(kernel: Kernel): OperatorHost {
+	let host = hosts.get(kernel);
+	if (host === undefined) {
+		host = {
+			get environment() {
+				return kernel.environment;
+			},
+			deps: [],
+			node: (deps, fn, opts = {}) => makeNode(kernel, deps, fn, opts),
+		};
+		hosts.set(kernel, host);
+	}
+	return host;
+}
+
+/** @internal `host` for a node built over `deps`. */
+export function hostWithDeps(host: OperatorHost, deps: readonly Node<unknown>[]): OperatorHost {
+	return {
+		get environment() {
+			return host.environment;
+		},
+		deps: [...deps],
+		node: host.node,
+	};
+}
+
+/** @internal The host of the graph a node belongs to (R-graph-domain@3). */
+export function hostOf(node: Node<unknown>): OperatorHost {
+	return hostOfKernel(kOf(node).kernel);
 }
 
 /**
@@ -222,13 +225,7 @@ export function makeNodeBeside<T>(
 ): Node<T> {
 	const first = deps[0];
 	if (first === undefined) throw new Error("node: a derived view needs a dependency");
-	const n = kOf(first);
-	for (const d of deps)
-		if (kOf(d).kernel !== n.kernel)
-			throw new Error("node: dependencies belong to different graphs; use a wire bridge");
-	return withEnvironmentDrivers(n.environment, () =>
-		withNodeCore(n.kernel, () => new Node<T>(deps, fn, opts), n.dispatcher),
-	);
+	return new Node<T>(kOf(first).kernel, deps, fn, opts);
 }
 
 /**
@@ -259,24 +256,18 @@ export function nodeReplace(
 	fn: NodeFn,
 	opts: ReplaceOptions = {},
 ): void {
+	assertNodeNotReleased(node, "replace");
 	const n = kOf(node);
 	for (const d of deps)
 		if (kOf(d).kernel !== n.kernel)
 			throw new Error(
 				"replace: dep belongs to a different graph; cross-graph deps require a wire bridge (R-graph-domain)",
 			);
-	const handle = n.dispatcher.register(fn);
-	try {
-		replace(n, deps.map(kOf), {
-			fn,
-			handle,
-			...(opts.setup === undefined ? {} : { setup: opts.setup }),
-			recipe: opts.recipe,
-		});
-	} catch (e) {
-		n.dispatcher.unregister(handle);
-		throw e;
-	}
+	replace(n, deps.map(kOf), {
+		fn,
+		...(opts.setup === undefined ? {} : { setup: opts.setup }),
+		recipe: opts.recipe,
+	});
 }
 
 /** @internal The kernel of a node's graph. */
@@ -310,21 +301,25 @@ export class StateNode<T> extends Node<T> {
 	 * function as a value, wrap it: `set(() => fn)`.
 	 */
 	set(v: T | ((prev: T | undefined) => T)): void {
+		assertNodeNotReleased(this as Node<unknown>, "set");
 		hostSet(kOf(this as Node<unknown>), v);
 	}
 
 	/** Host input (R-invalidation): drop the retained value; effective only while one is held. */
 	invalidate(): void {
+		assertNodeNotReleased(this as Node<unknown>, "invalidate");
 		hostInput(kOf(this as Node<unknown>), ["INVALIDATE"], "invalidate");
 	}
 
 	/** Host input (R-terminals): end this state with COMPLETE. */
 	complete(): void {
+		assertNodeNotReleased(this as Node<unknown>, "complete");
 		hostInput(kOf(this as Node<unknown>), ["COMPLETE"], "complete");
 	}
 
 	/** Host input (R-terminals): end this state with ERROR carrying `error`. */
 	error(error: unknown): void {
+		assertNodeNotReleased(this as Node<unknown>, "error");
 		hostInput(kOf(this as Node<unknown>), ["ERROR", error], "error");
 	}
 }

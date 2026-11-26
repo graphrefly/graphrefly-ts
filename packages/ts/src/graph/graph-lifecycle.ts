@@ -1,5 +1,5 @@
 import type { NodeFn } from "../ctx/types.js";
-import type { Node } from "../node/node.js";
+import type { Node, OperatorHost } from "../node/node.js";
 import type { NodeAcquisition } from "../node/owned-acquisition.js";
 import type { OwnedConstruction } from "./construction-scope.js";
 import type { RenderSnapshot } from "./describe.js";
@@ -25,6 +25,8 @@ export interface GraphLifecycleRegistrar extends GraphRestoreRegistrar {
 		node: Node<unknown>,
 	): { name?: string; factory: string; meta?: Record<string, unknown> } | undefined;
 	mounts(): readonly { at: string; graph: Graph }[];
+	/** The graph's operator host over `deps` (graphrefly-ts:D193). */
+	operatorHost(deps: readonly Node<unknown>[]): OperatorHost;
 	profile(): Profile;
 	observeTopology(path?: string): TopologyStream;
 	assertRegisteredNode(node: Node<unknown>, label: string): void;

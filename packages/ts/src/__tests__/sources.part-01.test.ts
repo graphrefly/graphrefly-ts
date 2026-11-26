@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from "vitest";
-import { CTX_NODE_BINDING } from "../ctx/types.js";
 import { initNode } from "../graph/operators.js";
 import { renderSnapshot } from "../graph/render.js";
 import type { Message } from "../index.js";
@@ -487,13 +486,20 @@ describe("environment driver-backed sources (D130/D131)", () => {
 		expect(Object.isFrozen(EnvironmentDrivers.empty())).toBe(true);
 	});
 
-	it("GraphOptions.environment is visible from ctx.environment", () => {
+	it("GraphOptions.environment is visible to a source built on the graph, through its host", () => {
 		const process = new ManualProcessDriver();
 		const env = EnvironmentDrivers.empty().withProcess(process);
 		const g = graph({ environment: env });
-		const n = g.producer<boolean>((ctx) => {
-			ctx.down([["DATA", ctx.environment().processDriver() === process], ["COMPLETE"]]);
-		});
+		const n = g.initNode<never, boolean>(
+			{
+				factory: "probeEnvironment",
+				body: () => {},
+				setup: (ctx, host) => {
+					ctx.down([["DATA", host.environment.processDriver() === process], ["COMPLETE"]]);
+				},
+			},
+			[],
+		);
 
 		const msgs: Message[] = [];
 		n.subscribe((incoming) => {
@@ -509,16 +515,16 @@ describe("environment driver-backed sources (D130/D131)", () => {
 		const driver = new ManualHttpDriver();
 		const g = graph({ environment: EnvironmentDrivers.empty().withHttp(driver) });
 		let inner: Node<HttpResponse> | undefined;
-		const outer = g.producer((ctx) => {
-			const binding = ctx[CTX_NODE_BINDING];
-			if (binding === undefined) throw new Error("missing ctx node binding");
-			inner = binding.create(() =>
-				initNode(fromHttp("https://example.test/inner"), [], {
-					dispatcher: binding.dispatcher,
-				}),
-			);
-			ctx.down([["COMPLETE"]]);
-		});
+		const outer = g.initNode<never, unknown>(
+			{
+				factory: "buildsInner",
+				body: (ctx, host) => {
+					inner = initNode(host, fromHttp("https://example.test/inner"), []);
+					ctx.down([["COMPLETE"]]);
+				},
+			},
+			[],
+		);
 
 		outer.subscribe(() => {});
 		expect(inner).toBeDefined();

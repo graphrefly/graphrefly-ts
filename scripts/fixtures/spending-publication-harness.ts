@@ -2,7 +2,6 @@
 import assert from "node:assert/strict";
 import { buildSpendingPublication } from "../../examples/spending-alerts/causal-publication.js";
 import type { NodeFn } from "../../packages/ts/src/ctx/types.js";
-import { Dispatcher } from "../../packages/ts/src/dispatcher/index.js";
 import {
 	prepareConstruction,
 	startConstruction,
@@ -111,7 +110,7 @@ export function publicationRun(
 		foreignMaterial?: boolean;
 	} = {},
 ) {
-	const graph = new Graph({ dispatcher: new Dispatcher() });
+	const graph = new Graph();
 	const sources = {
 		occurrences: graph.node([], null, { name: "in/occurrences" }),
 		admissions: graph.node([], null, { name: "in/admissions" }),

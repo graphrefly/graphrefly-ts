@@ -4,7 +4,7 @@ import { graph, restoreGraph, type StateNode } from "../index.js";
 
 const expired = "ctx.deps is only available during setup or function invocation";
 
-describe("R-invocation@3: every dependency view expires with its supplying invocation", () => {
+describe("R-invocation@4: every dependency view expires with its supplying invocation", () => {
 	it("allows setup input, closes on a throwing function, and keeps cleanup private state", () => {
 		const g = graph();
 		const a = g.state(42);
@@ -41,7 +41,7 @@ describe("R-invocation@3: every dependency view expires with its supplying invoc
 		const fn = (ctx: Ctx) => {
 			kept = ctx;
 			unchanged = ctx.deps[1];
-			ctx.emit(ctx.deps[0].value);
+			ctx.down([["DATA", ctx.deps[0].value]]);
 		};
 		const g = graph();
 		const a = g.state(1, { name: "a" });

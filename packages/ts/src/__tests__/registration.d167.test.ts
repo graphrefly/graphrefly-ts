@@ -1,10 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { NodeFn } from "../ctx/types.js";
-import { Dispatcher, type Handle } from "../dispatcher/index.js";
-import {
-	checkpointBackendStateOfNode,
-	registerBackendStateContributor,
-} from "../graph/checkpoint.js";
 import {
 	assertGraphLocalNode,
 	Graph,
@@ -13,14 +8,14 @@ import {
 	restoreStateNodeInGraph,
 } from "../graph/graph.js";
 import { graphRegistrations } from "../graph/graph-lifecycle.js";
+import { observeTopology } from "../graph/inspect.js";
 import { map } from "../graph/operators.js";
 import { renderSnapshot } from "../graph/render.js";
 import { type MessageBusCommand, messageBus, toTopic } from "../messaging/index.js";
 import { attachMessageBusCommandSource } from "../messaging/internal.js";
-import { NodeCore } from "../node/core.js";
-import { Node, type StateNode } from "../node/node.js";
-import { LIFETIME } from "../node/node-keys.js";
+import { kernelOfNode, type Node, type StateNode } from "../node/node.js";
 import { ColdNodeAcquisitionError } from "../node/owned-acquisition.js";
+import * as runtimeAccessors from "../node/runtime-accessors.js";
 import {
 	checkpointStateOfNode,
 	getNodeOwner,
@@ -29,24 +24,11 @@ import {
 	isNodeRuntimeReleased,
 	releaseRuntimeOfNode,
 	restoreStateOfNode,
-	runtimeReleaseFailuresOfNode,
 	subscriberCountOfNode,
 } from "../node/runtime-accessors.js";
 import { relayFirst } from "./helpers/relay.js";
 
 afterEach(() => vi.restoreAllMocks());
-class CountingDispatcher extends Dispatcher {
-	readonly live = new Set<Handle>();
-	override register(...args: Parameters<Dispatcher["register"]>): Handle {
-		const handle = super.register(...args);
-		this.live.add(handle);
-		return handle;
-	}
-	override unregister(handle: Handle): void {
-		super.unregister(handle);
-		this.live.delete(handle);
-	}
-}
 const idle: NodeFn = () => {};
 function busFixture() {
 	const graph = new Graph();
@@ -66,13 +48,16 @@ describe("D167 issued runtime identity and lifecycle", () => {
 		const g = new Graph();
 		const input = g.state(2, { name: "input" });
 		let hookRan = false;
-		input[LIFETIME].cleanup = () => {
+		// A topology observer of the release runs before the graph's release returns.
+		const stop = observeTopology(g, "input").subscribe((event) => {
+			if (event.kind !== "node-released") return;
 			hookRan = true;
 			expect(checkpointStateOfNode(input).cache).toBe(2);
 			expect(() => g.node([input], relayFirst, { name: "invalid" })).toThrow("has been released");
 			expect(g.find("invalid")).toBeUndefined();
-		};
+		});
 		releaseGraphNodes(g, [input]);
+		stop();
 		expect(hookRan).toBe(true);
 		expect(() => assertGraphLocalNode(g, input, "dep")).toThrow("has been released");
 	});
@@ -94,45 +79,6 @@ describe("D167 issued runtime identity and lifecycle", () => {
 		expect(() => restoreStateOfNode(n, {} as never)).toThrow("unknown node state");
 		expect(isNodeRuntimeQuiescentForRelease(n)).toBe(false);
 		releaseRuntimeOfNode(n);
-	});
-	it("marks release start before hooks, closes access later, and drops contributor", () => {
-		const n = new Graph().node([], null);
-		const observations: unknown[] = [];
-		registerBackendStateContributor(n, () => {
-			observations.push("backend");
-			return 4;
-		});
-		n[LIFETIME].cleanup = () => {
-			observations.push(isNodeRuntimeReleased(n), checkpointStateOfNode(n).hasData);
-			releaseRuntimeOfNode(n); // reentrant release is inert
-		};
-		releaseRuntimeOfNode(n);
-		expect(checkpointBackendStateOfNode(n, "backend")).toBeUndefined();
-		expect(observations).toEqual([true, false]);
-		expect(() => registerBackendStateContributor(n, () => undefined)).toThrow("unknown node");
-	});
-	it("retains failure locators while closing all access without retry", () => {
-		const dispatcher = new CountingDispatcher();
-		const n = new Graph({ dispatcher }).node([], idle);
-		const handle = n.handle;
-		const boom = new Error("unregister failed");
-		const unregister = vi.spyOn(dispatcher, "unregister").mockImplementation(() => {
-			throw boom;
-		});
-		expect(() => releaseRuntimeOfNode(n)).toThrow(boom);
-		expect(runtimeReleaseFailuresOfNode(n)?.[0]).toMatchObject({
-			resource: "handle",
-			handle,
-			dispatcher,
-			cause: boom,
-		});
-		expect(isNodeRuntimeReleased(n)).toBe(true);
-		expect(() => assertGraphLocalNode(new Graph(), n, "failed dep")).toThrow("has been released");
-		expect(() => checkpointStateOfNode(n)).toThrow("unknown");
-		releaseRuntimeOfNode(n);
-		expect(unregister).toHaveBeenCalledTimes(1);
-		unregister.mockRestore();
-		dispatcher.unregister(handle!);
 	});
 	it("keeps Graph records exact and construction maps lazy", () => {
 		const graph = new Graph();
@@ -158,11 +104,9 @@ describe("D167 known cold acquisitions", () => {
 		"initNode",
 		"restore",
 		"restoreState",
-	])("prechecks duplicate %s without acquiring a function", (factory) => {
-		const dispatcher = new CountingDispatcher();
-		const g = new Graph({ dispatcher });
+	])("prechecks duplicate %s without acquiring a node", (factory) => {
+		const g = new Graph();
 		const existing = g.node([], idle, { name: "same" });
-		const before = [...dispatcher.live];
 		const opts = { name: "same" };
 		const create: Record<string, () => unknown> = {
 			node: () => g.node([], idle, opts),
@@ -180,110 +124,52 @@ describe("D167 known cold acquisitions", () => {
 			restoreState: () => restoreStateNodeInGraph(g, "same"),
 		};
 		expect(create[factory]).toThrow("duplicate node id");
-		expect([...dispatcher.live]).toEqual(before);
 		expect(g.find("same")).toBe(existing);
 		releaseGraphNodes(g, [existing]);
 	});
-	it("cleans an acquired function when a later option getter throws", () => {
-		const dispatcher = new CountingDispatcher();
-		const cause = new Error("options");
-		expect(
-			() =>
-				new Node([], idle, {
-					dispatcher,
-					get initial() {
-						throw cause;
-					},
-				}),
-		).toThrow(cause);
-		expect(dispatcher.live.size).toBe(0);
-	});
-	it("does not unregister a borrowed handle after a failed bare construction", () => {
-		const dispatcher = new CountingDispatcher();
-		const handle = dispatcher.register(idle);
-		expect(
-			() =>
-				new Node([], handle, {
-					dispatcher,
-					get initial() {
-						throw new Error("options");
-					},
-				}),
-		).toThrow("options");
-		expect([...dispatcher.live]).toEqual([handle]);
-		dispatcher.unregister(handle);
-	});
-	it("records a partial core slot before state material can throw", () => {
-		const dispatcher = new CountingDispatcher();
-		const original = NodeCore.prototype.createSlot;
-		let core: NodeCore | undefined;
-		let id: Parameters<NodeCore["get"]>[0] | undefined;
-		vi.spyOn(NodeCore.prototype, "createSlot").mockImplementation(function (
-			this: NodeCore,
-			slot,
-			state,
-			acquired,
-		) {
-			core = this;
-			const bad = {
-				...state,
-				get wave(): never {
-					id = acquired!.slot;
-					throw new Error("partial slot");
-				},
-			};
-			return original.call(this, slot, bad, acquired) as never;
-		});
-		expect(() => new Graph({ dispatcher }).node([], idle)).toThrow("partial slot");
-		expect(dispatcher.live.size).toBe(0);
-		expect(id).toBeDefined();
-		expect(() => core!.get(id!)).toThrow("unknown node slot");
-		expect(() => core!.getDep(id!)).toThrow("unknown node dep");
-	});
 	it("keeps original error plus residual locators when cold cleanup fails", () => {
-		const dispatcher = new CountingDispatcher();
-		const cause = new Error("construct");
+		const g = new Graph();
 		const cleanup = new Error("cleanup");
-		const unregister = vi.spyOn(dispatcher, "unregister").mockImplementation(() => {
+		let winner: Node<unknown> | undefined;
+		// A winner takes the name while the node is built, so its publication fails after
+		// construction; the release of the unpublished node then throws.
+		const issue = runtimeAccessors.issueNodeRegistration;
+		vi.spyOn(runtimeAccessors, "issueNodeRegistration").mockImplementationOnce((node) => {
+			winner = g.state(7, { name: "same" });
+			issue(node);
+		});
+		vi.spyOn(runtimeAccessors, "releaseRuntimeOfNode").mockImplementation(() => {
 			throw cleanup;
 		});
 		let caught: unknown;
 		try {
-			new Node([], idle, {
-				dispatcher,
-				get initial() {
-					throw cause;
-				},
-			});
+			g.node([], idle, { name: "same" });
 		} catch (e) {
 			caught = e;
 		}
 		expect(caught).toBeInstanceOf(ColdNodeAcquisitionError);
 		expect(caught).toMatchObject({
-			cause,
-			cleanupErrors: [{ cause: cleanup, resource: "handle", dispatcher }],
+			cause: expect.objectContaining({ message: expect.stringMatching(/duplicate node id/) }),
+			cleanupErrors: [{ cause: cleanup, resource: "runtime", core: kernelOfNode(winner!) }],
 		});
-		unregister.mockRestore();
-		for (const handle of dispatcher.live) dispatcher.unregister(handle);
+		vi.restoreAllMocks();
+		releaseGraphNodes(g, [winner!]);
 	});
-	it("revalidates publication after reentrant register and preserves the winning node", () => {
-		const dispatcher = new CountingDispatcher();
-		const g = new Graph({ dispatcher });
+	it("revalidates publication after reentrant construction and preserves the winning node", () => {
+		const g = new Graph();
 		let winner: Node<unknown> | undefined;
-		const original = dispatcher.register.bind(dispatcher);
-		vi.spyOn(dispatcher, "register").mockImplementationOnce((...args) => {
+		const original = runtimeAccessors.issueNodeRegistration;
+		vi.spyOn(runtimeAccessors, "issueNodeRegistration").mockImplementationOnce((node) => {
 			winner = g.node([], idle, { name: "same" });
-			return original(...args);
+			original(node);
 		});
 		expect(() => g.node([], idle, { name: "same" })).toThrow("duplicate node id");
 		expect(g.find("same")).toBe(winner);
-		expect(dispatcher.live.size).toBe(1);
 		expect(renderSnapshot(g).nodes).toHaveLength(1);
 		releaseGraphNodes(g, [winner!]);
 	});
 	it("snapshots user entry properties before final publication validation", () => {
-		const dispatcher = new CountingDispatcher();
-		const g = new Graph({ dispatcher });
+		const g = new Graph();
 		let reads = 0;
 		let winner: Node<unknown> | undefined;
 		expect(() =>
@@ -299,12 +185,10 @@ describe("D167 known cold acquisitions", () => {
 		).toThrow("duplicate node id");
 		expect(g.find("same")).toBe(winner);
 		expect(renderSnapshot(g).nodes).toHaveLength(1);
-		expect(dispatcher.live.size).toBe(0);
 		releaseGraphNodes(g, [winner!]);
 	});
 	it("revalidates the ID after caller dependency iteration at publication", () => {
-		const d = new CountingDispatcher();
-		const g = new Graph({ dispatcher: d });
+		const g = new Graph();
 		const input = g.state(1);
 		let entryRead = false;
 		let reads = 0;
@@ -325,7 +209,6 @@ describe("D167 known cold acquisitions", () => {
 		).toThrow("duplicate");
 		expect(g.find("same")).toBe(winner);
 		expect(renderSnapshot(g).nodes).toHaveLength(2);
-		expect(d.live.size).toBe(0);
 		releaseGraphNodes(g, [input, winner!]);
 	});
 });
@@ -429,15 +312,16 @@ describe("D167 exact command binding and existing D110 batch fate", () => {
 		first();
 		expect(f.bus.commands.deps).toEqual([f.publish]);
 	});
-	it("retains committed deps when new dependency activation throws", () => {
+	it("refuses a released source before changing the bus's dependencies", () => {
 		const f = busFixture();
 		const source = f.graph.node<MessageBusCommand>([], null);
 		const subscribe = vi.spyOn(source, "subscribe");
-		// A node released from its graph cannot be subscribed: the bus commits the new dependency,
-		// then subscribing it throws.
+		// A node released from its graph cannot be attached: the refusal comes before any change,
+		// so the bus keeps the dependencies it had (graphrefly-ts:D193 (6): the graph layer checks
+		// release; the kernel never sees the released node).
 		releaseGraphNodes(f.graph, [source]);
 		expect(() => attachMessageBusCommandSource(f.graph, f.bus, source)).toThrow(/released/);
-		expect(f.bus.commands.deps).toEqual([f.publish, source]);
+		expect(f.bus.commands.deps).toEqual([f.publish]);
 		expect(subscribe).not.toHaveBeenCalled();
 	});
 	it("public toTopic release survives a rolled-back remove", () => {
@@ -465,7 +349,7 @@ describe("D167 exact command binding and existing D110 batch fate", () => {
 		expect(first).not.toThrow();
 		expect(duplicate).not.toThrow();
 	});
-	it("ordinary data flow still uses dispatcher/dependencies after composition", () => {
+	it("ordinary data flow still uses dependencies after composition", () => {
 		const g = new Graph();
 		const a = g.state(2);
 		const b = g.node([a], (ctx) => ctx.down([["DATA", ctx.deps[0].value]]));

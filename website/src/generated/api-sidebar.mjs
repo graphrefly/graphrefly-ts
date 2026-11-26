@@ -5,8 +5,8 @@ export const apiSidebar = [
 		"collapsed": true,
 		"items": [
 			{
-				"label": "Dispatcher",
-				"link": "/api/dispatcher"
+				"label": "Node",
+				"link": "/api/node"
 			},
 			{
 				"label": "isInvalidErrorPayload()",

@@ -1,5 +1,4 @@
 import type { Ctx, NodeFn } from "../ctx/types.js";
-import type { Dispatcher, Handle } from "../dispatcher/index.js";
 import type { Node } from "./node.js";
 
 /**
@@ -65,8 +64,6 @@ export interface NodeOptions<T = unknown> {
 	 * without one is local-only in a checkpoint.
 	 */
 	recipe?: unknown;
-	/** Dispatcher to register/invoke against. Default = process-global (D26). */
-	dispatcher?: Dispatcher;
 	/** Optional debug name (graph layer owns real naming/inspection). */
 	name?: string;
 	/**
@@ -114,7 +111,6 @@ export interface NodeCheckpointState {
 	readonly privateState: unknown;
 	/** R-checkpoint@1: the note of a seed not yet run with; `undefined` when there is none. */
 	readonly seedNote: unknown;
-	readonly handle: Handle | null;
 }
 
 /** R-node: what replace gives a new instance besides its dependencies and function. */

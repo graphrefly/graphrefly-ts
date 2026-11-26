@@ -10,25 +10,14 @@
  * One Kernel is one graph's domain (R-graph-domain@3): its wave, request queue and batch. A KNode
  * is one node's kernel record; the package's Node object is its handle.
  *
- * Package seams kept for now (graphrefly-ts:D193 removes them in phase 1b): the dispatcher handle
- * a function is invoked through, the graph's environment drivers, the running-graph binding of a
- * node built during a run, the CTX_NODE_BINDING ctx channel and the live-or-snapshot marks.
+ * The kernel holds only what a rule or TypeScript requires (graphrefly-ts:D193): no dispatcher
+ * table, no node removal, and a ctx that carries what R-invocation and R-lifetime give it. The
+ * graph's environment drivers sit on its Kernel, for the operators and sources built on it.
  */
-import {
-	CTX_NODE_BINDING,
-	type Ctx,
-	type CtxDep,
-	type CtxNodeBinding,
-	type DepTerminal,
-	type NodeFn,
-	type Sink,
-	setCtxDepWaveOrigin,
-} from "../ctx/types.js";
-import type { Dispatcher, Handle } from "../dispatcher/index.js";
-import type { EnvironmentDrivers } from "../graph/environment.js";
+import type { Ctx, CtxDep, DepTerminal, NodeFn, Sink } from "../ctx/types.js";
+import { EnvironmentDrivers } from "../graph/environment.js";
 import type { Message, Wave } from "../protocol/messages.js";
 import type { Node } from "./node.js";
-import { withEnvironmentDrivers, withNodeCore, withRunningGraph } from "./runtime-accessors.js";
 
 export class KernelError extends Error {}
 
@@ -84,7 +73,7 @@ const messageOf = (e: unknown): unknown => (e instanceof Error ? e.message : e);
  * R-failure@5: a throw's ERROR payload is the message of the error thrown, or the thrown value
  * itself; a value that cannot be an ERROR payload gives the empty string.
  */
-export function errorPayloadOf(e: unknown): unknown {
+function errorPayloadOf(e: unknown): unknown {
 	const payload = messageOf(e);
 	return payload === undefined || typeof payload === "boolean" ? "" : payload;
 }
@@ -115,8 +104,6 @@ interface Input {
 	value: unknown;
 	ended: Terminal | null;
 	frames: Frame[];
-	/** For each frame, whether it came live and not as a snapshot (phase 1b removes this). */
-	live: boolean[];
 	invalidated: boolean;
 	/** R-invocation@4: the dependency got a new instance and the function has not run since. */
 	replaced: boolean;
@@ -127,7 +114,6 @@ const freshInput = (): Input => ({
 	value: undefined,
 	ended: null,
 	frames: [],
-	live: [],
 	invalidated: false,
 	replaced: false,
 });
@@ -166,8 +152,6 @@ interface Lifetime {
 	controller: AbortController | null;
 	setupDone: boolean;
 	cleanup: (() => void) | null;
-	/** The rewire the diff seam has planned and not yet run (phase 1b removes this). */
-	plannedDeps: KNode[] | null;
 }
 
 // biome-ignore lint/suspicious/noConfusingVoidType: a setup returns its cleanup or nothing.
@@ -206,16 +190,10 @@ export interface KNode {
 	inputs: Input[];
 	/** Its place in creation order (R-request-order@7). */
 	readonly created: number;
-	/** Package seams (phase 1b removes the dispatcher and the environment from the kernel). */
-	handle: Handle | null;
-	readonly dispatcher: Dispatcher;
-	readonly environment: EnvironmentDrivers;
 	readonly name: string | undefined;
 	readonly factory: string | undefined;
 	/** Graph-layer topology hook (D145): called when the current dependencies change. */
 	onDepsChanged: ((prev: readonly KNode[], next: readonly KNode[]) => void) | undefined;
-	/** Graph-layer release (graphrefly-ts:D193 (1), until phase 3). */
-	released: boolean;
 }
 
 type Req = (() => void) & { askedIn?: number; by?: KNode | null; batchToken?: object };
@@ -234,6 +212,8 @@ class Deferred {
 
 /** One graph's domain (R-graph-domain@3). */
 export class Kernel {
+	/** The graph's environment drivers (D130/D131), for the sources built on it. */
+	environment: EnvironmentDrivers = EnvironmentDrivers.empty();
 	report: ((failure: HostFailure) => void) | undefined;
 	/** R-node@4 (graphrefly:D812): require a recipe on every computed instance. */
 	requireRecipe = false;
@@ -253,7 +233,6 @@ export class Kernel {
 	running: KNode | null = null;
 	/** The running task stack (see exec), or null when no task runs. */
 	tasks: Task[] | null = null;
-	/** Late output a function sent through a ctx that is being delivered (a batch commit). */
 }
 
 // ---- Failure reporting (R-failure@5) ---------------------------------------------------------
@@ -380,9 +359,6 @@ export interface MakeNodeSpec {
 	readonly recipe?: unknown;
 	readonly initial?: unknown;
 	readonly seed?: KernelSeed;
-	readonly handle: Handle | null;
-	readonly dispatcher: Dispatcher;
-	readonly environment: EnvironmentDrivers;
 	readonly name?: string;
 	readonly factory?: string;
 }
@@ -467,13 +443,9 @@ export function makeKNode(k: Kernel, spec: MakeNodeSpec): KNode {
 		pendingDeps: new Set(),
 		inputs: deps.map(freshInput),
 		created: k.created++,
-		handle: spec.handle,
-		dispatcher: spec.dispatcher,
-		environment: spec.environment,
 		name: spec.name,
 		factory: spec.factory,
 		onDepsChanged: undefined,
-		released: false,
 	};
 	return n;
 }
@@ -601,10 +573,6 @@ export function idle(k: Kernel): boolean {
 	return !k.busy && k.staging === null;
 }
 
-export function inBatchBody(k: Kernel): boolean {
-	return k.staging !== null;
-}
-
 // ---- Tasks ---------------------------------------------------------------------------------
 //
 // TypeScript has no deep recursion: a chain of thousands of nodes (graphrefly-ts Q15) overflows the
@@ -636,7 +604,7 @@ function exec(k: Kernel, task: Task): void {
 // ---- Lifetimes (R-lifetime@2) ----------------------------------------------------------------
 
 function openLifetime(n: KNode): void {
-	n.lifetime = { open: true, controller: null, setupDone: false, cleanup: null, plannedDeps: null };
+	n.lifetime = { open: true, controller: null, setupDone: false, cleanup: null };
 }
 
 function runCleanup(n: KNode, f: () => void): void {
@@ -709,10 +677,7 @@ function* activateTask(n: KNode): Task {
 function firstRun(n: KNode): Frame[] {
 	const depError = n.inputs.map((input) => input.ended).find((t) => t?.[0] === "ERROR");
 	const out = depError && n.policy.error === "auto" ? [[depError] as Frame] : invoke(n);
-	for (const input of n.inputs) {
-		input.frames = [];
-		input.live = [];
-	}
+	for (const input of n.inputs) input.frames = [];
 	const allEnded = n.deps.length > 0 && n.inputs.every((input) => input.ended);
 	return n.policy.complete === "auto" && allEnded && !out.flat().some(isTerminal)
 		? [...out, [["COMPLETE"]]]
@@ -739,7 +704,6 @@ function snapshotInput(dep: KNode): Input {
 		value: dep.cache,
 		ended: dep.ended,
 		frames: snapshot.length > 0 ? [snapshot] : [],
-		live: snapshot.length > 0 ? [false] : [],
 	};
 }
 
@@ -781,17 +745,8 @@ function invoke(n: KNode): Frame[] {
 		if (!invoking)
 			throw new KernelError("ctx.deps is only available during setup or function invocation");
 	};
-	const liveByDep: boolean[][] = [];
 	const deps = n.inputs.map((input, i) => {
-		const valueFrames: Frame[] = [];
-		const live: boolean[] = [];
-		input.frames.forEach((f, j) => {
-			if (f.some(isValue)) {
-				valueFrames.push(f);
-				live.push(input.live[j] ?? true);
-			}
-		});
-		liveByDep[i] = live;
+		const valueFrames = input.frames.filter((f) => f.some(isValue));
 		const view = {
 			id: () => idOf(n.deps[i] as KNode),
 			waves: valueFrames.map((f) => f.filter((m) => m[0] === "DATA").map((m) => m[1])),
@@ -839,42 +794,6 @@ function invoke(n: KNode): Frame[] {
 		seed = n.seedNote;
 		n.seedNote = undefined;
 	}
-	const binding: CtxNodeBinding = {
-		dispatcher: n.dispatcher,
-		create: (factory) =>
-			withEnvironmentDrivers(n.environment, () =>
-				withNodeCore(
-					k,
-					() => withRunningGraph(k, n.environment, n.dispatcher, factory),
-					n.dispatcher,
-				),
-			),
-		// Several diffs in one lifetime accumulate into one queued rewire (phase 1b removes this).
-		rewireDiff: (add, remove) => {
-			if (!lifetime.open) return;
-			const first = lifetime.plannedDeps === null;
-			lifetime.plannedDeps = diffList(
-				lifetime.plannedDeps ?? n.deps,
-				add.map(kOf),
-				remove.map(kOf),
-			);
-			if (!first) return;
-			request(k, () => {
-				const next = lifetime.plannedDeps as KNode[];
-				lifetime.plannedDeps = null;
-				if (!lifetime.open || n.lifetime !== lifetime) return;
-				assertAcyclic("rewire", n, next);
-				for (const d of next) assertStartable(d);
-				rewireNode(n, next);
-			});
-		},
-		rewireDiffNow: (add, remove) => {
-			if (!lifetime.open || n.lifetime !== lifetime) return;
-			const next = diffList(n.deps, add.map(kOf), remove.map(kOf));
-			assertAcyclic("rewire", n, next);
-			rewireNode(n, next);
-		},
-	};
 	const ctx: Ctx = {
 		get deps() {
 			assertInvocation();
@@ -901,9 +820,6 @@ function invoke(n: KNode): Frame[] {
 			}
 			later(n, lifetime, frames);
 		},
-		emit(...values) {
-			if (values.length > 0) this.down(values.map((v) => ["DATA", v] as Message));
-		},
 		get signal() {
 			if (!lifetime.controller) {
 				lifetime.controller = new AbortController();
@@ -911,7 +827,6 @@ function invoke(n: KNode): Frame[] {
 			}
 			return lifetime.controller.signal;
 		},
-		environment: () => n.environment,
 		rewire(list) {
 			if (!lifetime.open) return;
 			const next = list.map(kOf); // R-node@4: the list as it is now
@@ -929,39 +844,22 @@ function invoke(n: KNode): Frame[] {
 			});
 		},
 		seed,
-		[CTX_NODE_BINDING]: binding,
 	};
-	setCtxDepWaveOrigin(ctx, { live: (i) => liveByDep[i] });
 	const prevRunning = k.running;
 	k.running = n;
 	try {
-		withRunningGraph(k, n.environment, n.dispatcher, () => {
-			if (!lifetime.setupDone) {
-				lifetime.setupDone = true;
-				const cleanup = n.setup?.(ctx);
-				if (typeof cleanup === "function") lifetime.cleanup = cleanup;
-			}
-			if (n.handle !== null) n.dispatcher.invoke(n.handle, ctx);
-			else (n.fn as NodeFn)(ctx);
-		});
+		if (!lifetime.setupDone) {
+			lifetime.setupDone = true;
+			const cleanup = n.setup?.(ctx);
+			if (typeof cleanup === "function") lifetime.cleanup = cleanup;
+		}
+		(n.fn as NodeFn)(ctx);
 	} catch (e) {
 		return [[["ERROR", errorPayloadOf(e)]]]; // R-failure@5: what it sent is dropped
 	} finally {
 		k.running = prevRunning;
 		invoking = false;
 	}
-	return out;
-}
-
-/** `list` with `remove` taken out and `add` appended where absent (phase 1b removes this). */
-function diffList(
-	list: readonly KNode[],
-	add: readonly KNode[],
-	remove: readonly KNode[],
-): KNode[] {
-	const removed = new Set(remove);
-	const out = list.filter((d) => !removed.has(d));
-	for (const a of add) if (!out.includes(a)) out.push(a);
 	return out;
 }
 
@@ -974,7 +872,7 @@ function later(n: KNode, lifetime: Lifetime | null, frames: Frame[], stageWithBa
 		return;
 	}
 	request(k, () => {
-		if (lifetime !== null && (!lifetime.open || n.lifetime !== lifetime)) return;
+		if (lifetime === null || !lifetime.open || n.lifetime !== lifetime) return;
 		runWave([{ node: n, frames }]);
 	});
 }
@@ -1055,7 +953,9 @@ function deliver(n: KNode, out: Frame[], after?: () => void): void {
 function* deliverTask(n: KNode, sent: Frame[], subs: Sub[], after?: () => void): Task {
 	for (const sub of subs) {
 		if (sub.kind === "sink") for (const f of sent) deliverToSink(n, sub.fn, f);
-		else {
+		else if (n.subs.includes(sub)) {
+			// A dependent released while this delivery ran (an earlier subscriber ended and let go
+			// of the chain that held it) has closed its lifetime, and receives nothing more.
 			receive(sub.node, sub.dep, sent);
 			yield;
 		}
@@ -1084,7 +984,6 @@ function receive(m: KNode, i: number, frames: readonly Frame[]): void {
 			if (isTerminal(msg)) input.ended = msg;
 		}
 		input.frames.push(f);
-		input.live.push(true);
 	}
 	if (frames.some((f) => f.some(settles))) m.pendingDeps.delete(i);
 	if (m.pendingDeps.size === 0) settle(m);
@@ -1100,7 +999,6 @@ function settle(m: KNode): void {
 	const clear = () => {
 		for (const input of m.inputs) {
 			input.frames = [];
-			input.live = [];
 			input.invalidated = false;
 		}
 	};
@@ -1123,7 +1021,6 @@ function settle(m: KNode): void {
 		const at = lastIndexWhere(input.frames, isInvalidate);
 		if (at < 0) continue;
 		input.frames = input.frames.slice(at + 1);
-		input.live = input.live.slice(at + 1);
 		input.invalidated = true;
 		invalidated = true;
 	}
@@ -1178,7 +1075,6 @@ function runWave(entries: Array<{ node: KNode; frames: Frame[] }>): void {
 
 export interface ReplaceSpec {
 	readonly fn: NodeFn;
-	readonly handle: Handle | null;
 	readonly setup?: Setup;
 	readonly recipe?: unknown;
 }
@@ -1189,14 +1085,12 @@ function replaceNode(n: KNode, deps: KNode[], spec: ReplaceSpec): void {
 		old.open = false;
 		old.controller?.abort();
 	}
-	if (!old) n.deps = [];
 	const prevDeps = n.deps;
+	if (!old) n.deps = []; // inactive or ended: no connection is held
 	exchange(n, deps);
 	if (old?.cleanup) runCleanup(n, old.cleanup);
-	const oldHandle = n.handle;
 	Object.assign(n, {
 		fn: spec.fn,
-		handle: spec.handle,
 		setup: spec.setup ?? null,
 		recipe: spec.recipe,
 		seedNote: undefined,
@@ -1210,7 +1104,6 @@ function replaceNode(n: KNode, deps: KNode[], spec: ReplaceSpec): void {
 		privateState: undefined,
 		pending: false,
 	});
-	if (oldHandle !== null && oldHandle !== spec.handle) n.dispatcher.unregister(oldHandle);
 	n.pendingDeps.clear();
 	if (prevDeps !== deps) n.onDepsChanged?.(prevDeps, deps);
 	if (!n.active) return;
@@ -1309,14 +1202,8 @@ function resolveStaged(n: KNode, msgs: readonly Message[]): Message[] {
 	return out;
 }
 
-function assertNotReleased(n: KNode, label: string): void {
-	if (n.released)
-		throw new KernelError(`${label} has been released from its graph lifecycle (D122)`);
-}
-
 /** R-terminals: a host input to an ended node is refused; one to a state runs in request order. */
 export function hostInput(n: KNode, msg: Message, label = "down"): void {
-	assertNotReleased(n, label);
 	if (n.kind !== "state") throw new KernelError(`${label}: only a state node takes host input`);
 	if (n.ended) throw new KernelError(`${label}: this node has ended (R-terminals)`);
 	if (!(msg[0] === "DATA" && msg[1] instanceof Deferred)) assertPayload(msg);
@@ -1347,7 +1234,6 @@ export function hostSet(n: KNode, value: unknown): void {
 
 /** subscribe(sink, node): one first array, START and the snapshot; returns the unsubscribe. */
 export function subscribe(n: KNode, sink: Sink): () => void {
-	assertNotReleased(n, "subscribe");
 	const k = n.kernel;
 	let sub: Sub | undefined;
 	let cancelled = false;
@@ -1373,7 +1259,6 @@ export function subscribe(n: KNode, sink: Sink): () => void {
 // ---- Replace and rewire requests -------------------------------------------------------------
 
 export function replace(n: KNode, deps: readonly KNode[], spec: ReplaceSpec): void {
-	assertNotReleased(n, "replace");
 	if (n.kind !== "node")
 		throw new KernelError("replace: a state node is not replaced (R-request-order)");
 	const k = n.kernel;
@@ -1391,17 +1276,13 @@ export function replace(n: KNode, deps: readonly KNode[], spec: ReplaceSpec): vo
 	});
 }
 
-/** Immediate rewire for a node's own seam (graphrefly-ts:D193 removes it in phase 1b). */
-export function rewireNow(n: KNode, deps: readonly KNode[]): void {
-	assertAcyclic("rewire", n, deps);
-	rewireNode(n, [...deps]);
-}
-
 // ---- Batch (R-request-order@7) ---------------------------------------------------------------
 
 export function batch<T>(k: Kernel, body: () => T): T {
 	if (Object.prototype.toString.call(body) === "[object AsyncFunction]")
-		throw new KernelError("batch body is an async function; await first, then batch the writes");
+		throw new KernelError(
+			"batch: the body must be synchronous; finish asynchronous work first, then batch the writes",
+		);
 	const reportPromise = (result: T) => {
 		if (typeof (result as { then?: unknown } | null | undefined)?.then === "function")
 			reportFailure(
@@ -1464,6 +1345,15 @@ export function status(n: KNode): KStatus {
 		output: !n.ended ? "open" : n.ended[0] === "COMPLETE" ? "completed" : "errored",
 		lifecycle: n.lifetime && !n.lifetime.open ? "closing" : n.active ? "active" : "inactive",
 	};
+}
+
+/**
+ * TRANSITIONAL (graphrefly-ts:D193 (1), (6)): how many subscribers and dependents hold the node,
+ * read by the graph layer's helper release before it lets a node go. Removed with that release by
+ * the end of phase 3 of graphrefly-ts:D817-KERNEL-REPORT-TS; nothing else may read it.
+ */
+export function subscriberCount(n: KNode): number {
+	return n.subs.length;
 }
 
 /** Per current dependency, whether it was replaced and the function has not run since. */

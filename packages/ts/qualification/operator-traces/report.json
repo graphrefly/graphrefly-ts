@@ -3,7 +3,7 @@
 	"rootCommit": "c11f03e90f24c7c7edcd12aac1c4f577aeee1768",
 	"tracesSha256": "e4786d556a67c3611abf0a7d4bd8297b780faed3d7a451fd7feead21d9f82f0a",
 	"packageRevision": "graphrefly-ts:0.10.0",
-	"sourceRevision": "5eea7aa282dae0f9e17d5dd98d8dc0c4f894d036",
+	"sourceRevision": "working tree",
 	"clock": "vitest fake timers (vi.useFakeTimers), advanced only by advance steps",
 	"baseline": "Phase 0 of graphrefly-ts:D817-KERNEL-REPORT-TS, on the kernel before its re-port: failures are classified, not diagnosed",
 	"ships": [
@@ -53,12 +53,12 @@
 	},
 	"summary": {
 		"traces": 708,
-		"pass": 251,
-		"fail": 274,
+		"pass": 267,
+		"fail": 258,
 		"notRun": 183,
 		"failByClass": {
-			"behavior": 146,
-			"error": 73,
+			"behavior": 129,
+			"error": 74,
 			"framing": 55
 		}
 	},
@@ -144,10 +144,7 @@
 		},
 		{
 			"id": "OT-17",
-			"result": "fail",
-			"class": "behavior",
-			"step": 1,
-			"detail": "step 1 [\"set\",\"s\",[[\"A\",\"B\"],[\"C\"]]]: k <- x: expected [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"a1\"]],[[\"PENDING\"],[\"DATA\",\"b1\"]],[[\"PENDING\"],[\"DATA\",\"c1\"]]] got [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"a1\"]],[[\"PENDING\"],[\"ERROR\",{\"error\":\"Cannot read properties of undefined (reading 'terminal')\"}]]]"
+			"result": "pass"
 		},
 		{
 			"id": "OT-18",
@@ -1382,10 +1379,7 @@
 		},
 		{
 			"id": "OT-242",
-			"result": "fail",
-			"class": "behavior",
-			"step": 2,
-			"detail": "step 2 [\"set\",\"raw\",[[\"A\",\"B\"],[\"C\"]]]: k <- x: expected [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"a1\"]],[[\"PENDING\"],[\"DATA\",\"b1\"]],[[\"PENDING\"],[\"DATA\",\"c1\"]]] got [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"a1\"]],[[\"PENDING\"],[\"ERROR\",{\"error\":\"Cannot read properties of undefined (reading 'terminal')\"}]]]"
+			"result": "pass"
 		},
 		{
 			"id": "OT-243",
@@ -1535,10 +1529,7 @@
 		},
 		{
 			"id": "OT-272",
-			"result": "fail",
-			"class": "behavior",
-			"step": 4,
-			"detail": "step 4 [\"subscribe\",\"k\",\"c\"]: k <- c: expected [[[\"START\"]],[[\"PENDING\"],[\"DATA\",\"a1\"]],[[\"PENDING\"],[\"DATA\",\"b1\"]]] got [[[\"START\"]],[[\"PENDING\"],[\"DATA\",\"a1\"]],[[\"PENDING\"],[\"ERROR\",{\"error\":\"Cannot read properties of undefined (reading 'terminal')\"}]]]"
+			"result": "pass"
 		},
 		{
 			"id": "OT-273",
@@ -1806,10 +1797,7 @@
 		},
 		{
 			"id": "OT-324",
-			"result": "fail",
-			"class": "behavior",
-			"step": 1,
-			"detail": "step 1 [\"set\",\"raw\",[[\"A\",\"B\"],[\"C\",\"D\",\"E\"]]]: k <- x: expected [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"a1\"]],[[\"PENDING\"],[\"DATA\",\"b1\"]],[[\"PENDING\"],[\"DATA\",\"c1\"]]] got [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"a1\"]],[[\"PENDING\"],[\"ERROR\",{\"error\":\"Cannot read properties of undefined (reading 'terminal')\"}]]]"
+			"result": "pass"
 		},
 		{
 			"id": "OT-325",
@@ -1824,10 +1812,7 @@
 		},
 		{
 			"id": "OT-327",
-			"result": "fail",
-			"class": "behavior",
-			"step": 6,
-			"detail": "step 6 [\"batch\",[[\"complete\",\"B\"],[\"set\",\"o\",\"D\"],[\"set\",\"o\",\"E\"]]]: k <- x: expected [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"d1\"]],[[\"PENDING\"],[\"DATA\",\"e1\"]]] got [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"d1\"]],[[\"PENDING\"],[\"ERROR\",{\"error\":\"Cannot read properties of undefined (reading 'terminal')\"}]]]"
+			"result": "pass"
 		},
 		{
 			"id": "OT-328",
@@ -1967,17 +1952,11 @@
 		},
 		{
 			"id": "OT-353",
-			"result": "fail",
-			"class": "behavior",
-			"step": 1,
-			"detail": "step 1 [\"set\",\"raw\",[[\"A\",\"B\",\"C\",\"D\",\"E\",\"F\"]]]: k <- x: expected [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"a1\"]],[[\"PENDING\"],[\"DATA\",\"b1\"]],[[\"PENDING\"],[\"DATA\",\"c1\"]],[[\"PENDING\"],[\"DATA\",\"d1\"]]] got [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"a1\"]],[[\"PENDING\"],[\"ERROR\",{\"error\":\"Cannot read properties of undefined (reading 'terminal')\"}]]]"
+			"result": "pass"
 		},
 		{
 			"id": "OT-354",
-			"result": "fail",
-			"class": "behavior",
-			"step": 1,
-			"detail": "step 1 [\"set\",\"raw\",[[\"A\",\"B\",\"C\",\"D\",\"E\",\"F\",\"G\",\"H\",\"I\",\"J\",\"K\"]]]: k <- x: expected [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"a1\"]],[[\"PENDING\"],[\"DATA\",\"b1\"]],[[\"PENDING\"],[\"DATA\",\"c1\"]],[[\"PENDING\"],[\"DATA\",\"d1\"]],[[\"PENDING\"],[\"DATA\",\"e1\"]],[[\"PENDING\"],[\"DATA\",\"f1\"]],[[\"PENDING\"],[\"DATA\",\"g1\"]],[[\"PENDING\"],[\"DATA\",\"h1\"]],[[\"PENDING\"],[\"DATA\",\"i1\"]],[[\"PENDING\"],[\"DATA\",\"j1\"]],[[\"PENDING\"],[\"DATA\",\"k1\"]]] got [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"a1\"]],[[\"PENDING\"],[\"ERROR\",{\"error\":\"Cannot read properties of undefined (reading 'terminal')\"}]]]"
+			"result": "pass"
 		},
 		{
 			"id": "OT-355",
@@ -1985,24 +1964,15 @@
 		},
 		{
 			"id": "OT-356",
-			"result": "fail",
-			"class": "behavior",
-			"step": 2,
-			"detail": "step 2 [\"set\",\"raw\",[[\"A\",\"A\",\"B\",\"A\"]]]: k <- x: expected [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"a1\"]],[[\"PENDING\"],[\"DATA\",\"b1\"]]] got [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"a1\"]],[[\"PENDING\"],[\"ERROR\",{\"error\":\"Cannot read properties of undefined (reading 'terminal')\"}]]]"
+			"result": "pass"
 		},
 		{
 			"id": "OT-357",
-			"result": "fail",
-			"class": "behavior",
-			"step": 2,
-			"detail": "step 2 [\"set\",\"raw\",[[\"A\",\"B\"]]]: k <- x: expected [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"a1\"]],[[\"PENDING\"],[\"DATA\",\"b1\"]]] got [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"a1\"]],[[\"PENDING\"],[\"ERROR\",{\"error\":\"Cannot read properties of undefined (reading 'terminal')\"}]]]"
+			"result": "pass"
 		},
 		{
 			"id": "OT-358",
-			"result": "fail",
-			"class": "behavior",
-			"step": 1,
-			"detail": "step 1 [\"set\",\"raw\",[[\"A\",\"B\",\"C\"]]]: k <- x: expected [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"a1\"]],[[\"PENDING\"],[\"DATA\",\"b1\"]]] got [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"a1\"]],[[\"PENDING\"],[\"ERROR\",{\"error\":\"Cannot read properties of undefined (reading 'terminal')\"}]]]"
+			"result": "pass"
 		},
 		{
 			"id": "OT-359",
@@ -2013,21 +1983,15 @@
 			"result": "fail",
 			"class": "behavior",
 			"step": 4,
-			"detail": "step 4 [\"set\",\"raw\",[[\"A\"],[\"B\"]]]: k <- x: expected [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"ERROR\",\"bad\"]]] got [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"a1\"]],[[\"PENDING\"],[\"ERROR\",{\"error\":\"Cannot read properties of undefined (reading 'terminal')\"}]]]"
+			"detail": "step 4 [\"set\",\"raw\",[[\"A\"],[\"B\"]]]: k <- x: expected [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"ERROR\",\"bad\"]]] got [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"a1\"]],[[\"PENDING\"],[\"DATA\",\"b1\"]],[[\"PENDING\"],[\"ERROR\",\"bad\"]]]"
 		},
 		{
 			"id": "OT-361",
-			"result": "fail",
-			"class": "behavior",
-			"step": 1,
-			"detail": "step 1 [\"set\",\"raw\",[[\"A\",\"B\",\"C\",\"D\"]]]: k <- x: expected [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"a1\"]],[[\"PENDING\"],[\"DATA\",\"b1\"]],[[\"PENDING\"],[\"DATA\",\"c1\"]]] got [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"a1\"]],[[\"PENDING\"],[\"ERROR\",{\"error\":\"Cannot read properties of undefined (reading 'terminal')\"}]]]"
+			"result": "pass"
 		},
 		{
 			"id": "OT-362",
-			"result": "fail",
-			"class": "behavior",
-			"step": 1,
-			"detail": "step 1 [\"set\",\"raw\",[[\"A\",\"B\",\"C\",\"D\"]]]: k <- x: expected [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"a1\"]],[[\"PENDING\"],[\"DATA\",\"b1\"]]] got [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"a1\"]],[[\"PENDING\"],[\"ERROR\",{\"error\":\"Cannot read properties of undefined (reading 'terminal')\"}]]]"
+			"result": "pass"
 		},
 		{
 			"id": "OT-363",
@@ -2055,9 +2019,9 @@
 		{
 			"id": "OT-368",
 			"result": "fail",
-			"class": "behavior",
-			"step": 1,
-			"detail": "step 1 [\"set\",\"raw\",[[\"A\",\"B\",\"C\",\"D\"]]]: k <- x: expected [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"a1\"]],[[\"PENDING\"],[\"DATA\",\"b1\"]]] got [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"a1\"]],[[\"PENDING\"],[\"ERROR\",{\"error\":\"Cannot read properties of undefined (reading 'terminal')\"}]]]"
+			"class": "error",
+			"step": 2,
+			"detail": "restore: not restorable: x: its private state is not JSON"
 		},
 		{
 			"id": "OT-369",
@@ -2190,10 +2154,7 @@
 		},
 		{
 			"id": "OT-393",
-			"result": "fail",
-			"class": "behavior",
-			"step": 1,
-			"detail": "step 1 [\"set\",\"raw\",[[\"A\",\"B\",\"C\",\"A\",\"D\"]]]: k <- x: expected [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"a1\"]],[[\"PENDING\"],[\"DATA\",\"b1\"]],[[\"PENDING\"],[\"DATA\",\"c1\"]]] got [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"a1\"]],[[\"PENDING\"],[\"ERROR\",{\"error\":\"Cannot read properties of undefined (reading 'terminal')\"}]]]"
+			"result": "pass"
 		},
 		{
 			"id": "OT-394",
@@ -2201,10 +2162,7 @@
 		},
 		{
 			"id": "OT-395",
-			"result": "fail",
-			"class": "behavior",
-			"step": 1,
-			"detail": "step 1 [\"set\",\"raw\",[[\"A\",\"B\",\"C\"],\"COMPLETE\"]]: k <- x: expected [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"a1\"]],[[\"PENDING\"],[\"DATA\",\"b1\"]]] got [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"a1\"]],[[\"PENDING\"],[\"ERROR\",{\"error\":\"Cannot read properties of undefined (reading 'terminal')\"}]]]"
+			"result": "pass"
 		},
 		{
 			"id": "OT-396",
@@ -2216,17 +2174,11 @@
 		},
 		{
 			"id": "OT-398",
-			"result": "fail",
-			"class": "behavior",
-			"step": 4,
-			"detail": "step 4 [\"set\",\"raw\",[[\"B\",\"C\",\"A\"]]]: k <- b: expected [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"b1\"]],[[\"PENDING\"],[\"DATA\",\"c1\"]]] got [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"b1\"]],[[\"PENDING\"],[\"ERROR\",{\"error\":\"Cannot read properties of undefined (reading 'terminal')\"}]]]"
+			"result": "pass"
 		},
 		{
 			"id": "OT-399",
-			"result": "fail",
-			"class": "behavior",
-			"step": 2,
-			"detail": "step 2 [\"set\",\"raw1\",[[\"A\",\"B\",\"C\"]]]: k <- a: expected [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"a1\"]],[[\"PENDING\"],[\"DATA\",\"b1\"]]] got [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"a1\"]],[[\"PENDING\"],[\"ERROR\",{\"error\":\"Cannot read properties of undefined (reading 'terminal')\"}]]]"
+			"result": "pass"
 		},
 		{
 			"id": "OT-400",

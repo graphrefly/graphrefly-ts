@@ -1,6 +1,4 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ctxRewireDiff } from "../ctx/types.js";
-import { Dispatcher, type Handle } from "../dispatcher/index.js";
 import {
 	ColdConstructionError,
 	constructionOf,
@@ -11,12 +9,13 @@ import { Graph, type GraphOptions } from "../graph/graph.js";
 import { observeTopology } from "../graph/inspect.js";
 import { renderSnapshot } from "../graph/render.js";
 import * as topology from "../graph/topology.js";
-import { NodeCore, type NodeId } from "../node/core.js";
-import type { StateNode } from "../node/node.js";
-import * as inputRuntime from "../node/node-input-runtime.js";
-import { DEP, LIFECYCLE } from "../node/node-keys.js";
-import * as lifecycleRuntime from "../node/node-lifecycle-runtime.js";
-import { checkpointStateOfNode, subscriberCountOfNode } from "../node/runtime-accessors.js";
+import { kernelOfNode, recordOfNode, type StateNode } from "../node/node.js";
+import * as runtimeAccessors from "../node/runtime-accessors.js";
+import {
+	checkpointStateOfNode,
+	isNodeRuntimeReleased,
+	subscriberCountOfNode,
+} from "../node/runtime-accessors.js";
 import {
 	assertCausalCapabilities,
 	type CausalBinding,
@@ -37,17 +36,17 @@ import { relayFirst } from "./helpers/relay.js";
 
 afterEach(() => vi.restoreAllMocks());
 
-class CountingDispatcher extends Dispatcher {
-	readonly live = new Set<Handle>();
-	override register(...args: Parameters<Dispatcher["register"]>): Handle {
-		const handle = super.register(...args);
-		this.live.add(handle);
-		return handle;
-	}
-	override unregister(handle: Handle): void {
-		super.unregister(handle);
-		this.live.delete(handle);
-	}
+/** The graph's release of each node's runtime runs `fault` first; `fault` may throw. */
+function faultRelease(
+	fault: (node: Parameters<typeof runtimeAccessors.releaseRuntimeOfNode>[0], call: number) => void,
+) {
+	const release = runtimeAccessors.releaseRuntimeOfNode;
+	let calls = 0;
+	vi.spyOn(runtimeAccessors, "releaseRuntimeOfNode").mockImplementation((node) => {
+		fault(node, ++calls);
+		release(node);
+	});
+	return () => calls;
 }
 
 /** `onRun` runs at the start of every run of the right and join functions. */
@@ -56,8 +55,7 @@ function simple(
 	report?: GraphOptions["report"],
 	onRun?: (node: "right" | "join") => void,
 ) {
-	const dispatcher = new CountingDispatcher();
-	const graph = new Graph({ dispatcher, report });
+	const graph = new Graph({ report });
 	const a = graph.state(2, { name: "a" });
 	const b = graph.state(3, { name: "b" });
 	const scope = prepareConstruction(graph, {
@@ -86,7 +84,7 @@ function simple(
 		},
 		{ name: `${name}/join` },
 	);
-	return { graph, dispatcher, a, b, scope, startup, left, right, join };
+	return { graph, a, b, scope, startup, left, right, join };
 }
 
 function causal(graph = new Graph(), fault = false) {
@@ -206,7 +204,6 @@ describe("D161 graph construction ownership", () => {
 			if (node === "join") phases.push(constructionOf(f.graph, "view")?.phase);
 		});
 		expect(subscriberCountOfNode(f.a)).toBe(0);
-		expect(f.dispatcher.live.size).toBe(3);
 		const owner = f.scope.seal(f.startup, [f.join]);
 		f.scope.transferToGraph(owner);
 		expect(phases).toEqual([]);
@@ -256,9 +253,8 @@ describe("D161 graph construction ownership", () => {
 		expect(renderSnapshot(g).nodes).toHaveLength(1);
 	});
 
-	it("cleans a failed constructor handle before a Node is returned", () => {
-		const dispatcher = new CountingDispatcher();
-		const g = new Graph({ dispatcher });
+	it("cleans a failed constructor before a Node is returned", () => {
+		const g = new Graph();
 		const scope = prepareConstruction(g, {
 			name: "cold",
 			epoch: 1,
@@ -268,8 +264,8 @@ describe("D161 graph construction ownership", () => {
 		scope.startupSource();
 		let caught: unknown;
 		try {
-			// A failure after the constructor registered the function's handle, before the node exists.
-			vi.spyOn(NodeCore.prototype, "createSlot").mockImplementationOnce(() => {
+			// A failure after the constructor made the kernel record, before the node exists.
+			vi.spyOn(runtimeAccessors, "issueNodeRegistration").mockImplementationOnce(() => {
 				throw new Error("allocation failure");
 			});
 			scope.node([], () => {}, { name: "cold/bad", initial: 1 });
@@ -278,7 +274,6 @@ describe("D161 graph construction ownership", () => {
 		}
 		expect(caught).toBeDefined();
 		expect(() => scope.abort(caught)).toThrow(ColdConstructionError);
-		expect(dispatcher.live.size).toBe(expectedResources(false, 1, 1).coldRemaining);
 		expect(renderSnapshot(g).nodes).toHaveLength(0);
 	});
 
@@ -288,54 +283,14 @@ describe("D161 graph construction ownership", () => {
 		expect(before).toBe(6);
 		expect(() => f.scope.abort(new Error("seal failed"))).toThrow(/cleanup complete/);
 		expect(renderSnapshot(f.graph).nodes.map((n) => n.id)).toEqual(["a", "b"]);
-		expect(f.dispatcher.live.size).toBe(0);
 		expect(subscriberCountOfNode(f.a)).toBe(0);
 		expect(() => f.graph.node([], null, { name: "view/join" })).toThrow(/cannot be reused/);
 	});
 
-	it("cleans a slot allocated before the constructor returns its Node", () => {
-		const g = new Graph();
-		const scope = prepareConstruction(g, {
-			name: "slot",
-			epoch: 1,
-			inputs: [],
-			names: ["slot/startup", "slot/bad"],
-		});
-		scope.startupSource();
-		const original = NodeCore.prototype.createSlot;
-		let allocated: { core: NodeCore; id: NodeId } | undefined;
-		vi.spyOn(NodeCore.prototype, "createSlot").mockImplementation(function (
-			this: NodeCore,
-			slot,
-			state,
-		) {
-			const result = original.call(this, slot, state);
-			allocated = { core: this, id: result.id };
-			return result;
-		});
-		const brokenGet = vi.spyOn(NodeCore.prototype, "get").mockImplementationOnce(() => {
-			throw new Error("after slot allocation");
-		});
-		let cause: unknown;
-		try {
-			scope.node([], null, { name: "slot/bad" });
-		} catch (error) {
-			cause = error;
-		}
-		brokenGet.mockRestore();
-		expect(allocated).toBeDefined();
-		expect(() => scope.abort(cause)).toThrow(/cleanup complete/);
-		expect(() => allocated!.core.get(allocated!.id)).toThrow(/unknown node slot/);
-	});
-
 	it("reports cleanup failure and still attempts independent resources", () => {
 		const f = simple();
-		const original = f.dispatcher.unregister.bind(f.dispatcher);
-		let calls = 0;
-		vi.spyOn(f.dispatcher, "unregister").mockImplementation((handle) => {
-			calls++;
-			if (calls === 1) throw new Error("cleanup failed");
-			original(handle);
+		const calls = faultRelease((_node, call) => {
+			if (call === 1) throw new Error("cleanup failed");
 		});
 		let failure: ColdConstructionError | undefined;
 		try {
@@ -345,8 +300,14 @@ describe("D161 graph construction ownership", () => {
 		}
 		expect(failure?.originalCause).toBe("original failure");
 		expect(failure?.cleanupErrors.length).toBeGreaterThan(0);
-		expect(calls).toBe(3);
-		expect(f.dispatcher.live.size).toBe(1);
+		// Every registered cold node's release is attempted; only the failed one is left.
+		expect(calls()).toBe(4);
+		expect([f.startup, f.left, f.right, f.join].map(isNodeRuntimeReleased)).toEqual([
+			false,
+			true,
+			true,
+			true,
+		]);
 	});
 
 	it("records the acquired root lease when a failure is reported while the root activates", () => {
@@ -379,7 +340,7 @@ describe("D161 graph construction ownership", () => {
 		expect(owner.roots.find((r) => r.node === f.join)?.unsubscribe).toBeTypeOf("function");
 		expect(subscriberCountOfNode(f.join)).toBe(1);
 		// R-subscription: activation comes before START, so the failure finds the node activated.
-		expect(f.join[LIFECYCLE].activated).toBe(true);
+		expect(recordOfNode(f.join).active).toBe(true);
 	});
 
 	it("keeps deep dependency leases without disturbing a shared existing subscriber when a deep node's activation fails", () => {
@@ -408,7 +369,12 @@ describe("D161 graph construction ownership", () => {
 		expect(String(owner.startupError)).toBe("Error: deep handshake");
 		expect(subscriberCountOfNode(f.a)).toBe(3);
 		expect(subscriberCountOfNode(f.b)).toBe(1);
-		expect(f.right[DEP].inputs[1].unsub).toBeTypeOf("function");
+		// right holds its lease on b, its dependency at place 1.
+		expect(
+			recordOfNode(f.b).subs.some(
+				(sub) => sub.kind === "node" && sub.node === recordOfNode(f.right) && sub.dep === 1,
+			),
+		).toBe(true);
 		f.a.set(4);
 		expect(values).toEqual([2, 4]);
 	});
@@ -528,97 +494,8 @@ describe("D161 graph construction ownership", () => {
 		expect(constructionOf(f.graph, "causal")).toBeUndefined();
 	});
 
-	it("reports every residual handle, including an undefined thrown error", () => {
-		const f = simple();
-		let calls = 0;
-		const original = f.dispatcher.unregister.bind(f.dispatcher);
-		vi.spyOn(f.dispatcher, "unregister").mockImplementation((handle) => {
-			calls++;
-			if (calls <= 2) throw undefined;
-			original(handle);
-		});
-		let failure: ColdConstructionError | undefined;
-		try {
-			f.scope.abort("cold failure");
-		} catch (error) {
-			failure = error as ColdConstructionError;
-		}
-		expect(failure?.cleanupErrors).toHaveLength(2);
-		expect(new Set(failure?.cleanupErrors.map((e) => e.handle))).toEqual(f.dispatcher.live);
-		expect(failure?.cleanupErrors.map((e) => e.resource)).toEqual([
-			"view/left:handle",
-			"view/right:handle",
-		]);
-	});
-
-	it("retains all slot and handle cleanup failures with exact locators", () => {
-		const f = simple();
-		let slots = 0;
-		const releaseSlot = NodeCore.prototype.releaseSlot;
-		vi.spyOn(NodeCore.prototype, "releaseSlot").mockImplementation(function (this: NodeCore, id) {
-			if (++slots <= 2) throw undefined;
-			releaseSlot.call(this, id);
-		});
-		let handles = 0;
-		const unregister = f.dispatcher.unregister.bind(f.dispatcher);
-		vi.spyOn(f.dispatcher, "unregister").mockImplementation((handle) => {
-			if (++handles <= 2) throw new Error("handle");
-			unregister(handle);
-		});
-		let failure: ColdConstructionError | undefined;
-		try {
-			f.scope.abort("original");
-		} catch (error) {
-			failure = error as ColdConstructionError;
-		}
-		const failedSlots = failure!.cleanupErrors.filter((e) => e.slot !== undefined);
-		expect(failedSlots).toHaveLength(2);
-		for (const failed of failedSlots) expect(failed.core!.get(failed.slot!)).toBeDefined();
-		expect(
-			new Set(failure!.cleanupErrors.filter((e) => e.handle !== undefined).map((e) => e.handle)),
-		).toEqual(f.dispatcher.live);
-	});
-
-	it("reports an exact handle when registration fails after Node construction", () => {
-		const dispatcher = new CountingDispatcher();
-		const g = new Graph({ dispatcher });
-		const scope = prepareConstruction(g, {
-			name: "late",
-			epoch: 1,
-			inputs: [],
-			names: ["late/startup", "late/root"],
-		});
-		scope.startupSource();
-		// D167 prechecks known duplicates; exercise an actual post-acquisition race instead.
-		const register = dispatcher.register.bind(dispatcher);
-		vi.spyOn(dispatcher, "register").mockImplementationOnce((...args) => {
-			g.state(1, { name: "late/root" });
-			return register(...args);
-		});
-		let cause: unknown;
-		try {
-			scope.node([], () => {}, { name: "late/root" });
-		} catch (error) {
-			cause = error;
-		}
-		vi.spyOn(dispatcher, "unregister").mockImplementation(() => {
-			throw new Error("unregister");
-		});
-		let failure: ColdConstructionError | undefined;
-		try {
-			scope.abort(cause);
-		} catch (error) {
-			failure = error as ColdConstructionError;
-		}
-		expect(failure?.cleanupErrors).toHaveLength(1);
-		expect(failure?.cleanupErrors[0]?.resource).toBe("late/root:handle");
-		expect(new Set(failure?.cleanupErrors.map((e) => e.handle))).toEqual(dispatcher.live);
-		expect(g.find("late/root")?.cache).toBe(1);
-	});
-
 	it("D167 retains an unpublished node release exception without persisted identity diagnostics", () => {
-		const dispatcher = new CountingDispatcher();
-		const g = new Graph({ dispatcher });
+		const g = new Graph();
 		const scope = prepareConstruction(g, {
 			name: "fallback",
 			epoch: 1,
@@ -626,10 +503,11 @@ describe("D161 graph construction ownership", () => {
 			names: ["fallback/startup", "fallback/root"],
 		});
 		scope.startupSource();
-		const register = dispatcher.register.bind(dispatcher);
-		vi.spyOn(dispatcher, "register").mockImplementationOnce((...args) => {
+		// D167 prechecks known duplicates; a winner takes the name while the root is being built.
+		const issue = runtimeAccessors.issueNodeRegistration;
+		vi.spyOn(runtimeAccessors, "issueNodeRegistration").mockImplementationOnce((node) => {
 			g.state(1, { name: "fallback/root" });
-			return register(...args);
+			issue(node);
 		});
 		let cause: unknown;
 		try {
@@ -638,7 +516,7 @@ describe("D161 graph construction ownership", () => {
 			cause = error;
 		}
 		const cleanup = new Error("release before persistence");
-		vi.spyOn(lifecycleRuntime, "nodeReleaseRuntime").mockImplementation(() => {
+		vi.spyOn(runtimeAccessors, "releaseRuntimeOfNode").mockImplementation(() => {
 			throw cleanup;
 		});
 		let failure: ColdConstructionError | undefined;
@@ -649,43 +527,13 @@ describe("D161 graph construction ownership", () => {
 		}
 		expect(failure?.cleanupErrors).toEqual(
 			expect.arrayContaining([
-				expect.objectContaining({ resource: "fallback/root:runtime", cause: cleanup, dispatcher }),
+				expect.objectContaining({
+					resource: "fallback/root:runtime",
+					cause: cleanup,
+					core: kernelOfNode(g.find("fallback/root")!),
+				}),
 			]),
 		);
-	});
-
-	it("reports a failed partial constructor's exact handle without hiding undefined errors", () => {
-		const dispatcher = new CountingDispatcher();
-		const g = new Graph({ dispatcher });
-		const scope = prepareConstruction(g, {
-			name: "partial",
-			epoch: 1,
-			inputs: [],
-			names: ["partial/startup", "partial/root"],
-		});
-		scope.startupSource();
-		let cause: unknown;
-		try {
-			// A failure after the constructor registered the function's handle, before the node exists.
-			vi.spyOn(NodeCore.prototype, "createSlot").mockImplementationOnce(() => {
-				throw new Error("allocation failure");
-			});
-			scope.node([], () => {}, { name: "partial/root", initial: 1 });
-		} catch (error) {
-			cause = error;
-		}
-		vi.spyOn(dispatcher, "unregister").mockImplementation(() => {
-			throw undefined;
-		});
-		let failure: ColdConstructionError | undefined;
-		try {
-			scope.abort(cause);
-		} catch (error) {
-			failure = error as ColdConstructionError;
-		}
-		expect(failure?.cleanupErrors).toHaveLength(1);
-		expect(failure?.cleanupErrors[0]?.resource).toBe("partial/root:handle");
-		expect(new Set(failure?.cleanupErrors.map((e) => e.handle))).toEqual(dispatcher.live);
 	});
 
 	it("keeps a failed-release owner after an unrelated successful release", () => {
@@ -694,8 +542,8 @@ describe("D161 graph construction ownership", () => {
 		f.scope.transferToGraph(owner);
 		startConstruction(f.graph, owner);
 		for (const root of owner.roots) root.unsubscribe?.();
-		vi.spyOn(f.dispatcher, "unregister").mockImplementationOnce(() => {
-			throw new Error("residual handle");
+		vi.spyOn(runtimeAccessors, "releaseRuntimeOfNode").mockImplementationOnce(() => {
+			throw new Error("residual runtime");
 		});
 		const group = topology.group(f.graph);
 		for (const node of owner.nodes) group.add(node);
@@ -715,24 +563,33 @@ describe("D161 graph construction ownership", () => {
 			inputs: [a, b],
 		});
 		const startup = scope.startupSource();
+		let armed = false;
+		const record = recordOfNode(b);
+		let values = record.values;
+		Object.defineProperty(record, "values", {
+			configurable: true,
+			get() {
+				if (armed) {
+					armed = false;
+					throw new Error("rewire handshake");
+				}
+				return values;
+			},
+			set(v) {
+				values = v;
+			},
+		});
 		const root = scope.node(
 			[a],
 			(ctx) => {
 				if (ctx.state.get() === undefined) {
 					ctx.state.set(true);
-					ctxRewireDiff(ctx, [b]);
+					// The rewire is a request; acquiring b reads b's snapshot, which throws once.
+					armed = true;
+					ctx.rewire([a, b]);
 				}
 			},
 			{ name: "rewired/root" },
-		);
-		// b's dependent (root, after the rewire) throws on the START of its handshake.
-		const receive = inputRuntime.nodeReceiveFromDep;
-		vi.spyOn(inputRuntime, "nodeReceiveFromDep").mockImplementation(
-			(self, idx, arrays, snapshot) => {
-				if (self === root && root.deps[idx] === b && arrays[0]?.[0]?.[0] === "START")
-					throw new Error("rewire handshake");
-				receive(self, idx, arrays, snapshot);
-			},
 		);
 		const owner = scope.seal(startup, [root]);
 		scope.transferToGraph(owner);
@@ -747,7 +604,7 @@ describe("D161 graph construction ownership", () => {
 	});
 
 	it("releases a completed non-causal view without retaining its owner or disturbing shared sources", () => {
-		const g = new Graph({ dispatcher: new CountingDispatcher() });
+		const g = new Graph();
 		const source = g.state(1, { name: "source" });
 		const seen: unknown[] = [];
 		source.subscribe((incoming) => {

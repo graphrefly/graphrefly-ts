@@ -22,13 +22,13 @@ import { moduleName } from "../module-naming.js";
  * Per-language (D6/D24, never in parity, no conformance — the substrate pull is already C-16).
  */
 
-import { type Ctx, ctxRewireDiff, depLiveBatch, type NodeFn } from "../../ctx/types.js";
+import { type Ctx, markRequestFirstRun, type NodeFn, requestWrites } from "../../ctx/types.js";
 import { strictCanonicalJsonBytes } from "../../json/codec.js";
-import { attachableInput } from "../../node/attachable-input.js";
+import { attachableInput, rewireBy } from "../../node/attachable-input.js";
 import { Node } from "../../node/node.js";
 import { errorPayload, type Message } from "../../protocol/messages.js";
 import { registerBackendStateContributor } from "../checkpoint.js";
-import type { Graph } from "../graph.js";
+import { type Graph, hostOfGraph } from "../graph.js";
 import { initNode, type Operator } from "../operators.js";
 import {
 	deadlines,
@@ -465,11 +465,21 @@ function createReactiveMap<K, V>(
 		}
 	}
 
+	// R-request-order: the apply node changes its own dependencies by difference, through the same
+	// helper as its attachable input, so a TTL timer and an attach asked together keep both.
+	function rewireApply(
+		ctx: Ctx,
+		add: readonly Node<unknown>[],
+		remove: readonly (Node<unknown> | null)[],
+	): void {
+		rewireBy(ctx, apply as Node<unknown>, add, remove);
+	}
+
 	function scheduleTtl(ctx: Ctx): void {
 		for (;;) {
 			const next = nextValidExpiry();
 			if (next === undefined) {
-				if (ttlTimer) ctxRewireDiff(ctx, [], [ttlTimer]);
+				if (ttlTimer) rewireApply(ctx, [], [ttlTimer]);
 				ttlTimer = null;
 				ttlTimerDue = undefined;
 				return;
@@ -479,10 +489,14 @@ function createReactiveMap<K, V>(
 				continue;
 			}
 			if (ttlTimerDue === next.expiresAt) return;
-			if (ttlTimer) ctxRewireDiff(ctx, [], [ttlTimer]);
+			if (ttlTimer) rewireApply(ctx, [], [ttlTimer]);
 			ttlTimerDue = next.expiresAt;
-			ttlTimer = initNode(timer(Math.max(0, next.expiresAt - backend.nowMs())), []);
-			ctxRewireDiff(ctx, [ttlTimer]);
+			ttlTimer = initNode(
+				hostOfGraph(graph),
+				timer(Math.max(0, next.expiresAt - backend.nowMs())),
+				[],
+			);
+			rewireApply(ctx, [ttlTimer], []);
 			return;
 		}
 	}
@@ -555,7 +569,7 @@ function createReactiveMap<K, V>(
 				(((ctx.deps[i].waves.length === 0 ? null : ctx.deps[i].waves.flat())?.length ?? 0) > 0 ||
 					ctx.deps[i].terminal?.kind === "complete")
 			) {
-				if (ttlTimer) ctxRewireDiff(ctx, [], [ttlTimer]);
+				if (ttlTimer) rewireApply(ctx, [], [ttlTimer]);
 				ttlTimer = null;
 				ttlTimerDue = undefined;
 				emitExpired(ctx, backend.pruneExpired());
@@ -595,7 +609,7 @@ function createReactiveMap<K, V>(
 	const snapshotPrepOp: Operator<unknown, SnapshotPrep<K, V>> = {
 		factory: "reactiveMap.snapshotPrep",
 		body: (ctx: Ctx) => {
-			if (depLiveBatch(ctx, 1) === null) return;
+			if (requestWrites(ctx, 1) === null) return;
 			const expired = backend.pruneExpired().map(
 				([key, previous]): MapChange<K, V> => ({
 					kind: "delete",
@@ -608,6 +622,7 @@ function createReactiveMap<K, V>(
 		},
 		opts: {
 			quiet: true,
+			setup: markRequestFirstRun,
 		},
 	};
 	const snapshotPrep = graph.initNode(

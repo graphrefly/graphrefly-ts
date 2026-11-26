@@ -12,7 +12,6 @@ import { renderSnapshot } from "../graph/render.js";
  */
 
 import { describe, expect, it } from "vitest";
-import { Dispatcher } from "../dispatcher/index.js";
 import { combine } from "../graph/combinators.js";
 import { reactiveIndex } from "../graph/data-structures/reactive-index.js";
 import { reactiveList } from "../graph/data-structures/reactive-list.js";
@@ -20,6 +19,7 @@ import { mergeReactiveLogs, reactiveLog, scanLog } from "../graph/data-structure
 import { graph } from "../graph/graph.js";
 import type { Message } from "../index.js";
 import type { Node } from "../node/node.js";
+import { kernelOfNode } from "../node/node.js";
 import { asState } from "./helpers/as-state.js";
 import { collect } from "./helpers/collect.js";
 import { relayFirst } from "./helpers/relay.js";
@@ -27,14 +27,6 @@ import { relayFirst } from "./helpers/relay.js";
 const _types = (m: Message[]) => m.map((x) => x[0]);
 const data = <T>(m: Message[]): T[] =>
 	m.filter((x) => x[0] === "DATA").map((x) => (x as readonly ["DATA", T])[1]);
-
-class CountingDispatcher extends Dispatcher {
-	register(...args: Parameters<Dispatcher["register"]>): ReturnType<Dispatcher["register"]> {
-		this.registerCount += 1;
-		return super.register(...args);
-	}
-	registerCount = 0;
-}
 
 /** Request one snapshot: a live write to the collection's request state (graphrefly-ts:D172). */
 function demand(request: Node<true>): void {
@@ -592,17 +584,16 @@ describe("reactiveLog (D60 #5) — incremental view/scan + SENTINEL reject + dec
 		]);
 	});
 
-	it("tail/slice/scan views use the graph's dispatcher (built beside the collection, D179)", () => {
-		const dispatcher = new CountingDispatcher();
-		const g = graph({ dispatcher });
+	it("tail/slice/scan views are built in the collection's graph (R-graph-domain@3)", () => {
+		const g = graph();
 		const log = reactiveLog<number>(g, []);
-		const before = dispatcher.registerCount;
+		const kernel = kernelOfNode(log.delta);
+		const before = kernel.created;
 
-		log.tail(2);
-		log.slice(1, 3);
-		log.scan(0, (acc, value) => acc + value);
+		const views = [log.tail(2), log.slice(1, 3), log.scan(0, (acc, value) => acc + value)];
 
-		expect(dispatcher.registerCount - before).toBe(3);
+		expect(kernel.created - before).toBe(3);
+		for (const view of views) expect(kernelOfNode(view)).toBe(kernel);
 	});
 
 	it("scan folds incrementally; resets on clear", () => {

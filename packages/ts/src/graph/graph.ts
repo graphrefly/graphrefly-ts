@@ -15,19 +15,13 @@ import type { OwnedConstruction } from "./construction-scope.js";
  */
 
 import type { Ctx, NodeFn } from "../ctx/types.js";
-import { type Dispatcher, defaultDispatcher } from "../dispatcher/index.js";
-import {
-	idle,
-	Kernel,
-	batch as kernelBatch,
-	kOf,
-	observeFailures,
-	reportFailure,
-} from "../node/kernel.js";
+import { idle, Kernel, batch as kernelBatch, kOf, observeFailures } from "../node/kernel.js";
 import { assertLocalName } from "../node/naming.js";
 import {
 	checkpointStateOfNode,
 	getNodeOwner,
+	hostOfKernel,
+	hostWithDeps,
 	isNodeActiveForRelease,
 	isNodeRuntimeQuiescentForRelease,
 	isNodeRuntimeReleased,
@@ -37,14 +31,13 @@ import {
 	nodeCreationIndex,
 	nodeDefinition,
 	nodeReplace,
+	type OperatorHost,
 	releaseRuntimeOfNode,
 	StateNode,
 	setGraphNodeIdResolver,
 	setNodeOwner,
 	setNodeTopologyDepsChangedObserver,
 	subscriberCountOfNode,
-	withEnvironmentDrivers,
-	withNodeCore,
 } from "../node/node.js";
 import {
 	constructionAcquisitions,
@@ -140,6 +133,8 @@ export function assertGraphLocalNode(owner: Graph, n: Node<unknown>, label: stri
 }
 
 const graphsByCore = new WeakMap<Kernel, Graph>();
+/** A profiling wrapper's function as it was given, for definition() (graphrefly-ts:D193 (2)). */
+const profiledFns = new WeakMap<NodeFn, NodeFn>();
 /** A helper node built outside the graph index gets a synthetic id when described. */
 const helperIds = new WeakMap<Node<unknown>, string>();
 
@@ -159,8 +154,8 @@ const helperIds = new WeakMap<Node<unknown>, string>();
  * @category graph
  */
 export class Graph {
-	private readonly _dispatcher: Dispatcher;
-	private readonly _environment: EnvironmentDrivers;
+	/** graphrefly-ts:D193 (2): per-node invocation counts while profiling is on. */
+	private readonly _profile: WeakMap<Node<unknown>, NodeInvocationStat> | undefined;
 	private readonly _core = new Kernel();
 	private readonly _entries = new Map<Node<unknown>, Entry>();
 	private readonly _byId = new Map<string, Node<unknown>>();
@@ -178,9 +173,8 @@ export class Graph {
 	private readonly _helperIdsInUse = new Set<string>();
 
 	constructor(opts: GraphOptions = {}) {
-		this._dispatcher = opts.dispatcher ?? defaultDispatcher;
-		this._environment = opts.environment ?? EnvironmentDrivers.empty();
-		if (opts.profile) this._dispatcher.setRecording(true);
+		this._core.environment = opts.environment ?? EnvironmentDrivers.empty();
+		this._profile = opts.profile ? new WeakMap() : undefined;
 		this._core.report = opts.report;
 		this._core.resolveId = (id) => {
 			const n = this._byId.get(id);
@@ -211,8 +205,9 @@ export class Graph {
 		const acquired = supplied ?? { name: name ?? factory };
 		constructionAcquisitions.set(nodeOpts, acquired);
 		try {
-			const n = this._construct(() => create(nodeOpts, acquired));
+			const n = create(nodeOpts, acquired);
 			this._addWithId(n, factory, deps, opts, name ?? `${factory}#${this._seq++}`, acquired);
+			this._profileFn(n);
 			return n;
 		} catch (cause) {
 			if (supplied !== undefined || acquired.registered) throw cause;
@@ -285,14 +280,34 @@ export class Graph {
 		}
 		// strip graph-only fields; inject the bound dispatcher
 		const { name: _n, meta: _m, ...rest } = opts;
-		return {
-			...rest,
-			dispatcher: this._dispatcher,
-		};
+		return rest;
 	}
 
-	private _construct<TNode extends Node<unknown>>(create: () => TNode): TNode {
-		return withEnvironmentDrivers(this._environment, () => withNodeCore(this._core, create));
+	/** The function a replace gives `node`, counted when profiling is on. */
+	private _profiled(node: Node<unknown>, fn: NodeFn): NodeFn {
+		const stats = this._profile;
+		if (stats === undefined) return fn;
+		const wrapped: NodeFn = (ctx) => {
+			const t0 = performance.now();
+			try {
+				fn(ctx);
+			} finally {
+				const dur = (performance.now() - t0) * 1e6;
+				const stat = stats.get(node) ?? { invokes: 0, totalDurationNs: 0, lastDurationNs: 0 };
+				stat.invokes++;
+				stat.lastDurationNs = dur;
+				stat.totalDurationNs += dur;
+				stats.set(node, stat);
+			}
+		};
+		profiledFns.set(wrapped, fn);
+		return wrapped;
+	}
+
+	/** graphrefly-ts:D193 (2): with profiling on, count and time each run of a node's function. */
+	private _profileFn(n: Node<unknown>): void {
+		const record = kOf(n);
+		if (this._profile !== undefined && record.fn !== null) record.fn = this._profiled(n, record.fn);
 	}
 
 	/** Look up a registered node by its id. */
@@ -411,7 +426,7 @@ export class Graph {
 	): Node<T> {
 		this._assertDepsLocal(deps, `dep of '${opts.name ?? "node"}'`);
 		return this._createRegistered(opts.factory ?? "node", deps, opts, (nodeOpts) =>
-			makeNode<T>(deps as Node<unknown>[], fn, nodeOpts),
+			makeNode<T>(this._core, deps, fn, nodeOpts),
 		);
 	}
 
@@ -421,7 +436,7 @@ export class Graph {
 			"state",
 			[],
 			{ ...opts, initial },
-			(nodeOpts) => new StateNode<T>([], null, nodeOpts),
+			(nodeOpts) => new StateNode<T>(this._core, [], null, nodeOpts),
 		);
 	}
 
@@ -434,7 +449,7 @@ export class Graph {
 			"producer",
 			[],
 			sugarRecipeOpts(opts, "producer", opts.setup),
-			(nodeOpts) => new Node<T>([], fn, nodeOpts),
+			(nodeOpts) => new Node<T>(this._core, [], fn, nodeOpts),
 		);
 	}
 
@@ -454,7 +469,7 @@ export class Graph {
 			"derived",
 			deps,
 			sugarRecipeOpts(opts, "derived", opts.setup),
-			(nodeOpts) => new Node<T>([...deps], ctxFn, nodeOpts),
+			(nodeOpts) => new Node<T>(this._core, [...deps], ctxFn, nodeOpts),
 		);
 	}
 
@@ -473,7 +488,7 @@ export class Graph {
 			"effect",
 			deps,
 			sugarRecipeOpts({ ...opts, setup: parts.setup }, "effect", opts.setup),
-			(nodeOpts) => new Node<void>([...deps], parts.fn, nodeOpts),
+			(nodeOpts) => new Node<void>(this._core, [...deps], parts.fn, nodeOpts),
 		);
 	}
 
@@ -492,14 +507,16 @@ export class Graph {
 	): void {
 		const node = this._resolveTarget(target, "replace");
 		this._assertDepsLocal(deps, `dep of replaced '${node.name ?? "node"}'`);
-		nodeReplace(node, [...deps], fn, opts);
+		nodeReplace(node, [...deps], this._profiled(node, fn), opts);
 	}
 
 	/** R-node: a node's current definition (declared dependencies, function, setup, recipe). */
 	definition(target: Node<unknown> | string): NodeDefinition {
 		const definition = nodeDefinition(this._resolveTarget(target, "definition"));
+		// R-node@4: the function as it was given, not the profiling wrapper (graphrefly-ts:D193 (2)).
+		const given = definition.fn === null ? null : (profiledFns.get(definition.fn) ?? definition.fn);
 		// R-checkpoint@1: a restored node's function is the one it was built with.
-		return { ...definition, fn: realNodeFn(definition.fn) };
+		return { ...definition, fn: realNodeFn(given) };
 	}
 
 	private _resolveTarget<T>(target: Node<T> | string, op: string): Node<T> {
@@ -929,6 +946,13 @@ export class Graph {
 	}
 }
 
+/** A registered node's invocation counts while profiling is on (graphrefly-ts:D193 (2)). */
+interface NodeInvocationStat {
+	invokes: number;
+	totalDurationNs: number;
+	lastDurationNs: number;
+}
+
 /** What a checkpoint reads of a node's kernel record. */
 function slotOf(node: Node<unknown>) {
 	const n = kOf(node);
@@ -1087,6 +1111,20 @@ export function graph(opts: GraphOptions = {}): Graph {
 	return new Graph(opts);
 }
 
+/** @internal A graph's environment drivers (D130/D131), for the adapters built on it. */
+export function environmentOfGraph(g: Graph): EnvironmentDrivers {
+	return (g as unknown as { _core: Kernel })._core.environment;
+}
+
+/**
+ * @internal The operator host of a graph (graphrefly-ts:D193 (3), (5)): its environment drivers and
+ * a way to build nodes in it, for adapters, restores and helpers that build on a graph.
+ */
+export function hostOfGraph(g: Graph, deps: readonly Node<unknown>[] = []): OperatorHost {
+	const host = hostOfKernel((g as unknown as { _core: Kernel })._core);
+	return deps.length === 0 ? host : hostWithDeps(host, deps);
+}
+
 // R-invocation@3: registered nodes and graph-bound helpers share describe's identity resolver.
 setGraphNodeIdResolver((owner, node) => {
 	const graph =
@@ -1143,7 +1181,7 @@ interface GraphRuntimeHost {
 	_releaseNodes(nodes: readonly Node<unknown>[], opts?: { reason?: string }): void;
 	_entries: Map<Node<unknown>, Entry>;
 	_mounts: MountedGraph[];
-	_dispatcher: Dispatcher;
+	_profile: WeakMap<Node<unknown>, NodeInvocationStat> | undefined;
 	_topologyObserverSeq: number;
 	_topologyObservers: Map<number, TopologyObserver>;
 	_ensureMountedTopologyForwarders(): void;
@@ -1235,12 +1273,14 @@ class GraphRegistration implements GraphLifecycleRegistrar {
 	mounts(): readonly { at: string; graph: Graph }[] {
 		return this.host._mounts;
 	}
+	operatorHost(deps: readonly Node<unknown>[]): OperatorHost {
+		return hostWithDeps(hostOfKernel(this.host._core), deps);
+	}
 	profile(): Profile {
 		const nodes: Record<string, NodeProfile> = {};
 		let totalInvokes = 0;
 		for (const { node, id } of this.host._entries.values()) {
-			const h = node.handle;
-			const stat = h === null ? undefined : this.host._dispatcher.statFor(h);
+			const stat = this.host._profile?.get(node);
 			const invokes = stat?.invokes ?? 0;
 			nodes[id] = {
 				invokes,
@@ -1285,7 +1325,7 @@ class GraphRegistration implements GraphLifecycleRegistrar {
 			opts.factory ?? "node",
 			deps,
 			opts,
-			(nodeOpts) => makeNode<T>([...deps], fn, nodeOpts),
+			(nodeOpts) => makeNode<T>(this.host._core, deps, fn, nodeOpts),
 			acquired.name,
 			acquired,
 		);
@@ -1295,7 +1335,7 @@ class GraphRegistration implements GraphLifecycleRegistrar {
 			"state",
 			[],
 			opts,
-			(nodeOpts) => new StateNode<T>([], null, nodeOpts),
+			(nodeOpts) => new StateNode<T>(this.host._core, [], null, nodeOpts),
 			id,
 		);
 	}
@@ -1310,7 +1350,7 @@ class GraphRegistration implements GraphLifecycleRegistrar {
 			factory,
 			deps,
 			opts,
-			(nodeOpts) => makeNode<T>([...deps], fn, nodeOpts),
+			(nodeOpts) => makeNode<T>(this.host._core, deps, fn, nodeOpts),
 			id,
 		);
 	}

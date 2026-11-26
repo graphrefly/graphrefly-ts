@@ -24,9 +24,15 @@ import { constructionAcquisitions, type NodeAcquisition } from "../node/owned-ac
  */
 
 import type { Ctx, NodeFn } from "../ctx/types.js";
-import type { Dispatcher } from "../dispatcher/index.js";
-import { type Kernel, kOf } from "../node/kernel.js";
-import { Node, type NodeOptions, withEnvironmentDrivers, withNodeCore } from "../node/node.js";
+import type { Kernel } from "../node/kernel.js";
+import {
+	hostOf,
+	hostOfKernel,
+	hostWithDeps,
+	type Node,
+	type NodeOptions,
+	type OperatorHost,
+} from "../node/node.js";
 import { errorPayload, type Message } from "../protocol/messages.js";
 import { type GraphCheckpointJson, toCheckpointJson } from "./checkpoint.js";
 import { eachInputArray } from "./each-input-array.js";
@@ -41,8 +47,18 @@ import type { GraphRestoreDefinition, GraphRestoreEntry, GraphRestoreRegistry } 
 export interface Operator<TIn = unknown, TOut = unknown> {
 	/** Real operator name shown in describe (D6/L1.5) — recorded at `_add` by `g.initNode`. */
 	readonly factory: string;
-	/** The ctx-body: reads ctx dep slots positionally, emits via `ctx.down`. */
-	readonly body: (ctx: Ctx) => void;
+	/**
+	 * The ctx-body: reads ctx dep slots positionally, emits via `ctx.down`. It is given the host of
+	 * the graph it is built in (graphrefly-ts:D193): that graph's environment drivers and a way to
+	 * build its inner nodes.
+	 */
+	readonly body: (ctx: Ctx, host: OperatorHost) => void;
+	/**
+	 * R-lifetime: the operator's setup, run once per lifetime before its first run, with the host
+	 * of its graph; what it returns is the lifetime's cleanup.
+	 */
+	// biome-ignore lint/suspicious/noConfusingVoidType: a setup returns its cleanup or nothing.
+	readonly setup?: (ctx: Ctx, host: OperatorHost) => (() => void) | undefined | void;
 	/** Behavioral node options the operator needs. */
 	readonly opts?: Partial<NodeOptions<TOut>>;
 	/** The number of inputs the operator reads, when it is fixed; initNode refuses any other. */
@@ -176,11 +192,12 @@ export function define<S, T>(
  * ```
  */
 export function initNode<TIn, TOut>(
+	host: OperatorHost,
 	op: Operator<TIn, TOut>,
 	deps: readonly Node<unknown>[],
 	opts: NodeOptions<TOut> = {},
 ): Node<TOut> {
-	return makeInitNode(op, deps, opts);
+	return makeInitNode(host, op, deps, opts);
 }
 
 /**
@@ -195,28 +212,22 @@ export function initNodeBeside<TIn, TOut>(
 	const first = deps[0];
 	if (first === undefined)
 		throw new Error("initNode: an operator built beside its inputs needs one");
-	const k = kOf(first);
-	for (const d of deps)
-		if (kOf(d).kernel !== k.kernel)
-			throw new Error("initNode: dependencies belong to different graphs; use a wire bridge");
-	return withEnvironmentDrivers(k.environment, () =>
-		initNodeWithCore(k.kernel, op, deps, opts, undefined, k.dispatcher),
-	);
+	return makeInitNode(hostOf(first), op, deps, opts);
 }
 
-/** @internal Graph-bound operator instantiation into a graph-local B49 core. */
+/** @internal Graph-bound operator instantiation into a graph's kernel. */
 export function initNodeWithCore<TIn, TOut>(
 	core: Kernel,
 	op: Operator<TIn, TOut>,
 	deps: readonly Node<unknown>[],
 	opts: NodeOptions<TOut> = {},
 	acquired?: NodeAcquisition,
-	dispatcher?: Dispatcher,
 ): Node<TOut> {
-	return withNodeCore(core, () => makeInitNode(op, deps, opts, acquired), dispatcher);
+	return makeInitNode(hostOfKernel(core), op, deps, opts, acquired);
 }
 
 function makeInitNode<TIn, TOut>(
+	host: OperatorHost,
 	op: Operator<TIn, TOut>,
 	deps: readonly Node<unknown>[],
 	opts: NodeOptions<TOut>,
@@ -225,30 +236,41 @@ function makeInitNode<TIn, TOut>(
 	// A wrong input count is a programmer error: refuse it here rather than run and end in ERROR.
 	if (op.inputs !== undefined && deps.length !== op.inputs)
 		throw new Error(`${op.factory} needs ${op.inputs} inputs, got ${deps.length}`);
-	const body = operatorNodeFn(op);
-	// D43-reserved / D51: stamp the operator's real factory onto the bare node so a runtime *Map
-	// inner (created here via fromAny, NOT registered in any graph) is named in describe's
-	// auto-discovery. A graph-bound g.initNode also records it in `_entries` (entry.factory wins
-	// there); this field is only read for a node absent from the graph index. Caller opts win.
+	const nodeHost = hostWithDeps(host, deps);
+	const body = operatorNodeFn(op, nodeHost);
+	const setup = operatorSetup(op, nodeHost);
+	// D51: stamp the operator's real factory onto the node, so an inner the graph does not index is
+	// named in describe's discovery. Caller opts win.
 	const merged = {
 		factory: op.factory,
 		...op.opts,
 		...(op.recipe === undefined ? {} : { recipe: op.recipe }),
+		...(setup === undefined ? {} : { setup }),
 		...opts,
 	};
 	if (acquired !== undefined) constructionAcquisitions.set(merged, acquired);
 	try {
-		return new Node<TOut>([...deps], body, merged);
+		return host.node<TOut>([...deps], body, merged);
 	} finally {
 		constructionAcquisitions.delete(merged);
 	}
 }
 
-/** @internal Build the dispatcher body for an Operator spec. */
-export function operatorNodeFn<TIn, TOut>(op: Operator<TIn, TOut>): NodeFn {
+/** @internal The node setup of an Operator built on `host`, or undefined when it has none. */
+export function operatorSetup<TIn, TOut>(
+	op: Operator<TIn, TOut>,
+	host: OperatorHost,
+): NodeOptions<TOut>["setup"] {
+	const setup = op.setup;
+	if (setup === undefined) return op.opts?.setup;
+	return (ctx) => setup(ctx, host);
+}
+
+/** @internal The node function of an Operator built on `host`. */
+export function operatorNodeFn<TIn, TOut>(op: Operator<TIn, TOut>, host: OperatorHost): NodeFn {
 	return (ctx) => {
 		try {
-			op.body(ctx);
+			op.body(ctx, host);
 		} catch (e) {
 			ctx.down([["ERROR", errorPayload(e, "operator threw without a valid error payload")]]); // D30: value-level throw → ERROR
 		}

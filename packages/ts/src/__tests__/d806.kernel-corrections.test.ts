@@ -1,6 +1,6 @@
 /**
  * graphrefly:D806 kernel corrections: (1) under auto COMPLETE the run that sees the last terminal
- * calls the function, also when that terminal is its only input (R-terminals@1, C-17); (3) a quiet
+ * calls the function, also when that terminal is its only input (R-terminals@2, C-17); (3) a quiet
  * node forwarding an auto INVALIDATE marks its cone pending, so a diamond below settles once (C-16).
  */
 

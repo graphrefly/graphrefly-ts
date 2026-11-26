@@ -2,8 +2,8 @@
  * D797 kernel migration, phase 1 (graphrefly-ts:D797-KERNEL-MIGRATION-TS): the closed message set.
  *
  * TS harness for the root scenarios C-26, C-42, C-12 (c) and the ERROR side of C-23 (f) in
- * ~/src/graphrefly/spec/conformance.jsonl, against R-messages@1, R-wave@2, R-subscription@3,
- * R-failure@3 and R-no-imperative@2 (graphrefly:D798, D799 and D801).
+ * ~/src/graphrefly/spec/conformance.jsonl, against R-messages@1, R-wave@4, R-subscription@5,
+ * R-failure@5 and R-no-imperative@2 (graphrefly:D798, D799 and D801).
  */
 
 import { describe, expect, it } from "vitest";

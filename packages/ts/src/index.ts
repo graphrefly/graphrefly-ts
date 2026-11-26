@@ -41,12 +41,6 @@ export {
 	restoreReactiveMap,
 } from "./data-structures/persistence.js";
 export {
-	Dispatcher,
-	defaultDispatcher,
-	type Handle,
-	type HandleStat,
-} from "./dispatcher/index.js";
-export {
 	canonicalTopologyBytes,
 	canonicalTopologyJson,
 	GRAPH_BLUEPRINT_VERSION,

@@ -14,7 +14,6 @@ import type {
 	RestoreGraphOptions,
 } from "../index.js";
 import {
-	Dispatcher,
 	defaultRestoreRegistry,
 	define,
 	type Graph,
@@ -598,21 +597,19 @@ describe("checkpoint and restore: ported cases (TS layout, graphrefly-ts:D178)",
 		expect(once.filter((m) => m[0] !== "PENDING")).toEqual([["START"], ["DATA", 0], ["COMPLETE"]]);
 	});
 
-	it("uses the dispatcher option for the restored graph", () => {
+	it("refuses an option it does not take; the kernel holds no dispatcher (graphrefly-ts:D193)", () => {
 		const original = graph();
 		const src = original.state(1, { name: "src" });
-		const inc = define<number, number>("inc.dispatcher", (n) => n + 1);
+		const inc = define<number, number>("inc.restored", (n) => n + 1);
 		collect(original.initNode(map(inc), [src], { name: "mapped" }));
-		const dispatcher = new Dispatcher();
-		dispatcher.setRecording(true);
-		const restored = restoreGraph(original.checkpoint(), {
-			registry: restoreRegistry([inc], defaultRestoreRegistry),
-			dispatcher,
-		});
+		const registry = restoreRegistry([inc], defaultRestoreRegistry);
+		expect(() =>
+			restoreGraph(original.checkpoint(), { registry, dispatcher: {} } as RestoreGraphOptions),
+		).toThrow();
+		const restored = restoreGraph(original.checkpoint(), { registry });
 		collect(restored.find("mapped"));
 		asState<number>(restored.find("src")).set(2);
 		expect(restored.find("mapped")?.cache).toBe(3);
-		expect(dispatcher.totalInvokes).toBeGreaterThan(0);
 	});
 
 	it("restores COMPLETE and ERROR without reopening ended nodes", () => {
@@ -642,9 +639,9 @@ describe("checkpoint and restore: ported cases (TS layout, graphrefly-ts:D178)",
 		expectTypeOf<RestoreGraphOptions>().not.toHaveProperty("graph");
 		const g = graph();
 		g.state(1, { name: "src" });
-		expect(() =>
-			restoreGraph(g.checkpoint(), { dispatcher: new Dispatcher() } as RestoreGraphOptions),
-		).toThrow(/registry is required/);
+		expect(() => restoreGraph(g.checkpoint(), {} as RestoreGraphOptions)).toThrow(
+			/registry is required/,
+		);
 		expect(() =>
 			restoreGraph(g.checkpoint(), {
 				registry: defaultRestoreRegistry,

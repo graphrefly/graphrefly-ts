@@ -16,7 +16,7 @@ import { reactiveList } from "../graph/data-structures/reactive-list.js";
 import { reactiveMap } from "../graph/data-structures/reactive-map.js";
 import { graph } from "../graph/graph.js";
 import { selectRetentionVictims } from "../graph/policies/collection.js";
-import { Dispatcher, type Message } from "../index.js";
+import type { Message } from "../index.js";
 import type { Node } from "../node/node.js";
 import { asState } from "./helpers/as-state.js";
 import { collect } from "./helpers/collect.js";
@@ -24,14 +24,6 @@ import { collect } from "./helpers/collect.js";
 const types = (m: Message[]) => m.map((x) => x[0]);
 const data = <T>(m: Message[]): T[] =>
 	m.filter((x) => x[0] === "DATA").map((x) => (x as readonly ["DATA", T])[1]);
-
-class _CountingDispatcher extends Dispatcher {
-	register(...args: Parameters<Dispatcher["register"]>): ReturnType<Dispatcher["register"]> {
-		this.registerCount += 1;
-		return super.register(...args);
-	}
-	registerCount = 0;
-}
 
 /** Request one snapshot: a live write to the collection's request state (graphrefly-ts:D172). */
 function demand(request: Node<true>): void {

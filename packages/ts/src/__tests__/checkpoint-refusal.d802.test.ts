@@ -42,7 +42,7 @@ const asState = <T>(n: Node<unknown> | undefined) => n as unknown as StateNode<T
 describe("refusal text: not restorable: <node id>: <reason>", () => {
 	it("a missing recipe and missing lifetime records use the shared reasons (N4/N7)", () => {
 		const g = graph();
-		const fn: NodeFn = (ctx) => ctx.emit(42);
+		const fn: NodeFn = (ctx) => ctx.down([["DATA", 42]]);
 		const n = g.node([], fn, { name: "n", recipe: { ref: "answer" } });
 		const cold = g.checkpoint();
 		expect(cold.nodes[0]!.lifetime).toBeNull();

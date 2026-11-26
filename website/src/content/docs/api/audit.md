@@ -27,14 +27,14 @@ import { audit } from "@graphrefly/ts/operators";
 ## Signature
 
 ```ts
-function audit(durationSelector: (v: S) => NodeInput<unknown>): Operator<S, S>
+function audit(durationSelector: (v: S, host: OperatorHost) => NodeInput<unknown>): Operator<S, S>
 ```
 
 ## Parameters
 
 | Parameter | Type | Description |
 |---|---|---|
-| `durationSelector` | `(v: S) => NodeInput<unknown>` | duration selector value used by the helper. |
+| `durationSelector` | `(v: S, host: OperatorHost) => NodeInput<unknown>` | duration selector value used by the helper. |
 
 ## Returns
 

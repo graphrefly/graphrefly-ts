@@ -241,14 +241,19 @@ export function buildOfflineSpendingHost(
 				packFacts.deps[0] !== inputs.evaluations.pack ||
 				ctx.deps[0].value === undefined
 			) {
-				ctx.emit({
-					valid: false,
-					issue: {
-						kind: "issue",
-						code: "host-pack-unavailable",
-						message: "host pack unavailable",
-					},
-				});
+				ctx.down([
+					[
+						"DATA",
+						{
+							valid: false,
+							issue: {
+								kind: "issue",
+								code: "host-pack-unavailable",
+								message: "host pack unavailable",
+							},
+						},
+					],
+				]);
 				return;
 			}
 			const values: Checked<EvaluationPack>[] = [];

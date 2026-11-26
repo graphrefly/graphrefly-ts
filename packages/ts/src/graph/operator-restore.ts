@@ -9,6 +9,7 @@
  * local-only. No storage I/O.
  */
 
+import type { OperatorHost } from "../node/node.js";
 import type { GraphCheckpointJson } from "./checkpoint.js";
 import {
 	buffer,
@@ -19,7 +20,15 @@ import {
 	withLatestFrom,
 	zip,
 } from "./combinators.js";
-import { elementAt, merge, type Operator, operatorNodeFn, pairwise, skip } from "./operators.js";
+import {
+	elementAt,
+	merge,
+	type Operator,
+	operatorNodeFn,
+	operatorSetup,
+	pairwise,
+	skip,
+} from "./operators.js";
 import type { GraphRecipeBuild, GraphRecipeFactory, GraphRestoreEntry } from "./restore.js";
 import { empty, fromTimer, interval, never, of } from "./sources.js";
 
@@ -46,9 +55,14 @@ function finiteNumber(value: GraphCheckpointJson | undefined, ref: string, key: 
 }
 
 /** The function and setup an operator gives its node. */
-function built(op: Operator<never, unknown> | Operator<unknown, unknown>): GraphRecipeBuild {
-	const setup = op.opts?.setup;
-	return setup === undefined ? { fn: operatorNodeFn(op) } : { fn: operatorNodeFn(op), setup };
+function built(
+	op: Operator<never, unknown> | Operator<unknown, unknown>,
+	host: OperatorHost,
+): GraphRecipeBuild {
+	const setup = operatorSetup(op, host);
+	return setup === undefined
+		? { fn: operatorNodeFn(op, host) }
+		: { fn: operatorNodeFn(op, host), setup };
 }
 
 /** A recipe whose operator takes no parameters: it accepts no configuration. */
@@ -61,8 +75,8 @@ function noConfig(ref: string, make: () => Operator<never, unknown> | Operator<u
 			}
 			return undefined;
 		},
-		build() {
-			return built(make());
+		build(_config, ctx) {
+			return built(make(), ctx.host);
 		},
 	};
 	return factory;
@@ -79,8 +93,8 @@ function numberConfig(
 		validateConfig(config) {
 			return { n: finiteNumber(objectConfig(config, ref)[key], ref, key) };
 		},
-		build(config) {
-			return built(make(config.n));
+		build(config, ctx) {
+			return built(make(config.n), ctx.host);
 		},
 	};
 	return factory;
@@ -113,9 +127,10 @@ export const fromTimerRestoreDescriptor: GraphRecipeFactory<FromTimerConfig> = {
 		if (obj.period === undefined) return { ms };
 		return { ms, period: finiteNumber(obj.period, "fromTimer", "period") };
 	},
-	build(config) {
+	build(config, ctx) {
 		return built(
 			fromTimer(config.ms, config.period === undefined ? undefined : { period: config.period }),
+			ctx.host,
 		);
 	},
 };
@@ -131,8 +146,8 @@ export const ofRestoreDescriptor: GraphRecipeFactory<OfConfig> = {
 		}
 		return { values };
 	},
-	build(config) {
-		return built(of(...config.values));
+	build(config, ctx) {
+		return built(of(...config.values), ctx.host);
 	},
 };
 

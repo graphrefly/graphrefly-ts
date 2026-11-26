@@ -4,8 +4,8 @@
  *
  * TS harness for the root scenarios C-3, C-15, C-17, C-34, C-36, C-40 (all but its replace
  * clause, phase 5) and the terminal and manual-INVALIDATE clauses of C-44 in
- * ~/src/graphrefly/spec/conformance.jsonl, against R-terminals@1, R-invalidation@1, R-lifetime@2,
- * R-subscription@3 and R-wave@2. C-34's "Z's subscription runs after the fanout" needs the request
+ * ~/src/graphrefly/spec/conformance.jsonl, against R-terminals@2, R-invalidation@2, R-lifetime@2,
+ * R-subscription@5 and R-wave@4. C-34's "Z's subscription runs after the fanout" needs the request
  * queue and is tested in phase 5; here Z's subscription runs at once and still receives the ended
  * node's snapshot.
  */

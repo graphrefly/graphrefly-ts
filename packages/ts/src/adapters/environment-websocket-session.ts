@@ -14,7 +14,7 @@ import type {
 	WebSocketSend,
 	WebSocketSessionHandle,
 } from "../graph/environment.js";
-import type { Graph } from "../graph/graph.js";
+import { environmentOfGraph, type Graph } from "../graph/graph.js";
 import {
 	nextRetryDelayMs,
 	type RetryPolicy,
@@ -192,7 +192,7 @@ function webSocketSessionEventNode(
 			let running = true;
 			const emitEvent = (event: WebSocketSessionEvent) => {
 				if (running) events.push(event);
-				else ctx.emit(event);
+				else ctx.down([["DATA", event]]);
 			};
 
 			const emitOutbound = (fact: WebSocketSessionOutbound) => {
@@ -262,7 +262,7 @@ function webSocketSessionEventNode(
 				) {
 					return;
 				}
-				const driver = ctx.environment().webSocketDriver();
+				const driver = environmentOfGraph(graph).webSocketDriver();
 				state.currentAttempt = attempt;
 				emitEvent({
 					kind: "attempt",

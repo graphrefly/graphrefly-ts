@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { ctxRewireDiff } from "../ctx/types.js";
 import type { Ctx } from "../index.js";
 import { graph } from "../index.js";
 import { collect, types } from "./helpers/collect.js";
@@ -212,14 +211,14 @@ describe("graph domains (R-graph-domain)", () => {
 		const opA = gA.node<number>(
 			[sourceA],
 			function opAFn(ctx) {
-				if (ctx.deps[0].waves.length > 0) ctxRewireDiff(ctx, [innerA1]);
+				if (ctx.deps[0].waves.length > 0) ctx.rewire([sourceA, innerA1]);
 				// innerA1 is the second dependency once the first rewire ran.
-				if ((ctx.deps[1]?.waves.length ?? 0) > 0) ctxRewireDiff(ctx, [innerA2]);
+				if ((ctx.deps[1]?.waves.length ?? 0) > 0) ctx.rewire([sourceA, innerA1, innerA2]);
 			},
 			{ complete: "manual" },
 		);
 		const opB = gB.node<number>([sourceB], function opBFn(ctx) {
-			if (ctx.deps[0].waves.length > 0) ctxRewireDiff(ctx, [innerB1]);
+			if (ctx.deps[0].waves.length > 0) ctx.rewire([sourceB, innerB1]);
 		});
 		opA.subscribe(() => {});
 		opB.subscribe(() => {});

@@ -1,6 +1,29 @@
-import { CTX_NODE_BINDING, type Ctx } from "../ctx/types.js";
+import type { Ctx } from "../ctx/types.js";
 import { kOf, request } from "./kernel.js";
 import type { Node } from "./node.js";
+import { nodeOwnerForGraphUse } from "./runtime-accessors.js";
+
+/** What each lifetime has asked its node's dependencies to become, by `rewireBy`. */
+const plannedDeps = new WeakMap<AbortSignal, Node<unknown>[]>();
+
+/**
+ * @internal Change `node`'s own dependencies through a ctx of its current lifetime (R-request-order:
+ * a rewire is a request scoped to its lifetime), by difference: from what this lifetime already
+ * asked for, else from the current list, so several asks before the first one runs build on each
+ * other. Every helper that rewires a node by difference goes through this.
+ */
+export function rewireBy(
+	ctx: Ctx,
+	node: Node<unknown>,
+	add: readonly Node<unknown>[],
+	remove: readonly (Node<unknown> | null)[],
+): void {
+	const base = plannedDeps.get(ctx.signal) ?? [...node.deps];
+	const next = base.filter((d) => !remove.includes(d));
+	for (const a of add) if (!next.includes(a)) next.push(a);
+	plannedDeps.set(ctx.signal, next);
+	ctx.rewire(next);
+}
 
 /**
  * Internal: an input whose sources attach and detach over time (a collection's folders, a process
@@ -28,8 +51,8 @@ export function attachableInput(): AttachableInput {
 	const attached: Node<unknown>[] = [];
 	let node: Node<unknown> | undefined;
 	let kept: Ctx | undefined;
-	const rewireNow = (add: readonly Node<unknown>[], remove: readonly Node<unknown>[]): void => {
-		kept?.[CTX_NODE_BINDING]?.rewireDiffNow(add, remove);
+	const rewireTo = (add: readonly Node<unknown>[], remove: readonly Node<unknown>[]): void => {
+		if (kept !== undefined && node !== undefined) rewireBy(kept, node, add, remove);
 	};
 	const bound = (): Node<unknown> => {
 		if (node === undefined) throw new Error("attachableInput: not bound to its node");
@@ -38,7 +61,7 @@ export function attachableInput(): AttachableInput {
 	return {
 		setup(ctx) {
 			kept = ctx;
-			if (attached.length > 0) ctx[CTX_NODE_BINDING]?.rewireDiff([...attached], []);
+			if (attached.length > 0) rewireTo([...attached], []);
 			return () => {
 				if (kept === ctx) kept = undefined;
 			};
@@ -48,6 +71,7 @@ export function attachableInput(): AttachableInput {
 		},
 		attach(source) {
 			const target = bound();
+			nodeOwnerForGraphUse(source, "rewire"); // a released source is refused (D122)
 			const core = kOf(target).kernel;
 			if (kOf(source).kernel !== core)
 				throw new Error(
@@ -58,7 +82,7 @@ export function attachableInput(): AttachableInput {
 				if (attached.includes(source)) return;
 				attached.push(source);
 				owned = true;
-				rewireNow([source], []);
+				rewireTo([source], []);
 			});
 			return () => {
 				request(core, () => {
@@ -67,7 +91,7 @@ export function attachableInput(): AttachableInput {
 					const at = attached.indexOf(source);
 					if (at < 0) return;
 					attached.splice(at, 1);
-					rewireNow([], [source]);
+					rewireTo([], [source]);
 				});
 			};
 		},

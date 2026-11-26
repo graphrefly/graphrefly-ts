@@ -2,9 +2,9 @@
  * D797 kernel migration, phase 5 (graphrefly-ts:D797-KERNEL-MIGRATION-TS): the request queue.
  *
  * TS harness for the request-order clauses of the root scenarios C-6, C-28, C-29 and C-34 in
- * ~/src/graphrefly/spec/conformance.jsonl, against R-request-order@2, and the rewire and replace
- * scenarios C-11, C-35, C-37 and C-40's replace clause, against R-request-order@2, R-lifetime@2
- * and R-node@2.
+ * ~/src/graphrefly/spec/conformance.jsonl, against R-request-order@7, and the rewire and replace
+ * scenarios C-11, C-35, C-37 and C-40's replace clause, against R-request-order@7, R-lifetime@2
+ * and R-node@4.
  */
 
 import { describe, expect, it } from "vitest";
@@ -459,8 +459,8 @@ describe("C-40: replace gives an ended node a new instance", () => {
 
 /**
  * Later output (Codex review §5.1): a quiet node's run output and a ctx.down after the function
- * returned both go out after the current wave, as a wave of their own (R-wave@2), are requests of
- * the node's graph (R-request-order@2), and are dropped when they run if the lifetime they were
+ * returned both go out after the current wave, as a wave of their own (R-wave@4), are requests of
+ * the node's graph (R-request-order@7), and are dropped when they run if the lifetime they were
  * made in has closed, the node has ended or it is released (R-lifetime@2).
  */
 // F9 (open at the root): the rules do not say whether a quiet node's first run at activation is
@@ -513,7 +513,7 @@ describe("R-wave@4 / R-lifetime@2 (F9, as reference/kernel): a quiet node's acti
 	});
 });
 
-describe("R-wave@2 / R-terminals: a quiet node's auto terminal and its run output keep their order", () => {
+describe("R-wave@4 / R-terminals: a quiet node's auto terminal and its run output keep their order", () => {
 	const quietTimes10 = (g: ReturnType<typeof graph>, a: Node<number>) =>
 		g.node<number>(
 			[a],
@@ -635,7 +635,7 @@ describe("R-lifetime@2 (F9, as reference/kernel): a quiet node ended by its acti
 		expect(q.status).toMatchObject({ output: "errored", lifecycle: "inactive" });
 	});
 
-	it("does not cross a replace into the new instance (C-40, R-node@2)", () => {
+	it("does not cross a replace into the new instance (C-40, R-node@4)", () => {
 		const { g, t, q } = setup();
 		const ok = g.state(5, { name: "ok" });
 		const log = arraySink();
@@ -697,7 +697,7 @@ describe("R-request-order@7: a quiet node's output from a commit shares the comm
 	});
 });
 
-describe("R-wave@2 / R-lifetime@2: a ctx.down after the function returned", () => {
+describe("R-wave@4 / R-lifetime@2: a ctx.down after the function returned", () => {
 	const keeper = (g: ReturnType<typeof graph>) => {
 		const ctxs: Ctx[] = [];
 		const src = g.node<string>(

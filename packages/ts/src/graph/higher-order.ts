@@ -22,15 +22,19 @@
  * removed dep is silent — no settle — and applies before any added dep's push-on-subscribe wave).
  */
 
-import { CTX_NODE_BINDING, type Ctx, ctxRewireDiff, type NodeFn } from "../ctx/types.js";
-import type { Node } from "../node/node.js";
+import type { Ctx } from "../ctx/types.js";
+import type { Node, OperatorHost } from "../node/node.js";
+import { graphNodeIdOf } from "../node/runtime-accessors.js";
 import { errorPayload } from "../protocol/messages.js";
 import { eachInputArray } from "./each-input-array.js";
 import { initNode, type Operator } from "./operators.js";
 import { fromAsyncIter, fromIter, fromPromise, type NodeInput, of } from "./sources.js";
 
-/** Project an outer value to an inner source (a Node, Promise, (a)sync iterable, or scalar). */
-export type Project<TIn, TOut> = (value: TIn) => NodeInput<TOut>;
+/**
+ * Project an outer value to an inner source (a Node, Promise, (a)sync iterable, or scalar). It is
+ * given the host of the operator's graph, in which it builds an inner of its own.
+ */
+export type Project<TIn, TOut> = (value: TIn, host: OperatorHost) => NodeInput<TOut>;
 
 type Mode = "merge" | "switch" | "concat" | "exhaust";
 
@@ -61,8 +65,16 @@ function uniqueNodes(nodes: readonly Node<unknown>[]): Node<unknown>[] {
 	return out;
 }
 
-function cleanupAllInners<TIn>(ctx: Ctx, st: MapState<TIn>, body: NodeFn): void {
-	for (const inner of uniqueNodes(st.inners)) ctxRewireDiff(ctx, [], [inner]);
+/**
+ * R-request-order: the operator's dependencies are its source and the inners it holds; one rewire
+ * per run gives the node that whole list, so the held inners stay aligned with deps[1..].
+ */
+function rewireToInners(ctx: Ctx, host: OperatorHost, inners: readonly Node<unknown>[]): void {
+	ctx.rewire([host.deps[0] as Node<unknown>, ...uniqueNodes(inners)]);
+}
+
+function cleanupAllInners<TIn>(ctx: Ctx, host: OperatorHost, st: MapState<TIn>): void {
+	if (st.inners.length > 0) rewireToInners(ctx, host, []);
 	st.inners = [];
 	st.queue.length = 0;
 	st.sourceDone = true;
@@ -77,16 +89,9 @@ function firstErrorTerminal(ctx: Ctx): unknown {
 	return undefined;
 }
 
-function fromAnyInCtx<T>(ctx: Ctx, input: NodeInput<T>): Node<unknown> {
-	const binding = ctx[CTX_NODE_BINDING];
+function fromAnyInCtx<T>(host: OperatorHost, input: NodeInput<T>): Node<unknown> {
 	if (isNode(input)) return input as Node<unknown>;
-
-	const nodeOpts = binding ? { dispatcher: binding.dispatcher } : {};
-	const make = (op: Operator<never, T>) =>
-		(binding
-			? binding.create(() => initNode(op, [], nodeOpts))
-			: initNode(op, [], nodeOpts)) as Node<unknown>;
-
+	const make = (op: Operator<never, T>) => initNode(host, op, []) as Node<unknown>;
 	if (isThenable(input)) return make(fromPromise(input as PromiseLike<T>));
 	if (input !== null && input !== undefined) {
 		const candidate = input as {
@@ -139,7 +144,7 @@ function mapOperator<TIn, TOut>(
 	opts: { concurrent?: number } = {},
 ): Operator<TIn, TOut> {
 	const maxConcurrent = normalizeConcurrent(factory, opts.concurrent);
-	const body: NodeFn = (ctx: Ctx) => {
+	const body = (ctx: Ctx, host: OperatorHost): void => {
 		let st: MapState<TIn> | undefined;
 		try {
 			st = (ctx.state.get<MapState<TIn>>() ?? {
@@ -150,18 +155,28 @@ function mapOperator<TIn, TOut>(
 			let inners = st.inners;
 			const queue = st.queue;
 
-			// 1. forward any inner DATA this wave (index-independent — flatten whichever inner fired).
-			for (let i = 1; i < ctx.deps.length; i++)
-				eachInputArray(ctx, i, (v, out) => {
-					out.push(["DATA", v]);
-				});
+			// An inner is found among ctx.deps by its id, not by its place: a rewire asked for in an
+			// earlier run may not have run yet (R-request-order), so the held inners and deps[1..] can
+			// differ for a run.
+			const placeOf = new Map<string, number>();
+			for (let i = 1; i < ctx.deps.length; i++) placeOf.set(ctx.deps[i].id, i);
+			const held = (inner: Node<unknown>) => placeOf.get(graphNodeIdOf(inner));
+
+			// 1. forward the DATA of the inners it holds this wave.
+			for (const inner of uniqueNodes(inners)) {
+				const at = held(inner);
+				if (at !== undefined)
+					eachInputArray(ctx, at, (v, out) => {
+						out.push(["DATA", v]);
+					});
+			}
 
 			// D81: source ERROR / inner ERROR are terminal operator edges. Detach live inners first,
 			// then emit ERROR. Same-wave inner DATA that preceded the terminal is forwarded above.
 			// Do not send COMPLETE/ERROR to those inner sources.
 			const terminalError = firstErrorTerminal(ctx);
 			if (terminalError !== undefined) {
-				cleanupAllInners(ctx, st, body);
+				cleanupAllInners(ctx, host, st);
 				ctx.down([["ERROR", terminalError]]);
 				return;
 			}
@@ -171,15 +186,16 @@ function mapOperator<TIn, TOut>(
 			// 2. drop inners that terminated this/any wave (bounding); `inners` aligns with deps[1..].
 			const toRemove: Node<unknown>[] = [];
 			const survivors: Node<unknown>[] = [];
-			for (let i = 0; i < inners.length; i++) {
-				if (ctx.deps[i + 1].terminal?.kind === "complete") toRemove.push(inners[i]);
-				else survivors.push(inners[i]);
+			for (const inner of inners) {
+				const at = held(inner);
+				if (at !== undefined && ctx.deps[at].terminal?.kind === "complete") toRemove.push(inner);
+				else survivors.push(inner);
 			}
 			inners = survivors;
 
 			// 3. project the source's new value(s) per mode.
 			const toAdd: Node<unknown>[] = [];
-			const make = (v: TIn): Node<unknown> => fromAnyInCtx(ctx, project(v));
+			const make = (v: TIn): Node<unknown> => fromAnyInCtx(host, project(v, host));
 			const isRemovedThisWave = (inner: Node<unknown>): boolean => toRemove.includes(inner);
 			const canTrackInner = (inner: Node<unknown>): boolean =>
 				!inners.includes(inner) && !isRemovedThisWave(inner);
@@ -252,10 +268,8 @@ function mapOperator<TIn, TOut>(
 
 			ctx.state.set({ inners, queue, sourceDone: st.sourceDone });
 
-			// 4. issue REMOVES before ADDS (alignment): a removed dep is silent + applies before the
-			//    added dep's push-on-subscribe settle wave, so the tracked list stays aligned.
-			for (const r of toRemove) ctxRewireDiff(ctx, [], [r]);
-			for (const a of toAdd) ctxRewireDiff(ctx, [a]);
+			// 4. one rewire to the source and the held inners, when they changed.
+			if (toRemove.length > 0 || toAdd.length > 0) rewireToInners(ctx, host, inners);
 
 			// 5. completion: the SOURCE is done AND nothing is live or pending → COMPLETE (D47 folding;
 			//    a queued/just-added inner keeps it open). If terminal output happens in a wave that
@@ -264,7 +278,7 @@ function mapOperator<TIn, TOut>(
 				ctx.down([["COMPLETE"]]);
 			}
 		} catch (e) {
-			if (st) cleanupAllInners(ctx, st, body);
+			if (st) cleanupAllInners(ctx, host, st);
 			ctx.down([["ERROR", errorPayload(e, "projector threw without a valid error payload")]]); // D30/D81: a throwing projector → cleanup inners, then ERROR
 		}
 	};
@@ -384,7 +398,7 @@ export function repeat<S>(factory: () => NodeInput<S>, count: number): Operator<
 	if (!Number.isInteger(count) || count < 1) {
 		throw new RangeError(`repeat: count must be a positive integer (got ${count})`);
 	}
-	const body: NodeFn = (ctx: Ctx) => {
+	const body = (ctx: Ctx, host: OperatorHost): void => {
 		try {
 			const st = (ctx.state.get<RepeatState>() ?? {
 				started: false,
@@ -400,25 +414,24 @@ export function repeat<S>(factory: () => NodeInput<S>, count: number): Operator<
 			if (!st.started) {
 				st.started = true;
 				st.round = 0;
-				const inner = fromAnyInCtx(ctx, factory());
+				const inner = fromAnyInCtx(host, factory());
 				st.inner = inner;
 				ctx.state.set(st);
-				ctxRewireDiff(ctx, [inner]);
+				ctx.rewire([inner]);
 				return;
 			}
 			// 3. inner COMPLETE → next round or terminal COMPLETE.
 			if (st.inner !== null && ctx.deps[0].terminal?.kind === "complete") {
-				const old = st.inner;
-				ctxRewireDiff(ctx, [], [old]); // bound the finished round's inner
 				if (st.round + 1 < count) {
 					st.round += 1;
-					const next = fromAnyInCtx(ctx, factory());
+					const next = fromAnyInCtx(host, factory());
 					st.inner = next;
 					ctx.state.set(st);
-					ctxRewireDiff(ctx, [next]);
+					ctx.rewire([next]); // the finished round's inner is released
 				} else {
 					st.inner = null;
 					ctx.state.set(st);
+					ctx.rewire([]);
 					ctx.down([["COMPLETE"]]);
 				}
 			}

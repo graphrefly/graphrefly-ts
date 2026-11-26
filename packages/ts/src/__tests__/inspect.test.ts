@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { graphProfile } from "../graph/inspect.js";
 import type { ObserveEvent } from "../index.js";
-import { Dispatcher, graph } from "../index.js";
+import { graph } from "../index.js";
 import { dataValues } from "./helpers/collect.js";
 
 describe("observe — an ordinary subscriber, one event per array (R-graph-surface@1)", () => {
@@ -42,9 +42,9 @@ describe("observe — an ordinary subscriber, one event per array (R-graph-surfa
 	});
 });
 
-describe("profile — dispatcher-backed counters, never on the thin node (R-node-thin / D39)", () => {
+describe("profile — the graph's own counters, never on the thin node (R-node-thin / D39, graphrefly-ts:D193)", () => {
 	it("counts invokes per node when profiling is enabled (opt-in)", () => {
-		const g = graph({ dispatcher: new Dispatcher(), profile: true });
+		const g = graph({ profile: true });
 		const s = g.state(0, { name: "s" });
 		const d = g.derived([s], (n) => n! + 1, { name: "d" });
 		d.subscribe(() => {});
@@ -60,7 +60,7 @@ describe("profile — dispatcher-backed counters, never on the thin node (R-node
 	});
 
 	it("default graph does not record (zero overhead, F-PERF)", () => {
-		const g = graph({ dispatcher: new Dispatcher() }); // profile not enabled
+		const g = graph(); // profile not enabled
 		const s = g.state(0, { name: "s" });
 		const d = g.derived([s], (n) => n! + 1, { name: "d" });
 		d.subscribe(() => {});

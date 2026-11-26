@@ -7,7 +7,7 @@ import { assertLocalName } from "../node/naming.js";
  * subscription-cursor substrate.
  */
 
-import type { NodeFn } from "../ctx/types.js";
+import { markRequestFirstRun, type NodeFn } from "../ctx/types.js";
 import type { DataIssue } from "../data/index.js";
 import type { Graph } from "../graph/graph.js";
 import { canonicalTupleKey } from "../identity.js";
@@ -299,6 +299,7 @@ export function messageBus<TTopic extends string>(
 					factory: "messageBusTopicProjection",
 					meta: { topic },
 					quiet: true,
+					setup: markRequestFirstRun,
 					complete: "manual",
 					error: "manual",
 				},
@@ -323,6 +324,7 @@ export function messageBus<TTopic extends string>(
 					name: projectionName,
 					factory: "messageBusCatalog",
 					quiet: true,
+					setup: markRequestFirstRun,
 					complete: "manual",
 					error: "manual",
 				},
@@ -347,6 +349,7 @@ export function messageBus<TTopic extends string>(
 					name: projectionName,
 					factory: "messageBusDeadLetter",
 					quiet: true,
+					setup: markRequestFirstRun,
 					complete: "manual",
 					error: "manual",
 				},
@@ -393,6 +396,7 @@ export function messageBus<TTopic extends string>(
 					factory: "messageBusSubscriptionAvailable",
 					meta: { topic: subscriptionOpts.topic, subscriptionId: subscriptionOpts.subscriptionId },
 					quiet: true,
+					setup: markRequestFirstRun,
 					complete: "manual",
 					error: "manual",
 				},

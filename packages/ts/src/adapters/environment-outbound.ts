@@ -15,7 +15,7 @@ import type {
 	WebSocketRequest,
 	WebSocketSendResult,
 } from "../graph/environment.js";
-import type { Graph } from "../graph/graph.js";
+import { environmentOfGraph, type Graph } from "../graph/graph.js";
 import { nextRetryDelayMs, retryPolicy, shouldRetry } from "../graph/resilience.js";
 import type { Node } from "../node/node.js";
 import { errorPayload, type Message } from "../protocol/messages.js";
@@ -353,9 +353,9 @@ export function toHttp<T>(
 		graph,
 		source,
 		name,
-		(ctx, value, callback) => {
+		(_ctx, value, callback) => {
 			const request = requestOf(value);
-			return ctx.environment().httpDriver()?.request(request, callback);
+			return environmentOfGraph(graph).httpDriver()?.request(request, callback);
 		},
 		opts,
 	);
@@ -387,9 +387,9 @@ export function toProcess<T>(
 		graph,
 		source,
 		name,
-		(ctx, value, callback) => {
+		(_ctx, value, callback) => {
 			const command = commandOf(value);
-			return ctx.environment().processDriver()?.run(command, callback);
+			return environmentOfGraph(graph).processDriver()?.run(command, callback);
 		},
 		opts,
 	);
@@ -423,8 +423,8 @@ export function toWebSocket<T>(
 		graph,
 		source,
 		name,
-		(ctx, value, callback) => {
-			const driver = ctx.environment().webSocketDriver();
+		(_ctx, value, callback) => {
+			const driver = environmentOfGraph(graph).webSocketDriver();
 			return driver?.send?.(request, sendOf(value), callback);
 		},
 		opts,

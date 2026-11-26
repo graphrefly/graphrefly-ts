@@ -2,7 +2,7 @@
  * D797 kernel migration, phase 4 (graphrefly-ts:D797-KERNEL-MIGRATION-TS): the lifetime.
  *
  * TS harness for the lifetime clauses of the root scenarios C-33 and C-4 in
- * ~/src/graphrefly/spec/conformance.jsonl, against R-lifetime@2, R-invocation@2 and R-failure@3:
+ * ~/src/graphrefly/spec/conformance.jsonl, against R-lifetime@2, R-invocation@4 and R-failure@5:
  * a setup runs once per lifetime before its first run, its cleanup runs once when the lifetime
  * closes and may read the private state, closing releases dependencies before the cleanup, a
  * cleanup throw goes to the host reporter, the signal is aborted, and output through a closed
@@ -148,7 +148,7 @@ describe("C-33: a closed lifetime revokes old ctx, and cleanup failures stay iso
 	});
 });
 
-describe("C-33: status is derived, not stored (R-node@2)", () => {
+describe("C-33: status is derived, not stored (R-node@4)", () => {
 	it("reports cache, output and lifecycle from what the node holds", () => {
 		const g = graph();
 		const a = g.state(1, { name: "a" });

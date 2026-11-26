@@ -2,8 +2,8 @@
  * D797 kernel migration, phase 2 (graphrefly-ts:D797-KERNEL-MIGRATION-TS): waves and arrays.
  *
  * TS harness for the root scenarios C-12, C-16, C-23, C-28, C-41, the wave clauses of C-4 and the
- * value and quiet-node clauses of C-44 in ~/src/graphrefly/spec/conformance.jsonl, against R-wave@2, R-subscription@3,
- * R-invocation@2 and R-failure@3. Clauses that need the request queue (phase 5) or the terminal
+ * value and quiet-node clauses of C-44 in ~/src/graphrefly/spec/conformance.jsonl, against R-wave@4, R-subscription@5,
+ * R-invocation@4 and R-failure@5. Clauses that need the request queue (phase 5) or the terminal
  * and INVALIDATE policies (phase 3) are tested in those phases.
  */
 
@@ -313,7 +313,7 @@ describe("C-28: intact output arrays, kernel-only PENDING prefixes and written o
 		log.log.length = 0;
 		g.batch(() => {
 			s.set(1);
-			// The host writes only values and terminals; it has no way to send RESOLVED (R-wave@2).
+			// The host writes only values and terminals; it has no way to send RESOLVED (R-wave@4).
 			s.complete();
 			expect(() => s.set(2)).toThrow(/last/);
 			expect(log.log).toEqual([]);
@@ -575,7 +575,7 @@ describe("an empty ctx.down sends nothing (R-wave, as in Rust and Python)", () =
 	});
 });
 
-describe("dependency reads belong to one invocation (D808, R-invocation@3)", () => {
+describe("dependency reads belong to one invocation (D808, R-invocation@4)", () => {
 	it("saved ctx and dependency views expire permanently, while captured data remains usable", () => {
 		const g = graph();
 		const a = g.state(1, { name: "a" });
