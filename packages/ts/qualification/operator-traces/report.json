@@ -1,0 +1,4082 @@
+{
+	"format": "graphrefly-ts.operator-trace-report.v1",
+	"rootCommit": "c11f03e90f24c7c7edcd12aac1c4f577aeee1768",
+	"tracesSha256": "e4786d556a67c3611abf0a7d4bd8297b780faed3d7a451fd7feead21d9f82f0a",
+	"packageRevision": "graphrefly-ts:0.10.0",
+	"sourceRevision": "5eea7aa282dae0f9e17d5dd98d8dc0c4f894d036",
+	"clock": "vitest fake timers (vi.useFakeTimers), advanced only by advance steps",
+	"baseline": "Phase 0 of graphrefly-ts:D817-KERNEL-REPORT-TS, on the kernel before its re-port: failures are classified, not diagnosed",
+	"ships": [
+		"map",
+		"tap",
+		"filter",
+		"takeWhile",
+		"first",
+		"last",
+		"distinctUntilChanged",
+		"scan",
+		"reduce",
+		"pairwise",
+		"take",
+		"skip",
+		"bufferCount",
+		"sample",
+		"takeUntil",
+		"buffer",
+		"valve",
+		"withLatestFrom",
+		"merge",
+		"zip",
+		"concat",
+		"race",
+		"derived",
+		"switchMap",
+		"concatMap",
+		"exhaustMap",
+		"mergeMap",
+		"debounce",
+		"throttle",
+		"auditTime",
+		"delay",
+		"bufferTime",
+		"timeout"
+	],
+	"notShipped": {
+		"pause": "TS has no pause operator (the R-pause module of graphrefly:D828 is not ported yet)",
+		"retry": "TS has no retry operator (only retry-policy helpers in graph/resilience.ts)",
+		"catchError": "TS has no catchError (it ships rescue, which DS-20 dropped)",
+		"latestAsync": "TS has no latestAsync",
+		"repeat": "TS has no repeat of the contract's shape"
+	},
+	"notTheContracts": {
+		"repeat": "TS's repeat(factory, count) builds its inner from a factory, where the contract's repeats an inner `of` over its dependencies with rounds and a retry policy"
+	},
+	"summary": {
+		"traces": 708,
+		"pass": 251,
+		"fail": 274,
+		"notRun": 183,
+		"failByClass": {
+			"behavior": 146,
+			"error": 73,
+			"framing": 55
+		}
+	},
+	"results": [
+		{
+			"id": "OT-1",
+			"result": "pass"
+		},
+		{
+			"id": "OT-2",
+			"result": "pass"
+		},
+		{
+			"id": "OT-3",
+			"result": "pass"
+		},
+		{
+			"id": "OT-4",
+			"result": "pass"
+		},
+		{
+			"id": "OT-5",
+			"result": "fail",
+			"class": "behavior",
+			"step": 4,
+			"detail": "step 4 [\"set\",\"s\",\"A\"]: k <- d: expected [[[\"PENDING\"],[\"DATA\",\"A\"]]] got [[[\"PENDING\"],[\"RESOLVED\"]]]"
+		},
+		{
+			"id": "OT-6",
+			"result": "fail",
+			"class": "behavior",
+			"step": 3,
+			"detail": "step 3 [\"set\",\"s\",0]: k <- d: expected [[[\"PENDING\"],[\"DATA\",2]]] got [[[\"PENDING\"],[\"RESOLVED\"]]]"
+		},
+		{
+			"id": "OT-7",
+			"result": "pass"
+		},
+		{
+			"id": "OT-8",
+			"result": "pass"
+		},
+		{
+			"id": "OT-9",
+			"result": "fail",
+			"class": "behavior",
+			"step": 8,
+			"detail": "step 8 [\"set\",\"t\",3]: k <- b: expected [[[\"PENDING\"],[\"RESOLVED\"]]] got [[[\"PENDING\"],[\"DATA\",[]]]]"
+		},
+		{
+			"id": "OT-10",
+			"result": "fail",
+			"class": "behavior",
+			"step": 4,
+			"detail": "step 4 [\"invalidate\",\"t\"]: k <- sa: expected [[[\"PENDING\"],[\"RESOLVED\"]]] got [[[\"PENDING\"],[\"INVALIDATE\"]]]"
+		},
+		{
+			"id": "OT-11",
+			"result": "fail",
+			"class": "behavior",
+			"step": 6,
+			"detail": "step 6 [\"set\",\"t\",2]: k <- sa: expected [[[\"PENDING\"],[\"RESOLVED\"]]] got [[[\"PENDING\"],[\"DATA\",\"B\"]]]; late <- sa: expected [[[\"PENDING\"],[\"RESOLVED\"]]] got [[[\"PENDING\"],[\"DATA\",\"B\"]]]"
+		},
+		{
+			"id": "OT-12",
+			"result": "pass"
+		},
+		{
+			"id": "OT-13",
+			"result": "pass"
+		},
+		{
+			"id": "OT-14",
+			"result": "pass"
+		},
+		{
+			"id": "OT-15",
+			"result": "pass"
+		},
+		{
+			"id": "OT-16",
+			"result": "pass"
+		},
+		{
+			"id": "OT-17",
+			"result": "fail",
+			"class": "behavior",
+			"step": 1,
+			"detail": "step 1 [\"set\",\"s\",[[\"A\",\"B\"],[\"C\"]]]: k <- x: expected [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"a1\"]],[[\"PENDING\"],[\"DATA\",\"b1\"]],[[\"PENDING\"],[\"DATA\",\"c1\"]]] got [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"a1\"]],[[\"PENDING\"],[\"ERROR\",{\"error\":\"Cannot read properties of undefined (reading 'terminal')\"}]]]"
+		},
+		{
+			"id": "OT-18",
+			"result": "pass"
+		},
+		{
+			"id": "OT-19",
+			"result": "pass"
+		},
+		{
+			"id": "OT-20",
+			"result": "fail",
+			"class": "behavior",
+			"step": 1,
+			"detail": "step 1 [\"set\",\"tab\",\"viewB\"]: k <- x: expected [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"B\"]]] got [[[\"PENDING\"],[\"DATA\",[\"viewB\",1]]],[[\"PENDING\"],[\"DATA\",\"B\"]]]"
+		},
+		{
+			"id": "OT-21",
+			"result": "pass"
+		},
+		{
+			"id": "OT-22",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "catchError: TS has no catchError (it ships rescue, which DS-20 dropped)"
+		},
+		{
+			"id": "OT-23",
+			"result": "fail",
+			"class": "error",
+			"step": 4,
+			"detail": "restore: not restorable: d: its private state is not JSON"
+		},
+		{
+			"id": "OT-24",
+			"result": "pass"
+		},
+		{
+			"id": "OT-25",
+			"result": "pass"
+		},
+		{
+			"id": "OT-26",
+			"result": "pass"
+		},
+		{
+			"id": "OT-27",
+			"result": "pass"
+		},
+		{
+			"id": "OT-28",
+			"result": "fail",
+			"class": "behavior",
+			"step": 4,
+			"detail": "step 4 [\"set\",\"t1\",3]: k1 <- sa1: expected [[[\"PENDING\"],[\"RESOLVED\"]]] got [[[\"PENDING\"],[\"DATA\",\"A\"]]]"
+		},
+		{
+			"id": "OT-29",
+			"result": "fail",
+			"class": "framing",
+			"step": 2,
+			"detail": "step 2 [\"batch\",[[\"set\",\"s\",1],[\"set\",\"s\",2]]]: k1 <- u1: expected [[[\"PENDING\"],[\"DATA\",1],[\"DATA\",2]]] got [[[\"PENDING\"],[\"DATA\",1]],[[\"PENDING\"],[\"DATA\",2]]]; k2 <- u2: expected [[[\"PENDING\"],[\"DATA\",1],[\"DATA\",2]]] got [[[\"PENDING\"],[\"DATA\",1]],[[\"PENDING\"],[\"DATA\",2]]]"
+		},
+		{
+			"id": "OT-30",
+			"result": "fail",
+			"class": "behavior",
+			"step": 0,
+			"detail": "step 0 [\"subscribe\",\"k\",\"u\"]: k <- u: expected [[[\"START\"]]] got [[[\"START\"],[\"COMPLETE\"]]]"
+		},
+		{
+			"id": "OT-31",
+			"result": "fail",
+			"class": "framing",
+			"step": 6,
+			"detail": "step 6 [\"complete\",\"s\"]: k <- b: expected [[[\"PENDING\"],[\"DATA\",[1,2]],[\"COMPLETE\"]]] got [[[\"PENDING\"],[\"DATA\",[1,2]]],[[\"PENDING\"],[\"COMPLETE\"]]]; k3 <- b3: expected [[[\"PENDING\"],[\"DATA\",[1,2]],[\"COMPLETE\"]]] got [[[\"PENDING\"],[\"DATA\",[1,2]]],[[\"PENDING\"],[\"COMPLETE\"]]]"
+		},
+		{
+			"id": "OT-32",
+			"result": "fail",
+			"class": "behavior",
+			"step": 6,
+			"detail": "step 6 [\"invalidate\",\"t\"]: k <- b: expected [[[\"PENDING\"],[\"RESOLVED\"]]] got [[[\"PENDING\"],[\"INVALIDATE\"]]]"
+		},
+		{
+			"id": "OT-33",
+			"result": "pass"
+		},
+		{
+			"id": "OT-34",
+			"result": "pass"
+		},
+		{
+			"id": "OT-35",
+			"result": "fail",
+			"class": "framing",
+			"step": 1,
+			"detail": "step 1 [\"set\",\"s\",[[1,2],[3]]]: k <- u: expected [[[\"PENDING\"],[\"DATA\",1],[\"DATA\",2]],[[\"PENDING\"],[\"DATA\",3]]] got [[[\"PENDING\"],[\"DATA\",1]],[[\"PENDING\"],[\"DATA\",2]],[[\"PENDING\"],[\"DATA\",3]]]"
+		},
+		{
+			"id": "OT-36",
+			"result": "fail",
+			"class": "behavior",
+			"step": 0,
+			"detail": "step 0 [\"subscribe\",\"k1\",\"sa\"]: k1 <- sa: expected [[[\"START\"]]] got [[[\"START\"],[\"DATA\",\"A\"]]]"
+		},
+		{
+			"id": "OT-37",
+			"result": "fail",
+			"class": "behavior",
+			"step": 6,
+			"detail": "step 6 [\"subscribe\",\"k1\",\"sa\"]: k1 <- sa: expected [[[\"START\"]]] got [[[\"START\"],[\"DATA\",\"A\"]]]"
+		},
+		{
+			"id": "OT-38",
+			"result": "fail",
+			"class": "framing",
+			"step": 2,
+			"detail": "step 2 [\"batch\",[[\"set\",\"s\",2],[\"set\",\"s\",3],[\"set\",\"s\",4],[\"set\",\"s\",5]]]: k <- c: expected [[[\"PENDING\"],[\"DATA\",[1,2]]],[[\"PENDING\"],[\"DATA\",[3,4]]]] got [[[\"PENDING\"],[\"DATA\",[1,2]],[\"DATA\",[3,4]]]]"
+		},
+		{
+			"id": "OT-39",
+			"result": "fail",
+			"class": "behavior",
+			"step": 4,
+			"detail": "step 4 [\"batch\",[[\"invalidate\",\"t\"],[\"set\",\"t\",2]]]: k <- sa: expected [[[\"PENDING\"],[\"DATA\",\"B\"]]] got [[[\"PENDING\"],[\"INVALIDATE\"]],[[\"PENDING\"],[\"DATA\",\"B\"]]]"
+		},
+		{
+			"id": "OT-40",
+			"result": "fail",
+			"class": "behavior",
+			"step": 6,
+			"detail": "step 6 [\"batch\",[[\"error\",\"s\",\"boom\"],[\"set\",\"t\",1]]]: k <- u: expected [[[\"PENDING\"],[\"COMPLETE\"]]] got [[[\"PENDING\"],[\"ERROR\",\"boom\"]]]"
+		},
+		{
+			"id": "OT-41",
+			"result": "pass"
+		},
+		{
+			"id": "OT-42",
+			"result": "fail",
+			"class": "behavior",
+			"step": 5,
+			"detail": "step 5 [\"complete\",\"s\"]: k <- b: expected [[[\"PENDING\"],[\"COMPLETE\"]]] got [[[\"PENDING\"],[\"DATA\",[]]],[[\"PENDING\"],[\"COMPLETE\"]]]"
+		},
+		{
+			"id": "OT-43",
+			"result": "fail",
+			"class": "framing",
+			"step": 4,
+			"detail": "step 4 [\"batch\",[[\"set\",\"s\",4],[\"set\",\"s\",5],[\"set\",\"s\",6],[\"complete\",\"s\"]]]: k <- c: expected [[[\"PENDING\"],[\"DATA\",[4,5]]],[[\"PENDING\"],[\"DATA\",[6]],[\"COMPLETE\"]]] got [[[\"PENDING\"],[\"DATA\",[4,5]],[\"DATA\",[6]],[\"COMPLETE\"]]]"
+		},
+		{
+			"id": "OT-44",
+			"result": "fail",
+			"class": "framing",
+			"step": 6,
+			"detail": "step 6 [\"batch\",[[\"invalidate\",\"s\"],[\"complete\",\"s\"]]]: k <- b: expected [[[\"PENDING\"],[\"INVALIDATE\"]],[[\"PENDING\"],[\"DATA\",[\"C\"]],[\"COMPLETE\"]]] got [[[\"PENDING\"],[\"INVALIDATE\"]],[[\"PENDING\"],[\"DATA\",[\"C\"]]],[[\"PENDING\"],[\"COMPLETE\"]]]"
+		},
+		{
+			"id": "OT-45",
+			"result": "pass"
+		},
+		{
+			"id": "OT-46",
+			"result": "fail",
+			"class": "behavior",
+			"step": 7,
+			"detail": "step 7 [\"set\",\"t\",2]: k <- sa: expected [[[\"PENDING\"],[\"RESOLVED\"]]] got [[[\"PENDING\"],[\"DATA\",\"B\"]]]"
+		},
+		{
+			"id": "OT-47",
+			"result": "pass"
+		},
+		{
+			"id": "OT-48",
+			"result": "pass"
+		},
+		{
+			"id": "OT-49",
+			"result": "pass"
+		},
+		{
+			"id": "OT-50",
+			"result": "pass"
+		},
+		{
+			"id": "OT-51",
+			"result": "pass"
+		},
+		{
+			"id": "OT-52",
+			"result": "pass"
+		},
+		{
+			"id": "OT-53",
+			"result": "pass"
+		},
+		{
+			"id": "OT-54",
+			"result": "pass"
+		},
+		{
+			"id": "OT-55",
+			"result": "pass"
+		},
+		{
+			"id": "OT-56",
+			"result": "fail",
+			"class": "behavior",
+			"step": 7,
+			"detail": "step 7 [\"subscribe\",\"k3\",\"b\"]: k3 <- b: expected [[[\"START\"],[\"DATA\",[\"A\"]]]] got [[[\"START\"],[\"DATA\",[]]]]"
+		},
+		{
+			"id": "OT-57",
+			"result": "pass"
+		},
+		{
+			"id": "OT-58",
+			"result": "pass"
+		},
+		{
+			"id": "OT-59",
+			"result": "pass"
+		},
+		{
+			"id": "OT-60",
+			"result": "pass"
+		},
+		{
+			"id": "OT-61",
+			"result": "fail",
+			"class": "behavior",
+			"step": 3,
+			"detail": "step 3 [\"set\",\"sn\",[[1],\"INVALIDATE\"]]: k <- u: expected [[[\"PENDING\"],[\"RESOLVED\"]]] got [[[\"PENDING\"],[\"INVALIDATE\"]]]"
+		},
+		{
+			"id": "OT-62",
+			"result": "fail",
+			"class": "behavior",
+			"step": 3,
+			"detail": "step 3 [\"set\",\"s\",2]: j <- r: expected [[[\"PENDING\"],[\"ERROR\"]]] got [[[\"PENDING\"],[\"RESOLVED\"]]]"
+		},
+		{
+			"id": "OT-63",
+			"result": "fail",
+			"class": "behavior",
+			"step": 2,
+			"detail": "step 2 [\"subscribe\",\"k2\",\"u\"]: k2 <- u: expected [[[\"START\"]]] got [[[\"START\"],[\"COMPLETE\"]]]"
+		},
+		{
+			"id": "OT-64",
+			"result": "fail",
+			"class": "behavior",
+			"step": 8,
+			"detail": "step 8 [\"batch\",[[\"invalidate\",\"s2\"],[\"set\",\"s2\",6]]]: j <- d2: expected [[[\"PENDING\"],[\"INVALIDATE\"]],[[\"PENDING\"],[\"DATA\",6]]] got [[[\"PENDING\"],[\"INVALIDATE\"]]]"
+		},
+		{
+			"id": "OT-65",
+			"result": "pass"
+		},
+		{
+			"id": "OT-66",
+			"result": "pass"
+		},
+		{
+			"id": "OT-68",
+			"result": "pass"
+		},
+		{
+			"id": "OT-69",
+			"result": "fail",
+			"class": "behavior",
+			"step": 7,
+			"detail": "step 7 [\"set\",\"s5\",[[1,2],{\"error\":\"boom\"}]]: u <- t5: expected [[[\"PENDING\"],[\"DATA\",1],[\"DATA\",2],[\"COMPLETE\"]]] got [[[\"PENDING\"],[\"ERROR\",\"boom\"]]]"
+		},
+		{
+			"id": "OT-70",
+			"result": "pass"
+		},
+		{
+			"id": "OT-71",
+			"result": "fail",
+			"class": "behavior",
+			"step": 11,
+			"detail": "step 11 [\"set\",\"s4\",[[1,5],{\"error\":\"boom\"}]]: r <- w4: expected [[[\"PENDING\"],[\"DATA\",1],[\"COMPLETE\"]]] got [[[\"PENDING\"],[\"ERROR\",\"boom\"]]]"
+		},
+		{
+			"id": "OT-72",
+			"result": "fail",
+			"class": "behavior",
+			"step": 9,
+			"detail": "step 9 [\"set\",\"s4\",[[1],{\"error\":\"boom\"}]]: r <- f4: expected [[[\"PENDING\"],[\"DATA\",1],[\"COMPLETE\"]]] got [[[\"PENDING\"],[\"ERROR\",\"boom\"]]]"
+		},
+		{
+			"id": "OT-73",
+			"result": "pass"
+		},
+		{
+			"id": "OT-74",
+			"result": "pass"
+		},
+		{
+			"id": "OT-75",
+			"result": "pass"
+		},
+		{
+			"id": "OT-76",
+			"result": "fail",
+			"class": "behavior",
+			"step": 13,
+			"detail": "step 13 [\"batch\",[[\"set\",\"s2\",3],[\"error\",\"s2\",\"boom\"]]]: j4 <- w2: expected [[[\"PENDING\"],[\"COMPLETE\"]]] got [[[\"PENDING\"],[\"ERROR\",\"boom\"]]]"
+		},
+		{
+			"id": "OT-77",
+			"result": "pass"
+		},
+		{
+			"id": "OT-78",
+			"result": "pass"
+		},
+		{
+			"id": "OT-79",
+			"result": "pass"
+		},
+		{
+			"id": "OT-80",
+			"result": "fail",
+			"class": "behavior",
+			"step": 10,
+			"detail": "step 10 [\"set\",\"s4\",[[1,5],[1],{\"error\":\"boom\"}]]: c <- w4: expected [[[\"PENDING\"],[\"DATA\",1],[\"COMPLETE\"]]] got [[[\"PENDING\"],[\"ERROR\",\"boom\"]]]"
+		},
+		{
+			"id": "OT-81",
+			"result": "pass"
+		},
+		{
+			"id": "OT-82",
+			"result": "fail",
+			"class": "behavior",
+			"step": 2,
+			"detail": "step 2 [\"subscribe\",\"k1\",\"f\"]: k1 <- f: expected [[[\"START\"],[\"DATA\",4],[\"COMPLETE\"]]] got [[[\"START\"],[\"ERROR\",\"boom\"]]]"
+		},
+		{
+			"id": "OT-83",
+			"result": "pass"
+		},
+		{
+			"id": "OT-84",
+			"result": "fail",
+			"class": "behavior",
+			"step": 2,
+			"detail": "step 2 [\"subscribe\",\"b\",\"te\"]: b <- te: expected [[[\"START\"],[\"COMPLETE\"]]] got [[[\"START\"],[\"ERROR\",\"boom\"]]]"
+		},
+		{
+			"id": "OT-85",
+			"result": "fail",
+			"class": "behavior",
+			"step": 3,
+			"detail": "step 3 [\"set\",\"s\",8]: k <- pw: expected [[[\"PENDING\"],[\"DATA\",[8,8]]]] got [[[\"PENDING\"],[\"RESOLVED\"]]]"
+		},
+		{
+			"id": "OT-86",
+			"result": "pass"
+		},
+		{
+			"id": "OT-87",
+			"result": "pass"
+		},
+		{
+			"id": "OT-88",
+			"result": "pass"
+		},
+		{
+			"id": "OT-89",
+			"result": "pass"
+		},
+		{
+			"id": "OT-90",
+			"result": "fail",
+			"class": "behavior",
+			"step": 0,
+			"detail": "step 0 [\"subscribe\",\"k\",\"m\"]: k <- m: expected [[[\"START\"],[\"DATA\",2]]] got [[[\"START\"],[\"DATA\",1],[\"DATA\",2]]]"
+		},
+		{
+			"id": "OT-91",
+			"result": "fail",
+			"class": "error",
+			"detail": "build: \"withLatestFrom needs 2 inputs, got 3\""
+		},
+		{
+			"id": "OT-92",
+			"result": "pass"
+		},
+		{
+			"id": "OT-93",
+			"result": "fail",
+			"class": "error",
+			"detail": "build: \"concat needs 2 inputs, got 3\""
+		},
+		{
+			"id": "OT-94",
+			"result": "fail",
+			"class": "framing",
+			"step": 2,
+			"detail": "step 2 [\"set\",\"c\",\"c2\"]: k <- r: expected [] got [[[\"PENDING\"],[\"RESOLVED\"]]]"
+		},
+		{
+			"id": "OT-95",
+			"result": "fail",
+			"class": "error",
+			"detail": "build: \"concat needs 2 inputs, got 3\""
+		},
+		{
+			"id": "OT-96",
+			"result": "pass"
+		},
+		{
+			"id": "OT-97",
+			"result": "fail",
+			"class": "behavior",
+			"step": 7,
+			"detail": "step 7 [\"set\",\"b\",[7,8]]: k3 <- w: expected [[[\"PENDING\"],[\"RESOLVED\"]]] got [[[\"PENDING\"],[\"DATA\",[0,[7,8]]]]]; k5 <- r: expected [] got [[[\"PENDING\"],[\"RESOLVED\"]]]; k6 <- x: expected [] got [[[\"PENDING\"],[\"RESOLVED\"]]]"
+		},
+		{
+			"id": "OT-98",
+			"result": "pass"
+		},
+		{
+			"id": "OT-99",
+			"result": "pass"
+		},
+		{
+			"id": "OT-100",
+			"result": "fail",
+			"class": "behavior",
+			"step": 17,
+			"detail": "step 17 [\"subscribe\",\"k7\",\"r3\"]: k7 <- r3: expected [[[\"START\"],[\"COMPLETE\"]]] got [[[\"START\"],[\"DATA\",\"y\"]]]"
+		},
+		{
+			"id": "OT-101",
+			"result": "fail",
+			"class": "behavior",
+			"step": 15,
+			"detail": "step 15 [\"batch\",[[\"set\",\"b5\",10],[\"error\",\"b5\",\"boom\"]]]: k6 <- z2: expected [[[\"PENDING\"],[\"DATA\",[1,10]],[\"COMPLETE\"]]] got [[[\"PENDING\"],[\"ERROR\",\"boom\"]]]"
+		},
+		{
+			"id": "OT-102",
+			"result": "fail",
+			"class": "framing",
+			"step": 14,
+			"detail": "step 14 [\"set\",\"h\",3]: s4 <- x2: expected [] got [[[\"PENDING\"],[\"RESOLVED\"]]]"
+		},
+		{
+			"id": "OT-103",
+			"result": "fail",
+			"class": "error",
+			"detail": "build: \"concat needs 2 inputs, got 3\""
+		},
+		{
+			"id": "OT-104",
+			"result": "fail",
+			"class": "framing",
+			"step": 5,
+			"detail": "step 5 [\"complete\",\"b2\"]: j <- x: expected [] got [[[\"PENDING\"],[\"RESOLVED\"]]]"
+		},
+		{
+			"id": "OT-105",
+			"result": "fail",
+			"class": "behavior",
+			"step": 4,
+			"detail": "step 4 [\"set\",\"s\",2]: j <- d: expected [[[\"PENDING\"],[\"ERROR\"]]] got [[[\"PENDING\"],[\"RESOLVED\"]]]"
+		},
+		{
+			"id": "OT-106",
+			"result": "fail",
+			"class": "behavior",
+			"step": 2,
+			"detail": "step 2 [\"batch\",[[\"set\",\"a\",1],[\"set\",\"b\",2]]]: k <- r: expected [[[\"PENDING\"],[\"DATA\",1]],[[\"PENDING\"],[\"RESOLVED\"]]] got [[[\"PENDING\"],[\"DATA\",1]],[[\"PENDING\"],[\"INVALIDATE\"]]]"
+		},
+		{
+			"id": "OT-107",
+			"result": "fail",
+			"class": "behavior",
+			"step": 2,
+			"detail": "step 2 [\"batch\",[[\"set\",\"c\",1],[\"complete\",\"c\"]]]: k1 <- sa: expected [[[\"PENDING\"],[\"DATA\",\"A\"]]] got [[[\"PENDING\"],[\"COMPLETE\"]]]"
+		},
+		{
+			"id": "OT-108",
+			"result": "pass"
+		},
+		{
+			"id": "OT-109",
+			"result": "pass"
+		},
+		{
+			"id": "OT-110",
+			"result": "fail",
+			"class": "framing",
+			"step": 3,
+			"detail": "step 3 [\"set\",\"s\",[[7]]]: k <- x: expected [] got [[[\"PENDING\"],[\"RESOLVED\"]]]"
+		},
+		{
+			"id": "OT-111",
+			"result": "fail",
+			"class": "behavior",
+			"step": 2,
+			"detail": "step 2 [\"subscribe\",\"k\",\"z\"]: k <- z: expected [[[\"START\"],[\"DATA\",[1,2]],[\"COMPLETE\"]]] got [[[\"START\"],[\"ERROR\",\"boom\"]]]"
+		},
+		{
+			"id": "OT-112",
+			"result": "pass"
+		},
+		{
+			"id": "OT-113",
+			"result": "pass"
+		},
+		{
+			"id": "OT-114",
+			"result": "pass"
+		},
+		{
+			"id": "OT-115",
+			"result": "fail",
+			"class": "error",
+			"detail": "build: \"concat needs 2 inputs, got 3\""
+		},
+		{
+			"id": "OT-116",
+			"result": "pass"
+		},
+		{
+			"id": "OT-117",
+			"result": "pass"
+		},
+		{
+			"id": "OT-118",
+			"result": "fail",
+			"class": "behavior",
+			"step": 4,
+			"detail": "step 4 [\"subscribe\",\"j1\",\"a1\"]: j1 <- a1: expected [[[\"START\"],[\"COMPLETE\"]]] got [[[\"START\"]]]"
+		},
+		{
+			"id": "OT-119",
+			"result": "fail",
+			"class": "behavior",
+			"step": 2,
+			"detail": "step 2 [\"subscribe\",\"k1\",\"m1\"]: k1 <- m1: expected [[[\"START\"],[\"DATA\",2]]] got [[[\"START\"],[\"DATA\",1],[\"DATA\",2]]]"
+		},
+		{
+			"id": "OT-120",
+			"result": "fail",
+			"class": "behavior",
+			"step": 15,
+			"detail": "step 15 [\"batch\",[[\"error\",\"a2\",\"EA\"],[\"complete\",\"b2\"]]]: l5 <- r2: expected [[[\"PENDING\"],[\"ERROR\",\"EA\"]]] got [[[\"PENDING\"],[\"COMPLETE\"]]]"
+		},
+		{
+			"id": "OT-121",
+			"result": "fail",
+			"class": "behavior",
+			"step": 13,
+			"detail": "step 13 [\"batch\",[[\"set\",\"s3\",1],[\"error\",\"s3\",\"boom\"]]]: kw <- lw: expected [[[\"PENDING\"],[\"DATA\",1]]] got []"
+		},
+		{
+			"id": "OT-122",
+			"result": "pass"
+		},
+		{
+			"id": "OT-123",
+			"result": "fail",
+			"class": "behavior",
+			"step": 49,
+			"detail": "step 49 [\"subscribe\",\"k_sa\",\"sa\"]: k_sa <- sa: expected [[[\"START\"],[\"COMPLETE\"]]] got [[[\"START\"]]]"
+		},
+		{
+			"id": "OT-124",
+			"result": "fail",
+			"class": "behavior",
+			"step": 55,
+			"detail": "step 55 [\"subscribe\",\"k_t\",\"t\"]: k_t <- t: expected [[[\"START\"],[\"DATA\",2],[\"COMPLETE\"]]] got [[[\"START\"],[\"DATA\",1],[\"ERROR\",\"boom\"]]]"
+		},
+		{
+			"id": "OT-125",
+			"result": "fail",
+			"class": "framing",
+			"step": 17,
+			"detail": "step 17 [\"subscribe\",\"k_x\",\"x\"]: k_x <- x: expected [[[\"START\"],[\"DATA\",2],[\"DATA\",4],[\"DATA\",5]],[[\"PENDING\"],[\"DATA\",9]]] got [[[\"START\"],[\"DATA\",2],[\"DATA\",4],[\"DATA\",5],[\"DATA\",9]]]"
+		},
+		{
+			"id": "OT-126",
+			"result": "fail",
+			"class": "behavior",
+			"step": 9,
+			"detail": "step 9 [\"subscribe\",\"k_rc\",\"rc\"]: k_rc <- rc: expected [[[\"START\"],[\"ERROR\",\"EX\"]]] got [[[\"START\"],[\"COMPLETE\"]]]"
+		},
+		{
+			"id": "OT-127",
+			"result": "pass"
+		},
+		{
+			"id": "OT-128",
+			"result": "pass"
+		},
+		{
+			"id": "OT-129",
+			"result": "pass"
+		},
+		{
+			"id": "OT-130",
+			"result": "fail",
+			"class": "framing",
+			"step": 3,
+			"detail": "step 3 [\"set\",\"s\",2]: k <- r: expected [] got [[[\"PENDING\"],[\"RESOLVED\"]]]"
+		},
+		{
+			"id": "OT-131",
+			"result": "pass"
+		},
+		{
+			"id": "OT-132",
+			"result": "pass"
+		},
+		{
+			"id": "OT-133",
+			"result": "pass"
+		},
+		{
+			"id": "OT-134",
+			"result": "pass"
+		},
+		{
+			"id": "OT-135",
+			"result": "fail",
+			"class": "framing",
+			"step": 2,
+			"detail": "step 2 [\"batch\",[[\"complete\",\"f\"],[\"complete\",\"s\"]]]: k <- m: expected [[[\"PENDING\"],[\"DATA\",[1]],[\"COMPLETE\"]]] got [[[\"PENDING\"],[\"DATA\",[1]]],[[\"PENDING\"],[\"COMPLETE\"]]]"
+		},
+		{
+			"id": "OT-136",
+			"result": "pass"
+		},
+		{
+			"id": "OT-137",
+			"result": "pass"
+		},
+		{
+			"id": "OT-138",
+			"result": "fail",
+			"class": "behavior",
+			"step": 3,
+			"detail": "step 3 [\"set\",\"b\",10]: k <- z: expected [[[\"PENDING\"],[\"DATA\",[1,10]]]] got [[[\"PENDING\"],[\"DATA\",[1,10]],[\"COMPLETE\"]]]"
+		},
+		{
+			"id": "OT-139",
+			"result": "fail",
+			"class": "behavior",
+			"step": 5,
+			"detail": "step 5 [\"set\",\"b\",10]: k <- z: expected [[[\"PENDING\"],[\"DATA\",[1,10]]]] got [[[\"PENDING\"],[\"DATA\",[1,10]],[\"COMPLETE\"]]]"
+		},
+		{
+			"id": "OT-140",
+			"result": "fail",
+			"class": "behavior",
+			"step": 5,
+			"detail": "step 5 [\"set\",\"b\",20]: k <- z: expected [[[\"PENDING\"],[\"DATA\",[7,20]]]] got [[[\"PENDING\"],[\"DATA\",[7,20]],[\"COMPLETE\"]]]"
+		},
+		{
+			"id": "OT-141",
+			"result": "fail",
+			"class": "behavior",
+			"step": 2,
+			"detail": "step 2 [\"set\",\"c\",1]: k <- v: expected [[[\"PENDING\"],[\"RESOLVED\"]]] got [[[\"PENDING\"],[\"DATA\",1]]]"
+		},
+		{
+			"id": "OT-142",
+			"result": "pass"
+		},
+		{
+			"id": "OT-143",
+			"result": "pass"
+		},
+		{
+			"id": "OT-144",
+			"result": "pass"
+		},
+		{
+			"id": "OT-145",
+			"result": "pass"
+		},
+		{
+			"id": "OT-146",
+			"result": "pass"
+		},
+		{
+			"id": "OT-147",
+			"result": "fail",
+			"class": "behavior",
+			"step": 2,
+			"detail": "step 2 [\"invalidate\",\"c\"]: k <- v: expected [[[\"PENDING\"],[\"RESOLVED\"]]] got [[[\"PENDING\"],[\"INVALIDATE\"]]]"
+		},
+		{
+			"id": "OT-148",
+			"result": "pass"
+		},
+		{
+			"id": "OT-149",
+			"result": "pass"
+		},
+		{
+			"id": "OT-150",
+			"result": "pass"
+		},
+		{
+			"id": "OT-151",
+			"result": "pass"
+		},
+		{
+			"id": "OT-152",
+			"result": "fail",
+			"class": "behavior",
+			"step": 11,
+			"detail": "step 11 [\"set\",\"c\",true]: k <- v: expected [[[\"PENDING\"],[\"RESOLVED\"]]] got [[[\"PENDING\"],[\"DATA\",4]]]"
+		},
+		{
+			"id": "OT-153",
+			"result": "pass"
+		},
+		{
+			"id": "OT-154",
+			"result": "fail",
+			"class": "behavior",
+			"step": 2,
+			"detail": "step 2 [\"batch\",[[\"invalidate\",\"c\"],[\"error\",\"s\",\"bad\"]]]: k <- v: expected [[[\"PENDING\"],[\"ERROR\",\"bad\"]]] got [[[\"PENDING\"],[\"INVALIDATE\"]],[[\"PENDING\"],[\"ERROR\",\"bad\"]]]"
+		},
+		{
+			"id": "OT-155",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "pause: TS has no pause operator (the R-pause module of graphrefly:D828 is not ported yet)"
+		},
+		{
+			"id": "OT-156",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "pause: TS has no pause operator (the R-pause module of graphrefly:D828 is not ported yet)"
+		},
+		{
+			"id": "OT-157",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "pause: TS has no pause operator (the R-pause module of graphrefly:D828 is not ported yet)"
+		},
+		{
+			"id": "OT-158",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "pause: TS has no pause operator (the R-pause module of graphrefly:D828 is not ported yet)"
+		},
+		{
+			"id": "OT-159",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "pause: TS has no pause operator (the R-pause module of graphrefly:D828 is not ported yet)"
+		},
+		{
+			"id": "OT-160",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "pause: TS has no pause operator (the R-pause module of graphrefly:D828 is not ported yet)"
+		},
+		{
+			"id": "OT-161",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "pause: TS has no pause operator (the R-pause module of graphrefly:D828 is not ported yet)"
+		},
+		{
+			"id": "OT-162",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "pause: TS has no pause operator (the R-pause module of graphrefly:D828 is not ported yet)"
+		},
+		{
+			"id": "OT-163",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "pause: TS has no pause operator (the R-pause module of graphrefly:D828 is not ported yet)"
+		},
+		{
+			"id": "OT-164",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "pause: TS has no pause operator (the R-pause module of graphrefly:D828 is not ported yet)"
+		},
+		{
+			"id": "OT-165",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "pause: TS has no pause operator (the R-pause module of graphrefly:D828 is not ported yet)"
+		},
+		{
+			"id": "OT-166",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "pause: TS has no pause operator (the R-pause module of graphrefly:D828 is not ported yet)"
+		},
+		{
+			"id": "OT-167",
+			"result": "fail",
+			"class": "behavior",
+			"step": 6,
+			"detail": "step 6 [\"subscribe\",\"k\",\"v\"]: k <- v: expected [[[\"START\"],[\"DATA\",1]]] got [[[\"START\"],[\"DATA\",2]]]"
+		},
+		{
+			"id": "OT-168",
+			"result": "pass"
+		},
+		{
+			"id": "OT-169",
+			"result": "pass"
+		},
+		{
+			"id": "OT-170",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "pause: TS has no pause operator (the R-pause module of graphrefly:D828 is not ported yet)"
+		},
+		{
+			"id": "OT-171",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "pause: TS has no pause operator (the R-pause module of graphrefly:D828 is not ported yet)"
+		},
+		{
+			"id": "OT-172",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "pause: TS has no pause operator (the R-pause module of graphrefly:D828 is not ported yet)"
+		},
+		{
+			"id": "OT-173",
+			"result": "fail",
+			"class": "behavior",
+			"step": 2,
+			"detail": "step 2 [\"set\",\"s\",1]: k <- v: expected [[[\"PENDING\"],[\"RESOLVED\"]]] got [[[\"PENDING\"],[\"DATA\",1]]]"
+		},
+		{
+			"id": "OT-174",
+			"result": "fail",
+			"class": "behavior",
+			"step": 3,
+			"detail": "step 3 [\"batch\",[[\"invalidate\",\"c\"],[\"set\",\"c\",true],[\"set\",\"s\",2]]]: k <- v: expected [[[\"PENDING\"],[\"DATA\",2]]] got [[[\"PENDING\"],[\"INVALIDATE\"]],[[\"PENDING\"],[\"DATA\",2]]]"
+		},
+		{
+			"id": "OT-175",
+			"result": "pass"
+		},
+		{
+			"id": "OT-176",
+			"result": "pass"
+		},
+		{
+			"id": "OT-177",
+			"result": "pass"
+		},
+		{
+			"id": "OT-178",
+			"result": "pass"
+		},
+		{
+			"id": "OT-179",
+			"result": "pass"
+		},
+		{
+			"id": "OT-180",
+			"result": "pass"
+		},
+		{
+			"id": "OT-181",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "pause: TS has no pause operator (the R-pause module of graphrefly:D828 is not ported yet)"
+		},
+		{
+			"id": "OT-182",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "pause: TS has no pause operator (the R-pause module of graphrefly:D828 is not ported yet)"
+		},
+		{
+			"id": "OT-183",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "pause: TS has no pause operator (the R-pause module of graphrefly:D828 is not ported yet)"
+		},
+		{
+			"id": "OT-184",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "pause: TS has no pause operator (the R-pause module of graphrefly:D828 is not ported yet)"
+		},
+		{
+			"id": "OT-185",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "pause: TS has no pause operator (the R-pause module of graphrefly:D828 is not ported yet)"
+		},
+		{
+			"id": "OT-186",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "pause: TS has no pause operator (the R-pause module of graphrefly:D828 is not ported yet)"
+		},
+		{
+			"id": "OT-187",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "pause: TS has no pause operator (the R-pause module of graphrefly:D828 is not ported yet)"
+		},
+		{
+			"id": "OT-188",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "pause: TS has no pause operator (the R-pause module of graphrefly:D828 is not ported yet)"
+		},
+		{
+			"id": "OT-189",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "pause: TS has no pause operator (the R-pause module of graphrefly:D828 is not ported yet)"
+		},
+		{
+			"id": "OT-190",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "pause: TS has no pause operator (the R-pause module of graphrefly:D828 is not ported yet)"
+		},
+		{
+			"id": "OT-191",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "pause: TS has no pause operator (the R-pause module of graphrefly:D828 is not ported yet)"
+		},
+		{
+			"id": "OT-192",
+			"result": "pass"
+		},
+		{
+			"id": "OT-193",
+			"result": "fail",
+			"class": "behavior",
+			"step": 4,
+			"detail": "step 4 [\"batch\",[[\"invalidate\",\"c\"],[\"error\",\"c\",\"bad\"]]]: k <- v: expected [[[\"PENDING\"],[\"ERROR\",\"bad\"]]] got [[[\"PENDING\"],[\"INVALIDATE\"]],[[\"PENDING\"],[\"ERROR\",\"bad\"]]]"
+		},
+		{
+			"id": "OT-194",
+			"result": "fail",
+			"class": "behavior",
+			"step": 2,
+			"detail": "step 2 [\"invalidate\",\"c\"]: k <- v: expected [[[\"PENDING\"],[\"RESOLVED\"]]] got [[[\"PENDING\"],[\"INVALIDATE\"]]]"
+		},
+		{
+			"id": "OT-195",
+			"result": "fail",
+			"class": "behavior",
+			"step": 4,
+			"detail": "step 4 [\"set\",\"c\",true]: k <- v: expected [[[\"PENDING\"],[\"RESOLVED\"]]] got [[[\"PENDING\"],[\"DATA\",1]]]"
+		},
+		{
+			"id": "OT-196",
+			"result": "pass"
+		},
+		{
+			"id": "OT-197",
+			"result": "fail",
+			"class": "behavior",
+			"step": 9,
+			"detail": "step 9 [\"set\",\"c1\",true]: k <- a: expected [[[\"PENDING\"],[\"RESOLVED\"]]] got [[[\"PENDING\"],[\"DATA\",2]]]"
+		},
+		{
+			"id": "OT-198",
+			"result": "pass"
+		},
+		{
+			"id": "OT-199",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "pause: TS has no pause operator (the R-pause module of graphrefly:D828 is not ported yet)"
+		},
+		{
+			"id": "OT-200",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "pause: TS has no pause operator (the R-pause module of graphrefly:D828 is not ported yet)"
+		},
+		{
+			"id": "OT-201",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "pause: TS has no pause operator (the R-pause module of graphrefly:D828 is not ported yet)"
+		},
+		{
+			"id": "OT-202",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "pause: TS has no pause operator (the R-pause module of graphrefly:D828 is not ported yet)"
+		},
+		{
+			"id": "OT-203",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "pause: TS has no pause operator (the R-pause module of graphrefly:D828 is not ported yet)"
+		},
+		{
+			"id": "OT-204",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "pause: TS has no pause operator (the R-pause module of graphrefly:D828 is not ported yet)"
+		},
+		{
+			"id": "OT-205",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "pause: TS has no pause operator (the R-pause module of graphrefly:D828 is not ported yet)"
+		},
+		{
+			"id": "OT-206",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "pause: TS has no pause operator (the R-pause module of graphrefly:D828 is not ported yet)"
+		},
+		{
+			"id": "OT-207",
+			"result": "fail",
+			"class": "behavior",
+			"step": 3,
+			"detail": "step 3 [\"invalidate\",\"c2\"]: k <- b: expected [[[\"PENDING\"],[\"RESOLVED\"]]] got [[[\"PENDING\"],[\"INVALIDATE\"]]]"
+		},
+		{
+			"id": "OT-208",
+			"result": "fail",
+			"class": "behavior",
+			"step": 8,
+			"detail": "step 8 [\"batch\",[[\"invalidate\",\"c\"],[\"complete\",\"u\"]]]: k <- lost: expected [[[\"PENDING\"],[\"COMPLETE\"]]] got [[[\"PENDING\"],[\"INVALIDATE\"]],[[\"PENDING\"],[\"COMPLETE\"]]]"
+		},
+		{
+			"id": "OT-209",
+			"result": "fail",
+			"class": "behavior",
+			"step": 5,
+			"detail": "step 5 [\"set\",\"c\",true]: k <- v: expected [[[\"PENDING\"],[\"RESOLVED\"]]] got [[[\"PENDING\"],[\"DATA\",2]]]; late <- v: expected [[[\"PENDING\"],[\"RESOLVED\"]]] got [[[\"PENDING\"],[\"DATA\",2]]]"
+		},
+		{
+			"id": "OT-210",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "pause: TS has no pause operator (the R-pause module of graphrefly:D828 is not ported yet)"
+		},
+		{
+			"id": "OT-211",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "pause: TS has no pause operator (the R-pause module of graphrefly:D828 is not ported yet)"
+		},
+		{
+			"id": "OT-212",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "pause: TS has no pause operator (the R-pause module of graphrefly:D828 is not ported yet)"
+		},
+		{
+			"id": "OT-213",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "pause: TS has no pause operator (the R-pause module of graphrefly:D828 is not ported yet)"
+		},
+		{
+			"id": "OT-214",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "pause: TS has no pause operator (the R-pause module of graphrefly:D828 is not ported yet)"
+		},
+		{
+			"id": "OT-215",
+			"result": "pass"
+		},
+		{
+			"id": "OT-216",
+			"result": "pass"
+		},
+		{
+			"id": "OT-217",
+			"result": "pass"
+		},
+		{
+			"id": "OT-218",
+			"result": "fail",
+			"class": "behavior",
+			"step": 6,
+			"detail": "step 6 [\"set\",\"o2\",\"B\"]: k <- b: expected [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"ERROR\",\"bad\"]]] got [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"b1\"]],[[\"PENDING\"],[\"ERROR\",\"bad\"]]]"
+		},
+		{
+			"id": "OT-219",
+			"result": "fail",
+			"class": "behavior",
+			"step": 6,
+			"detail": "step 6 [\"batch\",[[\"set\",\"A\",\"a2\"],[\"error\",\"A\",\"inner\"]]]: k <- a: expected [[[\"PENDING\"],[\"ERROR\",\"inner\"]]] got [[[\"PENDING\"],[\"DATA\",\"a2\"]],[[\"PENDING\"],[\"ERROR\",\"inner\"]]]"
+		},
+		{
+			"id": "OT-220",
+			"result": "fail",
+			"class": "behavior",
+			"step": 4,
+			"detail": "step 4 [\"batch\",[[\"set\",\"A\",\"a2\"],[\"set\",\"o1\",\"B\"]]]: k <- a: expected [[[\"PENDING\"],[\"ERROR\"]]] got [[[\"PENDING\"],[\"DATA\",\"a2\"]],[[\"PENDING\"],[\"ERROR\",{\"error\":\"trace callback threw on \\\"B\\\"\"}]]]"
+		},
+		{
+			"id": "OT-221",
+			"result": "pass"
+		},
+		{
+			"id": "OT-222",
+			"result": "fail",
+			"class": "behavior",
+			"step": 6,
+			"detail": "step 6 [\"batch\",[[\"set\",\"A\",\"a2\"],[\"set\",\"o1\",\"N\"]]]: k <- a: expected [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"n1\"]]] got [[[\"PENDING\"],[\"DATA\",\"a2\"]],[[\"PENDING\"],[\"DATA\",\"n1\"]]]"
+		},
+		{
+			"id": "OT-223",
+			"result": "fail",
+			"class": "behavior",
+			"step": 2,
+			"detail": "step 2 [\"set\",\"tab\",\"viewB\"]: k <- x: expected [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"B\"]]] got [[[\"PENDING\"],[\"DATA\",[\"viewB\",2]]],[[\"PENDING\"],[\"DATA\",\"B\"]]]"
+		},
+		{
+			"id": "OT-224",
+			"result": "pass"
+		},
+		{
+			"id": "OT-225",
+			"result": "pass"
+		},
+		{
+			"id": "OT-226",
+			"result": "fail",
+			"class": "behavior",
+			"step": 7,
+			"detail": "step 7 [\"set\",\"A\",\"a2\"]: k <- a: expected [] got [[[\"PENDING\"],[\"DATA\",\"a2\"]]]"
+		},
+		{
+			"id": "OT-227",
+			"result": "fail",
+			"class": "behavior",
+			"step": 4,
+			"detail": "step 4 [\"batch\",[[\"invalidate\",\"o1\"],[\"error\",\"A\",\"bad\"]]]: k <- a: expected [[[\"PENDING\"],[\"INVALIDATE\"]]] got [[[\"PENDING\"],[\"INVALIDATE\"]],[[\"PENDING\"],[\"ERROR\",\"bad\"]]]"
+		},
+		{
+			"id": "OT-228",
+			"result": "pass"
+		},
+		{
+			"id": "OT-229",
+			"result": "pass"
+		},
+		{
+			"id": "OT-230",
+			"result": "fail",
+			"class": "error",
+			"step": 3,
+			"detail": "restore: not restorable: x: its private state is not JSON"
+		},
+		{
+			"id": "OT-231",
+			"result": "fail",
+			"class": "error",
+			"step": 5,
+			"detail": "restore: not restorable: a: its private state is not JSON"
+		},
+		{
+			"id": "OT-232",
+			"result": "fail",
+			"class": "error",
+			"step": 8,
+			"detail": "restore: not restorable: a: its private state is not JSON"
+		},
+		{
+			"id": "OT-233",
+			"result": "pass"
+		},
+		{
+			"id": "OT-234",
+			"result": "pass"
+		},
+		{
+			"id": "OT-235",
+			"result": "pass"
+		},
+		{
+			"id": "OT-236",
+			"result": "pass"
+		},
+		{
+			"id": "OT-237",
+			"result": "pass"
+		},
+		{
+			"id": "OT-238",
+			"result": "fail",
+			"class": "behavior",
+			"step": 6,
+			"detail": "step 6 [\"batch\",[[\"set\",\"A\",\"a3\"],[\"complete\",\"A\"]]]: k <- x: expected [[[\"PENDING\"],[\"ERROR\"]]] got [[[\"PENDING\"],[\"DATA\",\"a3\"]],[[\"PENDING\"],[\"ERROR\",{\"error\":\"trace callback threw on \\\"B\\\"\"}]]]"
+		},
+		{
+			"id": "OT-239",
+			"result": "fail",
+			"class": "behavior",
+			"step": 11,
+			"detail": "step 11 [\"complete\",\"B\"]: k <- x: expected [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"b2\"]]] got [[[\"PENDING\"],[\"RESOLVED\"]]]"
+		},
+		{
+			"id": "OT-240",
+			"result": "fail",
+			"class": "behavior",
+			"step": 10,
+			"detail": "step 10 [\"batch\",[[\"set\",\"A\",\"a2\"],[\"error\",\"B\",\"b\"]]]: k <- a: expected [[[\"PENDING\"],[\"ERROR\",\"b\"]]] got [[[\"PENDING\"],[\"DATA\",\"a2\"]],[[\"PENDING\"],[\"ERROR\",\"b\"]]]"
+		},
+		{
+			"id": "OT-241",
+			"result": "fail",
+			"class": "behavior",
+			"step": 2,
+			"detail": "step 2 [\"batch\",[[\"set\",\"A\",\"a2\"],[\"set\",\"o\",\"B\"],[\"set\",\"o\",\"C\"]]]: k <- x: expected [[[\"PENDING\"],[\"ERROR\"]]] got [[[\"PENDING\"],[\"DATA\",\"a2\"]],[[\"PENDING\"],[\"ERROR\",{\"error\":\"trace callback threw on \\\"C\\\"\"}]]]"
+		},
+		{
+			"id": "OT-242",
+			"result": "fail",
+			"class": "behavior",
+			"step": 2,
+			"detail": "step 2 [\"set\",\"raw\",[[\"A\",\"B\"],[\"C\"]]]: k <- x: expected [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"a1\"]],[[\"PENDING\"],[\"DATA\",\"b1\"]],[[\"PENDING\"],[\"DATA\",\"c1\"]]] got [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"a1\"]],[[\"PENDING\"],[\"ERROR\",{\"error\":\"Cannot read properties of undefined (reading 'terminal')\"}]]]"
+		},
+		{
+			"id": "OT-243",
+			"result": "pass"
+		},
+		{
+			"id": "OT-244",
+			"result": "pass"
+		},
+		{
+			"id": "OT-245",
+			"result": "pass"
+		},
+		{
+			"id": "OT-246",
+			"result": "fail",
+			"class": "error",
+			"step": 6,
+			"detail": "restore: not restorable: x: its private state is not JSON"
+		},
+		{
+			"id": "OT-247",
+			"result": "fail",
+			"class": "error",
+			"step": 8,
+			"detail": "restore: not restorable: a: its private state is not JSON"
+		},
+		{
+			"id": "OT-248",
+			"result": "pass"
+		},
+		{
+			"id": "OT-249",
+			"result": "fail",
+			"class": "behavior",
+			"step": 7,
+			"detail": "step 7 [\"set\",\"o\",\"C\"]: k <- x: expected [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"ERROR\",\"bad\"]]] got [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"c1\"]],[[\"PENDING\"],[\"ERROR\",\"bad\"]]]"
+		},
+		{
+			"id": "OT-250",
+			"result": "pass"
+		},
+		{
+			"id": "OT-251",
+			"result": "pass"
+		},
+		{
+			"id": "OT-252",
+			"result": "fail",
+			"class": "behavior",
+			"step": 7,
+			"detail": "step 7 [\"batch\",[[\"set\",\"B\",\"b2\"],[\"complete\",\"B\"]]]: k <- x: expected [[[\"PENDING\"],[\"ERROR\"]]] got [[[\"PENDING\"],[\"DATA\",\"b2\"]],[[\"PENDING\"],[\"ERROR\",{\"error\":\"trace callback threw on \\\"C\\\"\"}]]]"
+		},
+		{
+			"id": "OT-253",
+			"result": "fail",
+			"class": "behavior",
+			"step": 9,
+			"detail": "step 9 [\"complete\",\"A\"]: k <- a: expected [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"ERROR\",\"waiting\"]]] got [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"b1\"]],[[\"PENDING\"],[\"ERROR\",\"waiting\"]]]"
+		},
+		{
+			"id": "OT-254",
+			"result": "pass"
+		},
+		{
+			"id": "OT-255",
+			"result": "pass"
+		},
+		{
+			"id": "OT-256",
+			"result": "pass"
+		},
+		{
+			"id": "OT-257",
+			"result": "fail",
+			"class": "error",
+			"step": 4,
+			"detail": "restore: not restorable: x: its private state is not JSON"
+		},
+		{
+			"id": "OT-258",
+			"result": "fail",
+			"class": "error",
+			"step": 6,
+			"detail": "restore: not restorable: a: its private state is not JSON"
+		},
+		{
+			"id": "OT-259",
+			"result": "pass"
+		},
+		{
+			"id": "OT-260",
+			"result": "pass"
+		},
+		{
+			"id": "OT-261",
+			"result": "pass"
+		},
+		{
+			"id": "OT-262",
+			"result": "pass"
+		},
+		{
+			"id": "OT-263",
+			"result": "fail",
+			"class": "behavior",
+			"step": 9,
+			"detail": "step 9 [\"batch\",[[\"set\",\"C\",\"c2\"],[\"error\",\"o2\",\"outer\"]]]: k <- b: expected [[[\"PENDING\"],[\"ERROR\",\"outer\"]]] got [[[\"PENDING\"],[\"DATA\",\"c2\"]],[[\"PENDING\"],[\"ERROR\",\"outer\"]]]"
+		},
+		{
+			"id": "OT-264",
+			"result": "pass"
+		},
+		{
+			"id": "OT-265",
+			"result": "pass"
+		},
+		{
+			"id": "OT-266",
+			"result": "pass"
+		},
+		{
+			"id": "OT-267",
+			"result": "fail",
+			"class": "error",
+			"step": 2,
+			"detail": "restore: not restorable: x: its private state is not JSON"
+		},
+		{
+			"id": "OT-268",
+			"result": "fail",
+			"class": "error",
+			"step": 7,
+			"detail": "restore: not restorable: a: its private state is not JSON"
+		},
+		{
+			"id": "OT-269",
+			"result": "pass"
+		},
+		{
+			"id": "OT-270",
+			"result": "pass"
+		},
+		{
+			"id": "OT-271",
+			"result": "pass"
+		},
+		{
+			"id": "OT-272",
+			"result": "fail",
+			"class": "behavior",
+			"step": 4,
+			"detail": "step 4 [\"subscribe\",\"k\",\"c\"]: k <- c: expected [[[\"START\"]],[[\"PENDING\"],[\"DATA\",\"a1\"]],[[\"PENDING\"],[\"DATA\",\"b1\"]]] got [[[\"START\"]],[[\"PENDING\"],[\"DATA\",\"a1\"]],[[\"PENDING\"],[\"ERROR\",{\"error\":\"Cannot read properties of undefined (reading 'terminal')\"}]]]"
+		},
+		{
+			"id": "OT-273",
+			"result": "pass"
+		},
+		{
+			"id": "OT-274",
+			"result": "pass"
+		},
+		{
+			"id": "OT-275",
+			"result": "pass"
+		},
+		{
+			"id": "OT-276",
+			"result": "pass"
+		},
+		{
+			"id": "OT-277",
+			"result": "pass"
+		},
+		{
+			"id": "OT-278",
+			"result": "pass"
+		},
+		{
+			"id": "OT-279",
+			"result": "fail",
+			"class": "behavior",
+			"step": 5,
+			"detail": "step 5 [\"batch\",[[\"invalidate\",\"o2\"],[\"error\",\"B\",\"inner\"]]]: k <- b: expected [[[\"PENDING\"],[\"INVALIDATE\"]]] got [[[\"PENDING\"],[\"INVALIDATE\"]],[[\"PENDING\"],[\"ERROR\",\"inner\"]]]"
+		},
+		{
+			"id": "OT-280",
+			"result": "pass"
+		},
+		{
+			"id": "OT-281",
+			"result": "fail",
+			"class": "behavior",
+			"step": 5,
+			"detail": "step 5 [\"batch\",[[\"set\",\"o2\",\"C\"],[\"error\",\"A\",\"inner\"]]]: k <- b: expected [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"c1\"]]] got [[[\"PENDING\"],[\"ERROR\",\"inner\"]]]; k <- log: expected [[[\"PENDING\"],[\"DATA\",\"C\"]]] got []"
+		},
+		{
+			"id": "OT-282",
+			"result": "fail",
+			"class": "behavior",
+			"step": 7,
+			"detail": "step 7 [\"batch\",[[\"invalidate\",\"o1\"],[\"set\",\"o1\",\"X\"]]]: k <- a: expected [[[\"PENDING\"],[\"ERROR\"]]] got [[[\"PENDING\"],[\"INVALIDATE\"]],[[\"PENDING\"],[\"ERROR\",{\"error\":\"trace callback threw on \\\"X\\\"\"}]]]"
+		},
+		{
+			"id": "OT-283",
+			"result": "pass"
+		},
+		{
+			"id": "OT-284",
+			"result": "fail",
+			"class": "error",
+			"step": 3,
+			"detail": "restore: not restorable: x: its private state is not JSON"
+		},
+		{
+			"id": "OT-285",
+			"result": "fail",
+			"class": "error",
+			"step": 2,
+			"detail": "restore: not restorable: x: its private state is not JSON"
+		},
+		{
+			"id": "OT-286",
+			"result": "pass"
+		},
+		{
+			"id": "OT-287",
+			"result": "pass"
+		},
+		{
+			"id": "OT-288",
+			"result": "pass"
+		},
+		{
+			"id": "OT-289",
+			"result": "pass"
+		},
+		{
+			"id": "OT-290",
+			"result": "pass"
+		},
+		{
+			"id": "OT-291",
+			"result": "pass"
+		},
+		{
+			"id": "OT-292",
+			"result": "fail",
+			"class": "behavior",
+			"step": 7,
+			"detail": "step 7 [\"batch\",[[\"invalidate\",\"o1\"],[\"set\",\"o1\",\"X\"]]]: k <- a: expected [[[\"PENDING\"],[\"ERROR\"]]] got [[[\"PENDING\"],[\"INVALIDATE\"]],[[\"PENDING\"],[\"ERROR\",{\"error\":\"trace callback threw on \\\"X\\\"\"}]]]"
+		},
+		{
+			"id": "OT-293",
+			"result": "pass"
+		},
+		{
+			"id": "OT-294",
+			"result": "fail",
+			"class": "error",
+			"step": 2,
+			"detail": "restore: not restorable: x: its private state is not JSON"
+		},
+		{
+			"id": "OT-295",
+			"result": "fail",
+			"class": "error",
+			"step": 3,
+			"detail": "restore: not restorable: x: its private state is not JSON"
+		},
+		{
+			"id": "OT-296",
+			"result": "fail",
+			"class": "error",
+			"step": 2,
+			"detail": "restore: not restorable: x: its private state is not JSON"
+		},
+		{
+			"id": "OT-297",
+			"result": "fail",
+			"class": "error",
+			"step": 2,
+			"detail": "restore: not restorable: x: its private state is not JSON"
+		},
+		{
+			"id": "OT-298",
+			"result": "pass"
+		},
+		{
+			"id": "OT-299",
+			"result": "pass"
+		},
+		{
+			"id": "OT-300",
+			"result": "pass"
+		},
+		{
+			"id": "OT-301",
+			"result": "pass"
+		},
+		{
+			"id": "OT-302",
+			"result": "pass"
+		},
+		{
+			"id": "OT-303",
+			"result": "pass"
+		},
+		{
+			"id": "OT-304",
+			"result": "fail",
+			"class": "behavior",
+			"step": 7,
+			"detail": "step 7 [\"batch\",[[\"invalidate\",\"o1\"],[\"set\",\"o1\",\"X\"]]]: k <- a: expected [[[\"PENDING\"],[\"ERROR\"]]] got [[[\"PENDING\"],[\"INVALIDATE\"]],[[\"PENDING\"],[\"ERROR\",{\"error\":\"trace callback threw on \\\"X\\\"\"}]]]"
+		},
+		{
+			"id": "OT-305",
+			"result": "pass"
+		},
+		{
+			"id": "OT-306",
+			"result": "pass"
+		},
+		{
+			"id": "OT-307",
+			"result": "fail",
+			"class": "error",
+			"step": 2,
+			"detail": "restore: not restorable: x: its private state is not JSON"
+		},
+		{
+			"id": "OT-308",
+			"result": "fail",
+			"class": "error",
+			"step": 3,
+			"detail": "restore: not restorable: x: its private state is not JSON"
+		},
+		{
+			"id": "OT-309",
+			"result": "fail",
+			"class": "error",
+			"step": 2,
+			"detail": "restore: not restorable: x: its private state is not JSON"
+		},
+		{
+			"id": "OT-310",
+			"result": "fail",
+			"class": "error",
+			"step": 2,
+			"detail": "restore: not restorable: x: its private state is not JSON"
+		},
+		{
+			"id": "OT-311",
+			"result": "pass"
+		},
+		{
+			"id": "OT-312",
+			"result": "pass"
+		},
+		{
+			"id": "OT-313",
+			"result": "pass"
+		},
+		{
+			"id": "OT-314",
+			"result": "pass"
+		},
+		{
+			"id": "OT-315",
+			"result": "pass"
+		},
+		{
+			"id": "OT-316",
+			"result": "pass"
+		},
+		{
+			"id": "OT-317",
+			"result": "fail",
+			"class": "behavior",
+			"step": 7,
+			"detail": "step 7 [\"batch\",[[\"invalidate\",\"o1\"],[\"set\",\"o1\",\"X\"]]]: k <- a: expected [[[\"PENDING\"],[\"ERROR\"]]] got [[[\"PENDING\"],[\"INVALIDATE\"]],[[\"PENDING\"],[\"ERROR\",{\"error\":\"trace callback threw on \\\"X\\\"\"}]]]"
+		},
+		{
+			"id": "OT-318",
+			"result": "pass"
+		},
+		{
+			"id": "OT-319",
+			"result": "pass"
+		},
+		{
+			"id": "OT-320",
+			"result": "fail",
+			"class": "error",
+			"step": 2,
+			"detail": "restore: not restorable: x: its private state is not JSON"
+		},
+		{
+			"id": "OT-321",
+			"result": "fail",
+			"class": "error",
+			"step": 3,
+			"detail": "restore: not restorable: x: its private state is not JSON"
+		},
+		{
+			"id": "OT-322",
+			"result": "fail",
+			"class": "error",
+			"step": 2,
+			"detail": "restore: not restorable: x: its private state is not JSON"
+		},
+		{
+			"id": "OT-323",
+			"result": "fail",
+			"class": "error",
+			"step": 2,
+			"detail": "restore: not restorable: x: its private state is not JSON"
+		},
+		{
+			"id": "OT-324",
+			"result": "fail",
+			"class": "behavior",
+			"step": 1,
+			"detail": "step 1 [\"set\",\"raw\",[[\"A\",\"B\"],[\"C\",\"D\",\"E\"]]]: k <- x: expected [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"a1\"]],[[\"PENDING\"],[\"DATA\",\"b1\"]],[[\"PENDING\"],[\"DATA\",\"c1\"]]] got [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"a1\"]],[[\"PENDING\"],[\"ERROR\",{\"error\":\"Cannot read properties of undefined (reading 'terminal')\"}]]]"
+		},
+		{
+			"id": "OT-325",
+			"result": "pass"
+		},
+		{
+			"id": "OT-326",
+			"result": "fail",
+			"class": "error",
+			"step": 2,
+			"detail": "restore: not restorable: x: its private state is not JSON"
+		},
+		{
+			"id": "OT-327",
+			"result": "fail",
+			"class": "behavior",
+			"step": 6,
+			"detail": "step 6 [\"batch\",[[\"complete\",\"B\"],[\"set\",\"o\",\"D\"],[\"set\",\"o\",\"E\"]]]: k <- x: expected [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"d1\"]],[[\"PENDING\"],[\"DATA\",\"e1\"]]] got [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"d1\"]],[[\"PENDING\"],[\"ERROR\",{\"error\":\"Cannot read properties of undefined (reading 'terminal')\"}]]]"
+		},
+		{
+			"id": "OT-328",
+			"result": "pass"
+		},
+		{
+			"id": "OT-329",
+			"result": "pass"
+		},
+		{
+			"id": "OT-330",
+			"result": "pass"
+		},
+		{
+			"id": "OT-331",
+			"result": "pass"
+		},
+		{
+			"id": "OT-332",
+			"result": "fail",
+			"class": "behavior",
+			"step": 8,
+			"detail": "step 8 [\"complete\",\"B\"]: k <- x: expected [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"b2\"]],[[\"PENDING\"],[\"DATA\",\"c1\"]]] got [[[\"PENDING\"],[\"RESOLVED\"]]]"
+		},
+		{
+			"id": "OT-333",
+			"result": "pass"
+		},
+		{
+			"id": "OT-334",
+			"result": "fail",
+			"class": "error",
+			"step": 2,
+			"detail": "restore: not restorable: x: its private state is not JSON"
+		},
+		{
+			"id": "OT-335",
+			"result": "fail",
+			"class": "error",
+			"step": 6,
+			"detail": "restore: not restorable: a: its private state is not JSON"
+		},
+		{
+			"id": "OT-336",
+			"result": "pass"
+		},
+		{
+			"id": "OT-337",
+			"result": "pass"
+		},
+		{
+			"id": "OT-338",
+			"result": "pass"
+		},
+		{
+			"id": "OT-339",
+			"result": "pass"
+		},
+		{
+			"id": "OT-340",
+			"result": "pass"
+		},
+		{
+			"id": "OT-341",
+			"result": "pass"
+		},
+		{
+			"id": "OT-342",
+			"result": "fail",
+			"class": "behavior",
+			"step": 3,
+			"detail": "step 3 [\"batch\",[[\"error\",\"A\",\"bad\"],[\"set\",\"o\",\"A\"]]]: k <- log: expected [[[\"PENDING\"],[\"DATA\",\"A\"]]] got []"
+		},
+		{
+			"id": "OT-343",
+			"result": "fail",
+			"class": "behavior",
+			"step": 4,
+			"detail": "step 4 [\"batch\",[[\"set\",\"A\",\"a2\"],[\"set\",\"o1\",\"N\"],[\"complete\",\"o1\"]]]: k <- a: expected [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"n1\"]]] got [[[\"PENDING\"],[\"DATA\",\"a2\"]],[[\"PENDING\"],[\"DATA\",\"n1\"]]]"
+		},
+		{
+			"id": "OT-344",
+			"result": "fail",
+			"class": "behavior",
+			"step": 3,
+			"detail": "step 3 [\"set\",\"A\",\"a2\"]: k <- x: expected [] got [[[\"PENDING\"],[\"DATA\",\"a2\"]]]"
+		},
+		{
+			"id": "OT-345",
+			"result": "fail",
+			"class": "behavior",
+			"step": 5,
+			"detail": "step 5 [\"batch\",[[\"invalidate\",\"o1\"],[\"complete\",\"o1\"]]]: k <- a: expected [[[\"PENDING\"],[\"INVALIDATE\"]],[[\"PENDING\"],[\"COMPLETE\"]]] got [[[\"PENDING\"],[\"INVALIDATE\"]]]"
+		},
+		{
+			"id": "OT-346",
+			"result": "fail",
+			"class": "behavior",
+			"step": 6,
+			"detail": "step 6 [\"batch\",[[\"invalidate\",\"A\"],[\"error\",\"A\",\"bad\"],[\"set\",\"o1\",\"B\"],[\"set\",\"o2\",\"A\"]]]: k <- a: expected [[[\"PENDING\"],[\"INVALIDATE\"]],[[\"PENDING\"],[\"DATA\",\"b1\"]]] got [[[\"PENDING\"],[\"INVALIDATE\"]],[[\"PENDING\"],[\"ERROR\",\"bad\"]]]"
+		},
+		{
+			"id": "OT-347",
+			"result": "pass"
+		},
+		{
+			"id": "OT-348",
+			"result": "fail",
+			"class": "error",
+			"step": 2,
+			"detail": "restore: not restorable: x: its private state is not JSON"
+		},
+		{
+			"id": "OT-349",
+			"result": "fail",
+			"class": "error",
+			"step": 2,
+			"detail": "restore: not restorable: x: its private state is not JSON"
+		},
+		{
+			"id": "OT-350",
+			"result": "fail",
+			"class": "error",
+			"step": 5,
+			"detail": "restore: not restorable: a: its private state is not JSON"
+		},
+		{
+			"id": "OT-351",
+			"result": "fail",
+			"class": "error",
+			"step": 3,
+			"detail": "restore: not restorable: x: its private state is not JSON"
+		},
+		{
+			"id": "OT-352",
+			"result": "pass"
+		},
+		{
+			"id": "OT-353",
+			"result": "fail",
+			"class": "behavior",
+			"step": 1,
+			"detail": "step 1 [\"set\",\"raw\",[[\"A\",\"B\",\"C\",\"D\",\"E\",\"F\"]]]: k <- x: expected [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"a1\"]],[[\"PENDING\"],[\"DATA\",\"b1\"]],[[\"PENDING\"],[\"DATA\",\"c1\"]],[[\"PENDING\"],[\"DATA\",\"d1\"]]] got [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"a1\"]],[[\"PENDING\"],[\"ERROR\",{\"error\":\"Cannot read properties of undefined (reading 'terminal')\"}]]]"
+		},
+		{
+			"id": "OT-354",
+			"result": "fail",
+			"class": "behavior",
+			"step": 1,
+			"detail": "step 1 [\"set\",\"raw\",[[\"A\",\"B\",\"C\",\"D\",\"E\",\"F\",\"G\",\"H\",\"I\",\"J\",\"K\"]]]: k <- x: expected [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"a1\"]],[[\"PENDING\"],[\"DATA\",\"b1\"]],[[\"PENDING\"],[\"DATA\",\"c1\"]],[[\"PENDING\"],[\"DATA\",\"d1\"]],[[\"PENDING\"],[\"DATA\",\"e1\"]],[[\"PENDING\"],[\"DATA\",\"f1\"]],[[\"PENDING\"],[\"DATA\",\"g1\"]],[[\"PENDING\"],[\"DATA\",\"h1\"]],[[\"PENDING\"],[\"DATA\",\"i1\"]],[[\"PENDING\"],[\"DATA\",\"j1\"]],[[\"PENDING\"],[\"DATA\",\"k1\"]]] got [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"a1\"]],[[\"PENDING\"],[\"ERROR\",{\"error\":\"Cannot read properties of undefined (reading 'terminal')\"}]]]"
+		},
+		{
+			"id": "OT-355",
+			"result": "pass"
+		},
+		{
+			"id": "OT-356",
+			"result": "fail",
+			"class": "behavior",
+			"step": 2,
+			"detail": "step 2 [\"set\",\"raw\",[[\"A\",\"A\",\"B\",\"A\"]]]: k <- x: expected [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"a1\"]],[[\"PENDING\"],[\"DATA\",\"b1\"]]] got [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"a1\"]],[[\"PENDING\"],[\"ERROR\",{\"error\":\"Cannot read properties of undefined (reading 'terminal')\"}]]]"
+		},
+		{
+			"id": "OT-357",
+			"result": "fail",
+			"class": "behavior",
+			"step": 2,
+			"detail": "step 2 [\"set\",\"raw\",[[\"A\",\"B\"]]]: k <- x: expected [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"a1\"]],[[\"PENDING\"],[\"DATA\",\"b1\"]]] got [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"a1\"]],[[\"PENDING\"],[\"ERROR\",{\"error\":\"Cannot read properties of undefined (reading 'terminal')\"}]]]"
+		},
+		{
+			"id": "OT-358",
+			"result": "fail",
+			"class": "behavior",
+			"step": 1,
+			"detail": "step 1 [\"set\",\"raw\",[[\"A\",\"B\",\"C\"]]]: k <- x: expected [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"a1\"]],[[\"PENDING\"],[\"DATA\",\"b1\"]]] got [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"a1\"]],[[\"PENDING\"],[\"ERROR\",{\"error\":\"Cannot read properties of undefined (reading 'terminal')\"}]]]"
+		},
+		{
+			"id": "OT-359",
+			"result": "pass"
+		},
+		{
+			"id": "OT-360",
+			"result": "fail",
+			"class": "behavior",
+			"step": 4,
+			"detail": "step 4 [\"set\",\"raw\",[[\"A\"],[\"B\"]]]: k <- x: expected [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"ERROR\",\"bad\"]]] got [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"a1\"]],[[\"PENDING\"],[\"ERROR\",{\"error\":\"Cannot read properties of undefined (reading 'terminal')\"}]]]"
+		},
+		{
+			"id": "OT-361",
+			"result": "fail",
+			"class": "behavior",
+			"step": 1,
+			"detail": "step 1 [\"set\",\"raw\",[[\"A\",\"B\",\"C\",\"D\"]]]: k <- x: expected [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"a1\"]],[[\"PENDING\"],[\"DATA\",\"b1\"]],[[\"PENDING\"],[\"DATA\",\"c1\"]]] got [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"a1\"]],[[\"PENDING\"],[\"ERROR\",{\"error\":\"Cannot read properties of undefined (reading 'terminal')\"}]]]"
+		},
+		{
+			"id": "OT-362",
+			"result": "fail",
+			"class": "behavior",
+			"step": 1,
+			"detail": "step 1 [\"set\",\"raw\",[[\"A\",\"B\",\"C\",\"D\"]]]: k <- x: expected [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"a1\"]],[[\"PENDING\"],[\"DATA\",\"b1\"]]] got [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"a1\"]],[[\"PENDING\"],[\"ERROR\",{\"error\":\"Cannot read properties of undefined (reading 'terminal')\"}]]]"
+		},
+		{
+			"id": "OT-363",
+			"result": "pass"
+		},
+		{
+			"id": "OT-364",
+			"result": "pass"
+		},
+		{
+			"id": "OT-365",
+			"result": "pass"
+		},
+		{
+			"id": "OT-366",
+			"result": "fail",
+			"class": "error",
+			"step": 8,
+			"detail": "restore: not restorable: x: its private state is not JSON"
+		},
+		{
+			"id": "OT-367",
+			"result": "pass"
+		},
+		{
+			"id": "OT-368",
+			"result": "fail",
+			"class": "behavior",
+			"step": 1,
+			"detail": "step 1 [\"set\",\"raw\",[[\"A\",\"B\",\"C\",\"D\"]]]: k <- x: expected [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"a1\"]],[[\"PENDING\"],[\"DATA\",\"b1\"]]] got [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"a1\"]],[[\"PENDING\"],[\"ERROR\",{\"error\":\"Cannot read properties of undefined (reading 'terminal')\"}]]]"
+		},
+		{
+			"id": "OT-369",
+			"result": "fail",
+			"class": "error",
+			"step": 4,
+			"detail": "restore: not restorable: x: its private state is not JSON"
+		},
+		{
+			"id": "OT-370",
+			"result": "fail",
+			"class": "error",
+			"step": 4,
+			"detail": "restore: not restorable: a: its private state is not JSON"
+		},
+		{
+			"id": "OT-371",
+			"result": "pass"
+		},
+		{
+			"id": "OT-372",
+			"result": "fail",
+			"class": "behavior",
+			"step": 3,
+			"detail": "step 3 [\"complete\",\"A\"]: k <- x: expected [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"a1\"]],[[\"PENDING\"],[\"DATA\",\"b1\"]]] got [[[\"PENDING\"],[\"RESOLVED\"]]]; k <- log: expected [[[\"PENDING\"],[\"DATA\",\"A\"]],[[\"PENDING\"],[\"DATA\",\"B\"]]] got [[[\"PENDING\"],[\"DATA\",\"A\"]]]"
+		},
+		{
+			"id": "OT-373",
+			"result": "pass"
+		},
+		{
+			"id": "OT-374",
+			"result": "pass"
+		},
+		{
+			"id": "OT-375",
+			"result": "pass"
+		},
+		{
+			"id": "OT-376",
+			"result": "fail",
+			"class": "error",
+			"step": 3,
+			"detail": "restore: not restorable: x: its private state is not JSON"
+		},
+		{
+			"id": "OT-377",
+			"result": "fail",
+			"class": "error",
+			"step": 4,
+			"detail": "restore: not restorable: a: its private state is not JSON"
+		},
+		{
+			"id": "OT-378",
+			"result": "pass"
+		},
+		{
+			"id": "OT-379",
+			"result": "pass"
+		},
+		{
+			"id": "OT-380",
+			"result": "pass"
+		},
+		{
+			"id": "OT-381",
+			"result": "pass"
+		},
+		{
+			"id": "OT-382",
+			"result": "fail",
+			"class": "behavior",
+			"step": 2,
+			"detail": "step 2 [\"batch\",[[\"complete\",\"A\"],[\"set\",\"o\",\"A\"]]]: k <- x: expected [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"a1\"]]] got [[[\"PENDING\"],[\"RESOLVED\"]]]"
+		},
+		{
+			"id": "OT-383",
+			"result": "pass"
+		},
+		{
+			"id": "OT-384",
+			"result": "pass"
+		},
+		{
+			"id": "OT-385",
+			"result": "pass"
+		},
+		{
+			"id": "OT-386",
+			"result": "pass"
+		},
+		{
+			"id": "OT-387",
+			"result": "fail",
+			"class": "error",
+			"step": 4,
+			"detail": "restore: not restorable: a: its private state is not JSON"
+		},
+		{
+			"id": "OT-388",
+			"result": "fail",
+			"class": "behavior",
+			"step": 4,
+			"detail": "step 4 [\"batch\",[[\"set\",\"A\",\"a2\"],[\"invalidate\",\"o1\"],[\"set\",\"o1\",\"B\"]]]: k <- a: expected [[[\"PENDING\"],[\"INVALIDATE\"]],[[\"PENDING\"],[\"DATA\",\"b1\"]]] got [[[\"PENDING\"],[\"INVALIDATE\"]],[[\"PENDING\"],[\"DATA\",\"a2\"]],[[\"PENDING\"],[\"DATA\",\"b1\"]]]"
+		},
+		{
+			"id": "OT-389",
+			"result": "fail",
+			"class": "behavior",
+			"step": 4,
+			"detail": "step 4 [\"batch\",[[\"error\",\"A\",\"bad\"],[\"set\",\"o1\",\"A\"],[\"complete\",\"o1\"],[\"set\",\"o2\",\"B\"],[\"complete\",\"o2\"]]]: k <- b: expected [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"b1\"]]] got [[[\"PENDING\"],[\"ERROR\",\"bad\"]]]"
+		},
+		{
+			"id": "OT-390",
+			"result": "fail",
+			"class": "behavior",
+			"step": 6,
+			"detail": "step 6 [\"set\",\"D\",\"d1\"]: k <- a: expected [] got [[[\"PENDING\"],[\"DATA\",\"d1\"]]]; late <- a: expected [] got [[[\"PENDING\"],[\"DATA\",\"d1\"]]]"
+		},
+		{
+			"id": "OT-391",
+			"result": "fail",
+			"class": "error",
+			"step": 2,
+			"detail": "restore: not restorable: x: its private state is not JSON"
+		},
+		{
+			"id": "OT-392",
+			"result": "pass"
+		},
+		{
+			"id": "OT-393",
+			"result": "fail",
+			"class": "behavior",
+			"step": 1,
+			"detail": "step 1 [\"set\",\"raw\",[[\"A\",\"B\",\"C\",\"A\",\"D\"]]]: k <- x: expected [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"a1\"]],[[\"PENDING\"],[\"DATA\",\"b1\"]],[[\"PENDING\"],[\"DATA\",\"c1\"]]] got [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"a1\"]],[[\"PENDING\"],[\"ERROR\",{\"error\":\"Cannot read properties of undefined (reading 'terminal')\"}]]]"
+		},
+		{
+			"id": "OT-394",
+			"result": "pass"
+		},
+		{
+			"id": "OT-395",
+			"result": "fail",
+			"class": "behavior",
+			"step": 1,
+			"detail": "step 1 [\"set\",\"raw\",[[\"A\",\"B\",\"C\"],\"COMPLETE\"]]: k <- x: expected [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"a1\"]],[[\"PENDING\"],[\"DATA\",\"b1\"]]] got [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"a1\"]],[[\"PENDING\"],[\"ERROR\",{\"error\":\"Cannot read properties of undefined (reading 'terminal')\"}]]]"
+		},
+		{
+			"id": "OT-396",
+			"result": "pass"
+		},
+		{
+			"id": "OT-397",
+			"result": "pass"
+		},
+		{
+			"id": "OT-398",
+			"result": "fail",
+			"class": "behavior",
+			"step": 4,
+			"detail": "step 4 [\"set\",\"raw\",[[\"B\",\"C\",\"A\"]]]: k <- b: expected [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"b1\"]],[[\"PENDING\"],[\"DATA\",\"c1\"]]] got [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"b1\"]],[[\"PENDING\"],[\"ERROR\",{\"error\":\"Cannot read properties of undefined (reading 'terminal')\"}]]]"
+		},
+		{
+			"id": "OT-399",
+			"result": "fail",
+			"class": "behavior",
+			"step": 2,
+			"detail": "step 2 [\"set\",\"raw1\",[[\"A\",\"B\",\"C\"]]]: k <- a: expected [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"a1\"]],[[\"PENDING\"],[\"DATA\",\"b1\"]]] got [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"a1\"]],[[\"PENDING\"],[\"ERROR\",{\"error\":\"Cannot read properties of undefined (reading 'terminal')\"}]]]"
+		},
+		{
+			"id": "OT-400",
+			"result": "pass"
+		},
+		{
+			"id": "OT-401",
+			"result": "fail",
+			"class": "error",
+			"step": 2,
+			"detail": "restore: not restorable: x: its private state is not JSON"
+		},
+		{
+			"id": "OT-402",
+			"result": "fail",
+			"class": "error",
+			"step": 3,
+			"detail": "restore: not restorable: x: its private state is not JSON"
+		},
+		{
+			"id": "OT-403",
+			"result": "fail",
+			"class": "error",
+			"step": 3,
+			"detail": "restore: not restorable: x: its private state is not JSON"
+		},
+		{
+			"id": "OT-404",
+			"result": "pass"
+		},
+		{
+			"id": "OT-405",
+			"result": "pass"
+		},
+		{
+			"id": "OT-406",
+			"result": "pass"
+		},
+		{
+			"id": "OT-407",
+			"result": "pass"
+		},
+		{
+			"id": "OT-408",
+			"result": "fail",
+			"class": "error",
+			"step": 3,
+			"detail": "restore: not restorable: x: its private state is not JSON"
+		},
+		{
+			"id": "OT-409",
+			"result": "pass"
+		},
+		{
+			"id": "OT-410",
+			"result": "pass"
+		},
+		{
+			"id": "OT-411",
+			"result": "pass"
+		},
+		{
+			"id": "OT-412",
+			"result": "pass"
+		},
+		{
+			"id": "OT-413",
+			"result": "pass"
+		},
+		{
+			"id": "OT-414",
+			"result": "pass"
+		},
+		{
+			"id": "OT-415",
+			"result": "pass"
+		},
+		{
+			"id": "OT-416",
+			"result": "pass"
+		},
+		{
+			"id": "OT-417",
+			"result": "pass"
+		},
+		{
+			"id": "OT-418",
+			"result": "pass"
+		},
+		{
+			"id": "OT-419",
+			"result": "pass"
+		},
+		{
+			"id": "OT-420",
+			"result": "pass"
+		},
+		{
+			"id": "OT-421",
+			"result": "pass"
+		},
+		{
+			"id": "OT-422",
+			"result": "pass"
+		},
+		{
+			"id": "OT-423",
+			"result": "pass"
+		},
+		{
+			"id": "OT-424",
+			"result": "pass"
+		},
+		{
+			"id": "OT-425",
+			"result": "pass"
+		},
+		{
+			"id": "OT-426",
+			"result": "pass"
+		},
+		{
+			"id": "OT-427",
+			"result": "pass"
+		},
+		{
+			"id": "OT-428",
+			"result": "pass"
+		},
+		{
+			"id": "OT-429",
+			"result": "pass"
+		},
+		{
+			"id": "OT-430",
+			"result": "pass"
+		},
+		{
+			"id": "OT-431",
+			"result": "fail",
+			"class": "error",
+			"step": 2,
+			"detail": "restore: not restorable: x: its private state is not JSON"
+		},
+		{
+			"id": "OT-432",
+			"result": "fail",
+			"class": "error",
+			"step": 2,
+			"detail": "restore: not restorable: x: its private state is not JSON"
+		},
+		{
+			"id": "OT-433",
+			"result": "fail",
+			"class": "error",
+			"step": 2,
+			"detail": "restore: not restorable: x: its private state is not JSON"
+		},
+		{
+			"id": "OT-434",
+			"result": "fail",
+			"class": "error",
+			"step": 2,
+			"detail": "restore: not restorable: x: its private state is not JSON"
+		},
+		{
+			"id": "OT-435",
+			"result": "fail",
+			"class": "error",
+			"step": 2,
+			"detail": "restore: not restorable: x: its private state is not JSON"
+		},
+		{
+			"id": "OT-436",
+			"result": "fail",
+			"class": "error",
+			"step": 2,
+			"detail": "restore: not restorable: x: its private state is not JSON"
+		},
+		{
+			"id": "OT-437",
+			"result": "fail",
+			"class": "error",
+			"step": 2,
+			"detail": "restore: not restorable: x: its private state is not JSON"
+		},
+		{
+			"id": "OT-438",
+			"result": "fail",
+			"class": "error",
+			"step": 2,
+			"detail": "restore: not restorable: x: its private state is not JSON"
+		},
+		{
+			"id": "OT-439",
+			"result": "pass"
+		},
+		{
+			"id": "OT-440",
+			"result": "pass"
+		},
+		{
+			"id": "OT-441",
+			"result": "pass"
+		},
+		{
+			"id": "OT-442",
+			"result": "pass"
+		},
+		{
+			"id": "OT-443",
+			"result": "fail",
+			"class": "error",
+			"step": 3,
+			"detail": "restore: not restorable: x: its private state is not JSON"
+		},
+		{
+			"id": "OT-444",
+			"result": "fail",
+			"class": "error",
+			"step": 3,
+			"detail": "restore: not restorable: x: its private state is not JSON"
+		},
+		{
+			"id": "OT-445",
+			"result": "fail",
+			"class": "error",
+			"step": 3,
+			"detail": "restore: not restorable: x: its private state is not JSON"
+		},
+		{
+			"id": "OT-446",
+			"result": "fail",
+			"class": "error",
+			"step": 3,
+			"detail": "restore: not restorable: x: its private state is not JSON"
+		},
+		{
+			"id": "OT-447",
+			"result": "pass"
+		},
+		{
+			"id": "OT-448",
+			"result": "pass"
+		},
+		{
+			"id": "OT-449",
+			"result": "pass"
+		},
+		{
+			"id": "OT-450",
+			"result": "pass"
+		},
+		{
+			"id": "OT-451",
+			"result": "pass"
+		},
+		{
+			"id": "OT-452",
+			"result": "fail",
+			"class": "behavior",
+			"step": 3,
+			"detail": "step 3 [\"complete\",\"s\"]: k <- x: expected [[[\"PENDING\"],[\"DATA\",1],[\"COMPLETE\"]]] got [[[\"PENDING\"],[\"RESOLVED\"]]]"
+		},
+		{
+			"id": "OT-453",
+			"result": "pass"
+		},
+		{
+			"id": "OT-454",
+			"result": "fail",
+			"class": "behavior",
+			"step": 3,
+			"detail": "step 3 [\"batch\",[[\"set\",\"s\",2],[\"complete\",\"s\"]]]: k <- x: expected [[[\"PENDING\"],[\"DATA\",2],[\"COMPLETE\"]]] got [[[\"PENDING\"],[\"RESOLVED\"]]]"
+		},
+		{
+			"id": "OT-455",
+			"result": "pass"
+		},
+		{
+			"id": "OT-456",
+			"result": "fail",
+			"class": "behavior",
+			"step": 6,
+			"detail": "step 6 [\"advance\",100]: k <- x: expected [] got [[[\"PENDING\"],[\"DATA\",2]]]"
+		},
+		{
+			"id": "OT-457",
+			"result": "pass"
+		},
+		{
+			"id": "OT-458",
+			"result": "fail",
+			"class": "behavior",
+			"step": 10,
+			"detail": "step 10 [\"advance\",99]: j <- y: expected [] got [[[\"PENDING\"],[\"DATA\",2]]]"
+		},
+		{
+			"id": "OT-459",
+			"result": "fail",
+			"class": "error",
+			"step": 3,
+			"detail": "restore: not restorable: x: its private state is not JSON"
+		},
+		{
+			"id": "OT-460",
+			"result": "pass"
+		},
+		{
+			"id": "OT-461",
+			"result": "fail",
+			"class": "error",
+			"step": 3,
+			"detail": "restore: not restorable: x: its private state is not JSON"
+		},
+		{
+			"id": "OT-462",
+			"result": "fail",
+			"class": "error",
+			"step": 5,
+			"detail": "restore: not restorable: x: its private state is not JSON"
+		},
+		{
+			"id": "OT-463",
+			"result": "fail",
+			"class": "error",
+			"step": 5,
+			"detail": "restore: not restorable: x: its private state is not JSON"
+		},
+		{
+			"id": "OT-464",
+			"result": "fail",
+			"class": "framing",
+			"step": 1,
+			"detail": "step 1 [\"set\",\"s\",1]: k <- x: expected [[[\"PENDING\"],[\"DATA\",1]]] got [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",1]]]"
+		},
+		{
+			"id": "OT-465",
+			"result": "fail",
+			"class": "framing",
+			"step": 1,
+			"detail": "step 1 [\"set\",\"raw\",[[1,2],[3]]]: k <- x: expected [[[\"PENDING\"],[\"DATA\",1]]] got [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",1]]]"
+		},
+		{
+			"id": "OT-466",
+			"result": "fail",
+			"class": "framing",
+			"step": 0,
+			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: k <- x: expected [[[\"START\"],[\"DATA\",0]]] got [[[\"START\"]],[[\"PENDING\"],[\"DATA\",0]]]"
+		},
+		{
+			"id": "OT-467",
+			"result": "fail",
+			"class": "behavior",
+			"step": 3,
+			"detail": "step 3 [\"batch\",[[\"set\",\"s\",1],[\"complete\",\"s\"]]]: k <- x: expected [[[\"PENDING\"],[\"DATA\",1]],[[\"PENDING\"],[\"COMPLETE\"]]] got [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",1]]]"
+		},
+		{
+			"id": "OT-468",
+			"result": "fail",
+			"class": "framing",
+			"step": 1,
+			"detail": "step 1 [\"set\",\"s\",1]: k <- x: expected [[[\"PENDING\"],[\"DATA\",1]]] got [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",1]]]"
+		},
+		{
+			"id": "OT-469",
+			"result": "fail",
+			"class": "framing",
+			"step": 1,
+			"detail": "step 1 [\"set\",\"s\",1]: k <- x: expected [[[\"PENDING\"],[\"DATA\",1]]] got [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",1]]]"
+		},
+		{
+			"id": "OT-470",
+			"result": "fail",
+			"class": "framing",
+			"step": 1,
+			"detail": "step 1 [\"set\",\"s\",1]: k <- x: expected [[[\"PENDING\"],[\"DATA\",1]]] got [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",1]]]"
+		},
+		{
+			"id": "OT-471",
+			"result": "fail",
+			"class": "framing",
+			"step": 1,
+			"detail": "step 1 [\"set\",\"s\",1]: k <- x: expected [[[\"PENDING\"],[\"DATA\",1]]] got [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",1]]]"
+		},
+		{
+			"id": "OT-472",
+			"result": "fail",
+			"class": "framing",
+			"step": 1,
+			"detail": "step 1 [\"set\",\"s\",1]: k <- x: expected [[[\"PENDING\"],[\"DATA\",1]]] got [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",1]]]"
+		},
+		{
+			"id": "OT-473",
+			"result": "fail",
+			"class": "framing",
+			"step": 1,
+			"detail": "step 1 [\"set\",\"s\",1]: k <- x: expected [[[\"PENDING\"],[\"DATA\",1]]] got [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",1]]]"
+		},
+		{
+			"id": "OT-474",
+			"result": "pass"
+		},
+		{
+			"id": "OT-475",
+			"result": "pass"
+		},
+		{
+			"id": "OT-476",
+			"result": "pass"
+		},
+		{
+			"id": "OT-477",
+			"result": "pass"
+		},
+		{
+			"id": "OT-478",
+			"result": "fail",
+			"class": "framing",
+			"step": 5,
+			"detail": "step 5 [\"complete\",\"s\"]: k <- x: expected [[[\"PENDING\"],[\"DATA\",1],[\"COMPLETE\"]]] got [[[\"PENDING\"],[\"DATA\",1]],[[\"PENDING\"],[\"COMPLETE\"]]]"
+		},
+		{
+			"id": "OT-479",
+			"result": "pass"
+		},
+		{
+			"id": "OT-480",
+			"result": "fail",
+			"class": "behavior",
+			"step": 6,
+			"detail": "step 6 [\"advance\",60]: k <- x: expected [] got [[[\"PENDING\"],[\"DATA\",2]]]"
+		},
+		{
+			"id": "OT-481",
+			"result": "pass"
+		},
+		{
+			"id": "OT-482",
+			"result": "fail",
+			"class": "behavior",
+			"step": 11,
+			"detail": "step 11 [\"advance\",1]: j <- y: expected [] got [[[\"PENDING\"],[\"DATA\",2]]]"
+		},
+		{
+			"id": "OT-483",
+			"result": "fail",
+			"class": "error",
+			"step": 4,
+			"detail": "restore: not restorable: x: its private state is not JSON"
+		},
+		{
+			"id": "OT-484",
+			"result": "fail",
+			"class": "error",
+			"step": 5,
+			"detail": "restore: not restorable: x: its private state is not JSON"
+		},
+		{
+			"id": "OT-485",
+			"result": "fail",
+			"class": "error",
+			"step": 5,
+			"detail": "restore: not restorable: x: its private state is not JSON"
+		},
+		{
+			"id": "OT-486",
+			"result": "fail",
+			"class": "error",
+			"step": 5,
+			"detail": "restore: not restorable: x: its private state is not JSON"
+		},
+		{
+			"id": "OT-487",
+			"result": "fail",
+			"class": "error",
+			"step": 4,
+			"detail": "restore: not restorable: x: its private state is not JSON"
+		},
+		{
+			"id": "OT-488",
+			"result": "pass"
+		},
+		{
+			"id": "OT-489",
+			"result": "fail",
+			"class": "framing",
+			"step": 3,
+			"detail": "step 3 [\"advance\",1]: k <- x: expected [[[\"PENDING\"],[\"DATA\",1],[\"DATA\",2]],[[\"PENDING\"],[\"DATA\",3]]] got [[[\"PENDING\"],[\"DATA\",1]],[[\"PENDING\"],[\"DATA\",2]],[[\"PENDING\"],[\"DATA\",3]]]"
+		},
+		{
+			"id": "OT-490",
+			"result": "pass"
+		},
+		{
+			"id": "OT-491",
+			"result": "pass"
+		},
+		{
+			"id": "OT-492",
+			"result": "fail",
+			"class": "behavior",
+			"step": 5,
+			"detail": "step 5 [\"advance\",1]: k <- x: expected [[[\"PENDING\"],[\"DATA\",1]]] got [[[\"PENDING\"],[\"DATA\",1]],[[\"PENDING\"],[\"COMPLETE\"]]]"
+		},
+		{
+			"id": "OT-493",
+			"result": "fail",
+			"class": "behavior",
+			"step": 3,
+			"detail": "step 3 [\"complete\",\"t\"]: j <- y: expected [[[\"PENDING\"],[\"RESOLVED\"]]] got [[[\"PENDING\"],[\"COMPLETE\"]]]"
+		},
+		{
+			"id": "OT-494",
+			"result": "pass"
+		},
+		{
+			"id": "OT-495",
+			"result": "pass"
+		},
+		{
+			"id": "OT-496",
+			"result": "fail",
+			"class": "behavior",
+			"step": 3,
+			"detail": "step 3 [\"invalidate\",\"s\"]: k <- x: expected [[[\"PENDING\"],[\"RESOLVED\"]]] got [[[\"PENDING\"],[\"INVALIDATE\"]]]"
+		},
+		{
+			"id": "OT-497",
+			"result": "fail",
+			"class": "behavior",
+			"step": 7,
+			"detail": "step 7 [\"advance\",10]: k <- x: expected [[[\"PENDING\"],[\"INVALIDATE\"]]] got []"
+		},
+		{
+			"id": "OT-498",
+			"result": "fail",
+			"class": "behavior",
+			"step": 3,
+			"detail": "step 3 [\"batch\",[[\"set\",\"s\",1],[\"invalidate\",\"s\"],[\"set\",\"s\",2]]]: k <- x: expected [[[\"PENDING\"],[\"RESOLVED\"]]] got [[[\"PENDING\"],[\"INVALIDATE\"]]]"
+		},
+		{
+			"id": "OT-499",
+			"result": "fail",
+			"class": "error",
+			"step": 5,
+			"detail": "restore: not restorable: x: its private state is not JSON"
+		},
+		{
+			"id": "OT-500",
+			"result": "fail",
+			"class": "behavior",
+			"step": 3,
+			"detail": "step 3 [\"invalidate\",\"s\"]: k <- x: expected [[[\"PENDING\"],[\"RESOLVED\"]]] got [[[\"PENDING\"],[\"INVALIDATE\"]]]"
+		},
+		{
+			"id": "OT-501",
+			"result": "pass"
+		},
+		{
+			"id": "OT-502",
+			"result": "fail",
+			"class": "error",
+			"step": 3,
+			"detail": "restore: not restorable: x: its private state is not JSON"
+		},
+		{
+			"id": "OT-503",
+			"result": "fail",
+			"class": "error",
+			"step": 6,
+			"detail": "restore: not restorable: y: its private state is not JSON"
+		},
+		{
+			"id": "OT-504",
+			"result": "fail",
+			"class": "framing",
+			"step": 0,
+			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: k <- x: expected [[[\"START\"]]] got [] (TS refused: subscribe: trace: no node x in the graph)"
+		},
+		{
+			"id": "OT-505",
+			"result": "fail",
+			"class": "framing",
+			"step": 0,
+			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: k <- x: expected [[[\"START\"]]] got [] (TS refused: subscribe: trace: no node x in the graph)"
+		},
+		{
+			"id": "OT-506",
+			"result": "fail",
+			"class": "framing",
+			"step": 0,
+			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: k <- x: expected [[[\"START\"]]] got [] (TS refused: subscribe: trace: no node x in the graph)"
+		},
+		{
+			"id": "OT-507",
+			"result": "fail",
+			"class": "framing",
+			"step": 0,
+			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: k <- x: expected [[[\"START\"]]] got [] (TS refused: subscribe: trace: no node x in the graph)"
+		},
+		{
+			"id": "OT-508",
+			"result": "fail",
+			"class": "framing",
+			"step": 0,
+			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: k <- x: expected [[[\"START\"]]] got [] (TS refused: subscribe: trace: no node x in the graph)"
+		},
+		{
+			"id": "OT-509",
+			"result": "fail",
+			"class": "framing",
+			"step": 0,
+			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: k <- x: expected [[[\"START\"]]] got [] (TS refused: subscribe: trace: no node x in the graph)"
+		},
+		{
+			"id": "OT-510",
+			"result": "fail",
+			"class": "framing",
+			"step": 0,
+			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: k <- x: expected [[[\"START\"]]] got [] (TS refused: subscribe: trace: no node x in the graph)"
+		},
+		{
+			"id": "OT-511",
+			"result": "fail",
+			"class": "framing",
+			"step": 0,
+			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: k <- x: expected [[[\"START\"]]] got [] (TS refused: subscribe: trace: no node x in the graph)"
+		},
+		{
+			"id": "OT-512",
+			"result": "fail",
+			"class": "framing",
+			"step": 0,
+			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: k <- x: expected [[[\"START\"]]] got [] (TS refused: subscribe: trace: no node x in the graph)"
+		},
+		{
+			"id": "OT-513",
+			"result": "fail",
+			"class": "framing",
+			"step": 0,
+			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: k <- x: expected [[[\"START\"]]] got [] (TS refused: subscribe: trace: no node x in the graph)"
+		},
+		{
+			"id": "OT-514",
+			"result": "fail",
+			"class": "framing",
+			"step": 0,
+			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: k <- x: expected [[[\"START\"]]] got [] (TS refused: subscribe: trace: no node x in the graph)"
+		},
+		{
+			"id": "OT-515",
+			"result": "fail",
+			"class": "framing",
+			"step": 0,
+			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: k <- x: expected [[[\"START\"]]] got [] (TS refused: subscribe: trace: no node x in the graph)"
+		},
+		{
+			"id": "OT-516",
+			"result": "fail",
+			"class": "behavior",
+			"step": 0,
+			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: k <- x: expected [[[\"START\"],[\"DATA\",0]]] got [] (TS refused: subscribe: trace: no node x in the graph)"
+		},
+		{
+			"id": "OT-517",
+			"result": "fail",
+			"class": "framing",
+			"step": 0,
+			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: k <- x: expected [[[\"START\"]]] got [] (TS refused: subscribe: trace: no node x in the graph)"
+		},
+		{
+			"id": "OT-518",
+			"result": "fail",
+			"class": "framing",
+			"step": 0,
+			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: k <- x: expected [[[\"START\"]]] got [] (TS refused: subscribe: trace: no node x in the graph)"
+		},
+		{
+			"id": "OT-519",
+			"result": "fail",
+			"class": "framing",
+			"step": 0,
+			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: k <- x: expected [[[\"START\"]]] got [] (TS refused: subscribe: trace: no node x in the graph)"
+		},
+		{
+			"id": "OT-520",
+			"result": "fail",
+			"class": "framing",
+			"step": 0,
+			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: k <- x: expected [[[\"START\"]]] got [] (TS refused: subscribe: trace: no node x in the graph)"
+		},
+		{
+			"id": "OT-521",
+			"result": "fail",
+			"class": "framing",
+			"step": 0,
+			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: k <- x: expected [[[\"START\"]]] got [] (TS refused: subscribe: trace: no node x in the graph)"
+		},
+		{
+			"id": "OT-522",
+			"result": "fail",
+			"class": "behavior",
+			"step": 0,
+			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: k <- x: expected [[[\"START\"],[\"DATA\",0]]] got [] (TS refused: subscribe: trace: no node x in the graph)"
+		},
+		{
+			"id": "OT-523",
+			"result": "fail",
+			"class": "framing",
+			"step": 0,
+			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: k <- x: expected [[[\"START\"]]] got [] (TS refused: subscribe: trace: no node x in the graph)"
+		},
+		{
+			"id": "OT-524",
+			"result": "fail",
+			"class": "framing",
+			"step": 0,
+			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: k <- x: expected [[[\"START\"]]] got [] (TS refused: subscribe: trace: no node x in the graph)"
+		},
+		{
+			"id": "OT-525",
+			"result": "fail",
+			"class": "framing",
+			"step": 0,
+			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: k <- x: expected [[[\"START\"]]] got [] (TS refused: subscribe: trace: no node x in the graph)"
+		},
+		{
+			"id": "OT-526",
+			"result": "fail",
+			"class": "behavior",
+			"step": 3,
+			"detail": "step 3 [\"subscribe\",\"k\",\"x\"]: k <- x: expected [[[\"START\"],[\"DATA\",1],[\"COMPLETE\"]]] got [[[\"START\"]]]"
+		},
+		{
+			"id": "OT-527",
+			"result": "fail",
+			"class": "behavior",
+			"step": 3,
+			"detail": "step 3 [\"subscribe\",\"k\",\"x\"]: k <- x: expected [[[\"START\"],[\"DATA\",1],[\"COMPLETE\"]]] got [[[\"START\"]],[[\"PENDING\"],[\"DATA\",1]]]"
+		},
+		{
+			"id": "OT-528",
+			"result": "fail",
+			"class": "behavior",
+			"step": 3,
+			"detail": "step 3 [\"subscribe\",\"k\",\"x\"]: k <- x: expected [[[\"START\"],[\"DATA\",1],[\"COMPLETE\"]]] got [[[\"START\"],[\"COMPLETE\"]]]"
+		},
+		{
+			"id": "OT-529",
+			"result": "fail",
+			"class": "behavior",
+			"step": 3,
+			"detail": "step 3 [\"subscribe\",\"k\",\"x\"]: k <- x: expected [[[\"START\"],[\"DATA\",[1]],[\"COMPLETE\"]]] got [] (TS refused: subscribe: trace: no node x in the graph)"
+		},
+		{
+			"id": "OT-530",
+			"result": "fail",
+			"class": "behavior",
+			"step": 3,
+			"detail": "step 3 [\"subscribe\",\"k\",\"x\"]: k <- x: expected [[[\"START\"],[\"DATA\",1],[\"COMPLETE\"]]] got [] (TS refused: subscribe: trace: no node x in the graph)"
+		},
+		{
+			"id": "OT-531",
+			"result": "fail",
+			"class": "behavior",
+			"step": 5,
+			"detail": "step 5 [\"subscribe\",\"i\",\"z\"]: i <- z: expected [[[\"START\"]]] got [[[\"START\"],[\"COMPLETE\"]]]"
+		},
+		{
+			"id": "OT-532",
+			"result": "fail",
+			"class": "framing",
+			"step": 0,
+			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: k <- x: expected [[[\"START\"],[\"DATA\",1]]] got [[[\"START\"]],[[\"PENDING\"],[\"DATA\",1]]]"
+		},
+		{
+			"id": "OT-533",
+			"result": "fail",
+			"class": "framing",
+			"step": 2,
+			"detail": "step 2 [\"advance\",1]: k <- x: expected [[[\"PENDING\"],[\"DATA\",1],[\"DATA\",2],[\"DATA\",3]]] got [[[\"PENDING\"],[\"DATA\",1]],[[\"PENDING\"],[\"DATA\",2]],[[\"PENDING\"],[\"DATA\",3]]]"
+		},
+		{
+			"id": "OT-534",
+			"result": "fail",
+			"class": "framing",
+			"step": 0,
+			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: k <- x: expected [[[\"START\"]]] got [] (TS refused: subscribe: trace: no node x in the graph)"
+		},
+		{
+			"id": "OT-535",
+			"result": "fail",
+			"class": "behavior",
+			"step": 0,
+			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: k <- x: expected [[[\"START\"],[\"DATA\",1],[\"DATA\",2],[\"DATA\",3]]] got [] (TS refused: subscribe: trace: no node x in the graph)"
+		},
+		{
+			"id": "OT-536",
+			"result": "fail",
+			"class": "framing",
+			"step": 2,
+			"detail": "step 2 [\"set\",\"s\",1]: k <- x: expected [[[\"PENDING\"],[\"DATA\",1]]] got [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",1]]]"
+		},
+		{
+			"id": "OT-537",
+			"result": "fail",
+			"class": "error",
+			"step": 3,
+			"detail": "restore: not restorable: x: its private state is not JSON"
+		},
+		{
+			"id": "OT-538",
+			"result": "fail",
+			"class": "framing",
+			"step": 0,
+			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: k <- x: expected [[[\"START\"]]] got [] (TS refused: subscribe: trace: no node x in the graph)"
+		},
+		{
+			"id": "OT-539",
+			"result": "fail",
+			"class": "behavior",
+			"step": 0,
+			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: k <- x: expected [[[\"START\"],[\"DATA\",0]]] got [] (TS refused: subscribe: trace: no node x in the graph)"
+		},
+		{
+			"id": "OT-540",
+			"result": "fail",
+			"class": "behavior",
+			"step": 8,
+			"detail": "step 8 [\"batch\",[[\"invalidate\",\"t\"],[\"complete\",\"t\"]]]: j <- y: expected [[[\"PENDING\"],[\"INVALIDATE\"]],[[\"PENDING\"],[\"COMPLETE\"]]] got [[[\"PENDING\"],[\"INVALIDATE\"]]]"
+		},
+		{
+			"id": "OT-541",
+			"result": "fail",
+			"class": "behavior",
+			"step": 8,
+			"detail": "step 8 [\"batch\",[[\"invalidate\",\"t\"],[\"complete\",\"t\"]]]: j <- y: expected [[[\"PENDING\"],[\"INVALIDATE\"]],[[\"PENDING\"],[\"COMPLETE\"]]] got [[[\"PENDING\"],[\"INVALIDATE\"]],[[\"PENDING\"],[\"DATA\",2]],[[\"PENDING\"],[\"COMPLETE\"]]]"
+		},
+		{
+			"id": "OT-542",
+			"result": "fail",
+			"class": "framing",
+			"step": 0,
+			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: k <- x: expected [[[\"START\"]]] got [] (TS refused: subscribe: trace: no node x in the graph)"
+		},
+		{
+			"id": "OT-543",
+			"result": "fail",
+			"class": "framing",
+			"step": 2,
+			"detail": "step 2 [\"set\",\"s\",1]: k <- x: expected [[[\"PENDING\"],[\"DATA\",1]]] got [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",1]]]"
+		},
+		{
+			"id": "OT-544",
+			"result": "fail",
+			"class": "framing",
+			"step": 0,
+			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: k <- x: expected [[[\"START\"]]] got [] (TS refused: subscribe: trace: no node x in the graph)"
+		},
+		{
+			"id": "OT-545",
+			"result": "fail",
+			"class": "behavior",
+			"step": 5,
+			"detail": "step 5 [\"batch\",[[\"invalidate\",\"s\"],[\"error\",\"s\",\"bad\"]]]: k <- x: expected [[[\"PENDING\"],[\"ERROR\",\"bad\"]]] got [[[\"PENDING\"],[\"INVALIDATE\"]],[[\"PENDING\"],[\"ERROR\",\"bad\"]]]"
+		},
+		{
+			"id": "OT-546",
+			"result": "fail",
+			"class": "behavior",
+			"step": 8,
+			"detail": "step 8 [\"complete\",\"s\"]: k <- x: expected [[[\"PENDING\"],[\"COMPLETE\"]]] got [[[\"PENDING\"],[\"RESOLVED\"]]]; late <- x: expected [[[\"PENDING\"],[\"COMPLETE\"]]] got [[[\"PENDING\"],[\"RESOLVED\"]]]"
+		},
+		{
+			"id": "OT-547",
+			"result": "pass"
+		},
+		{
+			"id": "OT-548",
+			"result": "fail",
+			"class": "behavior",
+			"step": 8,
+			"detail": "step 8 [\"complete\",\"s\"]: k <- x: expected [[[\"PENDING\"],[\"COMPLETE\"]]] got [[[\"PENDING\"],[\"DATA\",2]],[[\"PENDING\"],[\"COMPLETE\"]]]; late <- x: expected [[[\"PENDING\"],[\"COMPLETE\"]]] got [[[\"PENDING\"],[\"DATA\",2]],[[\"PENDING\"],[\"COMPLETE\"]]]"
+		},
+		{
+			"id": "OT-549",
+			"result": "pass"
+		},
+		{
+			"id": "OT-550",
+			"result": "pass"
+		},
+		{
+			"id": "OT-551",
+			"result": "fail",
+			"class": "framing",
+			"step": 0,
+			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: k <- x: expected [[[\"START\"]]] got [] (TS refused: subscribe: trace: no node x in the graph)"
+		},
+		{
+			"id": "OT-552",
+			"result": "fail",
+			"class": "behavior",
+			"step": 1,
+			"detail": "step 1 [\"set\",\"raw\",[[1,2],[3],\"COMPLETE\"]]: k <- x: expected [[[\"PENDING\"],[\"DATA\",1]],[[\"PENDING\"],[\"COMPLETE\"]]] got [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",1]]]"
+		},
+		{
+			"id": "OT-553",
+			"result": "pass"
+		},
+		{
+			"id": "OT-554",
+			"result": "fail",
+			"class": "behavior",
+			"step": 4,
+			"detail": "step 4 [\"advance\",60]: k <- x: expected [] got [[[\"PENDING\"],[\"DATA\",1]]]"
+		},
+		{
+			"id": "OT-555",
+			"result": "pass"
+		},
+		{
+			"id": "OT-556",
+			"result": "fail",
+			"class": "behavior",
+			"step": 1,
+			"detail": "step 1 [\"set\",\"raw\",[[1,2],[3],\"COMPLETE\"]]: k <- x: expected [[[\"PENDING\"],[\"DATA\",3],[\"COMPLETE\"]]] got [[[\"PENDING\"],[\"RESOLVED\"]]]"
+		},
+		{
+			"id": "OT-557",
+			"result": "fail",
+			"class": "behavior",
+			"step": 1,
+			"detail": "step 1 [\"set\",\"raw\",[[1,2],[3],\"COMPLETE\"]]: k <- x: expected [[[\"PENDING\"],[\"DATA\",3],[\"COMPLETE\"]]] got [[[\"PENDING\"],[\"COMPLETE\"]]]"
+		},
+		{
+			"id": "OT-558",
+			"result": "fail",
+			"class": "framing",
+			"step": 1,
+			"detail": "step 1 [\"set\",\"s\",2]: k <- x: expected [[[\"PENDING\"],[\"DATA\",2]]] got [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",2]]]"
+		},
+		{
+			"id": "OT-559",
+			"result": "pass"
+		},
+		{
+			"id": "OT-560",
+			"result": "pass"
+		},
+		{
+			"id": "OT-561",
+			"result": "fail",
+			"class": "framing",
+			"step": 0,
+			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: k <- x: expected [[[\"START\"]]] got [] (TS refused: subscribe: trace: no node x in the graph)"
+		},
+		{
+			"id": "OT-562",
+			"result": "fail",
+			"class": "error",
+			"step": 5,
+			"detail": "restore: not restorable: x: its private state is not JSON"
+		},
+		{
+			"id": "OT-563",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "catchError: TS has no catchError (it ships rescue, which DS-20 dropped)"
+		},
+		{
+			"id": "OT-564",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "catchError: TS has no catchError (it ships rescue, which DS-20 dropped)"
+		},
+		{
+			"id": "OT-565",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "catchError: TS has no catchError (it ships rescue, which DS-20 dropped)"
+		},
+		{
+			"id": "OT-566",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "catchError: TS has no catchError (it ships rescue, which DS-20 dropped)"
+		},
+		{
+			"id": "OT-567",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "catchError: TS has no catchError (it ships rescue, which DS-20 dropped)"
+		},
+		{
+			"id": "OT-568",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "catchError: TS has no catchError (it ships rescue, which DS-20 dropped)"
+		},
+		{
+			"id": "OT-569",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "catchError: TS has no catchError (it ships rescue, which DS-20 dropped)"
+		},
+		{
+			"id": "OT-570",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "catchError: TS has no catchError (it ships rescue, which DS-20 dropped)"
+		},
+		{
+			"id": "OT-571",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "catchError: TS has no catchError (it ships rescue, which DS-20 dropped)"
+		},
+		{
+			"id": "OT-572",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "catchError: TS has no catchError (it ships rescue, which DS-20 dropped)"
+		},
+		{
+			"id": "OT-573",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "catchError: TS has no catchError (it ships rescue, which DS-20 dropped)"
+		},
+		{
+			"id": "OT-574",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "catchError: TS has no catchError (it ships rescue, which DS-20 dropped)"
+		},
+		{
+			"id": "OT-575",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "catchError: TS has no catchError (it ships rescue, which DS-20 dropped)"
+		},
+		{
+			"id": "OT-576",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "catchError: TS has no catchError (it ships rescue, which DS-20 dropped)"
+		},
+		{
+			"id": "OT-577",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "catchError: TS has no catchError (it ships rescue, which DS-20 dropped)"
+		},
+		{
+			"id": "OT-578",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "catchError: TS has no catchError (it ships rescue, which DS-20 dropped)"
+		},
+		{
+			"id": "OT-579",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "catchError: TS has no catchError (it ships rescue, which DS-20 dropped)"
+		},
+		{
+			"id": "OT-580",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "catchError: TS has no catchError (it ships rescue, which DS-20 dropped)"
+		},
+		{
+			"id": "OT-581",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "catchError: TS has no catchError (it ships rescue, which DS-20 dropped)"
+		},
+		{
+			"id": "OT-582",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "retry: TS has no retry operator (only retry-policy helpers in graph/resilience.ts)"
+		},
+		{
+			"id": "OT-583",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "retry: TS has no retry operator (only retry-policy helpers in graph/resilience.ts)"
+		},
+		{
+			"id": "OT-584",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "retry: TS has no retry operator (only retry-policy helpers in graph/resilience.ts)"
+		},
+		{
+			"id": "OT-585",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "retry: TS has no retry operator (only retry-policy helpers in graph/resilience.ts)"
+		},
+		{
+			"id": "OT-586",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "retry: TS has no retry operator (only retry-policy helpers in graph/resilience.ts)"
+		},
+		{
+			"id": "OT-587",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "retry: TS has no retry operator (only retry-policy helpers in graph/resilience.ts)"
+		},
+		{
+			"id": "OT-588",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "retry: TS has no retry operator (only retry-policy helpers in graph/resilience.ts)"
+		},
+		{
+			"id": "OT-589",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "retry: TS has no retry operator (only retry-policy helpers in graph/resilience.ts)"
+		},
+		{
+			"id": "OT-590",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "retry: TS has no retry operator (only retry-policy helpers in graph/resilience.ts)"
+		},
+		{
+			"id": "OT-591",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "retry: TS has no retry operator (only retry-policy helpers in graph/resilience.ts)"
+		},
+		{
+			"id": "OT-592",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "retry: TS has no retry operator (only retry-policy helpers in graph/resilience.ts)"
+		},
+		{
+			"id": "OT-593",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "retry: TS has no retry operator (only retry-policy helpers in graph/resilience.ts)"
+		},
+		{
+			"id": "OT-594",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "retry: TS has no retry operator (only retry-policy helpers in graph/resilience.ts)"
+		},
+		{
+			"id": "OT-595",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "retry: TS has no retry operator (only retry-policy helpers in graph/resilience.ts)"
+		},
+		{
+			"id": "OT-596",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "retry: TS has no retry operator (only retry-policy helpers in graph/resilience.ts)"
+		},
+		{
+			"id": "OT-597",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "retry: TS has no retry operator (only retry-policy helpers in graph/resilience.ts)"
+		},
+		{
+			"id": "OT-598",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "retry: TS has no retry operator (only retry-policy helpers in graph/resilience.ts)"
+		},
+		{
+			"id": "OT-599",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "retry: TS has no retry operator (only retry-policy helpers in graph/resilience.ts)"
+		},
+		{
+			"id": "OT-600",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "retry: TS has no retry operator (only retry-policy helpers in graph/resilience.ts)"
+		},
+		{
+			"id": "OT-601",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "retry: TS has no retry operator (only retry-policy helpers in graph/resilience.ts)"
+		},
+		{
+			"id": "OT-602",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "repeat: TS has no repeat of the contract's shape"
+		},
+		{
+			"id": "OT-603",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "repeat: TS has no repeat of the contract's shape"
+		},
+		{
+			"id": "OT-604",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "repeat: TS has no repeat of the contract's shape"
+		},
+		{
+			"id": "OT-605",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "repeat: TS has no repeat of the contract's shape"
+		},
+		{
+			"id": "OT-606",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "repeat: TS has no repeat of the contract's shape"
+		},
+		{
+			"id": "OT-607",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "repeat: TS has no repeat of the contract's shape"
+		},
+		{
+			"id": "OT-608",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "repeat: TS has no repeat of the contract's shape"
+		},
+		{
+			"id": "OT-609",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "repeat: TS has no repeat of the contract's shape"
+		},
+		{
+			"id": "OT-610",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "repeat: TS has no repeat of the contract's shape"
+		},
+		{
+			"id": "OT-611",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "repeat: TS has no repeat of the contract's shape"
+		},
+		{
+			"id": "OT-612",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "repeat: TS has no repeat of the contract's shape"
+		},
+		{
+			"id": "OT-613",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "repeat: TS has no repeat of the contract's shape"
+		},
+		{
+			"id": "OT-614",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "repeat: TS has no repeat of the contract's shape"
+		},
+		{
+			"id": "OT-615",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "repeat: TS has no repeat of the contract's shape"
+		},
+		{
+			"id": "OT-616",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "repeat: TS has no repeat of the contract's shape"
+		},
+		{
+			"id": "OT-617",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "retry: TS has no retry operator (only retry-policy helpers in graph/resilience.ts)"
+		},
+		{
+			"id": "OT-618",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "retry: TS has no retry operator (only retry-policy helpers in graph/resilience.ts)"
+		},
+		{
+			"id": "OT-619",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "repeat: TS has no repeat of the contract's shape"
+		},
+		{
+			"id": "OT-620",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "catchError: TS has no catchError (it ships rescue, which DS-20 dropped)"
+		},
+		{
+			"id": "OT-621",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "retry: TS has no retry operator (only retry-policy helpers in graph/resilience.ts)"
+		},
+		{
+			"id": "OT-622",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "retry: TS has no retry operator (only retry-policy helpers in graph/resilience.ts)"
+		},
+		{
+			"id": "OT-623",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "catchError: TS has no catchError (it ships rescue, which DS-20 dropped)"
+		},
+		{
+			"id": "OT-624",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "catchError: TS has no catchError (it ships rescue, which DS-20 dropped)"
+		},
+		{
+			"id": "OT-625",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "retry: TS has no retry operator (only retry-policy helpers in graph/resilience.ts)"
+		},
+		{
+			"id": "OT-626",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "retry: TS has no retry operator (only retry-policy helpers in graph/resilience.ts)"
+		},
+		{
+			"id": "OT-627",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "retry: TS has no retry operator (only retry-policy helpers in graph/resilience.ts)"
+		},
+		{
+			"id": "OT-628",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "repeat: TS has no repeat of the contract's shape"
+		},
+		{
+			"id": "OT-629",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "retry: TS has no retry operator (only retry-policy helpers in graph/resilience.ts)"
+		},
+		{
+			"id": "OT-630",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "retry: TS has no retry operator (only retry-policy helpers in graph/resilience.ts)"
+		},
+		{
+			"id": "OT-631",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "retry: TS has no retry operator (only retry-policy helpers in graph/resilience.ts)"
+		},
+		{
+			"id": "OT-632",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "repeat: TS has no repeat of the contract's shape"
+		},
+		{
+			"id": "OT-633",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "retry: TS has no retry operator (only retry-policy helpers in graph/resilience.ts)"
+		},
+		{
+			"id": "OT-634",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "retry: TS has no retry operator (only retry-policy helpers in graph/resilience.ts)"
+		},
+		{
+			"id": "OT-635",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "retry: TS has no retry operator (only retry-policy helpers in graph/resilience.ts)"
+		},
+		{
+			"id": "OT-636",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "retry: TS has no retry operator (only retry-policy helpers in graph/resilience.ts)"
+		},
+		{
+			"id": "OT-637",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "retry: TS has no retry operator (only retry-policy helpers in graph/resilience.ts)"
+		},
+		{
+			"id": "OT-638",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "repeat: TS has no repeat of the contract's shape"
+		},
+		{
+			"id": "OT-639",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "retry: TS has no retry operator (only retry-policy helpers in graph/resilience.ts)"
+		},
+		{
+			"id": "OT-640",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "retry: TS has no retry operator (only retry-policy helpers in graph/resilience.ts)"
+		},
+		{
+			"id": "OT-641",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "retry: TS has no retry operator (only retry-policy helpers in graph/resilience.ts)"
+		},
+		{
+			"id": "OT-642",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "repeat: TS has no repeat of the contract's shape"
+		},
+		{
+			"id": "OT-643",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "catchError: TS has no catchError (it ships rescue, which DS-20 dropped)"
+		},
+		{
+			"id": "OT-644",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "catchError: TS has no catchError (it ships rescue, which DS-20 dropped)"
+		},
+		{
+			"id": "OT-645",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "retry: TS has no retry operator (only retry-policy helpers in graph/resilience.ts)"
+		},
+		{
+			"id": "OT-646",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "repeat: TS has no repeat of the contract's shape"
+		},
+		{
+			"id": "OT-647",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "repeat: TS has no repeat of the contract's shape"
+		},
+		{
+			"id": "OT-648",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "retry: TS has no retry operator (only retry-policy helpers in graph/resilience.ts)"
+		},
+		{
+			"id": "OT-649",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "repeat: TS has no repeat of the contract's shape"
+		},
+		{
+			"id": "OT-650",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "repeat: TS has no repeat of the contract's shape"
+		},
+		{
+			"id": "OT-651",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "retry: TS has no retry operator (only retry-policy helpers in graph/resilience.ts)"
+		},
+		{
+			"id": "OT-652",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "catchError: TS has no catchError (it ships rescue, which DS-20 dropped)"
+		},
+		{
+			"id": "OT-653",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "latestAsync: TS has no latestAsync"
+		},
+		{
+			"id": "OT-654",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "latestAsync: TS has no latestAsync"
+		},
+		{
+			"id": "OT-655",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "latestAsync: TS has no latestAsync"
+		},
+		{
+			"id": "OT-656",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "latestAsync: TS has no latestAsync"
+		},
+		{
+			"id": "OT-657",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "latestAsync: TS has no latestAsync"
+		},
+		{
+			"id": "OT-658",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "latestAsync: TS has no latestAsync"
+		},
+		{
+			"id": "OT-659",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "latestAsync: TS has no latestAsync"
+		},
+		{
+			"id": "OT-660",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "latestAsync: TS has no latestAsync"
+		},
+		{
+			"id": "OT-661",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "latestAsync: TS has no latestAsync"
+		},
+		{
+			"id": "OT-662",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "latestAsync: TS has no latestAsync"
+		},
+		{
+			"id": "OT-663",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "latestAsync: TS has no latestAsync"
+		},
+		{
+			"id": "OT-664",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "latestAsync: TS has no latestAsync"
+		},
+		{
+			"id": "OT-665",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "latestAsync: TS has no latestAsync"
+		},
+		{
+			"id": "OT-666",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "latestAsync: TS has no latestAsync"
+		},
+		{
+			"id": "OT-667",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "latestAsync: TS has no latestAsync"
+		},
+		{
+			"id": "OT-668",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "latestAsync: TS has no latestAsync"
+		},
+		{
+			"id": "OT-669",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "latestAsync: TS has no latestAsync"
+		},
+		{
+			"id": "OT-670",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "latestAsync: TS has no latestAsync"
+		},
+		{
+			"id": "OT-671",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "latestAsync: TS has no latestAsync"
+		},
+		{
+			"id": "OT-672",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "latestAsync: TS has no latestAsync"
+		},
+		{
+			"id": "OT-673",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "latestAsync: TS has no latestAsync"
+		},
+		{
+			"id": "OT-674",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "latestAsync: TS has no latestAsync"
+		},
+		{
+			"id": "OT-675",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "latestAsync: TS has no latestAsync"
+		},
+		{
+			"id": "OT-676",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "latestAsync: TS has no latestAsync"
+		},
+		{
+			"id": "OT-677",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "latestAsync: TS has no latestAsync"
+		},
+		{
+			"id": "OT-678",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "latestAsync: TS has no latestAsync"
+		},
+		{
+			"id": "OT-679",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "retry: TS has no retry operator (only retry-policy helpers in graph/resilience.ts); latestAsync: TS has no latestAsync"
+		},
+		{
+			"id": "OT-680",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "latestAsync: TS has no latestAsync"
+		},
+		{
+			"id": "OT-681",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "latestAsync: TS has no latestAsync"
+		},
+		{
+			"id": "OT-682",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "latestAsync: TS has no latestAsync"
+		},
+		{
+			"id": "OT-683",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "latestAsync: TS has no latestAsync"
+		},
+		{
+			"id": "OT-684",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "latestAsync: TS has no latestAsync"
+		},
+		{
+			"id": "OT-685",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "latestAsync: TS has no latestAsync"
+		},
+		{
+			"id": "OT-686",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "latestAsync: TS has no latestAsync"
+		},
+		{
+			"id": "OT-687",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "latestAsync: TS has no latestAsync"
+		},
+		{
+			"id": "OT-688",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "latestAsync: TS has no latestAsync"
+		},
+		{
+			"id": "OT-689",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "latestAsync: TS has no latestAsync"
+		},
+		{
+			"id": "OT-690",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "latestAsync: TS has no latestAsync"
+		},
+		{
+			"id": "OT-691",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "latestAsync: TS has no latestAsync"
+		},
+		{
+			"id": "OT-692",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "latestAsync: TS has no latestAsync"
+		},
+		{
+			"id": "OT-693",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "latestAsync: TS has no latestAsync"
+		},
+		{
+			"id": "OT-694",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "latestAsync: TS has no latestAsync"
+		},
+		{
+			"id": "OT-695",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "latestAsync: TS has no latestAsync"
+		},
+		{
+			"id": "OT-696",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "latestAsync: TS has no latestAsync"
+		},
+		{
+			"id": "OT-697",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "latestAsync: TS has no latestAsync"
+		},
+		{
+			"id": "OT-698",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "latestAsync: TS has no latestAsync"
+		},
+		{
+			"id": "OT-699",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "latestAsync: TS has no latestAsync"
+		},
+		{
+			"id": "OT-700",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "latestAsync: TS has no latestAsync"
+		},
+		{
+			"id": "OT-701",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "latestAsync: TS has no latestAsync"
+		},
+		{
+			"id": "OT-702",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "latestAsync: TS has no latestAsync"
+		},
+		{
+			"id": "OT-703",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "latestAsync: TS has no latestAsync"
+		},
+		{
+			"id": "OT-704",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "latestAsync: TS has no latestAsync"
+		},
+		{
+			"id": "OT-705",
+			"result": "fail",
+			"class": "behavior",
+			"step": 4,
+			"detail": "step 4 [\"set\",\"o1\",\"bad\"]: k <- a: expected [[[\"PENDING\"],[\"ERROR\"]]] got [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",null]]]"
+		},
+		{
+			"id": "OT-706",
+			"result": "fail",
+			"class": "behavior",
+			"step": 2,
+			"detail": "step 2 [\"set\",\"o1\",\"bad\"]: k <- x: expected [[[\"PENDING\"],[\"ERROR\"]]] got [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",\"t\"],[\"DATA\",\"e\"],[\"DATA\",\"x\"],[\"DATA\",\"t\"]]]"
+		},
+		{
+			"id": "OT-707",
+			"result": "fail",
+			"class": "behavior",
+			"step": 4,
+			"detail": "step 4 [\"batch\",[[\"set\",\"A\",\"a2\"],[\"complete\",\"A\"]]]: k <- x: expected [[[\"PENDING\"],[\"ERROR\"]]] got [[[\"PENDING\"],[\"DATA\",\"a2\"]],[[\"PENDING\"],[\"DATA\",{\"deps\":[\"B\"]}]]]"
+		},
+		{
+			"id": "OT-708",
+			"result": "fail",
+			"class": "behavior",
+			"step": 4,
+			"detail": "step 4 [\"set\",\"o\",\"bad\"]: k <- x: expected [[[\"PENDING\"],[\"ERROR\"]]] got [[[\"PENDING\"],[\"RESOLVED\"]],[[\"PENDING\"],[\"DATA\",{\"deps\":[\"A\"]}]]]"
+		},
+		{
+			"id": "OT-709",
+			"result": "not-run",
+			"reason": "operator-not-shipped",
+			"detail": "catchError: TS has no catchError (it ships rescue, which DS-20 dropped)"
+		}
+	]
+}
