@@ -802,6 +802,7 @@
 		"build": "node ../../scripts/build-local-untrusted-js-runner.mjs && node --max-old-space-size=6144 ../../node_modules/tsup/dist/cli-default.js && node ../../scripts/check-ts-package-exports.mjs",
 		"test": "vitest run",
 		"test:typecheck": "tsc --noEmit -p tsconfig.tests.json",
+		"traces:report": "vitest run --config vitest.traces.config.ts",
 		"test:browser:agentic-memory": "node ../../scripts/run-agentic-memory-indexeddb-smoke.mjs",
 		"test:watch": "vitest"
 	},
