@@ -41,9 +41,6 @@ function during(arrays: readonly Wave[], body: () => void): Wave[] {
 	body();
 	return arrays.slice(start);
 }
-const dataOf = (w: Wave) => w.filter(isData).map((m) => m[1]);
-/** The DATA payloads of each array that carried DATA, keeping array boundaries. */
-const dataArrays = (arrays: readonly Wave[]) => arrays.map(dataOf).filter((d) => d.length > 0);
 const roundTrip = (g: Graph) => JSON.parse(JSON.stringify(g.checkpoint()));
 
 /** C-30's topology: state a, x = a * 10 counting its runs, pausable p after x with a sink. */
@@ -197,8 +194,8 @@ describe("C-30 (R-pause@2): a pausable holds arrays until the last lock is relea
 		expect(during(s.arrays, () => finish?.("late"))).toEqual([pending(["DATA", "late"])]);
 	});
 
-	// The scenario's p is after x; an [DATA, terminal] array reaches p as one array only from a
-	// node that sends it as one, so this clause puts p directly after the state a (as the reference does).
+	// C-30 puts this clause's p directly after the state a, as the reference does; the case after x
+	// follows below (graphrefly-ts finding F13, as the root corrected it).
 	for (const [name, end, terminal] of [
 		["COMPLETE", (a: StateNode<number>) => a.complete(), ["COMPLETE"]],
 		["ERROR", (a: StateNode<number>) => a.error("boom"), ["ERROR", "boom"]],
@@ -232,6 +229,30 @@ describe("C-30 (R-pause@2): a pausable holds arrays until the last lock is relea
 			).toEqual([pending(terminal as Message)]);
 			expect(q.node.cache).toBe(0);
 		});
+
+	it("after x, a write and a COMPLETE in one batch still reach the sink as [PENDING, DATA, COMPLETE]; an ERROR as [PENDING, ERROR]", () => {
+		const done = c30();
+		const s = record(done.p.node);
+		expect(
+			during(s.arrays, () =>
+				done.g.batch(() => {
+					done.a.set(2);
+					done.a.complete();
+				}),
+			),
+		).toEqual([pending(["DATA", 20], ["COMPLETE"])]);
+		// x does not run on its dependency's ERROR, so no DATA comes with it (R-terminals).
+		const failed = c30();
+		const t = record(failed.p.node);
+		expect(
+			during(t.arrays, () =>
+				failed.g.batch(() => {
+					failed.a.set(2);
+					failed.a.error("boom");
+				}),
+			),
+		).toEqual([pending(["ERROR", "boom"])]);
+	});
 });
 
 describe("C-31 (R-lifetime@2, R-terminals@2, R-pause@2): state across close, a sealed state, and locks that outlive the pausable", () => {
@@ -342,15 +363,32 @@ describe("C-60 (4) (R-pause@2): in a wave that also changes the locks, the locks
 						}
 					}),
 				);
-				// Each held array keeps its own boundary; the terminal is the wave's last message.
-				expect(dataArrays(got)).toEqual([[5], [6]]);
-				expect(got.flat().filter((m) => m[0] !== "PENDING")).toEqual([
-					["DATA", 5],
-					["DATA", 6],
-					terminal,
-				]);
-				expect(got.every((w) => w[0]?.[0] === "PENDING")).toBe(true);
+				// O-pause@1 completion: each held array keeps its own boundary, and the terminal goes in
+				// the last array of the run, after its DATA (graphrefly-ts finding F11).
+				expect(got).toEqual([pending(["DATA", 5]), pending(["DATA", 6], terminal as Message)]);
 			});
+
+		it(`${name}: released with a write in the terminal's wave, the terminal goes after the written DATA`, () => {
+			const g = graph();
+			const a = g.state(0, { name: "a" });
+			const p = pausable(g, a, { name: "p" });
+			const s = record(p.node);
+			const lock = p.pause();
+			a.set(5);
+			a.set(6);
+			const got = during(s.arrays, () =>
+				g.batch(() => {
+					p.resume(lock);
+					a.set(7);
+					end(a);
+				}),
+			);
+			expect(got).toEqual([
+				pending(["DATA", 5]),
+				pending(["DATA", 6]),
+				pending(["DATA", 7], terminal as Message),
+			]);
+		});
 
 		it(`${name}: with a lock taken in the terminal's wave, P sends the terminal alone`, () => {
 			const g = graph();

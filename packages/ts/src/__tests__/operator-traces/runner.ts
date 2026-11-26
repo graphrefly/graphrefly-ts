@@ -84,7 +84,9 @@ export type NotRunReason = "operator-not-shipped" | "value-not-carried" | "step-
  * How a fail is classified for the baseline (graphrefly-ts:D191 (6)), not diagnosed:
  * framing: every step's DATA, INVALIDATE and terminals match, the arrays around them do not;
  * behavior: the occurrences themselves differ;
- * error: the runner hit a TS refusal or throw building the trace or at a restore;
+ * error: the runner hit a TS refusal or throw building the trace or at a restore, or TS refused
+ * a request of a step to its caller (README: no request of a trace is refused on the reference,
+ * so the package has not taken that step; graphrefly-ts finding F7);
  * refused: the trace or a step is one the runner cannot take as written, or TS's operator
  * cannot take it (such as a number of dependencies it does not take).
  */
@@ -671,7 +673,10 @@ export async function runTrace(trace: Trace): Promise<TraceResult> {
 	};
 
 	const hostRefusals: string[] = [];
-	/** A host request; a TS refusal of it goes to its caller, which the trace does not watch. */
+	/**
+	 * A host request. A TS refusal of it goes to its caller; the step's check below then fails the
+	 * trace at that step (README "Running the traces in a package").
+	 */
 	const request = (step: Step): void => {
 		const [kind, a, b] = step;
 		try {
@@ -754,16 +759,24 @@ export async function runTrace(trace: Trace): Promise<TraceResult> {
 			}
 			return { id, result: "fail", class: "error", step: i, detail: `${step[0]}: ${errorText(e)}` };
 		}
+		// No request of a trace is refused on the reference: a refused one is a step not taken.
+		if (hostRefusals.length > 0)
+			return {
+				id,
+				result: "fail",
+				class: "error",
+				step: i,
+				detail: `step ${i} ${show(step)}: TS refused ${hostRefusals.join("; ")}`,
+			};
 		const diff = compareStep(trace.expect[i] ?? [], received);
 		if (diff !== "") {
 			const cls = diff.startsWith("framing") ? "framing" : "behavior";
-			const refusals = hostRefusals.length > 0 ? ` (TS refused: ${hostRefusals.join("; ")})` : "";
 			return {
 				id,
 				result: "fail",
 				class: cls,
 				step: i,
-				detail: `step ${i} ${show(step)}: ${diff.slice(cls.length + 2)}${refusals}`,
+				detail: `step ${i} ${show(step)}: ${diff.slice(cls.length + 2)}`,
 			};
 		}
 	}
