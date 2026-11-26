@@ -502,7 +502,10 @@ describe("promise / iterable / coercion sources (D43)", () => {
 		expect(data(msgs)).toEqual([]);
 		const last = msgs[msgs.length - 1];
 		expect(last[0]).toBe("ERROR");
-		expect((last as ["ERROR", unknown])[1]).toBeInstanceOf(Error);
+		// R-failure@5: a throw's ERROR payload is the thrown error's message.
+		expect((last as ["ERROR", unknown])[1]).toBe(
+			"down: DATA requires a non-SENTINEL payload (R-messages)",
+		);
 		expect(n.status.output).toBe("errored");
 	});
 

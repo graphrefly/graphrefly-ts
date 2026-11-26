@@ -1,8 +1,6 @@
-import { request } from "../batch/batch.js";
 import { CTX_NODE_BINDING, type Ctx } from "../ctx/types.js";
+import { kOf, request } from "./kernel.js";
 import type { Node } from "./node.js";
-import { CORE } from "./node-keys.js";
-import { assertRewireDepOwner } from "./node-rewire-runtime.js";
 
 /**
  * Internal: an input whose sources attach and detach over time (a collection's folders, a process
@@ -50,8 +48,11 @@ export function attachableInput(): AttachableInput {
 		},
 		attach(source) {
 			const target = bound();
-			assertRewireDepOwner(target, source);
-			const core = target[CORE];
+			const core = kOf(target).kernel;
+			if (kOf(source).kernel !== core)
+				throw new Error(
+					"rewire: dep belongs to a different graph; cross-graph deps require a wire bridge (D22 / R-graph-domain)",
+				);
 			let owned = false;
 			request(core, () => {
 				if (attached.includes(source)) return;

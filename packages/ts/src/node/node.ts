@@ -1,58 +1,32 @@
 import { assertLocalName } from "./naming.js";
 /**
- * The node primitive — the thinnest substrate object (R-node-thin / D5).
- *
- * Holds a fn handle + deps + the wave state machine; ZERO inspection cruft
- * (naming/find/describe are the graph layer, CSP-2). Canonical authority:
- * ~/src/graphrefly/spec/rules.jsonl (R-node, R-wave, R-subscription, R-lifetime, R-invocation,
- * R-terminals, R-invalidation, R-request-order).
- *
- * The kernel puts PENDING at the head of each array that carries a value or a terminal, runs a
- * fan-in (a diamond included) once per wave after every pending dependency has settled, sends one
- * RESOLVED for a pending node that sent nothing, and delivers every DATA unchanged (R-wave / D49:
- * no equals-substitution). A subscriber's first array is START then the snapshot
- * (R-subscription); activation is lazy (R-lifetime).
+ * The node handle (R-node-thin): the package's object for one kernel record (node/kernel.ts).
+ * Naming, find and describe are the graph layer's. Canonical authority:
+ * ~/src/graphrefly/spec/rules.jsonl (R-node, R-subscription, R-lifetime, R-request-order).
  */
 
-import { currentBatch, DeferredWrite, request, stageToBatch } from "../batch/batch.js";
 import type { NodeFn, Sink } from "../ctx/types.js";
 import { defaultDispatcher, type Handle } from "../dispatcher/index.js";
 import { EnvironmentDrivers } from "../graph/environment.js";
-import { type Message, SENTINEL, type Wave } from "../protocol/messages.js";
 import {
-	type DepBookkeeping,
-	type LifecycleState,
-	type LifetimeState,
-	makeDepBookkeeping,
-	type NodeCore,
-	type NodeId,
-	type NodeSlot,
-	type PrivateState,
-	type Subscriber,
-	type ValueState,
-	type WaveState,
-} from "./core.js";
-import {
-	CORE,
-	DEP,
-	ID,
-	LIFECYCLE,
-	LIFETIME,
-	PRIVATE_STATE,
-	RELEASED,
-	SEED_NOTE,
-	SLOT,
-	VALUE,
-	WAVE,
-} from "./node-keys.js";
-import { nodeAssertNotReleased, nodeStatus, nodeSubscribeOwned } from "./node-lifecycle-runtime.js";
-import { nodeDown, nodeResolveBatchedWave } from "./node-output-runtime.js";
+	bindKNode,
+	copyData,
+	hostInput,
+	hostSet,
+	type Kernel,
+	type KNode,
+	kOf,
+	makeKNode,
+	replace,
+	status,
+	subscribe,
+	terminalValue,
+} from "./kernel.js";
 import {
 	constructionAcquisitions,
 	failNodeAcquisition,
 	type NodeAcquisition,
 } from "./owned-acquisition.js";
-import { validateNodeOutput } from "./protocol-guards.js";
 import {
 	issueNodeRegistration,
 	runningGraph,
@@ -62,7 +36,7 @@ import {
 	withEnvironmentDrivers,
 	withNodeCore,
 } from "./runtime-accessors.js";
-import type { NodeOptions, Status } from "./types.js";
+import type { NodeDefinition, NodeOptions, ReplaceOptions, Status } from "./types.js";
 
 export {
 	checkpointStateOfNode,
@@ -81,8 +55,14 @@ export {
 } from "./runtime-accessors.js";
 export type { NodeCheckpointState, NodeOptions, NodeSeed, Status } from "./types.js";
 
+/** @internal A node's place in creation order in its graph (R-graph-surface@2). */
+export function nodeCreationIndex(node: Node<unknown>): number {
+	return kOf(node).created;
+}
+
 /**
- * Reactive substrate node that owns dependencies, wave handling, lifecycle, and subscribers.
+ * Reactive substrate node: a handle for one kernel record, which owns its dependencies, wave
+ * state, lifetime and subscribers.
  *
  * @example
  * ```ts
@@ -96,38 +76,13 @@ export type { NodeCheckpointState, NodeOptions, NodeSeed, Status } from "./types
  *   it with `graph().node`, `graph().state` or `graph().derived`. There is no standalone node.
  * @category core
  */
-/** R-graph-surface@1: describe lists nodes in creation order; this is each node's place in it. */
-const creationOrder = new WeakMap<Node<unknown>, number>();
-let nextCreation = 0;
-
-/** @internal A node's place in creation order (R-graph-surface@1). */
-export function nodeCreationIndex(node: Node<unknown>): number {
-	return creationOrder.get(node) ?? Number.MAX_SAFE_INTEGER;
-}
-
 export class Node<T = unknown> {
-	// The node's kernel state, keyed by the internal symbols of ./node-keys.ts: the
-	// node-*-runtime modules read and write it directly. `private`, so the published declarations
-	// show the keys without their types.
-	private readonly [CORE]: NodeCore;
-	private readonly [ID]: NodeId;
-	private readonly [SLOT]: NodeSlot<T>;
-	private readonly [DEP]: DepBookkeeping;
-	private readonly [VALUE]: ValueState<T>;
-	private readonly [WAVE]: WaveState;
-	private readonly [LIFECYCLE]: LifecycleState;
-	private readonly [PRIVATE_STATE]: PrivateState;
-	private readonly [LIFETIME]: LifetimeState;
-	private [SEED_NOTE]: unknown = undefined;
-	private [RELEASED] = false;
-
 	constructor(
 		deps: Node<unknown>[],
 		handleOrFn: Handle | NodeFn | null,
 		opts: NodeOptions<T> = {},
 	) {
 		assertLocalName(opts.name);
-		creationOrder.set(this as Node<unknown>, nextCreation++);
 		// R-node: a node with dependencies is a computed node and has a function; a node without
 		// one is a state and has no dependencies.
 		if (handleOrFn === null && deps.length > 0)
@@ -138,13 +93,20 @@ export class Node<T = unknown> {
 		const staged = takeConstructingNodeCore();
 		const stagedDispatcher = takeConstructingDispatcher();
 		const stagedEnvironment = takeConstructingEnvironmentDrivers();
-		// D179: with no graph staged, a node built during a run belongs to the running graph.
 		const running = staged === undefined ? runningGraph() : undefined;
-		const core = staged ?? running?.core;
+		const kernel = staged ?? running?.core;
 		const dispatcher =
 			opts.dispatcher ?? stagedDispatcher ?? running?.dispatcher ?? defaultDispatcher;
 		const environment = stagedEnvironment ?? running?.environment ?? EnvironmentDrivers.empty();
 		try {
+			// R-graph-domain@3: a node belongs to one graph's domain; there is no standalone node.
+			if (kernel === undefined)
+				throw new Error("node: a node is built by a graph (graph.node, graph.state, ...)");
+			for (const d of deps)
+				if (kOf(d).kernel !== kernel)
+					throw new Error(
+						"node: dependencies belong to different graphs; cross-graph deps require a wire bridge (R-graph-domain)",
+					);
 			let handle: Handle | null;
 			if (handleOrFn === null) handle = null;
 			else if (typeof handleOrFn === "function") handle = dispatcher.register(handleOrFn);
@@ -153,77 +115,28 @@ export class Node<T = unknown> {
 				acquisition.dispatcher = dispatcher;
 				acquisition.handle = handle;
 			}
-
-			const n = deps.length;
-			const dep = makeDepBookkeeping(n);
-			const value = {
-				cache: SENTINEL as T | undefined,
-				hasData: false,
-				terminal: undefined,
-				lastArray: [] as T[],
-			};
-			if (opts.initial !== undefined) {
-				value.cache = opts.initial as T;
-				value.lastArray = [opts.initial as T];
-				value.hasData = true;
-			}
-			// R-graph-domain@3: a node belongs to one graph's domain; there is no standalone node.
-			if (core === undefined)
-				throw new Error("node: a node is built by a graph (graph.node, graph.state, ...)");
-			this[CORE] = core;
-			const created = this[CORE].createSlot<T>(
-				{
-					deps,
-					handle,
-					dispatcher,
-					environment,
-					completePolicy: opts.complete ?? "auto",
-					errorPolicy: opts.error ?? "auto",
-					invalidatePolicy: opts.invalidate ?? "auto",
-					quiet: opts.quiet ?? false,
-					setup: opts.setup,
-					declaredDeps: deps,
-					fn: typeof handleOrFn === "function" ? handleOrFn : null,
-					recipe: opts.recipe,
-					name: opts.name,
-					factory: opts.factory,
-				},
-				{
-					dep,
-					lifecycle: { subscribers: new Set<Subscriber>(), activated: false },
-					value,
-					wave: {
-						pending: 0,
-						emittedDirtyThisWave: false,
-						emittedSettleThisWave: false,
-						insideRunWave: false,
-						runOutput: [],
-						inDepMutation: false,
-						activating: false,
-						rewireRunPending: false,
-					},
-					privateState: { value: SENTINEL },
-					lifetime: {
-						controller: null,
-						cleanup: undefined,
-						setupDone: false,
-						closing: false,
-						closingSignal: null,
-					},
-				},
-				acquisition,
-			);
-			// Also bind the returned slot if an internal wrapper did not forward the journal.
-			acquisition.core = this[CORE];
-			acquisition.slot = created.id;
-			this[ID] = created.id;
-			this[SLOT] = this[CORE].get<T>(this[ID]);
-			this[DEP] = this[CORE].getDep(this[ID]);
-			this[VALUE] = this[CORE].getValue<T>(this[ID]);
-			this[WAVE] = this[CORE].getWave(this[ID]);
-			this[LIFECYCLE] = this[CORE].getLifecycle(this[ID]);
-			this[PRIVATE_STATE] = this[CORE].getPrivateState(this[ID]);
-			this[LIFETIME] = this[CORE].getLifetime(this[ID]);
+			const record = makeKNode(kernel, {
+				node: this as Node<unknown>,
+				kind: handleOrFn === null ? "state" : "node",
+				deps: deps.map(kOf),
+				fn: typeof handleOrFn === "function" ? handleOrFn : null,
+				id: opts.id ?? opts.name,
+				complete: opts.complete,
+				error: opts.error,
+				invalidate: opts.invalidate,
+				quiet: opts.quiet,
+				setup: opts.setup,
+				recipe: opts.recipe,
+				initial: opts.initial === null ? null : opts.initial,
+				seed: opts.seed,
+				handle,
+				dispatcher,
+				environment,
+				name: opts.name,
+				factory: opts.factory,
+			});
+			bindKNode(this as Node<unknown>, record);
+			acquisition.core = kernel;
 			issueNodeRegistration(this as Node<unknown>);
 			acquisition.node = this as Node<unknown>;
 		} catch (cause) {
@@ -233,114 +146,46 @@ export class Node<T = unknown> {
 	}
 
 	get cache(): T | undefined {
-		return this[VALUE].cache;
+		return kOf(this as Node<unknown>).cache as T | undefined;
 	}
 
-	/** R-node@2: derived from what the node holds; reading it changes nothing. */
+	/** R-node@4: derived from what the node holds; reading it changes nothing. */
 	get status(): Status {
-		return nodeStatus(this);
+		return status(kOf(this as Node<unknown>));
 	}
 
 	get name(): string | undefined {
-		return this[SLOT].name;
+		return kOf(this as Node<unknown>).name;
 	}
 
-	/** D51: real factory name for a standalone graph-less node (a runtime *Map inner). */
+	/** D51: real factory name for a node built outside the graph's index. */
 	get factory(): string | undefined {
-		return this[SLOT].factory;
+		return kOf(this as Node<unknown>).factory;
 	}
 
-	/**
-	 * The node's CURRENT/LIVE deps (R-graph-surface / R-edges-derived / D51) — readonly view of the
-	 * live `_deps`, which a rewire (C-8 / C-11) mutates. The graph's describe() reads this (NOT a
-	 * construction-time snapshot) so every edge corresponds to a real current subscription (D3).
-	 * Inspection-only, like cache/status; never triggers computation.
-	 */
+	/** The node's current dependencies (a ctx.rewire's included); inspection only. */
 	get deps(): readonly Node<unknown>[] {
-		return this[SLOT].deps;
+		return kOf(this as Node<unknown>).deps.map((d) => d.node);
 	}
 
-	/**
-	 * The fn handle (pure data: the function's index in the dispatcher's table, D7) or null for state/passthrough
-	 * nodes. Inspection-only (L1.6 handle is referenceable/inspectable) — lets the graph
-	 * layer key a dispatcher-backed profile recorder WITHOUT putting counters on the node
-	 * (R-node-thin / D39).
-	 */
+	/** The function's handle in the dispatcher's table, or null for a state (phase 1b removes it). */
 	get handle(): Handle | null {
-		return this[SLOT].handle;
+		return kOf(this as Node<unknown>).handle;
 	}
 
 	/**
-	 * R-subscription: a new sink first receives one array, START followed by the node's snapshot
-	 * (the DATA values of the last array it sent that carried any DATA); after that it receives
-	 * every array the node sends, each with the kernel's PENDING first (graphrefly-ts:D175).
+	 * R-subscription@5: a new sink first receives one array, START followed by the node's snapshot;
+	 * after that every array the node sends, each with the kernel's PENDING first. A request: during
+	 * a wave it waits for the wave to end. Returns the unsubscribe.
 	 */
 	subscribe(sink: Sink): () => void {
-		nodeAssertNotReleased(this, "subscribe");
-		// R-request-order: subscribe and unsubscribe are requests; during a wave they wait for it.
-		let stop: (() => void) | undefined;
-		let cancelled = false;
-		request(this[CORE], () => {
-			if (!cancelled) stop = nodeSubscribeOwned(this, { kind: "sink", fn: sink });
-		});
-		return () => {
-			request(this[CORE], () => {
-				cancelled = true;
-				stop?.();
-			});
-		};
+		return subscribe(kOf(this as Node<unknown>), sink);
 	}
+}
 
-	/**
-	 * External emission toward sinks (state-node push, or async late-emit). One call = one wave.
-	 * PENDING and RESOLVED are the kernel's and are rejected (R-wave).
-	 */
-	/** Host input to a state node (R-request-order); StateNode exposes it as its four inputs. */
-	protected _hostInput(msgs: Wave): void {
-		nodeAssertNotReleased(this, "down");
-		validateNodeOutput(msgs);
-		// R-terminals: a host input to an ended node is refused.
-		if (this[VALUE].terminal !== undefined)
-			throw new Error("down: this node has ended (R-terminals)");
-		if (currentBatch(this[CORE])) {
-			nodeDown(this, msgs);
-			return;
-		}
-		// R-request-order: during a wave a host input waits for it, so no function is reentered.
-		request(this[CORE], () => {
-			// Checked again: a queued input may find its node ended by an earlier request.
-			if (this[VALUE].terminal !== undefined)
-				throw new Error("down: this node has ended (R-terminals)");
-			nodeDown(this, msgs);
-		});
-	}
-
-	/**
-	 * R-request-order: write through a function of the current value. It runs when the write takes
-	 * its place in request order (in a batch, at the commit); a result equal to its argument
-	 * (Object.is) writes nothing.
-	 */
-	protected _writeFn(fn: (prev: T | undefined) => T): void {
-		nodeAssertNotReleased(this, "set");
-		if (this[VALUE].terminal !== undefined)
-			throw new Error("set: this node has ended (R-terminals)");
-		const deferred = new DeferredWrite(fn as (prev: unknown) => unknown);
-		if (currentBatch(this[CORE])) {
-			stageToBatch(
-				this[CORE],
-				this as unknown as Node<unknown>,
-				[["DATA", deferred] as Message],
-				"set",
-			);
-			return;
-		}
-		request(this[CORE], () => {
-			if (this[VALUE].terminal !== undefined)
-				throw new Error("set: this node has ended (R-terminals)");
-			const resolved = nodeResolveBatchedWave(this, [["DATA", deferred]]);
-			if (resolved.length > 0) nodeDown(this, resolved);
-		});
-	}
+/** @internal The kernel record of this node, terminal as the package's shape. */
+export function terminalOfNode(node: Node<unknown>): unknown {
+	return terminalValue(kOf(node).ended);
 }
 
 /**
@@ -362,9 +207,8 @@ export function makeNode<T>(
  * and open helper nodes of their own (a timer beside its source). One node per call.
  */
 export function buildBeside<N extends Node<unknown>>(beside: Node<unknown>, create: () => N): N {
-	return withEnvironmentDrivers(beside[SLOT].environment, () =>
-		withNodeCore(beside[CORE], create, beside[SLOT].dispatcher),
-	);
+	const n = kOf(beside);
+	return withEnvironmentDrivers(n.environment, () => withNodeCore(n.kernel, create, n.dispatcher));
 }
 
 /**
@@ -378,12 +222,71 @@ export function makeNodeBeside<T>(
 ): Node<T> {
 	const first = deps[0];
 	if (first === undefined) throw new Error("node: a derived view needs a dependency");
+	const n = kOf(first);
 	for (const d of deps)
-		if (d[CORE] !== first[CORE])
+		if (kOf(d).kernel !== n.kernel)
 			throw new Error("node: dependencies belong to different graphs; use a wire bridge");
-	return withEnvironmentDrivers(first[SLOT].environment, () =>
-		withNodeCore(first[CORE], () => new Node<T>(deps, fn, opts), first[SLOT].dispatcher),
+	return withEnvironmentDrivers(n.environment, () =>
+		withNodeCore(n.kernel, () => new Node<T>(deps, fn, opts), n.dispatcher),
 	);
+}
+
+/**
+ * @internal R-node@4: a node's current definition, its declared dependencies, its current
+ * instance's function, setup and recipe (a copy, graphrefly:D823), and its policies.
+ */
+export function nodeDefinition(node: Node<unknown>): NodeDefinition {
+	const n = kOf(node);
+	return {
+		deps: n.declaredDeps.map((d) => d.node),
+		fn: n.fn,
+		setup: n.setup ?? undefined,
+		recipe: copyData(n.recipe),
+		complete: n.policy.complete,
+		error: n.policy.error,
+		invalidate: n.invalidate,
+		quiet: n.quiet,
+	};
+}
+
+/**
+ * @internal R-request-order@7: give a computed node a new instance with these dependencies,
+ * function and, in opts, setup and recipe. A request: during a wave it waits for it.
+ */
+export function nodeReplace(
+	node: Node<unknown>,
+	deps: readonly Node<unknown>[],
+	fn: NodeFn,
+	opts: ReplaceOptions = {},
+): void {
+	const n = kOf(node);
+	for (const d of deps)
+		if (kOf(d).kernel !== n.kernel)
+			throw new Error(
+				"replace: dep belongs to a different graph; cross-graph deps require a wire bridge (R-graph-domain)",
+			);
+	const handle = n.dispatcher.register(fn);
+	try {
+		replace(n, deps.map(kOf), {
+			fn,
+			handle,
+			...(opts.setup === undefined ? {} : { setup: opts.setup }),
+			recipe: opts.recipe,
+		});
+	} catch (e) {
+		n.dispatcher.unregister(handle);
+		throw e;
+	}
+}
+
+/** @internal The kernel of a node's graph. */
+export function kernelOfNode(node: Node<unknown>): Kernel {
+	return kOf(node).kernel;
+}
+
+/** @internal The kernel record of a node. */
+export function recordOfNode(node: Node<unknown>): KNode {
+	return kOf(node);
 }
 
 /**
@@ -407,22 +310,21 @@ export class StateNode<T> extends Node<T> {
 	 * function as a value, wrap it: `set(() => fn)`.
 	 */
 	set(v: T | ((prev: T | undefined) => T)): void {
-		if (typeof v === "function") this._writeFn(v as (prev: T | undefined) => T);
-		else this._hostInput([["DATA", v]]);
+		hostSet(kOf(this as Node<unknown>), v);
 	}
 
 	/** Host input (R-invalidation): drop the retained value; effective only while one is held. */
 	invalidate(): void {
-		this._hostInput([["INVALIDATE"]]);
+		hostInput(kOf(this as Node<unknown>), ["INVALIDATE"], "invalidate");
 	}
 
 	/** Host input (R-terminals): end this state with COMPLETE. */
 	complete(): void {
-		this._hostInput([["COMPLETE"]]);
+		hostInput(kOf(this as Node<unknown>), ["COMPLETE"], "complete");
 	}
 
 	/** Host input (R-terminals): end this state with ERROR carrying `error`. */
 	error(error: unknown): void {
-		this._hostInput([["ERROR", error]]);
+		hostInput(kOf(this as Node<unknown>), ["ERROR", error], "error");
 	}
 }

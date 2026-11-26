@@ -88,6 +88,11 @@ export interface CtxDep {
 	 * always false under the auto policy, where the function does not run for an INVALIDATE.
 	 */
 	readonly invalidated: boolean;
+	/**
+	 * R-invocation@4: whether the dependency was replaced by a new instance since the function's
+	 * last run (R-subscription@5); true in that one run only.
+	 */
+	readonly replaced: boolean;
 }
 
 /**
@@ -177,6 +182,10 @@ export function ctxWithDeps(ctx: Ctx, deps: readonly CtxDep[]): Ctx {
 			get invalidated() {
 				void ctx.deps;
 				return dep.invalidated;
+			},
+			get replaced() {
+				void ctx.deps;
+				return dep.replaced;
 			},
 		}),
 	);

@@ -1,8 +1,7 @@
 import type { NodeFn } from "../ctx/types.js";
 import { assertLocalName } from "../node/naming.js";
 import type { Node, StateNode } from "../node/node.js";
-import { VALUE } from "../node/node-keys.js";
-import { nodeSubscribeOwned } from "../node/node-lifecycle-runtime.js";
+import { terminalOfNode } from "../node/node.js";
 import {
 	cleanupNodeAcquisition,
 	type NodeAcquisition,
@@ -57,7 +56,6 @@ export class ColdConstructionError extends Error {
 			readonly handle?: RuntimeReleaseFailure["handle"];
 			readonly dispatcher?: RuntimeReleaseFailure["dispatcher"];
 			readonly core?: RuntimeReleaseFailure["core"];
-			readonly slot?: RuntimeReleaseFailure["slot"];
 		}[],
 	) {
 		super(
@@ -166,7 +164,6 @@ export class ConstructionScope {
 			dispatcher: undefined,
 			handle: undefined,
 			core: undefined,
-			slot: undefined,
 			node: undefined,
 			registered: false,
 		};
@@ -337,18 +334,10 @@ export function startConstruction(graph: Graph, owner: OwnedConstruction): void 
 			},
 			() => {
 				for (const lease of owner.roots) {
-					nodeSubscribeOwned(
-						lease.node,
-						{ kind: "sink", fn: () => {} },
-						{
-							record: (release) => {
-								lease.unsubscribe = release;
-							},
-						},
-					);
+					lease.unsubscribe = lease.node.subscribe(() => {});
 					if (
 						owner.nodes.some(
-							(node) => node[VALUE].terminal !== undefined && node[VALUE].terminal !== true,
+							(node) => terminalOfNode(node) !== undefined && terminalOfNode(node) !== true,
 						)
 					) {
 						code = "protocol-error";

@@ -312,7 +312,9 @@ describe("C-35: rewire keeps the instance and runs between waves", () => {
 		expect(f.runs).toEqual([]);
 		f.gNode.set(5);
 		expect(f.runs).toHaveLength(1);
-		expect(() => f.ctx().rewire([f.c, f.c])).toThrow(/duplicate/);
+		// C-35 as corrected for graphrefly:D821: a repeated dependency is taken, a connection per place.
+		f.ctx().rewire([f.c, f.c]);
+		expect(f.d.deps).toEqual([f.c, f.c]);
 		expect(() => f.ctx().rewire([f.d])).toThrow(/itself/);
 		const after = f.g.node<number>([f.d], () => {}, { name: "after" });
 		after.subscribe(() => {});
@@ -461,23 +463,26 @@ describe("C-40: replace gives an ended node a new instance", () => {
  * the node's graph (R-request-order@2), and are dropped when they run if the lifetime they were
  * made in has closed, the node has ended or it is released (R-lifetime@2).
  */
-describe("R-wave@2 / C-16: a quiet node's activation snapshot comes before its run output", () => {
+// F9 (open at the root): the rules do not say whether a quiet node's first run at activation is
+// part of its first snapshot or a later wave of its own. These follow reference/kernel, which
+// applies the activation run as any node's (graphrefly:D817): it is the START snapshot.
+describe("R-wave@4 / R-lifetime@2 (F9, as reference/kernel): a quiet node's activation run is its first snapshot", () => {
 	const times10 = (ctx: Ctx) => ctx.down([["DATA", (ctx.deps[0].value as number) * 10]]);
 	const hasData = (msgs: Wave, v: unknown) => msgs.some((m) => m[0] === "DATA" && m[1] === v);
 
-	it("the first sink gets a bare START, then the first run's output as a wave of its own", () => {
+	it("the first sink gets START with the first run's output; later runs are later waves", () => {
 		const g = graph();
 		const a = g.state(1, { name: "a" });
 		const q = g.node<number>([a], times10, { name: "q", quiet: true });
 		const first = collect(q);
-		expect(first.arrays).toEqual([[["START"]], [["PENDING"], ["DATA", 10]]]);
+		expect(first.arrays).toEqual([[["START"], ["DATA", 10]]]);
 		// A later sink's START carries the published output.
 		expect(collect(q).arrays).toEqual([[["START"], ["DATA", 10]]]);
 		a.set(2);
 		expect(first.arrays.at(-1)).toEqual([["PENDING"], ["DATA", 20]]);
 	});
 
-	it("a sink subscribed in the same wave as the activating one also gets START before the output", () => {
+	it("a sink subscribed in the same wave as the activating one gets the same snapshot", () => {
 		const g = graph();
 		const a = g.state(1, { name: "a" });
 		const t = g.state(0, { name: "t" });
@@ -490,11 +495,11 @@ describe("R-wave@2 / C-16: a quiet node's activation snapshot comes before its r
 			q.subscribe(second.sink);
 		});
 		t.set(1);
-		expect(first.log).toEqual([[["START"]], [["PENDING"], ["DATA", 10]]]);
-		expect(second.log).toEqual([[["START"]], [["PENDING"], ["DATA", 10]]]);
+		expect(first.log).toEqual([[["START"], ["DATA", 10]]]);
+		expect(second.log).toEqual([[["START"], ["DATA", 10]]]);
 	});
 
-	it("a dependent activated through q sees q's first output as one later input wave", () => {
+	it("a dependent activated through q sees q's first output in its activation run", () => {
 		const g = graph();
 		const a = g.state(1, { name: "a" });
 		const q = g.node<number>([a], times10, { name: "q", quiet: true });
@@ -503,8 +508,8 @@ describe("R-wave@2 / C-16: a quiet node's activation snapshot comes before its r
 			runs.push(ctx.deps[0].waves.map((w) => [...w]));
 		});
 		collect(d);
-		// d's activation run sees q's empty snapshot; q's first output is d's next input wave.
-		expect(runs).toEqual([[], [[10]]]);
+		// d's activation run sees q's snapshot, which holds q's first output.
+		expect(runs).toEqual([[[10]]]);
 	});
 });
 
@@ -588,7 +593,7 @@ describe("R-wave@2 / R-terminals: a quiet node's auto terminal and its run outpu
 	});
 });
 
-describe("R-lifetime@2: a quiet node's output from before its first run belongs to its activation", () => {
+describe("R-lifetime@2 (F9, as reference/kernel): a quiet node ended by its activation carries the ERROR in its snapshot", () => {
 	const boom = new Error("boom");
 	const setup = () => {
 		const g = graph();
@@ -611,23 +616,23 @@ describe("R-lifetime@2: a quiet node's output from before its first run belongs 
 	it("stands while q is still active", () => {
 		const { q, ran } = setup();
 		const s = collect(q);
-		expect(s.arrays).toEqual([[["START"]], [["PENDING"], ["ERROR", boom]]]);
+		expect(s.arrays).toEqual([[["START"], ["ERROR", boom]]]);
 		expect(ran()).toBe(0);
 		expect(q.status.output).toBe("errored");
 	});
 
-	it("is dropped when q is deactivated before it goes out", () => {
+	it("a sink that subscribes and stops in one callback gets the ended snapshot", () => {
 		const { t, q } = setup();
 		const log = arraySink();
 		t.subscribe((msgs) => {
 			if (!msgs.some((m) => m[0] === "DATA" && m[1] === 1)) return;
-			// Both are requests: the subscribe activates q and queues its ERROR after the stop.
+			// Both are requests: the subscribe activates q, which ends at once, then the stop.
 			const stop = q.subscribe(log.sink);
 			stop();
 		});
 		t.set(1);
-		expect(log.log).toEqual([[["START"]]]);
-		expect(q.status).toMatchObject({ output: "open", lifecycle: "inactive" });
+		expect(log.log).toEqual([[["START"], ["ERROR", boom]]]);
+		expect(q.status).toMatchObject({ output: "errored", lifecycle: "inactive" });
 	});
 
 	it("does not cross a replace into the new instance (C-40, R-node@2)", () => {
@@ -641,19 +646,22 @@ describe("R-lifetime@2: a quiet node's output from before its first run belongs 
 			g.replace(q, [ok], (ctx) => ctx.down([["DATA", (ctx.deps[0].value as number) * 10]]));
 		});
 		t.set(1);
-		expect(log.log).toEqual([[["START"]], [["START"]], [["PENDING"], ["DATA", 50]]]);
+		expect(log.log).toEqual([
+			[["START"], ["ERROR", boom]],
+			[["START"], ["DATA", 50]],
+		]);
 		expect(q.status.output).toBe("open");
 	});
 });
 
-describe("C-25 / D110: a quiet node's output made while a commit is delivered shares the commit's fate", () => {
+describe("R-request-order@7: a quiet node's output from a commit shares the commit's fate", () => {
 	const quietTimes10 = (g: ReturnType<typeof graph>, a: Node<number>) =>
 		g.node<number>([a], (ctx) => ctx.down([["DATA", (ctx.deps[0].value as number) * 10]]), {
 			name: "q",
 			quiet: true,
 		});
 
-	it("is dropped when the commit fails after q ran on it", () => {
+	it("a commit that fails writes nothing, so q does not run (graphrefly:D814)", () => {
 		const g = graph();
 		const a = g.state(0, { name: "a" });
 		const c = g.state(0, { name: "c" });
@@ -662,14 +670,14 @@ describe("C-25 / D110: a quiet node's output made while a commit is delivered sh
 		const qs = collect(q);
 		as.arrays.length = 0;
 		qs.arrays.length = 0;
-		// a delivers first, so q runs and queues DATA 10; c's write then fails the commit.
+		// c's updater gives no value, which fails every write of the commit (R-request-order@7).
 		expect(() =>
 			g.batch(() => {
 				a.set(1);
 				c.set(() => undefined as unknown as number);
 			}),
 		).toThrow(/non-SENTINEL/);
-		expect(as.arrays).toEqual([[["PENDING"], ["DATA", 1]]]);
+		expect(as.arrays).toEqual([]);
 		expect(qs.arrays).toEqual([]);
 		expect(q.cache).toBe(0);
 	});
@@ -766,7 +774,7 @@ describe("R-wave@2 / R-lifetime@2: a ctx.down after the function returned", () =
 		expect(src.cache).toBeUndefined();
 	});
 
-	it("made while a commit is delivered, is a request like set and survives a failed commit (R-request-order@2)", () => {
+	it("a failed commit delivers nothing; one made while a commit is delivered is a request (R-request-order@7)", () => {
 		const g = graph();
 		const a = g.state(0, { name: "a" });
 		const c = g.state(0, { name: "c" });
@@ -780,8 +788,8 @@ describe("R-wave@2 / R-lifetime@2: a ctx.down after the function returned", () =
 				c.set(() => undefined as unknown as number);
 			}),
 		).toThrow(/non-SENTINEL/);
-		expect(s.arrays).toEqual([[["PENDING"], ["DATA", "late"]]]);
-		s.arrays.length = 0;
+		// The commit wrote nothing (graphrefly:D814), so a's callback never ran.
+		expect(s.arrays).toEqual([]);
 		g.batch(() => a.set(2));
 		onData(a, 3, () => (ctxs[0] as Ctx).down([["DATA", "committed"]]));
 		g.batch(() => a.set(3));

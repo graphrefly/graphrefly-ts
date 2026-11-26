@@ -25,9 +25,8 @@ import { constructionAcquisitions, type NodeAcquisition } from "../node/owned-ac
 
 import type { Ctx, NodeFn } from "../ctx/types.js";
 import type { Dispatcher } from "../dispatcher/index.js";
-import type { NodeCore } from "../node/core.js";
+import { type Kernel, kOf } from "../node/kernel.js";
 import { Node, type NodeOptions, withEnvironmentDrivers, withNodeCore } from "../node/node.js";
-import { CORE, SLOT } from "../node/node-keys.js";
 import { errorPayload, type Message } from "../protocol/messages.js";
 import { type GraphCheckpointJson, toCheckpointJson } from "./checkpoint.js";
 import { eachInputArray } from "./each-input-array.js";
@@ -196,17 +195,18 @@ export function initNodeBeside<TIn, TOut>(
 	const first = deps[0];
 	if (first === undefined)
 		throw new Error("initNode: an operator built beside its inputs needs one");
+	const k = kOf(first);
 	for (const d of deps)
-		if (d[CORE] !== first[CORE])
+		if (kOf(d).kernel !== k.kernel)
 			throw new Error("initNode: dependencies belong to different graphs; use a wire bridge");
-	return withEnvironmentDrivers(first[SLOT].environment, () =>
-		initNodeWithCore(first[CORE], op, deps, opts, undefined, first[SLOT].dispatcher),
+	return withEnvironmentDrivers(k.environment, () =>
+		initNodeWithCore(k.kernel, op, deps, opts, undefined, k.dispatcher),
 	);
 }
 
 /** @internal Graph-bound operator instantiation into a graph-local B49 core. */
 export function initNodeWithCore<TIn, TOut>(
-	core: NodeCore,
+	core: Kernel,
 	op: Operator<TIn, TOut>,
 	deps: readonly Node<unknown>[],
 	opts: NodeOptions<TOut> = {},

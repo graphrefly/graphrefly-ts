@@ -1,5 +1,5 @@
 import type { Dispatcher, Handle } from "../dispatcher/index.js";
-import type { NodeCore, NodeId } from "./core.js";
+import type { Kernel } from "./kernel.js";
 import type { Node } from "./node.js";
 import { releaseRuntimeOfNode, runtimeReleaseFailuresOfNode } from "./runtime-accessors.js";
 
@@ -8,8 +8,7 @@ export interface NodeAcquisition {
 	readonly name: string;
 	dispatcher?: Dispatcher;
 	handle?: Handle;
-	core?: NodeCore;
-	slot?: NodeId;
+	core?: Kernel;
 	node?: Node<unknown>;
 	registered?: boolean;
 }
@@ -28,8 +27,7 @@ export interface RuntimeReleaseFailure {
 	readonly cause: unknown;
 	readonly handle?: Handle;
 	readonly dispatcher?: Dispatcher;
-	readonly core?: NodeCore;
-	readonly slot?: NodeId;
+	readonly core?: Kernel;
 }
 
 /** D167: fixed cleanup of resources this cold acquisition actually owns. Never retry residuals. */
@@ -47,7 +45,6 @@ export function cleanupNodeAcquisition(a: NodeAcquisition): readonly RuntimeRele
 						resource: "runtime",
 						cause,
 						core: a.core,
-						slot: a.slot,
 						dispatcher: a.dispatcher,
 						handle: a.handle,
 					},
@@ -62,13 +59,6 @@ export function cleanupNodeAcquisition(a: NodeAcquisition): readonly RuntimeRele
 			a.dispatcher!.unregister(a.handle);
 		} catch (cause) {
 			failures.push({ resource: "handle", cause, handle: a.handle, dispatcher: a.dispatcher });
-		}
-	}
-	if (a.slot !== undefined) {
-		try {
-			a.core!.releaseSlot(a.slot);
-		} catch (cause) {
-			failures.push({ resource: "slot", cause, core: a.core, slot: a.slot });
 		}
 	}
 	return failures;

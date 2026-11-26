@@ -162,9 +162,10 @@ describe("C-38 restore keeps the saved state, refreshes once on a changed input,
 		const shape = (g: Graph) =>
 			renderSnapshot(g).nodes.map((n) => ({ id: n.id, factory: n.factory, deps: n.deps }));
 		// The live graph's rew went back to its declared dependencies when its lifetime closed; the
-		// checkpoint saved the lifetime's.
+		// checkpoint saved the lifetime's. C-38 (current text): a node that had rewired itself is
+		// described with its declared dependencies until its first activation.
 		expect(shape(r).map((n) => n.id)).toEqual(shape(o.g).map((n) => n.id));
-		expect(renderSnapshot(r).edges).toContainEqual({ from: "b", to: "rew" });
+		expect(renderSnapshot(r).edges).not.toContainEqual({ from: "b", to: "rew" });
 		expect(ids(r, r.definition("rew").deps)).toEqual(["a"]);
 		for (const id of ["a", "b", "p", "ended", "rew", "tick"])
 			expect(checkpointStateOfNode(r.find(id) as Node<unknown>).activated).toBe(false);
@@ -268,8 +269,10 @@ describe("C-38 restore keeps the saved state, refreshes once on a changed input,
 		const { f, checkpoint, before } = captured();
 		const r = f.restore(checkpoint);
 		const rew = r.find("rew") as Node<unknown>;
-		expect(ids(r, rew.deps)).toEqual(["a", "b"]);
+		// C-38: described with its declared dependencies until its first activation.
+		expect(ids(r, rew.deps)).toEqual(["a"]);
 		const msgs = collect(rew);
+		expect(ids(r, rew.deps)).toEqual(["a", "b"]);
 		expect(msgs).toEqual([["START"], ["DATA", 6]]);
 		expect(f.counts.rew).toBe(before.rew);
 		asState<number>(r.find("b")).set(7);

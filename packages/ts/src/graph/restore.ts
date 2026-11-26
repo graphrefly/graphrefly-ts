@@ -1046,9 +1046,7 @@ function constructPrepared(
 				terminal: item.terminal,
 				privateState: lifetime?.state === undefined ? SENTINEL : lifetime.state,
 				// A ctx.rewire's lifetime dependencies; the declared ones come back when it closes.
-				...(lifetime?.deps === undefined
-					? {}
-					: { deps: lifetime.deps.map((dep) => built.get(dep) as Node<unknown>) }),
+				...(lifetime?.deps === undefined ? {} : { deps: [...lifetime.deps] }),
 				...(received === undefined ? {} : { note: restoredNote(received) }),
 			});
 		}

@@ -70,6 +70,13 @@ export interface NodeOptions<T = unknown> {
 	/** Optional debug name (graph layer owns real naming/inspection). */
 	name?: string;
 	/**
+	 * @internal The node's graph id when it differs from its name (a generated id), so the kernel's
+	 * creation check can see a seed that named it (R-request-order@7).
+	 */
+	id?: string;
+	/** R-subscription@5: a construction seed, held as if the node had produced it. */
+	seed?: NodeSeed;
+	/**
 	 * Real operator/source factory name for a STANDALONE graph-less node (D43-reserved; D51).
 	 * The graph index (`_entries`) carries the factory for g.*-registered nodes, so this is only
 	 * read for a node NOT in any graph index — a runtime *Map inner (bare `fromAny`/`initNode`
@@ -91,7 +98,8 @@ export interface NodeSeed {
 	readonly terminal: true | unknown | undefined;
 	/** `undefined` (SENTINEL) when there is none. */
 	readonly privateState: unknown;
-	readonly deps?: readonly Node<unknown>[];
+	/** The graph ids of the first lifetime's dependencies; they may be made after this node. */
+	readonly deps?: readonly string[];
 	readonly note?: unknown;
 }
 

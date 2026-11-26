@@ -78,6 +78,9 @@ function unchanged(dep: CtxDep, terminal: DepTerminal | undefined): CtxDep {
 		},
 		waves: NO_WAVES,
 		terminal,
+		get replaced() {
+			return dep.replaced;
+		},
 		get value() {
 			return dep.value;
 		},

@@ -9,12 +9,12 @@ import { renderSnapshot } from "../graph/render.js";
 import { describe, expect, it } from "vitest";
 import type { Ctx, Graph, Message, Node } from "../index.js";
 import { concatMap, Dispatcher, exhaustMap, graph, mergeMap, repeat, switchMap } from "../index.js";
-import { CORE } from "../node/node-keys.js";
+import { recordOfNode } from "../node/node.js";
 import { collect } from "./helpers/collect.js";
 
 const data = (m: Message[]) =>
 	m.filter((x) => x[0] === "DATA").map((x) => (x as ["DATA", unknown])[1]);
-const coreOf = (n: Node<unknown>) => n[CORE];
+const coreOf = (n: Node<unknown>) => recordOfNode(n).kernel;
 
 class CountingDispatcher extends Dispatcher {
 	register(...args: Parameters<Dispatcher["register"]>): ReturnType<Dispatcher["register"]> {

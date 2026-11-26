@@ -1,5 +1,6 @@
 import { nodeOwnerForGraphUse, runtimeReleaseFailuresOfNode } from "../node/runtime-accessors.js";
 import type { OwnedConstruction } from "./construction-scope.js";
+
 /**
  * The Graph layer (CSP-2): convenience + inspection entry (D5 / R-graph-surface).
  *
@@ -13,11 +14,16 @@ import type { OwnedConstruction } from "./construction-scope.js";
  * R-invocation, R-edges-derived, R-meta-presentation.
  */
 
-import { batchIn, currentBatch } from "../batch/batch.js";
-import { isWaveActive, observeFailures, reportFailure } from "../batch/boundary.js";
 import type { Ctx, NodeFn } from "../ctx/types.js";
 import { type Dispatcher, defaultDispatcher } from "../dispatcher/index.js";
-import { NodeCore } from "../node/core.js";
+import {
+	idle,
+	Kernel,
+	batch as kernelBatch,
+	kOf,
+	observeFailures,
+	reportFailure,
+} from "../node/kernel.js";
 import { assertLocalName } from "../node/naming.js";
 import {
 	checkpointStateOfNode,
@@ -29,6 +35,8 @@ import {
 	Node,
 	type NodeOptions,
 	nodeCreationIndex,
+	nodeDefinition,
+	nodeReplace,
 	releaseRuntimeOfNode,
 	StateNode,
 	setGraphNodeIdResolver,
@@ -38,8 +46,6 @@ import {
 	withEnvironmentDrivers,
 	withNodeCore,
 } from "../node/node.js";
-import { SLOT } from "../node/node-keys.js";
-import { nodeDefinition, nodeReplace } from "../node/node-rewire-runtime.js";
 import {
 	constructionAcquisitions,
 	failNodeAcquisition,
@@ -133,7 +139,9 @@ export function assertGraphLocalNode(owner: Graph, n: Node<unknown>, label: stri
 	}
 }
 
-const graphsByCore = new WeakMap<NodeCore, Graph>();
+const graphsByCore = new WeakMap<Kernel, Graph>();
+/** A helper node built outside the graph index gets a synthetic id when described. */
+const helperIds = new WeakMap<Node<unknown>, string>();
 
 /**
  * Own a single graph-local topology, lifecycle, inspection index, and dispatcher boundary.
@@ -153,7 +161,7 @@ const graphsByCore = new WeakMap<NodeCore, Graph>();
 export class Graph {
 	private readonly _dispatcher: Dispatcher;
 	private readonly _environment: EnvironmentDrivers;
-	private readonly _core = new NodeCore();
+	private readonly _core = new Kernel();
 	private readonly _entries = new Map<Node<unknown>, Entry>();
 	private readonly _byId = new Map<string, Node<unknown>>();
 	private readonly _retiredIds = new Set<string>();
@@ -167,12 +175,19 @@ export class Graph {
 	private readonly _topologyQueue: TopologyEvent[] = [];
 	// Synthetic ids use their helper's existing runtime slot, preserving identity across rewires.
 	private _synthSeq = 0;
+	private readonly _helperIdsInUse = new Set<string>();
 
 	constructor(opts: GraphOptions = {}) {
 		this._dispatcher = opts.dispatcher ?? defaultDispatcher;
 		this._environment = opts.environment ?? EnvironmentDrivers.empty();
 		if (opts.profile) this._dispatcher.setRecording(true);
 		this._core.report = opts.report;
+		this._core.resolveId = (id) => {
+			const n = this._byId.get(id);
+			return n === undefined ? undefined : kOf(n);
+		};
+		this._core.idOf = (n) => this._idForTopologyNode(n.node);
+		this._core.registeredIdOf = (n) => this._entries.get(n.node)?.id;
 		graphsByCore.set(this._core, this);
 		graphRegistrations.set(this, new GraphRegistration(this, opts.name));
 	}
@@ -191,7 +206,8 @@ export class Graph {
 		this._assertDepsLocal(deps, `dep of '${opts.name ?? factory}'`);
 		const name = id ?? opts.name;
 		if (name !== undefined) this._assertAvailableId(name);
-		const nodeOpts = this._nodeOpts(opts);
+		const nodeOpts =
+			name === undefined ? this._nodeOpts(opts) : { ...this._nodeOpts(opts), id: name };
 		const acquired = supplied ?? { name: name ?? factory };
 		constructionAcquisitions.set(nodeOpts, acquired);
 		try {
@@ -209,7 +225,7 @@ export class Graph {
 		assertLocalName(id);
 		if (this._byId.has(id))
 			throw new Error(`graph: duplicate node id '${id}' (checkpoint/describe ids must be unique)`);
-		if (id.startsWith("~") && this._core.hasGraphId(id))
+		if (id.startsWith("~") && this._helperIdsInUse.has(id))
 			throw new Error(`graph: duplicate node id '${id}' (claimed by a live helper)`);
 		if (this._retiredIds.has(id))
 			throw new Error(`graph: node id '${id}' was released and cannot be reused (D152/D153)`);
@@ -502,15 +518,7 @@ export class Graph {
 	 * graph's own request, not part of this commit (R-graph-domain@3).
 	 */
 	batch<T>(fn: () => T): T {
-		const result = batchIn(this._core, fn);
-		// A body that returns a promise committed its synchronous part; later writes are separate.
-		if (typeof (result as { then?: unknown } | null | undefined)?.then === "function")
-			reportFailure(
-				this._core,
-				"batch",
-				"batch body returned a promise; writes after its first suspension are separate waves",
-			);
-		return result;
+		return kernelBatch(this._core, fn);
 	}
 
 	// ── operator funnel (D43): instantiate any free-standing Operator (node sugar, D6/L1.5) ──
@@ -620,12 +628,13 @@ export class Graph {
 	private _idForTopologyNode(n: Node<unknown>): string {
 		const e = this._entries.get(n);
 		if (e) return e.id;
-		let sid = n[SLOT].graphId;
+		let sid = helperIds.get(n);
 		if (sid === undefined) {
 			do {
 				sid = `~${n.factory ?? "?"}#${this._synthSeq++}`;
 			} while (this._byId.has(sid) || this._retiredIds.has(sid));
-			n[SLOT].graphId = sid;
+			helperIds.set(n, sid);
+			this._helperIdsInUse.add(sid);
 		}
 		return sid;
 	}
@@ -757,7 +766,7 @@ export class Graph {
 	 * taken only at a wave boundary; inside a wave or an open batch body it is refused.
 	 */
 	checkpoint(): GraphCheckpoint {
-		if (isWaveActive(this._core) || currentBatch(this._core))
+		if (!idle(this._core))
 			throw new Error(
 				"checkpoint: a checkpoint is taken only at a wave boundary, not inside a wave or a batch body (R-checkpoint)",
 			);
@@ -795,7 +804,7 @@ export class Graph {
 			visited.add(inner);
 			const sid = discovered.get(inner);
 			if (sid === undefined) continue;
-			const slot = inner[SLOT];
+			const slot = slotOf(inner);
 			for (const dep of [...slot.declaredDeps, ...slot.deps]) {
 				if (!this._entries.has(dep) && !visited.has(dep)) queue.push(dep);
 			}
@@ -836,7 +845,7 @@ export class Graph {
 	): GraphCheckpointNode {
 		const state = checkpointStateOfNode(node);
 		assertCheckpointQuiescentStatus(node.status, id, "checkpoint");
-		const slot = node[SLOT];
+		const slot = slotOf(node);
 		const isState = slot.fn === null && slot.declaredDeps.length === 0;
 		const helper = isNonAuthoritativeCollectionHelperMeta(opts.meta);
 		// R-checkpoint@1: a value the capture cannot save as JSON refuses the node here, by cause.
@@ -885,7 +894,7 @@ export class Graph {
 		id: string,
 		localId: (n: Node<unknown>) => string,
 	): GraphCheckpointLifetime | undefined {
-		const slot = node[SLOT];
+		const slot = slotOf(node);
 		const state = checkpointStateOfNode(node);
 		if (state.terminal !== undefined) return undefined;
 		// Restored and not run since: what it had received is its seed's note (R-checkpoint@1).
@@ -913,10 +922,28 @@ export class Graph {
 			out.state = checkpointJsonOf(id, CHECKPOINT_REFUSAL.privateState, state.privateState);
 		const deps = slot.deps;
 		const declared = slot.declaredDeps;
-		if (deps.length !== declared.length || deps.some((d, i) => d !== declared[i]))
+		if (slot.seedDeps !== null) out.deps = [...slot.seedDeps];
+		else if (deps.length !== declared.length || deps.some((d, i) => d !== declared[i]))
 			out.deps = deps.map(localId);
 		return out;
 	}
+}
+
+/** What a checkpoint reads of a node's kernel record. */
+function slotOf(node: Node<unknown>) {
+	const n = kOf(node);
+	return {
+		fn: n.fn,
+		declaredDeps: n.declaredDeps.map((d) => d.node),
+		deps: n.deps.map((d) => d.node),
+		/** The ids a seed gives a first lifetime that has not started (R-checkpoint: kept). */
+		seedDeps: n.seedDeps,
+		recipe: n.recipe,
+		completePolicy: n.policy.complete,
+		errorPolicy: n.policy.error,
+		invalidatePolicy: n.invalidate,
+		quiet: n.quiet,
+	};
 }
 
 /** R-node: a recipe the checkpoint can save is a factory reference with a JSON configuration. */
@@ -1063,11 +1090,7 @@ export function graph(opts: GraphOptions = {}): Graph {
 // R-invocation@3: registered nodes and graph-bound helpers share describe's identity resolver.
 setGraphNodeIdResolver((owner, node) => {
 	const graph =
-		owner instanceof Graph
-			? owner
-			: owner instanceof NodeCore
-				? graphsByCore.get(owner)
-				: undefined;
+		owner instanceof Graph ? owner : owner instanceof Kernel ? graphsByCore.get(owner) : undefined;
 	return graph === undefined
 		? undefined
 		: (graph as unknown as { _idForTopologyNode(n: Node<unknown>): string })._idForTopologyNode(
@@ -1113,7 +1136,7 @@ export function restoreNodeInGraph<T = unknown>(
 
 /** D167: shared operations on an exact issued Graph host, with no copied graph indexes. */
 interface GraphRuntimeHost {
-	_core: NodeCore;
+	_core: Kernel;
 	_byId: Map<string, Node<unknown>>;
 	_retiredIds: Set<string>;
 	_assertRegisteredNode(node: Node<unknown>, label: string): void;
@@ -1190,7 +1213,7 @@ class GraphRegistration implements GraphLifecycleRegistrar {
 		this.host._assertRegisteredNode(node, label);
 	}
 	atWaveBoundary(): boolean {
-		return !isWaveActive(this.host._core) && !currentBatch(this.host._core);
+		return idle(this.host._core);
 	}
 	observeFailures<R>(observer: (source: string, error: unknown) => void, run: () => R): R {
 		return observeFailures(this.host._core, observer, run);
