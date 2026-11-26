@@ -3,7 +3,7 @@
 	"rootCommit": "c11f03e90f24c7c7edcd12aac1c4f577aeee1768",
 	"tracesSha256": "e4786d556a67c3611abf0a7d4bd8297b780faed3d7a451fd7feead21d9f82f0a",
 	"packageRevision": "graphrefly-ts:0.10.0",
-	"sourceRevision": "21598a20ebc8a8adc5ca8333aef5e3338489cb2c",
+	"sourceRevision": "80ba8f87a68fb7e66d2e4d267912968fbfd4bebe",
 	"clock": "vitest fake timers (vi.useFakeTimers), advanced only by advance steps",
 	"baseline": "Phase 0 of graphrefly-ts:D817-KERNEL-REPORT-TS, on the kernel before its re-port: failures are classified, not diagnosed",
 	"ships": [
@@ -57,9 +57,9 @@
 		"fail": 258,
 		"notRun": 183,
 		"failByClass": {
-			"behavior": 129,
-			"error": 74,
-			"framing": 55
+			"behavior": 123,
+			"error": 106,
+			"framing": 29
 		}
 	},
 	"results": [
@@ -2755,156 +2755,156 @@
 		{
 			"id": "OT-504",
 			"result": "fail",
-			"class": "framing",
+			"class": "error",
 			"step": 0,
-			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: k <- x: expected [[[\"START\"]]] got [] (TS refused: subscribe: trace: no node x in the graph)"
+			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: TS refused subscribe: trace: no node x in the graph"
 		},
 		{
 			"id": "OT-505",
 			"result": "fail",
-			"class": "framing",
+			"class": "error",
 			"step": 0,
-			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: k <- x: expected [[[\"START\"]]] got [] (TS refused: subscribe: trace: no node x in the graph)"
+			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: TS refused subscribe: trace: no node x in the graph"
 		},
 		{
 			"id": "OT-506",
 			"result": "fail",
-			"class": "framing",
+			"class": "error",
 			"step": 0,
-			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: k <- x: expected [[[\"START\"]]] got [] (TS refused: subscribe: trace: no node x in the graph)"
+			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: TS refused subscribe: trace: no node x in the graph"
 		},
 		{
 			"id": "OT-507",
 			"result": "fail",
-			"class": "framing",
+			"class": "error",
 			"step": 0,
-			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: k <- x: expected [[[\"START\"]]] got [] (TS refused: subscribe: trace: no node x in the graph)"
+			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: TS refused subscribe: trace: no node x in the graph"
 		},
 		{
 			"id": "OT-508",
 			"result": "fail",
-			"class": "framing",
+			"class": "error",
 			"step": 0,
-			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: k <- x: expected [[[\"START\"]]] got [] (TS refused: subscribe: trace: no node x in the graph)"
+			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: TS refused subscribe: trace: no node x in the graph"
 		},
 		{
 			"id": "OT-509",
 			"result": "fail",
-			"class": "framing",
+			"class": "error",
 			"step": 0,
-			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: k <- x: expected [[[\"START\"]]] got [] (TS refused: subscribe: trace: no node x in the graph)"
+			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: TS refused subscribe: trace: no node x in the graph"
 		},
 		{
 			"id": "OT-510",
 			"result": "fail",
-			"class": "framing",
+			"class": "error",
 			"step": 0,
-			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: k <- x: expected [[[\"START\"]]] got [] (TS refused: subscribe: trace: no node x in the graph)"
+			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: TS refused subscribe: trace: no node x in the graph"
 		},
 		{
 			"id": "OT-511",
 			"result": "fail",
-			"class": "framing",
+			"class": "error",
 			"step": 0,
-			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: k <- x: expected [[[\"START\"]]] got [] (TS refused: subscribe: trace: no node x in the graph)"
+			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: TS refused subscribe: trace: no node x in the graph"
 		},
 		{
 			"id": "OT-512",
 			"result": "fail",
-			"class": "framing",
+			"class": "error",
 			"step": 0,
-			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: k <- x: expected [[[\"START\"]]] got [] (TS refused: subscribe: trace: no node x in the graph)"
+			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: TS refused subscribe: trace: no node x in the graph"
 		},
 		{
 			"id": "OT-513",
 			"result": "fail",
-			"class": "framing",
+			"class": "error",
 			"step": 0,
-			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: k <- x: expected [[[\"START\"]]] got [] (TS refused: subscribe: trace: no node x in the graph)"
+			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: TS refused subscribe: trace: no node x in the graph"
 		},
 		{
 			"id": "OT-514",
 			"result": "fail",
-			"class": "framing",
+			"class": "error",
 			"step": 0,
-			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: k <- x: expected [[[\"START\"]]] got [] (TS refused: subscribe: trace: no node x in the graph)"
+			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: TS refused subscribe: trace: no node x in the graph"
 		},
 		{
 			"id": "OT-515",
 			"result": "fail",
-			"class": "framing",
+			"class": "error",
 			"step": 0,
-			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: k <- x: expected [[[\"START\"]]] got [] (TS refused: subscribe: trace: no node x in the graph)"
+			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: TS refused subscribe: trace: no node x in the graph"
 		},
 		{
 			"id": "OT-516",
 			"result": "fail",
-			"class": "behavior",
+			"class": "error",
 			"step": 0,
-			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: k <- x: expected [[[\"START\"],[\"DATA\",0]]] got [] (TS refused: subscribe: trace: no node x in the graph)"
+			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: TS refused subscribe: trace: no node x in the graph"
 		},
 		{
 			"id": "OT-517",
 			"result": "fail",
-			"class": "framing",
+			"class": "error",
 			"step": 0,
-			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: k <- x: expected [[[\"START\"]]] got [] (TS refused: subscribe: trace: no node x in the graph)"
+			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: TS refused subscribe: trace: no node x in the graph"
 		},
 		{
 			"id": "OT-518",
 			"result": "fail",
-			"class": "framing",
+			"class": "error",
 			"step": 0,
-			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: k <- x: expected [[[\"START\"]]] got [] (TS refused: subscribe: trace: no node x in the graph)"
+			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: TS refused subscribe: trace: no node x in the graph"
 		},
 		{
 			"id": "OT-519",
 			"result": "fail",
-			"class": "framing",
+			"class": "error",
 			"step": 0,
-			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: k <- x: expected [[[\"START\"]]] got [] (TS refused: subscribe: trace: no node x in the graph)"
+			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: TS refused subscribe: trace: no node x in the graph"
 		},
 		{
 			"id": "OT-520",
 			"result": "fail",
-			"class": "framing",
+			"class": "error",
 			"step": 0,
-			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: k <- x: expected [[[\"START\"]]] got [] (TS refused: subscribe: trace: no node x in the graph)"
+			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: TS refused subscribe: trace: no node x in the graph"
 		},
 		{
 			"id": "OT-521",
 			"result": "fail",
-			"class": "framing",
+			"class": "error",
 			"step": 0,
-			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: k <- x: expected [[[\"START\"]]] got [] (TS refused: subscribe: trace: no node x in the graph)"
+			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: TS refused subscribe: trace: no node x in the graph"
 		},
 		{
 			"id": "OT-522",
 			"result": "fail",
-			"class": "behavior",
+			"class": "error",
 			"step": 0,
-			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: k <- x: expected [[[\"START\"],[\"DATA\",0]]] got [] (TS refused: subscribe: trace: no node x in the graph)"
+			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: TS refused subscribe: trace: no node x in the graph"
 		},
 		{
 			"id": "OT-523",
 			"result": "fail",
-			"class": "framing",
+			"class": "error",
 			"step": 0,
-			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: k <- x: expected [[[\"START\"]]] got [] (TS refused: subscribe: trace: no node x in the graph)"
+			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: TS refused subscribe: trace: no node x in the graph"
 		},
 		{
 			"id": "OT-524",
 			"result": "fail",
-			"class": "framing",
+			"class": "error",
 			"step": 0,
-			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: k <- x: expected [[[\"START\"]]] got [] (TS refused: subscribe: trace: no node x in the graph)"
+			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: TS refused subscribe: trace: no node x in the graph"
 		},
 		{
 			"id": "OT-525",
 			"result": "fail",
-			"class": "framing",
+			"class": "error",
 			"step": 0,
-			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: k <- x: expected [[[\"START\"]]] got [] (TS refused: subscribe: trace: no node x in the graph)"
+			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: TS refused subscribe: trace: no node x in the graph"
 		},
 		{
 			"id": "OT-526",
@@ -2930,16 +2930,16 @@
 		{
 			"id": "OT-529",
 			"result": "fail",
-			"class": "behavior",
+			"class": "error",
 			"step": 3,
-			"detail": "step 3 [\"subscribe\",\"k\",\"x\"]: k <- x: expected [[[\"START\"],[\"DATA\",[1]],[\"COMPLETE\"]]] got [] (TS refused: subscribe: trace: no node x in the graph)"
+			"detail": "step 3 [\"subscribe\",\"k\",\"x\"]: TS refused subscribe: trace: no node x in the graph"
 		},
 		{
 			"id": "OT-530",
 			"result": "fail",
-			"class": "behavior",
+			"class": "error",
 			"step": 3,
-			"detail": "step 3 [\"subscribe\",\"k\",\"x\"]: k <- x: expected [[[\"START\"],[\"DATA\",1],[\"COMPLETE\"]]] got [] (TS refused: subscribe: trace: no node x in the graph)"
+			"detail": "step 3 [\"subscribe\",\"k\",\"x\"]: TS refused subscribe: trace: no node x in the graph"
 		},
 		{
 			"id": "OT-531",
@@ -2965,16 +2965,16 @@
 		{
 			"id": "OT-534",
 			"result": "fail",
-			"class": "framing",
+			"class": "error",
 			"step": 0,
-			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: k <- x: expected [[[\"START\"]]] got [] (TS refused: subscribe: trace: no node x in the graph)"
+			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: TS refused subscribe: trace: no node x in the graph"
 		},
 		{
 			"id": "OT-535",
 			"result": "fail",
-			"class": "behavior",
+			"class": "error",
 			"step": 0,
-			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: k <- x: expected [[[\"START\"],[\"DATA\",1],[\"DATA\",2],[\"DATA\",3]]] got [] (TS refused: subscribe: trace: no node x in the graph)"
+			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: TS refused subscribe: trace: no node x in the graph"
 		},
 		{
 			"id": "OT-536",
@@ -2993,16 +2993,16 @@
 		{
 			"id": "OT-538",
 			"result": "fail",
-			"class": "framing",
+			"class": "error",
 			"step": 0,
-			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: k <- x: expected [[[\"START\"]]] got [] (TS refused: subscribe: trace: no node x in the graph)"
+			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: TS refused subscribe: trace: no node x in the graph"
 		},
 		{
 			"id": "OT-539",
 			"result": "fail",
-			"class": "behavior",
+			"class": "error",
 			"step": 0,
-			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: k <- x: expected [[[\"START\"],[\"DATA\",0]]] got [] (TS refused: subscribe: trace: no node x in the graph)"
+			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: TS refused subscribe: trace: no node x in the graph"
 		},
 		{
 			"id": "OT-540",
@@ -3021,9 +3021,9 @@
 		{
 			"id": "OT-542",
 			"result": "fail",
-			"class": "framing",
+			"class": "error",
 			"step": 0,
-			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: k <- x: expected [[[\"START\"]]] got [] (TS refused: subscribe: trace: no node x in the graph)"
+			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: TS refused subscribe: trace: no node x in the graph"
 		},
 		{
 			"id": "OT-543",
@@ -3035,9 +3035,9 @@
 		{
 			"id": "OT-544",
 			"result": "fail",
-			"class": "framing",
+			"class": "error",
 			"step": 0,
-			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: k <- x: expected [[[\"START\"]]] got [] (TS refused: subscribe: trace: no node x in the graph)"
+			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: TS refused subscribe: trace: no node x in the graph"
 		},
 		{
 			"id": "OT-545",
@@ -3075,9 +3075,9 @@
 		{
 			"id": "OT-551",
 			"result": "fail",
-			"class": "framing",
+			"class": "error",
 			"step": 0,
-			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: k <- x: expected [[[\"START\"]]] got [] (TS refused: subscribe: trace: no node x in the graph)"
+			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: TS refused subscribe: trace: no node x in the graph"
 		},
 		{
 			"id": "OT-552",
@@ -3133,9 +3133,9 @@
 		{
 			"id": "OT-561",
 			"result": "fail",
-			"class": "framing",
+			"class": "error",
 			"step": 0,
-			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: k <- x: expected [[[\"START\"]]] got [] (TS refused: subscribe: trace: no node x in the graph)"
+			"detail": "step 0 [\"subscribe\",\"k\",\"x\"]: TS refused subscribe: trace: no node x in the graph"
 		},
 		{
 			"id": "OT-562",
