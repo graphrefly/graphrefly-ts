@@ -3,7 +3,7 @@
 	"rootCommit": "c11f03e90f24c7c7edcd12aac1c4f577aeee1768",
 	"tracesSha256": "e4786d556a67c3611abf0a7d4bd8297b780faed3d7a451fd7feead21d9f82f0a",
 	"packageRevision": "graphrefly-ts:0.10.0",
-	"sourceRevision": "working tree",
+	"sourceRevision": "21598a20ebc8a8adc5ca8333aef5e3338489cb2c",
 	"clock": "vitest fake timers (vi.useFakeTimers), advanced only by advance steps",
 	"baseline": "Phase 0 of graphrefly-ts:D817-KERNEL-REPORT-TS, on the kernel before its re-port: failures are classified, not diagnosed",
 	"ships": [
